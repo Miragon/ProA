@@ -1,45 +1,47 @@
 <template>
-  <ProcessMapToolbar 
-    ref="toolbar" 
-    :selectedProjectId="selectedProjectId" 
-    :selectedProjectName="selectedProjectName"
-    :selectedVersionName="selectedVersionName" 
-    :selectedVersionId="selectedVersionId!"
-    @fetchProcessModels="fetchProcessModels" 
-    @filterGraph="filterGraph"
-    @handleFetchProcessInstances="handleFetchProcessInstances" />
+  <ProcessMapToolbar
+    ref="toolbar"
+    :selected-project-id="selectedProjectId"
+    :selected-project-name="selectedProjectName"
+    :selected-version-name="selectedVersionName"
+    :selected-version-id="selectedVersionId!"
+    @fetch-process-models="fetchProcessModels"
+    @filter-graph="filterGraph"
+    @handle-fetch-process-instances="handleFetchProcessInstances"
+  />
   <v-card class="full-screen-below-toolbar" @mouseup="saveGraphState">
-    <ProcessDetailSidebar ref="processDetailSidebar" @saveGraphState="saveGraphState" />
-    <div v-if="isFetching" class="d-flex align-center justify-center w-100 h-75">
+    <ProcessDetailSidebar
+      ref="processDetailSidebar"
+      @save-graph-state="saveGraphState"
+    />
+    <div
+      v-if="isFetching"
+      class="d-flex align-center justify-center w-100 h-75"
+    >
       <div class="d-flex flex-column align-center justify-center">
         <span class="mb-2">{{ $t("processMap.loadingProcessMap") }}</span>
         <v-progress-circular indeterminate />
       </div>
     </div>
-    <div :hidden="isFetching" id="graph-container" class="full-screen"></div>
-    <NavigationButtons ref="navigationButtons" :selectedProjectId="selectedProjectId" />
+    <div id="graph-container" :hidden="isFetching" class="full-screen"></div>
+    <NavigationButtons
+      ref="navigationButtons"
+      :selected-project-id="selectedProjectId"
+    />
   </v-card>
-  <v-tooltip id="tool-tip" v-model="tooltipVisible" :style="{ position: 'fixed', top: mouseY, left: mouseX }">
+  <v-tooltip
+    id="tool-tip"
+    v-model="tooltipVisible"
+    :style="{ position: 'fixed', top: mouseY, left: mouseX }"
+  >
     <ul v-if="tooltipList.length > 0">
-      <li v-for="item in tooltipList" v-bind:key="item">{{ item }}</li>
+      <li v-for="item in tooltipList" :key="item">{{ item }}</li>
     </ul>
     <span v-if="tooltipList.length === 0">{{
       $t("processMap.noInformationAvailable")
     }}</span>
   </v-tooltip>
 </template>
-
-<style>
-.full-screen-below-toolbar {
-  width: 100%;
-  height: calc(100% - 64px) !important;
-}
-
-.full-screen {
-  width: 100%;
-  height: 100%;
-}
-</style>
 
 <script lang="ts">
 import axios from "axios";
@@ -214,7 +216,6 @@ export default defineComponent({
         }
       });
 
-
       if (store.getProcessModelsChangeFlag()) {
         this.fetchProcessModels();
         store.unsetProcessModelsChanged();
@@ -262,7 +263,10 @@ export default defineComponent({
         linkView.addTools(
           new dia.ToolsView({
             name: "onhover",
-            tools: [new PortTargetArrowhead(), createLinkRemoveButton(removeLink)]
+            tools: [
+              new PortTargetArrowhead(),
+              createLinkRemoveButton(removeLink)
+            ]
           })
         );
       });
@@ -429,7 +433,7 @@ export default defineComponent({
           headers: authHeader()
         })
         .then((result) => {
-          let abstractProcessShapes: AbstractProcessShape[] =
+          const abstractProcessShapes: AbstractProcessShape[] =
             result.data.processes.map((process: Process) => {
               const filterEmpty = (label: string) => !!label;
 
@@ -465,7 +469,7 @@ export default defineComponent({
 
           graph.addCell(abstractProcessShapes);
 
-          let connectionsShapes = result.data.connections.map(
+          const connectionsShapes = result.data.connections.map(
             (connection: Connection) => {
               const link = new shapes.standard.Link();
 
@@ -504,7 +508,7 @@ export default defineComponent({
 
           graph.addCell(connectionsShapes);
 
-          let messageFlowShapes = result.data.messageFlows.map(
+          const messageFlowShapes = result.data.messageFlows.map(
             (messageFlow: MessageFlow) => {
               const link = new shapes.standard.Link();
 
@@ -550,7 +554,7 @@ export default defineComponent({
 
           graph.addCell(messageFlowShapes);
 
-          let abstractDataStores = result.data.dataStores.map(
+          const abstractDataStores = result.data.dataStores.map(
             (dataStore: DataStore) => {
               return createAbstractDataStoreElement(
                 dataStore.name,
@@ -561,48 +565,49 @@ export default defineComponent({
 
           graph.addCell(abstractDataStores);
 
-          let dataStoreConnectionShapes = result.data.dataStoreConnections.map(
-            (connection: DataStoreConnection) => {
-              const link = new shapes.standard.Link();
-              const source = {
-                id: connection.processid,
-                port: "call-" + connection.processid
-              };
-              const target = {
-                id: "ds-" + connection.dataStoreId,
-                anchor: { name: "midSide", args: { rotate: true } }
-              };
+          const dataStoreConnectionShapes =
+            result.data.dataStoreConnections.map(
+              (connection: DataStoreConnection) => {
+                const link = new shapes.standard.Link();
+                const source = {
+                  id: connection.processid,
+                  port: "call-" + connection.processid
+                };
+                const target = {
+                  id: "ds-" + connection.dataStoreId,
+                  anchor: { name: "midSide", args: { rotate: true } }
+                };
 
-              if (connection.access === "READ_WRITE") {
-                link.attr({
-                  line: {
-                    sourceMarker: {
-                      type: "path",
-                      stroke: "black",
-                      fill: "black",
-                      d: "M 10 -5 0 0 10 5 Z"
-                    },
-                    targetMarker: {
-                      type: "path",
-                      stroke: "black"
+                if (connection.access === "READ_WRITE") {
+                  link.attr({
+                    line: {
+                      sourceMarker: {
+                        type: "path",
+                        stroke: "black",
+                        fill: "black",
+                        d: "M 10 -5 0 0 10 5 Z"
+                      },
+                      targetMarker: {
+                        type: "path",
+                        stroke: "black"
+                      }
                     }
-                  }
-                });
+                  });
 
-                link.set({ connectionId: connection.id, source, target });
-              } else if (connection.access === "WRITE") {
-                link.set({ connectionId: connection.id, source, target });
-              } else if (connection.access === "READ") {
-                link.set({
-                  connectionId: connection.id,
-                  source: target,
-                  target: source
-                });
+                  link.set({ connectionId: connection.id, source, target });
+                } else if (connection.access === "WRITE") {
+                  link.set({ connectionId: connection.id, source, target });
+                } else if (connection.access === "READ") {
+                  link.set({
+                    connectionId: connection.id,
+                    source: target,
+                    target: source
+                  });
+                }
+
+                return link;
               }
-
-              return link;
-            }
-          );
+            );
 
           graph.addCell(dataStoreConnectionShapes);
 
@@ -779,7 +784,7 @@ export default defineComponent({
           .then((result) => {
             this.settings = result.data;
           });
-      } catch (error) {
+      } catch {
         this.settings = {} as Settings;
       }
 
@@ -830,7 +835,7 @@ export default defineComponent({
         );
         this.operateToken = result.data;
         await this.fetchProcessInstances();
-      } catch (error) {
+      } catch {
         this.appStore.setAreSettingsOpened(true);
         return;
       }
@@ -891,3 +896,15 @@ export default defineComponent({
   }
 });
 </script>
+
+<style>
+.full-screen-below-toolbar {
+  width: 100%;
+  height: calc(100% - 64px) !important;
+}
+
+.full-screen {
+  width: 100%;
+  height: 100%;
+}
+</style>

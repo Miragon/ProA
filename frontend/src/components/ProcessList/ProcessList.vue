@@ -42,16 +42,16 @@
     style="position: fixed; bottom: 8px; right: 8px; z-index: 1"
   >
     <v-tooltip location="top">
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-fab-transition>
           <v-btn
             class="mt-auto pointer-events-initial me-4"
             color="primary"
             elevation="8"
             icon="mdi-cloud"
-            @click="goToC8Import"
             size="large"
             v-bind="props"
+            @click="goToC8Import"
           ></v-btn>
         </v-fab-transition>
       </template>
@@ -64,8 +64,8 @@
         color="primary"
         elevation="8"
         icon="mdi-plus"
-        @click="openMultipleUploadDialog"
         size="large"
+        @click="openMultipleUploadDialog"
       />
     </v-fab-transition>
   </div>
@@ -87,10 +87,10 @@
   >
     <v-card>
       <v-card-title>
-        <span class="text-h5" v-if="uploadDialogMode === 'multiple'">{{
+        <span v-if="uploadDialogMode === 'multiple'" class="text-h5">{{
           $t("processList.uploadProcessModels")
         }}</span>
-        <span class="text-h5" v-if="uploadDialogMode === 'single'">{{
+        <span v-if="uploadDialogMode === 'single'" class="text-h5">{{
           $t("processList.replaceProcessModel")
         }}</span>
       </v-card-title>
@@ -100,20 +100,20 @@
             <v-col cols="12" sm="12" md="12" class="pt-0">
               <v-file-input
                 v-if="uploadDialogMode === 'multiple'"
-                :label="$t('processList.processModels')"
                 v-model="processModelFiles"
+                :label="$t('processList.processModels')"
                 chips
                 multiple
-                @change="handleFileSelection"
                 hide-details
+                @change="handleFileSelection"
               ></v-file-input>
               <v-file-input
                 v-if="uploadDialogMode === 'single'"
-                :label="$t('general.processModel')"
                 v-model="processModelFiles"
+                :label="$t('general.processModel')"
                 chips
-                @change="handleFileSelection"
                 hide-details
+                @change="handleFileSelection"
               ></v-file-input>
             </v-col>
           </v-row>
@@ -132,18 +132,18 @@
             </div>
             <v-col cols="12" sm="12" md="12" class="py-1">
               <v-text-field
+                v-model="file.name"
                 hide-details
                 label="Name"
-                v-model="file.name"
               ></v-text-field>
             </v-col>
             <v-col cols="12" sm="12" md="12" class="py-1">
               <v-row no-gutters align="center">
                 <v-col style="position: relative">
                   <v-textarea
+                    v-model="file.description"
                     rows="3"
                     :label="$t('general.description')"
-                    v-model="file.description"
                     :error-messages="descriptionErrors[index]"
                     @input="resetDescriptionErrors"
                   />
@@ -166,7 +166,7 @@
                     :text="$t('processList.generateDescriptionWithAI')"
                     location="bottom"
                   >
-                    <template v-slot:activator="{ props }">
+                    <template #activator="{ props }">
                       <v-icon
                         v-bind="props"
                         color="grey"
@@ -210,7 +210,7 @@
 
   <v-dialog v-model="progressDialog" max-width="600">
     <v-card title="Upload">
-      <template v-slot:text>
+      <template #text>
         {{ $t("processList.uploadingProcessModel") }}:
         {{ currentlyUploadingProcessModel.name }} ({{ currentUploadStatus }})
         <v-progress-linear
@@ -238,12 +238,12 @@
       prepend-icon="mdi-delete"
       :title="$t('processList.confirmDeletion')"
     >
-      <template v-slot:text>
+      <template #text>
         {{ $t("processList.confirmDeletionText1")
         }}<strong>{{ processModelToBeDeleted?.processName }}</strong
         >{{ $t("processList.confirmDeletionText2") }}
       </template>
-      <template v-slot:actions>
+      <template #actions>
         <div class="ms-auto">
           <v-btn
             :text="$t('general.cancel')"
@@ -264,10 +264,10 @@
       prepend-icon="mdi-alert-circle-outline"
       :title="$t('processList.error')"
     >
-      <template v-slot:text>
+      <template #text>
         {{ errorMessage }}
       </template>
-      <template v-slot:actions>
+      <template #actions>
         <div class="ms-auto">
           <v-btn
             :text="$t('general.close')"
@@ -278,16 +278,6 @@
     </v-card>
   </v-dialog>
 </template>
-
-<style scoped>
-.hover-icon {
-  transition: color 0.3s ease-in-out;
-}
-
-.hover-icon:hover {
-  color: #757575 !important;
-}
-</style>
 
 <script lang="ts">
 import axios from "axios";
@@ -365,6 +355,18 @@ export default defineComponent({
     currentlyUploadingProcessModel: {} as ProcessModelToUpload,
     currentUploadStatus: "" as string
   }),
+  computed: {
+    isUserLoggedIn(): boolean {
+      return this.appStore.getUserToken() != null;
+    }
+  },
+  watch: {
+    isUserLoggedIn(newValue) {
+      if (!newValue) {
+        this.$router.push("/");
+      }
+    }
+  },
   mounted: function () {
     this.selectedProjectId = this.appStore.selectedProjectId;
     if (!this.selectedProjectId) {
@@ -382,18 +384,6 @@ export default defineComponent({
 
       this.fetchProcessModels();
     });
-  },
-  computed: {
-    isUserLoggedIn(): boolean {
-      return this.appStore.getUserToken() != null;
-    }
-  },
-  watch: {
-    isUserLoggedIn(newValue) {
-      if (!newValue) {
-        this.$router.push("/");
-      }
-    }
   },
   methods: {
     showProcessInfoDialog(processId: number) {
@@ -574,7 +564,7 @@ export default defineComponent({
     },
 
     createProcessModelFormData(processModel: ProcessModelToUpload): FormData {
-      let formData = new FormData();
+      const formData = new FormData();
       const fileName =
         processModel.name ||
         processModel.file.name.replace(this.fileExtensionMatcher, "");
@@ -728,3 +718,13 @@ export default defineComponent({
   }
 });
 </script>
+
+<style scoped>
+.hover-icon {
+  transition: color 0.3s ease-in-out;
+}
+
+.hover-icon:hover {
+  color: #757575 !important;
+}
+</style>

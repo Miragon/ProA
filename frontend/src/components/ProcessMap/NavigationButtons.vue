@@ -6,8 +6,8 @@
         color="primary"
         elevation="8"
         icon="mdi-chevron-left"
-        @click="goLeft"
         size="large"
+        @click="goLeft"
       />
     </v-fab-transition>
     <v-fab-transition style="margin-right: 5px">
@@ -16,8 +16,8 @@
         color="primary"
         elevation="8"
         icon="mdi-chevron-right"
-        @click="goRight"
         size="large"
+        @click="goRight"
       />
     </v-fab-transition>
     <v-fab-transition style="margin-right: 5px">
@@ -26,8 +26,8 @@
         color="primary"
         elevation="8"
         icon="mdi-chevron-up"
-        @click="goUp"
         size="large"
+        @click="goUp"
       />
     </v-fab-transition>
     <v-fab-transition style="margin-right: 5px">
@@ -36,8 +36,8 @@
         color="primary"
         elevation="8"
         icon="mdi-chevron-down"
-        @click="goDown"
         size="large"
+        @click="goDown"
       />
     </v-fab-transition>
     <v-fab-transition style="margin-right: 5px">
@@ -46,8 +46,8 @@
         color="primary"
         elevation="8"
         icon="mdi-magnify-plus"
-        @click="zoomIn"
         size="large"
+        @click="zoomIn"
       />
     </v-fab-transition>
     <v-fab-transition style="margin-right: 5px">
@@ -56,8 +56,8 @@
         color="primary"
         elevation="8"
         icon="mdi-magnify-minus"
-        @click="zoomOut"
         size="large"
+        @click="zoomOut"
       />
     </v-fab-transition>
     <v-fab-transition style="margin-right: 5px">
@@ -66,14 +66,12 @@
         color="primary"
         elevation="8"
         icon="mdi-fit-to-screen"
-        @click="fitToScreen"
         size="large"
+        @click="fitToScreen"
       />
     </v-fab-transition>
   </div>
 </template>
-
-<style scoped></style>
 
 <script lang="ts">
 import { defineComponent } from "vue";
@@ -210,3 +208,5 @@ export default defineComponent({
   }
 });
 </script>
+
+<style scoped></style>

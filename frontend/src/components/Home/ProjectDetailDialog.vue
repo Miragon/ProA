@@ -1,5 +1,5 @@
 <template>
-  <v-dialog v-model="showProjectDetailDialog" width="600">
+  <v-dialog v-model="dialogModel" width="600">
     <v-card>
       <v-container>
         <v-card-title>{{ project.name }}</v-card-title>
@@ -11,28 +11,31 @@
             </p>
             <p
               v-for="member in project.projectMembers"
+              :key="'member-' + member.id"
               class="text-body-1 deletable"
             >
               {{ member.firstName + " " + member.lastName }}
-              <span class="font-weight-thin font-italic">{{ member.role }}</span>
+              <span class="font-weight-thin font-italic">{{
+                member.role
+              }}</span>
             </p>
             <v-text-field
-              class="mt-2"
+              ref="newContributorEmailInput"
               v-model="newContributorEmail"
+              class="mt-2"
               :label="$t('authentication.email')"
               density="compact"
-              ref="newContributorEmailInput"
               :rules="emailRules"
               :error-messages="newContributorErrorMsg"
               @input="newContributorErrorMsg = ''"
               @focusout="resetValidation"
             >
-              <template v-slot:append>
+              <template #append>
                 <v-btn
                   append-icon="mdi-plus"
                   :text="$t('projectOverview.addNew')"
-                  @click="addContributor"
                   variant="tonal"
+                  @click="addContributor"
                 ></v-btn>
               </template>
             </v-text-field>
@@ -44,6 +47,7 @@
             </p>
             <p
               v-for="version in project.versions"
+              :key="'version-' + version.id"
               class="text-body-1 deletable"
               @click="deleteVersion(project, version)"
             >
@@ -82,17 +86,6 @@
   </v-dialog>
 </template>
 
-<style scoped>
-.card-section {
-  margin: 2rem 0;
-}
-
-.deletable:hover {
-  cursor: pointer;
-  text-decoration: line-through;
-}
-</style>
-
 <script lang="ts">
 import { defineComponent } from "vue";
 import { Project, ProjectVersion } from "@/components/Home/ProjectOverview.vue";
@@ -114,14 +107,13 @@ export default defineComponent({
       type: Number,
       required: true
     },
-    userId: {
-      type: Number
-    },
     projectChangedFlag: {
       type: Boolean,
       required: true
     }
   },
+
+  emits: ["resetProjectChangedFlag", "close", "deleteVersion"],
 
   data: () => ({
     emailRules: emailRules,
@@ -129,6 +121,19 @@ export default defineComponent({
     newContributorErrorMsg: "" as string,
     project: {} as Project
   }),
+
+  computed: {
+    dialogModel: {
+      get(): boolean {
+        return this.showProjectDetailDialog;
+      },
+      set(value: boolean) {
+        if (!value) {
+          this.$emit("close");
+        }
+      }
+    }
+  },
 
   watch: {
     showProjectDetailDialog(newVal) {
@@ -175,7 +180,7 @@ export default defineComponent({
         return;
       }
 
-      let formData = new FormData();
+      const formData = new FormData();
       formData.append("email", this.newContributorEmail);
 
       try {
@@ -212,3 +217,14 @@ export default defineComponent({
   }
 });
 </script>
+
+<style scoped>
+.card-section {
+  margin: 2rem 0;
+}
+
+.deletable:hover {
+  cursor: pointer;
+  text-decoration: line-through;
+}
+</style>

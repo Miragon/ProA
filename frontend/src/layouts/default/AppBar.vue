@@ -9,8 +9,8 @@
 
     <v-spacer></v-spacer>
 
-    <v-tooltip location="bottom" v-if="webVersion && isUserLoggedIn">
-      <template v-slot:activator="{ props }">
+    <v-tooltip v-if="webVersion && isUserLoggedIn" location="bottom">
+      <template #activator="{ props }">
         <v-btn v-bind="props" @click="openDialog(SelectedDialog.PROFILE)">
           <v-icon icon="mdi-account-circle"></v-icon>
         </v-btn>
@@ -19,10 +19,10 @@
     </v-tooltip>
 
     <v-tooltip
-      location="bottom"
       v-if="webVersion && isUserLoggedIn && isUserAdmin"
+      location="bottom"
     >
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn
           v-bind="props"
           @click="openDialog(SelectedDialog.CREATE_ACCOUNT)"
@@ -34,10 +34,10 @@
     </v-tooltip>
 
     <v-tooltip
-      location="bottom"
       v-if="webVersion && isUserLoggedIn && isUserAdmin"
+      location="bottom"
     >
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn v-bind="props" @click="$router.push('/ManageUsers')">
           <v-icon icon="mdi-account-multiple"></v-icon>
         </v-btn>
@@ -45,8 +45,8 @@
       {{ $t("navigation.manageUsers") }}
     </v-tooltip>
 
-    <v-tooltip location="bottom" v-if="webVersion && isUserLoggedIn">
-      <template v-slot:activator="{ props }">
+    <v-tooltip v-if="webVersion && isUserLoggedIn" location="bottom">
+      <template #activator="{ props }">
         <v-btn v-bind="props" @click="signOut">
           <v-icon icon="mdi-logout"></v-icon>
         </v-btn>
@@ -55,7 +55,7 @@
     </v-tooltip>
 
     <v-menu>
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn color="white" variant="text" v-bind="props">
           {{ selectedLanguage.toUpperCase() }}
         </v-btn>
@@ -77,7 +77,7 @@
       :text="$t('general.settings')"
       location="bottom"
     >
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn icon v-bind="props" @click="toggleSettings">
           <v-icon>mdi-cog</v-icon>
         </v-btn>
@@ -88,7 +88,6 @@
   <v-navigation-drawer v-model="drawer" location="left" temporary>
     <v-list flat dense nav class="py-1 px-0">
       <v-list-item
-        @click="$router.push({ path: item.route })"
         v-for="item in items"
         :key="item.title"
         dense
@@ -97,6 +96,7 @@
           item.title !== $t('navigation.projectOverview')
         "
         class="px-2"
+        @click="$router.push({ path: item.route })"
       >
         <v-list-item-title class="text-body-1 font-weight-regular"
           >{{ item.title }}
@@ -109,8 +109,6 @@
 
   <AuthenticationDialog v-if="webVersion" />
 </template>
-
-<style scoped></style>
 
 <script lang="ts">
 import { defineComponent } from "vue";
@@ -129,29 +127,6 @@ interface Language {
 
 export default defineComponent({
   components: { AuthenticationDialog, SettingsDrawer },
-  methods: {
-    changeLanguage(language: LanguageCode) {
-      this.selectedLanguage = language;
-      this.store.setSelectedLanguage(language);
-      i18n.global.locale = language;
-    },
-    lowerFirstLetter(s: string | undefined) {
-      if (!s) {
-        return "";
-      }
-      return s.charAt(0).toLowerCase() + s.slice(1);
-    },
-    toggleSettings() {
-      this.store.setAreSettingsOpened(!this.store.getAreSettingsOpened());
-    },
-    signOut() {
-      this.store.setUserToken(null);
-      this.store.setUserRole(null);
-    },
-    openDialog(dialog: SelectedDialog) {
-      this.store.setSelectedDialog(dialog);
-    }
-  },
 
   data: () => {
     const store = useAppStore();
@@ -167,10 +142,6 @@ export default defineComponent({
       showProfileSuccessMessage: false as boolean,
       SelectedDialog: SelectedDialog
     };
-  },
-
-  async mounted() {
-    i18n.global.locale = this.selectedLanguage;
   },
 
   computed: {
@@ -229,6 +200,35 @@ export default defineComponent({
     group() {
       this.drawer = false;
     }
+  },
+
+  async mounted() {
+    i18n.global.locale = this.selectedLanguage;
+  },
+  methods: {
+    changeLanguage(language: LanguageCode) {
+      this.selectedLanguage = language;
+      this.store.setSelectedLanguage(language);
+      i18n.global.locale = language;
+    },
+    lowerFirstLetter(s: string | undefined) {
+      if (!s) {
+        return "";
+      }
+      return s.charAt(0).toLowerCase() + s.slice(1);
+    },
+    toggleSettings() {
+      this.store.setAreSettingsOpened(!this.store.getAreSettingsOpened());
+    },
+    signOut() {
+      this.store.setUserToken(null);
+      this.store.setUserRole(null);
+    },
+    openDialog(dialog: SelectedDialog) {
+      this.store.setSelectedDialog(dialog);
+    }
   }
 });
 </script>
+
+<style scoped></style>

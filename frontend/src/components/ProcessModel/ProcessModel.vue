@@ -1,67 +1,100 @@
 <template>
   <v-card height="100%">
-    <div v-if="isFetching" class="d-flex align-center justify-center w-100 h-75">
+    <div
+      v-if="isFetching"
+      class="d-flex align-center justify-center w-100 h-75"
+    >
       <div class="d-flex flex-column align-center justify-center">
-        <span class="mb-2 mx-5 text-center">{{ $t('processView.loadingProcessModel') }}</span>
-        <v-progress-circular indeterminate/>
+        <span class="mb-2 mx-5 text-center">{{
+          $t("processView.loadingProcessModel")
+        }}</span>
+        <v-progress-circular indeterminate />
       </div>
     </div>
     <div id="process-modelling" class="full-screen"></div>
-    <div class="ma-4" style="position: absolute; bottom: 8px; right: 8px;">
+    <div class="ma-4" style="position: absolute; bottom: 8px; right: 8px">
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-chevron-left"
-               @click="goLeft"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-chevron-left"
+          size="large"
+          @click="goLeft"
+        />
       </v-fab-transition>
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-chevron-right"
-               @click="goRight"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-chevron-right"
+          size="large"
+          @click="goRight"
+        />
       </v-fab-transition>
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-chevron-up" @click="goUp"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-chevron-up"
+          size="large"
+          @click="goUp"
+        />
       </v-fab-transition>
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-chevron-down"
-               @click="goDown"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-chevron-down"
+          size="large"
+          @click="goDown"
+        />
       </v-fab-transition>
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-magnify-plus"
-               @click="zoomIn"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-magnify-plus"
+          size="large"
+          @click="zoomIn"
+        />
       </v-fab-transition>
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-magnify-minus"
-               @click="zoomOut"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-magnify-minus"
+          size="large"
+          @click="zoomOut"
+        />
       </v-fab-transition>
       <v-fab-transition style="margin-right: 5px">
-        <v-btn class="mt-auto pointer-events-initial" color="primary" elevation="8" icon="mdi-fit-to-screen"
-               @click="fitToScreen"
-               size="large"/>
+        <v-btn
+          class="mt-auto pointer-events-initial"
+          color="primary"
+          elevation="8"
+          icon="mdi-fit-to-screen"
+          size="large"
+          @click="fitToScreen"
+        />
       </v-fab-transition>
     </div>
-    <div class="ma-4" style="position: absolute; top: 8px; left: 8px;">
-      <v-btn prepend-icon="mdi-arrow-left"
-             @click="goBack">
-        Zurück
-      </v-btn>
+    <div class="ma-4" style="position: absolute; top: 8px; left: 8px">
+      <v-btn prepend-icon="mdi-arrow-left" @click="goBack"> Zurück </v-btn>
     </div>
   </v-card>
 </template>
-<style>
-.full-screen {
-  width: 100%;
-  height: 100%;
-}
-</style>
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent } from "vue";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
-import ElementRegistry from 'diagram-js/lib/core/ElementRegistry';
-import axios from 'axios';
+import ElementRegistry from "diagram-js/lib/core/ElementRegistry";
+import { ElementLike } from "diagram-js/lib/model/Types";
+import axios from "axios";
 import { Canvas } from "bpmn-js/lib/features/context-pad/ContextPadProvider";
 import { useAppStore } from "@/store/app";
 import { authHeader } from "@/components/Authentication/authHeader";
@@ -75,44 +108,6 @@ export default defineComponent({
     zoomOutMultiplier: 0.9,
     isFetching: false as boolean
   }),
-
-  async mounted() {
-    this.isFetching = true;
-    this.addKeydownListener();
-
-    const container = document.querySelector('#process-modelling') as HTMLElement;
-    const viewer = new NavigatedViewer({
-      container
-    });
-
-    this.canvas = viewer.get('canvas') as Canvas;
-
-    const url = '/api/process-model/' + this.$route.params.id;
-    try {
-      const response = await axios.get(url, { headers: authHeader() });
-      const xmlText = response.data;
-      await viewer.importXML(xmlText);
-    } catch (error) {
-      console.log(error);
-    }
-
-    this.canvas.zoom('fit-viewport', 'auto');
-    const portId = this.$route.query.portId as string;
-    if (portId) {
-      const elementRegistry = viewer.get<ElementRegistry>('elementRegistry');
-      const port = elementRegistry.get(portId);
-      if (port) {
-        this.translateToCenter(port);
-      }
-      this.removeQueryParams();
-    }
-
-    this.isFetching = false;
-  },
-
-  beforeUnmount() {
-    this.removeKeydownListener();
-  },
 
   computed: {
     isUserLoggedIn() {
@@ -128,10 +123,51 @@ export default defineComponent({
     }
   },
 
+  async mounted() {
+    this.isFetching = true;
+    this.addKeydownListener();
+
+    const container = document.querySelector(
+      "#process-modelling"
+    ) as HTMLElement;
+    const viewer = new NavigatedViewer({
+      container
+    });
+
+    this.canvas = viewer.get("canvas") as Canvas;
+
+    const url = "/api/process-model/" + this.$route.params.id;
+    try {
+      const response = await axios.get(url, { headers: authHeader() });
+      const xmlText = response.data;
+      await viewer.importXML(xmlText);
+    } catch (error) {
+      console.log(error);
+    }
+
+    this.canvas.zoom("fit-viewport", "auto");
+    const portId = this.$route.query.portId as string;
+    if (portId) {
+      const elementRegistry = viewer.get<ElementRegistry>("elementRegistry");
+      const port = elementRegistry.get(portId);
+      if (port) {
+        this.translateToCenter(port);
+      }
+      this.removeQueryParams();
+    }
+
+    this.isFetching = false;
+  },
+
+  beforeUnmount() {
+    this.removeKeydownListener();
+  },
+
   methods: {
-    translateToCenter(port: any) {
+    translateToCenter(port: ElementLike) {
       const viewbox = this.canvas.viewbox();
-      const elementBounds = port.width && port.height ? port : this.canvas.getBBox(port);
+      const elementBounds =
+        port.width && port.height ? port : this.canvas.getBBox(port);
       const elementCenter = {
         x: elementBounds.x + elementBounds.width / 2,
         y: elementBounds.y + elementBounds.height / 2
@@ -146,14 +182,14 @@ export default defineComponent({
     },
     zoomIn() {
       const currScale = this.canvas.viewbox().scale;
-      this.canvas.zoom(currScale * this.zoomInMultiplier, 'auto');
+      this.canvas.zoom(currScale * this.zoomInMultiplier, "auto");
     },
     zoomOut() {
       const currScale = this.canvas.viewbox().scale;
-      this.canvas.zoom(currScale * this.zoomOutMultiplier, 'auto');
+      this.canvas.zoom(currScale * this.zoomOutMultiplier, "auto");
     },
     fitToScreen() {
-      this.canvas.zoom('fit-viewport', 'auto');
+      this.canvas.zoom("fit-viewport", "auto");
     },
     goRight() {
       const { x, y, width, height } = this.canvas.viewbox();
@@ -173,44 +209,50 @@ export default defineComponent({
     },
     removeQueryParams() {
       const url = new URL(window.location.href);
-      url.searchParams.delete('portId');
-      window.history.replaceState({}, '', url.pathname + url.search);
+      url.searchParams.delete("portId");
+      window.history.replaceState({}, "", url.pathname + url.search);
     },
     goBack() {
       this.removeQueryParams();
       this.$router.go(-1);
     },
     addKeydownListener() {
-      window.addEventListener('keydown', this.onKeyDown);
+      window.addEventListener("keydown", this.onKeyDown);
     },
     removeKeydownListener() {
-      window.removeEventListener('keydown', this.onKeyDown);
+      window.removeEventListener("keydown", this.onKeyDown);
     },
     onKeyDown(evt: KeyboardEvent) {
       switch (evt.key) {
-        case 'ArrowLeft':
+        case "ArrowLeft":
           this.goLeft();
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           this.goRight();
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           this.goUp();
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           this.goDown();
           break;
-        case '+':
+        case "+":
           this.zoomIn();
           break;
-        case '-':
+        case "-":
           this.zoomOut();
           break;
-        case 'f':
+        case "f":
           this.fitToScreen();
           break;
       }
     }
   }
-})
+});
 </script>
+<style>
+.full-screen {
+  width: 100%;
+  height: 100%;
+}
+</style>

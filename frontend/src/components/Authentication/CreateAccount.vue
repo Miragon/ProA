@@ -22,8 +22,8 @@
           @click:close="removeMessage"
         ></v-alert>
         <v-text-field
-          type="email"
           v-model="email"
+          type="email"
           :label="$t('authentication.email')"
           required
           variant="outlined"
@@ -39,8 +39,8 @@
           :rules="firstNameRules"
         ></v-text-field>
         <v-text-field
-          type="email"
           v-model="lastName"
+          type="email"
           :label="$t('authentication.lastName')"
           required
           variant="outlined"
@@ -48,8 +48,8 @@
           :rules="lastNameRules"
         ></v-text-field>
         <v-text-field
-          type="password"
           v-model="password"
+          type="password"
           :label="$t('authentication.password')"
           required
           variant="outlined"
@@ -67,10 +67,10 @@
         ></v-select>
         <v-btn
           type="button"
-          @click="createAccount"
           color="primary"
           block
           height="50"
+          @click="createAccount"
         >
           {{ $t("general.continue") }}
         </v-btn>
@@ -79,17 +79,13 @@
   </v-card>
 </template>
 
-<style scoped>
-@import "authentication.css";
-</style>
-
 <script lang="ts">
 import { defineComponent } from "vue";
 import {
   emailRules,
   firstNameRules,
   lastNameRules,
-  newPasswordRules,
+  newPasswordRules
 } from "@/components/Authentication/formValidation";
 import { VForm } from "vuetify/components";
 import axios, { AxiosError } from "axios";
@@ -104,9 +100,11 @@ export default defineComponent({
   props: {
     message: {
       type: Object,
-      required: true,
-    },
+      required: true
+    }
   },
+
+  emits: ["showMessage", "removeMessage"],
 
   data() {
     return {
@@ -120,7 +118,7 @@ export default defineComponent({
       passwordRules: newPasswordRules,
       SelectedDialog: SelectedDialog,
       store: useAppStore(),
-      selectedRole: Role.USER,
+      selectedRole: Role.USER
     };
   },
 
@@ -129,9 +127,9 @@ export default defineComponent({
       const roles = Object.values(Role);
       return roles.map((role) => ({
         value: role,
-        label: this.$t(`authentication.${role.toLowerCase()}`),
+        label: this.$t(`authentication.${role.toLowerCase()}`)
       }));
-    },
+    }
   },
 
   methods: {
@@ -152,16 +150,16 @@ export default defineComponent({
             password: this.password,
             firstName: this.firstName,
             lastName: this.lastName,
-            role: this.selectedRole,
+            role: this.selectedRole
           },
-          { headers: { ...authHeader(), "Content-Type": "application/json" } },
+          { headers: { ...authHeader(), "Content-Type": "application/json" } }
         );
 
         this.$emit("showMessage", {
           type: "success",
           message: this.$t(
-            "authentication.successfullyCreatedAccount",
-          ) as string,
+            "authentication.successfullyCreatedAccount"
+          ) as string
         });
 
         if (this.$route.name === "ManageUsers") {
@@ -173,7 +171,7 @@ export default defineComponent({
         if ((e as AxiosError).response?.status === 409) {
           this.$emit("showMessage", {
             type: "error",
-            message: this.$t("authentication.emailAlreadyRegistered") as string,
+            message: this.$t("authentication.emailAlreadyRegistered") as string
           });
           return;
         }
@@ -181,14 +179,14 @@ export default defineComponent({
         if ((e as AxiosError).response?.status === 429) {
           this.$emit("showMessage", {
             type: "error",
-            message: this.$t("authentication.tooManyRequests") as string,
+            message: this.$t("authentication.tooManyRequests") as string
           });
           return;
         }
 
         this.$emit("showMessage", {
           type: "error",
-          message: this.$t("authentication.accountCreationFailed") as string,
+          message: this.$t("authentication.accountCreationFailed") as string
         });
       }
     },
@@ -207,7 +205,11 @@ export default defineComponent({
 
       const form = this.$refs.createAccountForm as VForm;
       form.resetValidation();
-    },
-  },
+    }
+  }
 });
 </script>
+
+<style scoped>
+@import "authentication.css";
+</style>

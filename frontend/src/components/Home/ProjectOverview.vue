@@ -9,7 +9,7 @@
       :stacked="false"
       sticky
     >
-      <template v-slot:actions>
+      <template #actions>
         <v-btn icon @click="showLoggedInBanner = false">
           <v-icon>mdi-close</v-icon>
         </v-btn>
@@ -79,8 +79,8 @@
           lines="two"
           :text="$t('projectOverview.addVersion')"
           link
-          @click="openNewVersionDialog(project)"
           variant="tonal"
+          @click="openNewVersionDialog(project)"
         ></v-btn>
       </v-card-text>
       <v-divider></v-divider>
@@ -112,17 +112,21 @@
         prepend-icon="mdi-delete"
         :title="$t('projectOverview.confirmDeletion')"
       >
-        <template v-slot:text>
-          <div
-            v-html="
-              $t('projectOverview.confirmDeletionText', {
-                version: `<b>${projectVersionToBeDeleted!.name}</b>`,
-                project: `<b>${projectForDeletingVersion!.name}</b>`
-              })
-            "
-          ></div>
+        <template #text>
+          <i18n-t
+            keypath="projectOverview.confirmDeletionText"
+            tag="div"
+            scope="global"
+          >
+            <template #version>
+              <b>{{ projectVersionToBeDeleted!.name }}</b>
+            </template>
+            <template #project>
+              <b>{{ projectForDeletingVersion!.name }}</b>
+            </template>
+          </i18n-t>
         </template>
-        <template v-slot:actions>
+        <template #actions>
           <div class="ms-auto">
             <v-btn
               :text="$t('general.cancel')"
@@ -159,20 +163,20 @@
           </v-card-title>
           <v-card-text>
             <v-text-field
-              label="Name"
+              ref="newProjectNameInput"
               v-model="newProjectName"
+              label="Name"
               :rules="[
                 () =>
                   !!newProjectName || $t('projectOverview.projectNameRequired')
               ]"
-              ref="newProjectNameInput"
             ></v-text-field>
             <v-text-field
-              label="Version"
+              ref="newProjectVersionNameInput"
               v-model="newProjectVersionName"
+              label="Version"
               placeholder="1.0"
               :rules="newProjectVersionRules"
-              ref="newProjectVersionNameInput"
             ></v-text-field>
           </v-card-text>
           <v-card-actions>
@@ -205,8 +209,8 @@
           <v-card-text>
             <v-text-field
               ref="newVersionVersionNameInput"
-              :label="$t('projectOverview.newVersion')"
               v-model="newVersionName"
+              :label="$t('projectOverview.newVersion')"
               :rules="newVersionVersionRules"
             ></v-text-field>
           </v-card-text>
@@ -235,26 +239,12 @@
   <ProjectDetailDialog
     :show-project-detail-dialog="showProjectDetailDialog"
     :project-detail-id="projectDetailId"
-    :user-id="user.id"
     :project-changed-flag="projectChangedFlag"
     @close="closeProjectDetailDialog"
     @delete-version="openDeleteDialog"
     @reset-project-changed-flag="resetProjectChangedFlag"
   />
 </template>
-<style scoped>
-@import "@/styles/global.css";
-
-.active-card {
-  box-shadow: 0 0 10px 3px rgba(24, 103, 192, 0.5);
-}
-
-.active-text {
-  color: #1867c0;
-  font-weight: 500;
-  font-size: 0.875rem;
-}
-</style>
 <script lang="ts">
 import { defineComponent } from "vue";
 import axios from "axios";
@@ -422,7 +412,7 @@ export default defineComponent({
           return project.id === this.store.getSelectedProjectId() ? -1 : 0;
         });
         this.syncActiveVersions();
-      } catch (error) {
+      } catch {
         this.projects = [];
       }
     },
@@ -433,7 +423,9 @@ export default defineComponent({
         );
         if (
           !currentActiveVersion ||
-          !project.versions.map(version => version.id).includes(currentActiveVersion.id)
+          !project.versions
+            .map((version) => version.id)
+            .includes(currentActiveVersion.id)
         ) {
           this.store.setActiveVersionForProject(
             project.id,
@@ -469,7 +461,7 @@ export default defineComponent({
         }
       }
 
-      let formData = new FormData();
+      const formData = new FormData();
       formData.append("name", newProjectName);
       formData.append("version", newProjectVersionName);
 
@@ -489,7 +481,7 @@ export default defineComponent({
           this.$t("projectOverview.projectSuccessfullyCreated"),
           SnackbarType.SUCCESS
         );
-      } catch (error) {
+      } catch {
         await this.store.showSnackbar(
           this.$t("projectOverview.errorMessage"),
           SnackbarType.ERROR
@@ -507,7 +499,7 @@ export default defineComponent({
         return;
       }
 
-      let formData = new FormData();
+      const formData = new FormData();
       formData.append("versionName", this.newVersionName);
 
       const projectId = this.projectForNewVersion!.id;
@@ -531,7 +523,7 @@ export default defineComponent({
           this.$t("projectOverview.versionSuccessfullyCreated"),
           SnackbarType.SUCCESS
         );
-      } catch (error) {
+      } catch {
         await this.store.showSnackbar(
           this.$t("projectOverview.errorMessage"),
           SnackbarType.ERROR
@@ -554,7 +546,7 @@ export default defineComponent({
           this.$t("projectOverview.projectSuccessfullyDeleted"),
           SnackbarType.SUCCESS
         );
-      } catch (error) {
+      } catch {
         await this.store.showSnackbar(
           this.$t("projectOverview.errorMessage"),
           SnackbarType.ERROR
@@ -600,3 +592,16 @@ export default defineComponent({
   }
 });
 </script>
+<style scoped>
+@import "@/styles/global.css";
+
+.active-card {
+  box-shadow: 0 0 10px 3px rgba(24, 103, 192, 0.5);
+}
+
+.active-text {
+  color: #1867c0;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+</style>

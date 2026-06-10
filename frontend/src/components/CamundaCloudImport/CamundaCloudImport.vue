@@ -13,12 +13,12 @@
     <div v-if="importedProcessModels.length > 0">
       <v-list-item>
         <v-checkbox
+          v-model="selectAll"
           class="d-inline-block pe-3"
           hide-details
           @change="toggleSelectAll"
-          v-model="selectAll"
         >
-          <template v-slot:label>
+          <template #label>
             <span class="ms-3">{{ $t("c8Import.selectAll") }}</span>
           </template>
         </v-checkbox>
@@ -34,7 +34,7 @@
         <v-list-item-subtitle>
           {{ getLocaleDate(model.created) }} - {{ model.updatedBy.email }}
         </v-list-item-subtitle>
-        <template v-slot:prepend>
+        <template #prepend>
           <v-checkbox
             v-model="selectedProcessModels"
             :value="model"
@@ -103,8 +103,8 @@
             </v-col>
             <v-col cols="12" sm="12" md="12">
               <v-text-field
-                :disabled="!token"
                 v-model="creatorEmail"
+                :disabled="!token"
                 class="text-field__styled"
                 dense
                 color="#26376B"
@@ -140,7 +140,7 @@
   <v-dialog v-model="loadingDialog" max-width="320" persistent>
     <v-list class="py-2" color="primary" elevation="12" rounded="lg">
       <v-list-item :title="$t('c8Import.loading')">
-        <template v-slot:append>
+        <template #append>
           <v-progress-circular
             color="primary"
             indeterminate="disable-shrink"
@@ -161,27 +161,27 @@
         color="primary"
         elevation="8"
         icon="mdi-cloud-search"
-        @click="openDialog"
         size="large"
+        @click="openDialog"
       />
     </v-fab-transition>
   </div>
   <div
+    v-if="selectedProcessModels.length > 0"
     class="ma-4 d-flex align-center justify-center"
     style="position: fixed; bottom: 8px; right: 8px; left: 8px; height: 56px"
-    v-if="selectedProcessModels.length > 0"
   >
     <v-btn prepend-icon="mdi-import" @click="importProcessModels">
       {{ $t("c8Import.importProcessModels") }}
     </v-btn>
   </div>
   <div
-    class="ma-4"
     v-if="importedProcessModels.length > 0"
+    class="ma-4"
     :style="{ position: 'fixed', right: '8px', top: stickyButtonTop + 'px' }"
   >
     <v-menu :close-on-content-click="false">
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-badge
           v-if="
             emailSelections.filter((emailSelection) => emailSelection.selected)
@@ -224,7 +224,7 @@
             density="compact"
             @update:model-value="filterSelectedModels"
           >
-            <template v-slot:label>
+            <template #label>
               <span class="ms-1">{{ emailSelection.email }}</span>
             </template>
           </v-checkbox>
@@ -233,7 +233,6 @@
     </v-menu>
   </div>
 </template>
-<style scoped></style>
 <script lang="ts">
 import { defineComponent } from "vue";
 import axios from "axios";
@@ -419,7 +418,7 @@ export default defineComponent({
           .then((result) => {
             this.settings = result.data;
           });
-      } catch (error) {
+      } catch {
         this.settings = {} as Settings;
       }
 
@@ -439,7 +438,7 @@ export default defineComponent({
             headers: authHeader()
           });
           return !!result?.data;
-        } catch (error) {
+        } catch {
           return false;
         }
       };
@@ -505,3 +504,4 @@ export default defineComponent({
   }
 });
 </script>
+<style scoped></style>

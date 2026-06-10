@@ -1,6 +1,6 @@
 import { AbstractProcessShape } from "./AbstractProcessElement";
 import { AbstractDataStoreShape } from "./AbstractDataStoreElement";
-import { dia, shapes } from '@joint/core';
+import { dia, shapes } from "@joint/core";
 
 let linkIdCounter = 0;
 const shapeNamespace = {
@@ -25,14 +25,14 @@ export const paper = new dia.Paper({
   defaultLink: () => {
     const linkIdNumber = ++linkIdCounter;
     return new shapes.standard.Link({
-      id: `link${linkIdNumber}`,
-
+      id: `link${linkIdNumber}`
     });
   },
   defaultConnectionPoint: { name: "anchor" },
   defaultConnector: {
-    name: "straight", args: {
-      cornerType: 'cubic',
+    name: "straight",
+    args: {
+      cornerType: "cubic",
       cornerRadius: 8
     }
   },
@@ -43,13 +43,18 @@ export const paper = new dia.Paper({
     }
   },
   validateMagnet: (sourceView, sourceMagnet) => {
-    const sourceGroup = sourceView.findAttribute("port-group", sourceMagnet) || '';
+    const sourceGroup =
+      sourceView.findAttribute("port-group", sourceMagnet) || "";
     return ["end", "i-throw-event", "callActivity"].includes(sourceGroup);
   },
   validateConnection: (sourceView, sourceMagnet, targetView, targetMagnet) => {
     const targetGroup = targetView.findAttribute("port-group", targetMagnet);
     const target = targetView.model;
-    return sourceView !== targetView && !target.isLink() && (targetGroup == "start" || targetGroup == "i-catch-event");
+    return (
+      sourceView !== targetView &&
+      !target.isLink() &&
+      (targetGroup == "start" || targetGroup == "i-catch-event")
+    );
   },
   clickThreshold: 10,
   magnetThreshold: "onleave",

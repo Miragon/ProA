@@ -3,7 +3,7 @@
     v-if="modelNode.children.length > 0"
     v-bind="{ value: modelNode.id }"
   >
-    <template v-slot:activator="{ props }">
+    <template #activator="{ props }">
       <v-list-item v-bind="props" class="no-select">
         <v-list-item-title>
           {{ modelNode.processName }}
@@ -17,7 +17,7 @@
           {{ !!modelNode.description ? "-" : "" }} {{ modelNode.description }}
         </v-list-item-subtitle>
 
-        <template v-slot:append>
+        <template #append>
           <v-btn
             color="grey-lighten-1"
             icon="mdi-delete"
@@ -48,8 +48,8 @@
       class="no-select"
     >
       <ProcessTreeNode
-        :model="child"
         :key="'child-node-' + child.id"
+        :model="child"
         @delete-process="$emit('delete-process', child)"
         @upload-process="$emit('upload-process', child.id)"
         @more-info="$emit('more-info', child.id)"
@@ -75,7 +75,7 @@
       {{ !!modelNode.description ? "-" : "" }} {{ modelNode.description }}
     </v-list-item-subtitle>
 
-    <template v-slot:append>
+    <template #append>
       <v-btn
         color="grey-lighten-1"
         icon="mdi-delete"
@@ -105,12 +105,6 @@
   </v-list-item>
 </template>
 
-<style scoped>
-.no-select {
-  user-select: none;
-}
-</style>
-
 <script lang="ts">
 import { ProcessModelNode } from "@/components/ProcessList/ProcessList.vue";
 import { useAppStore } from "@/store/app";
@@ -118,8 +112,12 @@ import { useAppStore } from "@/store/app";
 export default {
   name: "ProcessTreeNode",
   props: {
-    model: Object
+    model: {
+      type: Object,
+      required: true
+    }
   },
+  emits: ["delete-process", "more-info", "upload-process"],
   data() {
     return {
       appStore: useAppStore(),
@@ -135,3 +133,9 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.no-select {
+  user-select: none;
+}
+</style>

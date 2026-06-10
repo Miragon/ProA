@@ -1,13 +1,13 @@
 .clickable-link {
-    cursor: pointer;
-    color: #1967C0;
+  cursor: pointer;
+  color: #1967c0;
 }
 
 .clickable-link:hover {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 .table-btn {
-    padding: 0;
-    min-width: 0;
+  padding: 0;
+  min-width: 0;
 }

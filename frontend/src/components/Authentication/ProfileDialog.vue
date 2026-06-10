@@ -90,7 +90,7 @@
           <tr v-for="project in projects" :key="'project-' + project.id">
             <td>
               <v-tooltip location="left">
-                <template v-slot:activator="{ props }">
+                <template #activator="{ props }">
                   <v-btn
                     variant="plain"
                     color="primary"
@@ -115,10 +115,6 @@
   </v-card>
 </template>
 
-<style scoped>
-@import "authentication.css";
-</style>
-
 <script lang="ts">
 import { defineComponent } from "vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
@@ -138,6 +134,8 @@ export default defineComponent({
     }
   },
 
+  emits: ["showMessage", "removeMessage"],
+
   data() {
     return {
       store: useAppStore(),
@@ -145,6 +143,11 @@ export default defineComponent({
       SelectedDialog: SelectedDialog,
       user: {} as UserData
     };
+  },
+
+  async mounted() {
+    this.fetchProjects();
+    if (this.store.getUserToken() != null) this.user = await getUser();
   },
 
   methods: {
@@ -190,11 +193,10 @@ export default defineComponent({
     removeMessage() {
       this.$emit("removeMessage");
     }
-  },
-
-  async mounted() {
-    this.fetchProjects();
-    if (this.store.getUserToken() != null) this.user = await getUser();
   }
 });
 </script>
+
+<style scoped>
+@import "authentication.css";
+</style>

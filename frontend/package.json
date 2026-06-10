@@ -11,7 +11,7 @@
     "lint:check": "eslint .",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "mode": "node setMode.js"
+    "mode": "node setMode.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "0.24.1",

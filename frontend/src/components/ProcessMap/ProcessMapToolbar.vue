@@ -15,7 +15,7 @@
       :text="$t('processMap.retrieveProcessInstances')"
       location="bottom"
     >
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn icon v-bind="props" @click="handleFetchProcessInstances">
           <v-icon>mdi-play</v-icon>
         </v-btn>
@@ -23,7 +23,7 @@
     </v-tooltip>
 
     <v-menu location="bottom" :close-on-content-click="false">
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn icon v-bind="props" class="me-5px">
           <v-icon>mdi-map-legend</v-icon>
         </v-btn>
@@ -33,7 +33,7 @@
     </v-menu>
 
     <v-menu location="bottom" :close-on-content-click="false">
-      <template v-slot:activator="{ props }">
+      <template #activator="{ props }">
         <v-btn v-if="filtersCount > 0" v-bind="props" icon class="me-5px">
           <v-badge color="white" :bordered="true" :content="filtersCount">
             <v-icon>mdi-filter-outline</v-icon>
@@ -53,26 +53,26 @@
             <div>{{ $t("processMap.hide") }}:</div>
             <div>
               <v-btn
-                @click="clearFilters"
                 variant="text"
                 :text="$t('processMap.clear')"
                 color="grey"
+                @click="clearFilters"
               />
             </div>
           </v-list-item-title>
         </v-list-item>
         <v-divider></v-divider>
         <v-list-item
-          class="filter-item"
           v-for="(label, filterOption) in filterOptions"
           :key="filterOption"
+          class="filter-item"
         >
           <v-checkbox
             v-model="filterGraphInput[filterOption]"
             :label="label"
             color="primary"
-            @change="filterGraph"
             hide-details
+            @change="filterGraph"
           ></v-checkbox>
         </v-list-item>
       </v-list>
@@ -83,16 +83,6 @@
     </v-btn>
   </v-toolbar>
 </template>
-
-<style scoped>
-.me-5px {
-  margin-right: 5px;
-}
-
-.filter-item {
-  height: 1rem;
-}
-</style>
 
 <script lang="ts">
 import { defineComponent } from "vue";
@@ -122,6 +112,8 @@ export default defineComponent({
       required: true
     }
   },
+
+  emits: ["filterGraph", "fetchProcessModels", "handleFetchProcessInstances"],
 
   data() {
     const store = useAppStore();
@@ -172,8 +164,7 @@ export default defineComponent({
     }
   },
 
-  mounted() {
-  },
+  mounted() {},
 
   methods: {
     clearFilters() {
@@ -198,3 +189,13 @@ export default defineComponent({
   }
 });
 </script>
+
+<style scoped>
+.me-5px {
+  margin-right: 5px;
+}
+
+.filter-item {
+  height: 1rem;
+}
+</style>

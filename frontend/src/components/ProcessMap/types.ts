@@ -78,10 +78,10 @@ export interface ProcessInstance {
 }
 
 export interface RouteObject {
-  path: string,
+  path: string;
   query?: {
-    portId: string
-  }
+    portId: string;
+  };
 }
 
 export type DataAccess = "READ" | "WRITE" | "READ_WRITE" | "NONE;";

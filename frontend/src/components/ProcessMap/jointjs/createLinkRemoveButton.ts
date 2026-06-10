@@ -1,8 +1,14 @@
 import { dia, linkTools } from "@joint/core";
 
-type RemoveAction = (evt: dia.Event, linkView: dia.LinkView, toolView: dia.ToolView) => Promise<void>;
+type RemoveAction = (
+  evt: dia.Event,
+  linkView: dia.LinkView,
+  toolView: dia.ToolView
+) => Promise<void>;
 
-const createLinkRemoveButton = (removeAction: RemoveAction): linkTools.Remove => {
+const createLinkRemoveButton = (
+  removeAction: RemoveAction
+): linkTools.Remove => {
   return new linkTools.Remove({
     distance: -60,
     action: removeAction,
@@ -30,7 +36,7 @@ const createLinkRemoveButton = (removeAction: RemoveAction): linkTools.Remove =>
         }
       }
     ]
-  })
-}
+  });
+};
 
 export default createLinkRemoveButton;

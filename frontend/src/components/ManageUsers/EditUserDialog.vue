@@ -80,7 +80,6 @@ export default defineComponent({
   props: {
     showDialog: {
       type: Boolean,
-      required: true,
       default: false
     },
     userId: {
@@ -113,6 +112,8 @@ export default defineComponent({
     }
   },
 
+  emits: ["close", "deleteUser", "fetchUsers"],
+
   data() {
     return {
       localUserEmail: "" as string,
@@ -129,6 +130,17 @@ export default defineComponent({
   computed: {
     dialogModel() {
       return this.showDialog;
+    }
+  },
+
+  watch: {
+    showDialog(newValue: boolean) {
+      if (newValue) {
+        this.localUserEmail = this.userEmail;
+        this.localUserFirstName = this.userFirstName;
+        this.localUserLastName = this.userLastName;
+        this.newPassword = "";
+      }
     }
   },
 
@@ -164,17 +176,6 @@ export default defineComponent({
       await axios.patch(`/api/user/${id}`, data, { headers: authHeader() });
       this.$emit("fetchUsers");
       this.closeDialog();
-    }
-  },
-
-  watch: {
-    showDialog(newValue: boolean) {
-      if (newValue) {
-        this.localUserEmail = this.userEmail;
-        this.localUserFirstName = this.userFirstName;
-        this.localUserLastName = this.userLastName;
-        this.newPassword = "";
-      }
     }
   }
 });

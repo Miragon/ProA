@@ -1,5 +1,5 @@
 <template>
-  <ManageUsers/>
+  <ManageUsers />
 </template>
 
 <script lang="ts" setup>
