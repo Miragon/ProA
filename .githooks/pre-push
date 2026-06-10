@@ -39,7 +39,7 @@ fi
 if [ -n "$FRONTEND_CHANGED" ]; then
   echo "[pre-push] Frontend changed - running lint, type-check & build..."
   cd "$REPO_ROOT/frontend"
-  yarn --silent eslint . --ignore-path .gitignore || {
+  yarn --silent lint:check || {
     echo "[pre-push] ESLint failed - push aborted." >&2
     exit 1
   }
