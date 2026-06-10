@@ -17,6 +17,9 @@ public class CamundaCloudImportResource {
 	@Inject
 	private CamundaCloudImportUsecase usecase;
 
+	@Inject
+	ProjectAccessVerifier projectAccessVerifier;
+
 	@POST
 	@Path("/token")
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
@@ -42,6 +45,7 @@ public class CamundaCloudImportResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public void importProcessModels(@RestPath Long projectId, CamundaCloudImportConfiguration config)
 			throws CantReplaceWithCollaborationException {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		usecase.importProcessModels(projectId, config);
 	}
 }

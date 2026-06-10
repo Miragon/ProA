@@ -16,11 +16,15 @@ public class ProcessMapResource {
 	@Inject
 	private ProcessMapUsecase usecase;
 
+	@Inject
+	ProjectAccessVerifier projectAccessVerifier;
+
 	@GET
 	@Path("/project/{projectId}/process-map")
 	@Produces(MediaType.APPLICATION_JSON)
 	@RolesAllowedIfWebVersion({"User", "Admin"})
 	public ProcessMap getProcessMap(@RestPath Long projectId) {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		return usecase.getProcessMap(projectId);
 	}
 
@@ -28,6 +32,9 @@ public class ProcessMapResource {
 	@Path("/project/{projectId}/process-map/connection")
 	@RolesAllowedIfWebVersion({"User", "Admin"})
 	public void addConnection(@RestPath Long projectId, ProcessConnection connection) {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
+		projectAccessVerifier.verifyAccessToProcessModel(connection.getCallingProcessid());
+		projectAccessVerifier.verifyAccessToProcessModel(connection.getCalledProcessid());
 		usecase.addConnection(projectId, connection);
 	}
 
@@ -35,6 +42,7 @@ public class ProcessMapResource {
 	@Path("/project/process-map/process-connection/{connectionId}")
 	@RolesAllowedIfWebVersion({"User", "Admin"})
 	public void deleteProcessConnection(@RestPath Long connectionId) {
+		projectAccessVerifier.verifyAccessToProcessConnection(connectionId);
 		usecase.deleteProcessConnection(connectionId);
 	}
 
@@ -42,6 +50,7 @@ public class ProcessMapResource {
 	@Path("/project/process-map/datastore-connection/{connectionId}")
 	@RolesAllowedIfWebVersion({"User", "Admin"})
 	public void deleteDataStoreConnection(@RestPath Long connectionId) {
+		projectAccessVerifier.verifyAccessToDataStoreConnection(connectionId);
 		usecase.deleteDataStoreConnection(connectionId);
 	}
 }

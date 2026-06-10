@@ -4,6 +4,8 @@ import de.envite.proa.entities.process.ProcessDetails;
 import de.envite.proa.entities.process.ProcessInformation;
 import de.envite.proa.usecases.processmodel.ProcessModelUsecase;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 public class ProcessModelResourceTest {
@@ -36,6 +39,9 @@ public class ProcessModelResourceTest {
 
 	@Mock
 	private FileService fileService;
+
+	@Mock
+	private ProjectAccessVerifier projectAccessVerifier;
 
 	@InjectMocks
 	ProcessModelResource resource;
@@ -65,6 +71,7 @@ public class ProcessModelResourceTest {
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION, IS_COLLABORATION);
+		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
 	}
 
 	@Test
@@ -97,6 +104,7 @@ public class ProcessModelResourceTest {
 		assertThat(result).isEqualTo(PROCESS_XML);
 
 		verify(usecase).getProcessModel(PROCESS_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
 	}
 
 	@Test
@@ -109,6 +117,7 @@ public class ProcessModelResourceTest {
 		assertThat(response.getEntity()).isNull();
 
 		verify(usecase).deleteProcessModel(PROCESS_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
 	}
 
 	@Test
@@ -122,6 +131,7 @@ public class ProcessModelResourceTest {
 		assertThat(result).isEqualTo(expectedResultList);
 
 		verify(usecase).getProcessInformation(PROJECT_ID);
+		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
 	}
 
 	@Test
@@ -134,6 +144,7 @@ public class ProcessModelResourceTest {
 
 		assertThat(result).isEqualTo(expected);
 		verify(usecase).getProcessDetails(PROCESS_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
 	}
 
 	@Test
@@ -151,5 +162,76 @@ public class ProcessModelResourceTest {
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).replaceProcessModel(PROJECT_ID, PROCESS_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION);
+		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+	}
+
+	@Test
+	public void testUploadProcessModel_NoAccess_Forbidden() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testReplaceProcessModel_NoAccessToOldProcess_Forbidden() {
+		File processModel = new File(
+				Objects.requireNonNull(getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class,
+				() -> resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessModel_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.getProcessModel(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessModel_Unknown_NotFound() {
+		doThrow(new NotFoundException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(NotFoundException.class, () -> resource.getProcessModel(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testDeleteProcessModel_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.deleteProcessModel(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessInformation_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.getProcessInformation(PROJECT_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessDetails_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.getProcessDetails(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
 	}
 }

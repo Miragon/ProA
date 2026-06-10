@@ -26,6 +26,9 @@ public class ProcessModelResource {
 	@Inject
 	FileService fileService;
 
+	@Inject
+	ProjectAccessVerifier projectAccessVerifier;
+
 	/**
 	 * Creates a new process model
 	 *
@@ -44,6 +47,7 @@ public class ProcessModelResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response uploadProcessModel(@RestPath Long projectId, @RestForm File processModel, @RestForm String fileName,
 			@RestForm String description, @RestForm boolean isCollaboration) {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		try {
 			String content = fileService.readFileToString(processModel);
 			fileName = fileName.replace(".bpmn", "");
@@ -71,6 +75,8 @@ public class ProcessModelResource {
 	public Response replaceProcessModel(@RestPath Long projectId, @RestPath Long oldProcessId,
 			@RestForm File processModel,
 			@RestForm String fileName, @RestForm String description) {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
+		projectAccessVerifier.verifyAccessToProcessModel(oldProcessId);
 		String content = fileService.readFileToString(processModel);
 		fileName = fileName.replace(".bpmn", "");
 		try {
@@ -95,6 +101,7 @@ public class ProcessModelResource {
 	@GET
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public String getProcessModel(@RestPath Long id) {
+		projectAccessVerifier.verifyAccessToProcessModel(id);
 		return usecase.getProcessModel(id);
 	}
 
@@ -102,6 +109,7 @@ public class ProcessModelResource {
 	@DELETE
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public RestResponse<?> deleteProcessModel(@RestPath Long id) {
+		projectAccessVerifier.verifyAccessToProcessModel(id);
 		usecase.deleteProcessModel(id);
 		return ResponseBuilder.ok().build();
 	}
@@ -115,6 +123,7 @@ public class ProcessModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public List<ProcessInformation> getProcessInformation(@RestPath Long projectId) {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		return usecase.getProcessInformation(projectId);
 	}
 
@@ -123,6 +132,7 @@ public class ProcessModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public ProcessDetails getProcessDetails(@RestPath Long id) {
+		projectAccessVerifier.verifyAccessToProcessModel(id);
 		return usecase.getProcessDetails(id);
 	}
 }
