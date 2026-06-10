@@ -3,12 +3,15 @@
  *
  * IMPORTANT: Tailwind's preflight reset is intentionally NOT imported while
  * Vuetify is still in the app - it would reset Vuetify's global styles.
- * Once the Vuetify migration is complete (see docs/UI-MIGRATION.md), replace
- * the two imports below with: @import "tailwindcss";
+ * The utilities are imported WITHOUT layer(...) on purpose: Vuetify ships an
+ * unlayered element reset (e.g. `div { padding: 0 }`), and unlayered CSS
+ * always beats @layer rules - utilities must stay unlayered to win by
+ * specificity. Once the Vuetify migration is complete (see
+ * docs/UI-MIGRATION.md), replace the two imports below with:
+ * @import "tailwindcss";
  */
-@layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+@import "tailwindcss/utilities.css";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
