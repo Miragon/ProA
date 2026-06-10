@@ -20,7 +20,7 @@ public class SettingsResource {
 	JsonWebToken jwt;
 
 	@Inject
-	@ConfigProperty(name = "app.mode", defaultValue = "desktop")
+	@ConfigProperty(name = "app.mode", defaultValue = "web")
 	String appMode;
 
 	@GET

@@ -5,6 +5,7 @@ import de.envite.proa.entities.process.ProcessInformation;
 import de.envite.proa.security.RolesAllowedIfWebVersion;
 import de.envite.proa.usecases.processmodel.ProcessModelUsecase;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
+import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -50,6 +51,9 @@ public class ProcessModelResource {
 		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		try {
 			String content = fileService.readFileToString(processModel);
+			if (containsDoctype(content)) {
+				return doctypeNotAllowedResponse();
+			}
 			fileName = fileName.replace(".bpmn", "");
 			return Response //
 					.ok(usecase.saveProcessModel( //
@@ -61,10 +65,10 @@ public class ProcessModelResource {
 					)) //
 					.build();
 		} catch (CantReplaceWithCollaborationException e) {
-			e.printStackTrace();
+			Log.warn("Cannot replace process model with a collaboration", e);
 			return Response.status(Response.Status.BAD_REQUEST).entity(e).build();
 		} catch (Exception e) {
-			e.printStackTrace();
+			Log.error("Could not upload process model", e);
 			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
 		}
 	}
@@ -77,16 +81,35 @@ public class ProcessModelResource {
 			@RestForm String fileName, @RestForm String description) {
 		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		projectAccessVerifier.verifyAccessToProcessModel(oldProcessId);
-		String content = fileService.readFileToString(processModel);
-		fileName = fileName.replace(".bpmn", "");
 		try {
+			String content = fileService.readFileToString(processModel);
+			if (containsDoctype(content)) {
+				return doctypeNotAllowedResponse();
+			}
+			fileName = fileName.replace(".bpmn", "");
 			Long id = usecase.replaceProcessModel(projectId, oldProcessId, fileName, content, description);
 			return Response.ok(id).build();
 		} catch (CantReplaceWithCollaborationException e) {
 			return Response.status(Response.Status.BAD_REQUEST).entity(e).build();
 		} catch (Exception e) {
+			Log.error("Could not replace process model", e);
 			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
 		}
+	}
+
+	/**
+	 * BPMN uploads must not contain DOCTYPE declarations. The BPMN parser already rejects them
+	 * (XXE protection), this pre-check only turns the rejection into a clear 400 response.
+	 */
+	private static boolean containsDoctype(String content) {
+		return content != null && content.toUpperCase().contains("<!DOCTYPE");
+	}
+
+	private static Response doctypeNotAllowedResponse() {
+		return Response //
+				.status(Response.Status.BAD_REQUEST) //
+				.entity("DOCTYPE declarations are not allowed in BPMN files") //
+				.build();
 	}
 
 	/**

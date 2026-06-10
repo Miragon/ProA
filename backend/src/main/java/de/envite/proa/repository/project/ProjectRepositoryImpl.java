@@ -94,15 +94,18 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 	@Override
 	public ProjectVersion addVersion(Long userId, Long projectId, String versionName) {
 		ProjectTable project = projectDao.findByIdWithVersionsAndContributors(projectId);
-		
+		if (project == null) {
+			throw new NoResultException("Project not found");
+		}
+
 		List<Long> owners = project//
 			.getUserRelations()//
 			.stream()//
 			.filter(relation -> relation.getRole().equals(ProjectRole.OWNER))//
 			.map(relation -> relation.getUser().getId())
 			.toList();
-		
-		if (project == null || !owners.contains(userId)) {
+
+		if (!owners.contains(userId)) {
 			throw new AccessDeniedException("Not found or Access forbidden");
 		}
 
@@ -112,6 +115,9 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 	@Override
 	public ProjectVersion addVersion(Long projectId, String versionName) {
 		ProjectTable project = projectDao.findByIdWithVersionsAndContributors(projectId);
+		if (project == null) {
+			throw new NoResultException("Project not found");
+		}
 		return createVersionAndMergeProject(project, versionName);
 	}
 
@@ -165,7 +171,10 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 	@Override
 	public Project getProject(Long userId, Long projectId) {
 		ProjectTable project = projectDao.findByIdWithVersionsAndContributors(projectId);
-		
+		if (project == null) {
+			throw new NoResultException("Project not found");
+		}
+
 		List<Long> allowedUsers = project//
 				.getUserRelations()//
 				.stream()//

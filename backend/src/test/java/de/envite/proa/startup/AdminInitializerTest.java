@@ -12,10 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-
-import static io.smallrye.common.constraint.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
 
 public class AdminInitializerTest {
@@ -79,17 +76,43 @@ public class AdminInitializerTest {
 		when(userUsecase.findByEmail(adminEmail)).thenReturn(null);
 		doThrow(new RuntimeException("Test Exception")).when(authenticationUsecase).register(user);
 
-		ByteArrayOutputStream errContent = new ByteArrayOutputStream();
-		System.setErr(new PrintStream(errContent));
-
-		adminInitializer.init();
-
-		System.setErr(System.err);
-
-		String output = errContent.toString();
-		assertTrue(output.contains("Test Exception"));
+		assertDoesNotThrow(() -> adminInitializer.init());
 
 		verify(userUsecase).findByEmail(adminEmail);
+		verify(authenticationUsecase, times(1)).register(user);
+	}
+
+	@Test
+	public void testDefaultPasswordInWebMode_WarnsButStillRegistersAdmin() throws EmailAlreadyRegisteredException {
+		adminInitializer.appMode = "web";
+		adminInitializer.adminEmail = "admin@admin.com";
+		adminInitializer.adminPassword = "initial_pw";
+
+		when(userUsecase.findByEmail("admin@admin.com")).thenReturn(null);
+
+		assertDoesNotThrow(() -> adminInitializer.init());
+
+		User user = new User();
+		user.setEmail("admin@admin.com");
+		user.setPassword("initial_pw");
+		user.setRole(ROLE);
+		verify(authenticationUsecase, times(1)).register(user);
+	}
+
+	@Test
+	public void testCustomPasswordInWebMode_RegistersAdmin() throws EmailAlreadyRegisteredException {
+		adminInitializer.appMode = "web";
+		adminInitializer.adminEmail = "admin@admin.com";
+		adminInitializer.adminPassword = "very-secure-password";
+
+		when(userUsecase.findByEmail("admin@admin.com")).thenReturn(null);
+
+		assertDoesNotThrow(() -> adminInitializer.init());
+
+		User user = new User();
+		user.setEmail("admin@admin.com");
+		user.setPassword("very-secure-password");
+		user.setRole(ROLE);
 		verify(authenticationUsecase, times(1)).register(user);
 	}
 }

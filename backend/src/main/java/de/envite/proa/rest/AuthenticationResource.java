@@ -9,6 +9,8 @@ import de.envite.proa.usecases.authentication.exceptions.InvalidPasswordExceptio
 import io.quarkiverse.bucket4j.runtime.RateLimited;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
+import jakarta.validation.Valid;
+import jakarta.validation.groups.ConvertGroup;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Response;
@@ -39,7 +41,7 @@ public class AuthenticationResource {
 	@Path("/register")
 	@RolesAllowed({ "Admin" })
 	@RateLimited(bucket = "register")
-	public Response register(User user) {
+	public Response register(@Valid @ConvertGroup(to = User.Registration.class) User user) {
 		try {
 			usecase.register(user);
 			return Response.status(Response.Status.CREATED).build();

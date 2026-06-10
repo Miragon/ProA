@@ -8,6 +8,7 @@ import de.envite.proa.rest.FileService;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.Participant;
+import org.camunda.bpm.model.xml.ModelParseException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -20,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 public class BpmnOperationsTest {
@@ -57,6 +59,9 @@ public class BpmnOperationsTest {
 	public static final String COLLABORATION_WITH_DETAILED_PARTICIPANTS_BPMN = "collaboration-with-detailed-participants.bpmn";
 	public static final String COLLABORATION_WITH_DETAILED_MESSAGE_FLOWS_BPMN = "collaboration-with-detailed-message-flows.bpmn";
 	public static final String COLLABORATION_PARTICIPANT_WITHOUT_PROCESSREF_BPMN = "collaboration-participant-without-processref.bpmn";
+	public static final String PROCESS_WITH_EXTERNAL_ENTITY_BPMN = "process-with-external-entity.bpmn";
+	public static final String XXE_SECRET_FILE = "xxe-secret.txt";
+	public static final String XXE_SECRET_CONTENT = "XXE-SECRET-CONTENT-MUST-NOT-LEAK";
 
 	@InjectMocks
 	private BpmnOperations bpmnOperations;
@@ -378,6 +383,24 @@ public class BpmnOperationsTest {
 
 		List<MessageFlowDetails> result = bpmnOperations.getMessageFlows(collaborationXml, new HashMap<>());
 		assertThat(result).isEmpty();
+	}
+
+	@Test
+	public void testMaliciousBpmnWithExternalEntity_IsRejected() {
+		File secretFile = loadFile(XXE_SECRET_FILE);
+		File maliciousBpmn = loadFile(PROCESS_WITH_EXTERNAL_ENTITY_BPMN);
+		String maliciousXml = fileService //
+				.readFileToString(maliciousBpmn) //
+				.replace("file:///__XXE_TARGET__", secretFile.toURI().toString());
+
+		assertThatThrownBy(() -> bpmnOperations.getBpmnProcessId(maliciousXml)) //
+				.isInstanceOf(ModelParseException.class) //
+				.hasMessageNotContaining(XXE_SECRET_CONTENT);
+
+		// The external entity must never be resolved, the sentinel content must not leak anywhere
+		assertThatThrownBy(() -> bpmnOperations.getDescription(maliciousXml)) //
+				.isInstanceOf(ModelParseException.class) //
+				.hasMessageNotContaining(XXE_SECRET_CONTENT);
 	}
 
 	@Test

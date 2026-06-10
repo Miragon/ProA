@@ -8,6 +8,7 @@ import de.envite.proa.repository.tables.UserTable;
 import de.envite.proa.repository.user.UserDao;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -149,6 +150,38 @@ class SettingsRepositoryImplTest {
 		verify(userDao).findById(USER_ID);
 		verify(settingsDao).getSettingsForUser(userTable);
 		verify(settingsDao).merge(any(SettingsTable.class));
+	}
+
+	@Test
+	void testUpdateSettings_Global_NoExistingSettings_CreatesSettings() {
+		when(settingsDao.getSettings()).thenReturn(null);
+		when(settingsDao.persist(any(SettingsTable.class))).thenReturn(settingsTable);
+
+		Settings result = settingsRepository.updateSettings(settings);
+
+		assertNotNull(result);
+		assertEquals(GEMINI_API_KEY, result.getGeminiApiKey());
+		verify(settingsDao).getSettings();
+		verify(settingsDao).persist(any(SettingsTable.class));
+		verify(settingsDao, never()).merge(any(SettingsTable.class));
+	}
+
+	@Test
+	void testUpdateSettings_ForUser_NoExistingSettings_CreatesSettings() {
+		when(userDao.findById(USER_ID)).thenReturn(userTable);
+		when(settingsDao.getSettingsForUser(userTable)).thenReturn(null);
+		when(settingsDao.persist(any(SettingsTable.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		Settings result = settingsRepository.updateSettings(USER_ID, settings);
+
+		assertNotNull(result);
+		assertEquals(GEMINI_API_KEY, result.getGeminiApiKey());
+		verify(settingsDao).getSettingsForUser(userTable);
+
+		ArgumentCaptor<SettingsTable> tableCaptor = ArgumentCaptor.forClass(SettingsTable.class);
+		verify(settingsDao).persist(tableCaptor.capture());
+		assertEquals(userTable, tableCaptor.getValue().getUser());
+		verify(settingsDao, never()).merge(any(SettingsTable.class));
 	}
 
 	@Test

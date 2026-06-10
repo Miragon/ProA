@@ -53,13 +53,20 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 
 	@Override
 	public Settings updateSettings(Settings settings) {
-		return map(settingsDao.merge(merge(settings)));
+		SettingsTable table = settingsDao.getSettings();
+		if (table == null) {
+			return createSettings(settings);
+		}
+		return map(settingsDao.merge(merge(table, settings)));
 	}
 
 	@Override
 	public Settings updateSettings(Long userId, Settings settings) {
-		SettingsTable table = merge(userId, settings);
-		return map(settingsDao.merge(table));
+		SettingsTable table = settingsDao.getSettingsForUser(userDao.findById(userId));
+		if (table == null) {
+			return createSettings(userId, settings);
+		}
+		return map(settingsDao.merge(merge(table, settings)));
 	}
 
 	private Settings map(SettingsTable table) {
@@ -84,17 +91,6 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 		table.setOperateRegionId(settings.getOperateRegionId());
 		table.setOperateClusterId(settings.getOperateClusterId());
 		return table;
-	}
-
-	private SettingsTable merge(Settings settings) {
-		SettingsTable table = settingsDao.getSettings();
-
-		return merge(table, settings);
-	}
-
-	private SettingsTable merge(Long userId, Settings settings) {
-		SettingsTable table = settingsDao.getSettingsForUser(userDao.findById(userId));
-		return merge(table, settings);
 	}
 
 	private SettingsTable merge(SettingsTable table, Settings settings) {

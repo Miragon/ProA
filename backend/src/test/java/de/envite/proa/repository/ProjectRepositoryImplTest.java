@@ -4,6 +4,7 @@ import de.envite.proa.entities.project.AccessDeniedException;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
 import de.envite.proa.entities.project.ProjectRole;
+import de.envite.proa.entities.project.ProjectVersion;
 import de.envite.proa.repository.project.ProjectDao;
 import de.envite.proa.repository.project.ProjectRepositoryImpl;
 import de.envite.proa.repository.tables.ProjectTable;
@@ -161,10 +162,79 @@ class ProjectRepositoryImplTest {
 
 		ProjectTable projectTable = new ProjectTable();
 		projectTable.setId(PROJECT_ID);
-		
+
 		when(projectDao.findByIdWithVersionsAndContributors(PROJECT_ID)).thenReturn(projectTable);
-		
+
 		assertThrows(AccessDeniedException.class,
 				() -> projectRepository.getProject(USER_ID, projectTable.getId()));
+	}
+
+	@Test
+	void testGetProjectByUserAndId_NotFound() {
+		when(projectDao.findByIdWithVersionsAndContributors(PROJECT_ID)).thenReturn(null);
+
+		NoResultException exception = assertThrows(NoResultException.class,
+				() -> projectRepository.getProject(USER_ID, PROJECT_ID));
+
+		assertEquals("Project not found", exception.getMessage());
+		verify(projectDao).findByIdWithVersionsAndContributors(PROJECT_ID);
+	}
+
+	@Test
+	void testAddVersionWithUser_UnknownProject_NotFound() {
+		when(projectDao.findByIdWithVersionsAndContributors(PROJECT_ID)).thenReturn(null);
+
+		NoResultException exception = assertThrows(NoResultException.class,
+				() -> projectRepository.addVersion(USER_ID, PROJECT_ID, PROJECT_VERSION));
+
+		assertEquals("Project not found", exception.getMessage());
+		verify(projectDao, never()).persist(any(ProjectVersionTable.class));
+	}
+
+	@Test
+	void testAddVersionWithUser_NotOwner_Forbidden() {
+		ProjectTable projectTable = new ProjectTable();
+		projectTable.setId(PROJECT_ID);
+
+		when(projectDao.findByIdWithVersionsAndContributors(PROJECT_ID)).thenReturn(projectTable);
+
+		assertThrows(AccessDeniedException.class,
+				() -> projectRepository.addVersion(USER_ID, PROJECT_ID, PROJECT_VERSION));
+
+		verify(projectDao, never()).persist(any(ProjectVersionTable.class));
+	}
+
+	@Test
+	void testAddVersionWithUser() {
+		UserTable user = new UserTable();
+		user.setId(USER_ID);
+
+		ProjectUserRelationTable relation = new ProjectUserRelationTable();
+		relation.setUser(user);
+		relation.setRole(ProjectRole.OWNER);
+
+		ProjectTable projectTable = new ProjectTable();
+		projectTable.setId(PROJECT_ID);
+		projectTable.getUserRelations().add(relation);
+
+		when(projectDao.findByIdWithVersionsAndContributors(PROJECT_ID)).thenReturn(projectTable);
+
+		ProjectVersion version = projectRepository.addVersion(USER_ID, PROJECT_ID, PROJECT_VERSION);
+
+		assertNotNull(version);
+		assertEquals(PROJECT_VERSION, version.getName());
+		verify(projectDao).persist(any(ProjectVersionTable.class));
+		verify(projectDao).merge(projectTable);
+	}
+
+	@Test
+	void testAddVersion_UnknownProject_NotFound() {
+		when(projectDao.findByIdWithVersionsAndContributors(PROJECT_ID)).thenReturn(null);
+
+		NoResultException exception = assertThrows(NoResultException.class,
+				() -> projectRepository.addVersion(PROJECT_ID, PROJECT_VERSION));
+
+		assertEquals("Project not found", exception.getMessage());
+		verify(projectDao, never()).persist(any(ProjectVersionTable.class));
 	}
 }

@@ -6,6 +6,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 @ApplicationScoped
 public class FileService {
@@ -19,7 +20,7 @@ public class FileService {
                 contentBuilder.append(sCurrentLine).append("\n");
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new UncheckedIOException("Could not read uploaded file", e);
         }
 
         return contentBuilder.toString();

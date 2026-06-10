@@ -14,6 +14,7 @@ import de.envite.proa.entities.project.Project;
 import de.envite.proa.entities.project.ProjectVersion;
 import de.envite.proa.security.RolesAllowedIfWebVersion;
 import de.envite.proa.usecases.project.ProjectUsecase;
+import io.quarkus.logging.Log;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DELETE;
@@ -37,7 +38,7 @@ public class ProjectResource {
 	JsonWebToken jwt;
 
 	@Inject
-	@ConfigProperty(name = "app.mode", defaultValue = "desktop")
+	@ConfigProperty(name = "app.mode", defaultValue = "web")
 	String appMode;
 
 	/**
@@ -193,7 +194,7 @@ public class ProjectResource {
 					.entity(Map.of("error", "You don't have permission to add contributors"))//
 					.build();
 		} catch (Exception e) {
-			e.printStackTrace();
+			Log.error("Could not add contributor", e);
 			return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
 					.entity(Map.of("error", "Failed to add contributor")).build();
 		}
@@ -218,7 +219,7 @@ public class ProjectResource {
 					.entity(Map.of("error", "You don't have permission to remove contributors"))//
 					.build();
 		} catch (Exception e) {
-			e.printStackTrace();
+			Log.error("Could not remove contributor", e);
 			return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
 					.entity(Map.of("error", "Failed to remove contributor")).build();
 		}

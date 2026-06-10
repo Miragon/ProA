@@ -15,6 +15,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,6 +35,10 @@ public class ProcessModelResourceTest {
 	private static final boolean IS_COLLABORATION = true;
 	private static final Long NEW_PROCESS_ID = 123L;
 	private static final String TEST_DIAGRAM = "test-diagram.bpmn";
+	private static final String XML_WITH_DOCTYPE = """
+			<?xml version="1.0"?>
+			<!DOCTYPE definitions [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+			<definitions>&xxe;</definitions>""";
 
 	@Mock
 	private ProcessModelUsecase usecase;
@@ -93,6 +99,64 @@ public class ProcessModelResourceTest {
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION, IS_COLLABORATION);
+	}
+
+	@Test
+	public void testUploadProcessModel_WithDoctype_BadRequest() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
+
+		Response response = resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION);
+
+		assertThat(response.getStatus()).isEqualTo(400);
+		assertThat(response.getEntity().toString()).contains("DOCTYPE");
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testUploadProcessModel_FileNotReadable_InternalError() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel))
+				.thenThrow(new UncheckedIOException("Could not read uploaded file", new IOException()));
+
+		Response response = resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION);
+
+		assertThat(response.getStatus()).isEqualTo(500);
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testReplaceProcessModel_WithDoctype_BadRequest() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
+
+		Response response = resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION);
+
+		assertThat(response.getStatus()).isEqualTo(400);
+		assertThat(response.getEntity().toString()).contains("DOCTYPE");
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testReplaceProcessModel_FileNotReadable_InternalError() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel))
+				.thenThrow(new UncheckedIOException("Could not read uploaded file", new IOException()));
+
+		Response response = resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION);
+
+		assertThat(response.getStatus()).isEqualTo(500);
+
+		verifyNoInteractions(usecase);
 	}
 
 	@Test
