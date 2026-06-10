@@ -1,66 +1,85 @@
 <template>
-  <v-dialog v-model="dialogModel" max-width="500">
-    <v-card class="pa-5">
-      <v-card-title>
-        <div class="d-flex align-center">
-          <span>{{ $t("manageUsers.editProfile") }}</span>
-          <v-btn variant="text" icon class="ms-auto" @click="closeDialog">
-            <v-icon icon="mdi-close"></v-icon>
-          </v-btn>
-        </div>
-      </v-card-title>
-      <v-divider />
-      <v-card-text class="mb-3">
-        <v-form ref="editUserForm" @submit.prevent>
-          <v-text-field
+  <Dialog v-model:open="dialogModel">
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{{ $t("manageUsers.editProfile") }}</DialogTitle>
+      </DialogHeader>
+
+      <Separator />
+
+      <form class="flex flex-col gap-4" novalidate @submit.prevent>
+        <div class="flex flex-col gap-2">
+          <Label for="edit-user-email">{{ $t("authentication.email") }}</Label>
+          <Input
+            id="edit-user-email"
             v-model="localUserEmail"
-            :label="$t('authentication.email')"
-            variant="outlined"
-            :rules="emailRules"
+            type="email"
+            :aria-invalid="!!errors.email || undefined"
           />
-          <v-text-field
+          <p v-if="errors.email" class="text-destructive text-sm">
+            {{ errors.email }}
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="edit-user-first-name">
+            {{ $t("authentication.firstName") }}
+          </Label>
+          <Input
+            id="edit-user-first-name"
             v-model="localUserFirstName"
-            :label="$t('authentication.firstName')"
-            variant="outlined"
-            :rules="firstNameRules"
+            type="text"
+            :aria-invalid="!!errors.firstName || undefined"
           />
-          <v-text-field
+          <p v-if="errors.firstName" class="text-destructive text-sm">
+            {{ errors.firstName }}
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="edit-user-last-name">
+            {{ $t("authentication.lastName") }}
+          </Label>
+          <Input
+            id="edit-user-last-name"
             v-model="localUserLastName"
-            :label="$t('authentication.lastName')"
-            variant="outlined"
-            :rules="lastNameRules"
+            type="text"
+            :aria-invalid="!!errors.lastName || undefined"
           />
-          <v-text-field
+          <p v-if="errors.lastName" class="text-destructive text-sm">
+            {{ errors.lastName }}
+          </p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="edit-user-new-password">
+            {{ $t("authentication.newPassword") }}
+          </Label>
+          <Input
+            id="edit-user-new-password"
             v-model="newPassword"
             type="password"
-            :label="$t('authentication.newPassword')"
-            variant="outlined"
-            :rules="updateUserPasswordRules"
+            autocomplete="new-password"
+            :aria-invalid="!!errors.newPassword || undefined"
           />
-        </v-form>
-        <div class="d-flex align-center justify-space-between">
-          <v-btn
-            type="button"
-            height="50"
-            color="primary"
-            @click="patchUser(userId)"
-          >
-            {{ $t("manageUsers.saveChanges") }}
-          </v-btn>
-          <v-btn
-            v-if="ownUserId !== userId"
-            type="button"
-            height="50"
-            variant="text"
-            color="red"
-            @click="deleteUser(userId)"
-          >
-            {{ $t("manageUsers.deleteUser") }}
-          </v-btn>
+          <p v-if="errors.newPassword" class="text-destructive text-sm">
+            {{ errors.newPassword }}
+          </p>
         </div>
-      </v-card-text>
-    </v-card>
-  </v-dialog>
+      </form>
+
+      <DialogFooter class="sm:justify-between">
+        <Button type="button" @click="patchUser(userId)">
+          {{ $t("manageUsers.saveChanges") }}
+        </Button>
+        <Button
+          v-if="ownUserId !== userId"
+          type="button"
+          variant="destructive"
+          @click="deleteUser(userId)"
+        >
+          {{ $t("manageUsers.deleteUser") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script lang="ts">
@@ -69,13 +88,35 @@ import * as usersApi from "@/api/users";
 import {
   emailRules,
   firstNameRules,
+  firstRuleError,
   lastNameRules,
   updateUserPasswordRules
 } from "@/components/Authentication/formValidation";
-import { VForm } from "vuetify/components";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 export default defineComponent({
   name: "EditUserDialog",
+  components: {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Label,
+    Separator
+  },
   props: {
     showDialog: {
       type: Boolean,
@@ -119,10 +160,7 @@ export default defineComponent({
       localUserFirstName: "" as string,
       localUserLastName: "" as string,
       newPassword: "" as string,
-      emailRules: emailRules,
-      firstNameRules: firstNameRules,
-      lastNameRules: lastNameRules,
-      updateUserPasswordRules: updateUserPasswordRules
+      errors: { email: "", firstName: "", lastName: "", newPassword: "" }
     };
   },
 
@@ -146,6 +184,12 @@ export default defineComponent({
         this.localUserFirstName = this.userFirstName;
         this.localUserLastName = this.userLastName;
         this.newPassword = "";
+        this.errors = {
+          email: "",
+          firstName: "",
+          lastName: "",
+          newPassword: ""
+        };
       }
     }
   },
@@ -154,15 +198,34 @@ export default defineComponent({
     closeDialog() {
       this.$emit("close");
     },
+    validate(): boolean {
+      this.errors.email = firstRuleError(this.localUserEmail, emailRules);
+      this.errors.firstName = firstRuleError(
+        this.localUserFirstName,
+        firstNameRules
+      );
+      this.errors.lastName = firstRuleError(
+        this.localUserLastName,
+        lastNameRules
+      );
+      this.errors.newPassword = firstRuleError(
+        this.newPassword,
+        updateUserPasswordRules
+      );
+      return (
+        !this.errors.email &&
+        !this.errors.firstName &&
+        !this.errors.lastName &&
+        !this.errors.newPassword
+      );
+    },
     async deleteUser(id: number) {
       await usersApi.deleteUser(id);
       this.$emit("deleteUser", id);
       this.closeDialog();
     },
     async patchUser(id: number) {
-      const form = this.$refs.editUserForm as VForm;
-      const { valid } = await form.validate();
-      if (!valid) {
+      if (!this.validate()) {
         return;
       }
 

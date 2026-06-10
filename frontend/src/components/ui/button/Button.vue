@@ -6,7 +6,9 @@ import { Primitive } from "reka-ui";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from ".";
 
-interface Props extends PrimitiveProps {
+// Exported so that components registering Button via the Options API
+// `components` option can be type-checked with `composite: true` (TS4023).
+export interface Props extends PrimitiveProps {
   variant?: ButtonVariants["variant"];
   size?: ButtonVariants["size"];
   class?: HTMLAttributes["class"];

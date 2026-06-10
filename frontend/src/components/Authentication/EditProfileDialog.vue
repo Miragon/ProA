@@ -1,78 +1,104 @@
 <template>
-  <v-card class="pa-5">
-    <v-card-title class="px-0 pt-0">
-      <div class="d-flex align-center justify-space-between">
-        <span>{{ $t("authentication.editYourProfile") }}</span>
-        <div class="d-flex align-center">
-          <v-btn
-            variant="text"
-            icon
-            class="me-2"
+  <div class="flex flex-col gap-4">
+    <DialogHeader>
+      <div class="flex items-center justify-between gap-2">
+        <DialogTitle>{{ $t("authentication.editYourProfile") }}</DialogTitle>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
             @click="openDialog(SelectedDialog.PROFILE)"
           >
-            <v-icon icon="mdi-arrow-left"></v-icon>
-          </v-btn>
-          <v-btn variant="text" icon @click="closeDialog">
-            <v-icon icon="mdi-close"></v-icon>
-          </v-btn>
+            <ArrowLeft />
+            <span class="sr-only">{{ $t("general.back") }}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
+            @click="closeDialog"
+          >
+            <X />
+            <span class="sr-only">{{ $t("general.close") }}</span>
+          </Button>
         </div>
       </div>
-    </v-card-title>
+    </DialogHeader>
 
-    <v-divider />
+    <Separator />
 
-    <v-card-text>
-      <v-form ref="editProfileForm" @submit.prevent>
-        <v-alert
-          v-if="message.message !== ''"
-          :type="message.type"
-          closable
-          class="mb-5"
-          icon="mdi-alert-circle-outline"
-          :text="message.message"
-          @click:close="removeMessage"
-        ></v-alert>
-        <v-text-field
+    <form class="flex flex-col gap-4" novalidate @submit.prevent>
+      <Alert
+        v-if="message.message !== ''"
+        :variant="message.type === 'error' ? 'destructive' : 'default'"
+        class="pr-10"
+      >
+        <CircleAlert v-if="message.type === 'error'" />
+        <CircleCheck v-else />
+        <AlertDescription>{{ message.message }}</AlertDescription>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="absolute top-1.5 right-1.5"
+          type="button"
+          @click="removeMessage"
+        >
+          <X />
+          <span class="sr-only">{{ $t("general.close") }}</span>
+        </Button>
+      </Alert>
+      <div class="flex flex-col gap-2">
+        <Label for="edit-profile-first-name">
+          {{ $t("authentication.firstName") }}
+        </Label>
+        <Input
+          id="edit-profile-first-name"
           v-model="newUserData.firstName"
-          :label="$t('authentication.firstName')"
-          variant="outlined"
+          type="text"
           required
-          :rules="firstNameRules"
-          class="my-2"
+          :aria-invalid="!!errors.firstName || undefined"
         />
-
-        <v-text-field
+        <p v-if="errors.firstName" class="text-destructive text-sm">
+          {{ errors.firstName }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <Label for="edit-profile-last-name">
+          {{ $t("authentication.lastName") }}
+        </Label>
+        <Input
+          id="edit-profile-last-name"
           v-model="newUserData.lastName"
-          :label="$t('authentication.lastName')"
-          variant="outlined"
+          type="text"
           required
-          :rules="lastNameRules"
-          class="my-2"
+          :aria-invalid="!!errors.lastName || undefined"
         />
-
-        <v-text-field
+        <p v-if="errors.lastName" class="text-destructive text-sm">
+          {{ errors.lastName }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <Label for="edit-profile-email">
+          {{ $t("authentication.email") }}
+        </Label>
+        <Input
+          id="edit-profile-email"
           v-model="newUserData.email"
           type="email"
-          :label="$t('authentication.email')"
-          variant="outlined"
+          autocomplete="email"
           required
-          :rules="emailRules"
-          class="my-2"
+          :aria-invalid="!!errors.email || undefined"
         />
-
-        <v-btn
-          type="button"
-          height="50"
-          block
-          color="primary"
-          class="mb-1"
-          @click="updateUser"
-        >
-          {{ $t("general.save") }}
-        </v-btn>
-      </v-form>
-    </v-card-text>
-  </v-card>
+        <p v-if="errors.email" class="text-destructive text-sm">
+          {{ errors.email }}
+        </p>
+      </div>
+      <Button type="button" size="lg" class="w-full" @click="updateUser">
+        {{ $t("general.save") }}
+      </Button>
+    </form>
+  </div>
 </template>
 
 <script lang="ts">
@@ -81,16 +107,38 @@ import { SelectedDialog, useAppStore } from "@/store/app";
 import {
   emailRules,
   firstNameRules,
+  firstRuleError,
   lastNameRules
 } from "@/components/Authentication/formValidation";
-import { VForm } from "vuetify/components";
 import { AxiosError } from "axios";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
 import { getCurrentUser, updateCurrentUser } from "@/api/users";
 import { UserData } from "@/types/user";
+import { ArrowLeft, CircleAlert, CircleCheck, X } from "@lucide/vue";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 export default defineComponent({
   name: "EditProfileDialog",
+
+  components: {
+    Alert,
+    AlertDescription,
+    ArrowLeft,
+    Button,
+    CircleAlert,
+    CircleCheck,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Label,
+    Separator,
+    X
+  },
 
   props: {
     message: {
@@ -107,9 +155,7 @@ export default defineComponent({
     return {
       store,
       newUserData,
-      emailRules: emailRules,
-      firstNameRules: firstNameRules,
-      lastNameRules: lastNameRules,
+      errors: { firstName: "", lastName: "", email: "" },
       SelectedDialog: SelectedDialog
     };
   },
@@ -125,12 +171,23 @@ export default defineComponent({
     openDialog(dialog: SelectedDialog) {
       this.store.setSelectedDialog(dialog);
     },
+    validate(): boolean {
+      this.errors.firstName = firstRuleError(
+        this.newUserData.firstName,
+        firstNameRules
+      );
+      this.errors.lastName = firstRuleError(
+        this.newUserData.lastName,
+        lastNameRules
+      );
+      this.errors.email = firstRuleError(this.newUserData.email, emailRules);
+      return (
+        !this.errors.firstName && !this.errors.lastName && !this.errors.email
+      );
+    },
     async updateUser() {
       this.$emit("showMessage", { message: "", type: "error" } as Message);
-      const form = this.$refs.editProfileForm as VForm;
-      form.resetValidation();
-      const { valid } = await form.validate();
-      if (!valid) {
+      if (!this.validate()) {
         return;
       }
       const currUserData = await getCurrentUser();
@@ -175,7 +232,3 @@ export default defineComponent({
   }
 });
 </script>
-
-<style scoped>
-@import "authentication.css";
-</style>

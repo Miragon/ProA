@@ -1,68 +1,90 @@
 <template>
-  <v-card class="pa-5">
-    <v-card-title class="px-0 pt-0">
-      <div class="d-flex align-center justify-space-between">
-        <span>{{ $t("authentication.changePassword") }}</span>
-        <div class="d-flex align-center">
-          <v-btn
-            variant="text"
-            icon
-            class="me-2"
+  <div class="flex flex-col gap-4">
+    <DialogHeader>
+      <div class="flex items-center justify-between gap-2">
+        <DialogTitle>{{ $t("authentication.changePassword") }}</DialogTitle>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
             @click="resetMessageAndOpenDialog(SelectedDialog.PROFILE)"
           >
-            <v-icon icon="mdi-arrow-left"></v-icon>
-          </v-btn>
-          <v-btn variant="text" icon @click="closeDialog">
-            <v-icon icon="mdi-close"></v-icon>
-          </v-btn>
+            <ArrowLeft />
+            <span class="sr-only">{{ $t("general.back") }}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            type="button"
+            @click="closeDialog"
+          >
+            <X />
+            <span class="sr-only">{{ $t("general.close") }}</span>
+          </Button>
         </div>
       </div>
-    </v-card-title>
+    </DialogHeader>
 
-    <v-divider />
+    <Separator />
 
-    <v-card-text>
-      <v-form ref="changePwForm" @submit.prevent>
-        <v-alert
-          v-if="message.message !== ''"
-          closable
-          icon="mdi-alert-circle-outline"
-          :text="message.message"
-          :type="message.type"
-          class="mb-5"
-          @click:close="removeMessage"
-        ></v-alert>
-        <v-text-field
+    <form class="flex flex-col gap-4" novalidate @submit.prevent>
+      <Alert
+        v-if="message.message !== ''"
+        :variant="message.type === 'error' ? 'destructive' : 'default'"
+        class="pr-10"
+      >
+        <CircleAlert v-if="message.type === 'error'" />
+        <CircleCheck v-else />
+        <AlertDescription>{{ message.message }}</AlertDescription>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="absolute top-1.5 right-1.5"
+          type="button"
+          @click="removeMessage"
+        >
+          <X />
+          <span class="sr-only">{{ $t("general.close") }}</span>
+        </Button>
+      </Alert>
+      <div class="flex flex-col gap-2">
+        <Label for="change-pw-current">
+          {{ $t("authentication.currentPassword") }}
+        </Label>
+        <Input
+          id="change-pw-current"
           v-model="currentPassword"
           type="password"
-          :label="$t('authentication.currentPassword')"
+          autocomplete="current-password"
           required
-          variant="outlined"
-          class="my-2"
-          :rules="currentPasswordRules"
-        ></v-text-field>
-        <v-text-field
+          :aria-invalid="!!errors.currentPassword || undefined"
+        />
+        <p v-if="errors.currentPassword" class="text-destructive text-sm">
+          {{ errors.currentPassword }}
+        </p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <Label for="change-pw-new">
+          {{ $t("authentication.newPassword") }}
+        </Label>
+        <Input
+          id="change-pw-new"
           v-model="newPassword"
           type="password"
-          :label="$t('authentication.newPassword')"
+          autocomplete="new-password"
           required
-          variant="outlined"
-          :rules="newPasswordRules"
-          class="my-2"
-        ></v-text-field>
-        <v-btn
-          type="button"
-          color="primary"
-          block
-          class="mb-1"
-          height="50"
-          @click="changePassword"
-        >
-          {{ $t("authentication.changePassword") }}
-        </v-btn>
-      </v-form>
-    </v-card-text>
-  </v-card>
+          :aria-invalid="!!errors.newPassword || undefined"
+        />
+        <p v-if="errors.newPassword" class="text-destructive text-sm">
+          {{ errors.newPassword }}
+        </p>
+      </div>
+      <Button type="button" size="lg" class="w-full" @click="changePassword">
+        {{ $t("authentication.changePassword") }}
+      </Button>
+    </form>
+  </div>
 </template>
 
 <script lang="ts">
@@ -70,18 +92,40 @@ import { defineComponent } from "vue";
 
 import {
   currentPasswordRules,
+  firstRuleError,
   newPasswordRules
 } from "@/components/Authentication/formValidation";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
-import { VForm } from "vuetify/components";
 import { AxiosError } from "axios";
 import { login } from "@/api/auth";
 import { getCurrentUser, updateCurrentUser } from "@/api/users";
 import { UserData } from "@/types/user";
+import { ArrowLeft, CircleAlert, CircleCheck, X } from "@lucide/vue";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 export default defineComponent({
   name: "ChangePassword",
+
+  components: {
+    Alert,
+    AlertDescription,
+    ArrowLeft,
+    Button,
+    CircleAlert,
+    CircleCheck,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Label,
+    Separator,
+    X
+  },
 
   props: {
     message: {
@@ -94,10 +138,9 @@ export default defineComponent({
 
   data() {
     return {
-      currentPasswordRules: currentPasswordRules,
-      newPasswordRules: newPasswordRules,
       currentPassword: "" as string,
       newPassword: "" as string,
+      errors: { currentPassword: "", newPassword: "" },
       SelectedDialog: SelectedDialog,
       user: {} as UserData,
       store: useAppStore()
@@ -119,13 +162,21 @@ export default defineComponent({
     openDialog(dialog: SelectedDialog) {
       this.store.setSelectedDialog(dialog);
     },
+    validate(): boolean {
+      this.errors.currentPassword = firstRuleError(
+        this.currentPassword,
+        currentPasswordRules
+      );
+      this.errors.newPassword = firstRuleError(
+        this.newPassword,
+        newPasswordRules
+      );
+      return !this.errors.currentPassword && !this.errors.newPassword;
+    },
     async changePassword() {
       this.$emit("showMessage", { message: "", type: "error" } as Message);
 
-      const form = this.$refs.changePwForm as VForm;
-      form.resetValidation();
-      const { valid } = await form.validate();
-      if (!valid) {
+      if (!this.validate()) {
         return;
       }
 
@@ -193,7 +244,3 @@ export default defineComponent({
   }
 });
 </script>
-
-<style scoped>
-@import "authentication.css";
-</style>

@@ -25,7 +25,14 @@ export default defineConfigWithVueTs(
   {
     name: "app/rules",
     rules: {
-      "vue/multi-word-component-names": "off"
+      "vue/multi-word-component-names": "off",
+      // shadcn-vue components are registered under PascalCase names such as
+      // Button, Input or Table; case-sensitive matching keeps the rule from
+      // confusing them with the native lowercase HTML elements.
+      "vue/no-reserved-component-names": [
+        "error",
+        { htmlElementCaseSensitive: true }
+      ]
     }
   },
   {

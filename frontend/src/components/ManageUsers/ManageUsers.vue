@@ -1,66 +1,81 @@
 <template>
-  <v-container>
-    <div class="d-flex align-center justify-start my-2">
-      <v-text-field
+  <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4">
+    <div class="relative w-1/2">
+      <Search
+        class="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+      />
+      <Input
         v-model="searchValue"
-        :label="$t('general.search')"
-        prepend-inner-icon="mdi-magnify"
-        clearable
-        density="compact"
-        variant="solo-filled"
-        class="search-bar-width py-1"
-        hide-details
+        type="text"
+        :placeholder="$t('general.search')"
+        class="px-8"
+      />
+      <Button
+        v-if="searchValue"
+        variant="ghost"
+        size="icon-sm"
+        type="button"
+        class="absolute top-1/2 right-1 -translate-y-1/2"
+        @click="searchValue = ''"
       >
-      </v-text-field>
+        <X />
+        <span class="sr-only">{{ $t("general.close") }}</span>
+      </Button>
     </div>
-    <v-table>
-      <thead>
-        <tr>
-          <th class="text-left">
-            {{ $t("authentication.id") }}
-          </th>
-          <th class="text-left">
-            {{ $t("authentication.email") }}
-          </th>
-          <th class="text-left">
-            {{ $t("authentication.firstName") }}
-          </th>
-          <th class="text-left">
-            {{ $t("authentication.lastName") }}
-          </th>
-          <th class="text-left">
-            {{ $t("authentication.role") }}
-          </th>
-          <th class="text-left">
-            {{ $t("general.createdOn") }}
-          </th>
-          <th class="text-left">
-            {{ $t("general.lastModifiedOn") }}
-          </th>
-          <th />
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="item in usersShown" :key="item.id">
-          <td>{{ item.id }}</td>
-          <td>{{ item.email }}</td>
-          <td>{{ item.firstName }}</td>
-          <td>{{ item.lastName }}</td>
-          <td>{{ $t(`authentication.${item.role.toLowerCase()}`) }}</td>
-          <td>{{ getLocaleDate(item.createdAt) }}</td>
-          <td>{{ getLocaleDate(item.modifiedAt) }}</td>
-          <td>
-            <v-btn
-              icon="mdi-pencil"
-              variant="text"
-              color="grey-lighten-1"
-              @click="openEditUser(item)"
-            />
-          </td>
-        </tr>
-      </tbody>
-    </v-table>
-  </v-container>
+    <TooltipProvider>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{{ $t("authentication.id") }}</TableHead>
+            <TableHead>{{ $t("authentication.email") }}</TableHead>
+            <TableHead>{{ $t("authentication.firstName") }}</TableHead>
+            <TableHead>{{ $t("authentication.lastName") }}</TableHead>
+            <TableHead>{{ $t("authentication.role") }}</TableHead>
+            <TableHead>{{ $t("general.createdOn") }}</TableHead>
+            <TableHead>{{ $t("general.lastModifiedOn") }}</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow v-for="item in usersShown" :key="item.id">
+            <TableCell>{{ item.id }}</TableCell>
+            <TableCell>{{ item.email }}</TableCell>
+            <TableCell>{{ item.firstName }}</TableCell>
+            <TableCell>{{ item.lastName }}</TableCell>
+            <TableCell>
+              <Badge
+                :variant="item.role === Role.ADMIN ? 'default' : 'secondary'"
+              >
+                {{ $t(`authentication.${item.role.toLowerCase()}`) }}
+              </Badge>
+            </TableCell>
+            <TableCell>{{ getLocaleDate(item.createdAt) }}</TableCell>
+            <TableCell>{{ getLocaleDate(item.modifiedAt) }}</TableCell>
+            <TableCell>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    @click="openEditUser(item)"
+                  >
+                    <Pencil />
+                    <span class="sr-only">
+                      {{ $t("manageUsers.editProfile") }}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {{ $t("manageUsers.editProfile") }}
+                </TooltipContent>
+              </Tooltip>
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </TooltipProvider>
+  </div>
   <EditUserDialog
     :show-dialog="showDialog"
     :user-id="editUser.id"
@@ -82,10 +97,47 @@ import { UserData } from "@/types/user";
 import { getAllUsers, getCurrentUser } from "@/api/users";
 import { useAppStore } from "@/store/app";
 import EditUserDialog from "@/components/ManageUsers/EditUserDialog.vue";
+import { Role } from "@/components/ProcessMap/types";
+import { Pencil, Search, X } from "@lucide/vue";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export default defineComponent({
   name: "ManageUsers",
-  components: { EditUserDialog },
+  components: {
+    EditUserDialog,
+    Badge,
+    Button,
+    Input,
+    Pencil,
+    Search,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    X
+  },
 
   data() {
     return {
@@ -95,7 +147,8 @@ export default defineComponent({
       store: useAppStore(),
       searchValue: "" as string,
       showDialog: false as boolean,
-      editUser: {} as UserData
+      editUser: {} as UserData,
+      Role: Role
     };
   },
 
@@ -166,9 +219,3 @@ export default defineComponent({
   }
 });
 </script>
-
-<style scoped>
-.search-bar-width {
-  max-width: 50%;
-}
-</style>

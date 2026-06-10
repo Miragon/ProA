@@ -1,118 +1,133 @@
 <template>
-  <v-card class="pa-5">
-    <v-card-title class="px-0 pt-0">
-      <div class="d-flex align-center">
-        <span>{{ $t("general.myProfile") }}</span>
-        <v-btn variant="text" icon class="ms-auto" @click="closeDialog">
-          <v-icon icon="mdi-close"></v-icon>
-        </v-btn>
+  <div class="flex flex-col gap-4">
+    <DialogHeader>
+      <div class="flex items-center justify-between">
+        <DialogTitle>{{ $t("general.myProfile") }}</DialogTitle>
+        <Button variant="ghost" size="icon" type="button" @click="closeDialog">
+          <X />
+          <span class="sr-only">{{ $t("general.close") }}</span>
+        </Button>
       </div>
-    </v-card-title>
+    </DialogHeader>
 
-    <v-divider />
+    <Separator />
 
-    <v-alert
+    <Alert
       v-if="message.message !== ''"
-      :type="message.type"
-      closable
-      icon="mdi-check-circle-outline"
-      :text="message.message"
-      @click:close="removeMessage"
-    ></v-alert>
-    <v-card-title class="px-0">
-      <div class="d-flex align-center">
-        <span>{{ user.firstName }} {{ user.lastName }}</span>
-        <v-btn
-          variant="text"
-          class="ms-auto"
-          color="primary"
-          @click="resetMessageAndOpenDialog(SelectedDialog.EDIT_PROFILE)"
-        >
-          {{ $t("authentication.edit") }}
-        </v-btn>
-      </div>
-    </v-card-title>
+      :variant="message.type === 'error' ? 'destructive' : 'default'"
+      class="pr-10"
+    >
+      <CircleAlert v-if="message.type === 'error'" />
+      <CircleCheck v-else />
+      <AlertDescription>{{ message.message }}</AlertDescription>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="absolute top-1.5 right-1.5"
+        type="button"
+        @click="removeMessage"
+      >
+        <X />
+        <span class="sr-only">{{ $t("general.close") }}</span>
+      </Button>
+    </Alert>
 
-    <v-card-text class="pa-0 mb-3">
-      <div class="d-flex align-center mb-3">
-        <v-icon icon="mdi-email" class="me-2"></v-icon>
-        <div class="d-flex flex-column">
-          <span class="text-caption">{{ $t("authentication.email") }}</span>
+    <div class="flex items-center justify-between">
+      <span class="font-semibold">
+        {{ user.firstName }} {{ user.lastName }}
+      </span>
+      <Button
+        variant="link"
+        type="button"
+        @click="resetMessageAndOpenDialog(SelectedDialog.EDIT_PROFILE)"
+      >
+        {{ $t("authentication.edit") }}
+      </Button>
+    </div>
+
+    <div class="flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <Mail class="size-4 shrink-0" />
+        <div class="flex flex-col">
+          <span class="text-muted-foreground text-xs">
+            {{ $t("authentication.email") }}
+          </span>
           <span>{{ user.email }}</span>
         </div>
       </div>
-      <div class="d-flex align-center justify-space-between">
-        <div class="d-flex align-center">
-          <v-icon icon="mdi-key" class="me-2"></v-icon>
-          <div class="d-flex flex-column">
-            <span class="text-caption">{{
-              $t("authentication.password")
-            }}</span>
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <KeyRound class="size-4 shrink-0" />
+          <div class="flex flex-col">
+            <span class="text-muted-foreground text-xs">
+              {{ $t("authentication.password") }}
+            </span>
             <span>************</span>
           </div>
         </div>
-        <div class="d-flex align-center justify-end">
-          <v-btn
-            variant="text"
-            color="primary"
-            @click="resetMessageAndOpenDialog(SelectedDialog.CHANGE_PW)"
-          >
-            {{ $t("authentication.changePassword") }}
-          </v-btn>
-        </div>
+        <Button
+          variant="link"
+          type="button"
+          @click="resetMessageAndOpenDialog(SelectedDialog.CHANGE_PW)"
+        >
+          {{ $t("authentication.changePassword") }}
+        </Button>
       </div>
-    </v-card-text>
-
-    <v-card-subtitle class="px-0 mb-1">
-      {{ $t("general.createdOn") }}: {{ getLocaleDate(user.createdAt) }}
-    </v-card-subtitle>
-    <v-card-subtitle class="px-0 mb-1">
-      {{ $t("general.lastModifiedOn") }}: {{ getLocaleDate(user.modifiedAt) }}
-    </v-card-subtitle>
-
-    <div v-if="projects.length > 0">
-      <v-divider class="mt-2" />
-      <v-card-title class="px-0">
-        {{ $t("authentication.projects") }}
-      </v-card-title>
-      <v-table density="compact">
-        <thead>
-          <tr>
-            <th class="text-left">
-              {{ $t("authentication.name") }}
-            </th>
-            <th class="text-left">
-              {{ $t("authentication.version") }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="project in projects" :key="'project-' + project.id">
-            <td>
-              <v-tooltip location="left">
-                <template #activator="{ props }">
-                  <v-btn
-                    variant="plain"
-                    color="primary"
-                    v-bind="props"
-                    class="text-none table-btn"
-                    prepend-icon="mdi-folder"
-                    @click="openProject(project.id)"
-                  >
-                    {{ project.name }}
-                  </v-btn>
-                </template>
-                {{ $t("authentication.openProject") }}
-              </v-tooltip>
-            </td>
-            <td class="text-no-wrap">
-              {{ store.getActiveVersionForProject(project.id).name }}
-            </td>
-          </tr>
-        </tbody>
-      </v-table>
     </div>
-  </v-card>
+
+    <div class="text-muted-foreground flex flex-col gap-1 text-sm">
+      <span
+        >{{ $t("general.createdOn") }}:
+        {{ getLocaleDate(user.createdAt) }}</span
+      >
+      <span>
+        {{ $t("general.lastModifiedOn") }}: {{ getLocaleDate(user.modifiedAt) }}
+      </span>
+    </div>
+
+    <div v-if="projects.length > 0" class="flex flex-col gap-2">
+      <Separator />
+      <h3 class="font-semibold">{{ $t("authentication.projects") }}</h3>
+      <TooltipProvider>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{{ $t("authentication.name") }}</TableHead>
+              <TableHead>{{ $t("authentication.version") }}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow
+              v-for="project in projects"
+              :key="'project-' + project.id"
+            >
+              <TableCell>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="link"
+                      type="button"
+                      class="h-auto p-0"
+                      @click="openProject(project.id)"
+                    >
+                      <Folder />
+                      {{ project.name }}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {{ $t("authentication.openProject") }}
+                  </TooltipContent>
+                </Tooltip>
+              </TableCell>
+              <TableCell class="whitespace-nowrap">
+                {{ store.getActiveVersionForProject(project.id).name }}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TooltipProvider>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
@@ -123,9 +138,60 @@ import { UserData } from "@/types/user";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
 import { getProjects } from "@/api/projects";
 import { getCurrentUser } from "@/api/users";
+import {
+  CircleAlert,
+  CircleCheck,
+  Folder,
+  KeyRound,
+  Mail,
+  X
+} from "@lucide/vue";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export default defineComponent({
   name: "ProfileDialog",
+
+  components: {
+    Alert,
+    AlertDescription,
+    Button,
+    CircleAlert,
+    CircleCheck,
+    DialogHeader,
+    DialogTitle,
+    Folder,
+    KeyRound,
+    Mail,
+    Separator,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    X
+  },
 
   props: {
     message: {
@@ -194,7 +260,3 @@ export default defineComponent({
   }
 });
 </script>
-
-<style scoped>
-@import "authentication.css";
-</style>
