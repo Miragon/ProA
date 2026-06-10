@@ -4,6 +4,9 @@
  * Bootstraps Vuetify and other plugins then mounts the App`
  */
 
+// Styles
+import "@/styles/shadcn.css";
+
 // Components
 import App from "./App.vue";
 

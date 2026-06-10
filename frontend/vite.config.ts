@@ -1,6 +1,7 @@
 // Plugins
 import vue from "@vitejs/plugin-vue";
 import vuetify, { transformAssetUrls } from "vite-plugin-vuetify";
+import tailwindcss from "@tailwindcss/vite";
 
 // Utilities
 import { defineConfig } from "vite";
@@ -22,7 +23,8 @@ export default defineConfig({
       styles: {
         configFile: "src/styles/settings.scss"
       }
-    })
+    }),
+    tailwindcss()
   ],
   define: { "process.env": {} },
   resolve: {
