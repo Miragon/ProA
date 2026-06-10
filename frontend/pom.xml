@@ -13,8 +13,8 @@
 
     <properties>
         <frontend.maven.plugin.version>1.15.0</frontend.maven.plugin.version>
-        <node.version>v20.11.1</node.version>
-        <yarn.version>v1.22.19</yarn.version>
+        <node.version>v22.22.3</node.version>
+        <yarn.version>v1.22.22</yarn.version>
         <destination.directory>${project.basedir}/target/dist</destination.directory>
         <source.directory>${project.basedir}/src</source.directory>
         <include.directory>forms/</include.directory>
