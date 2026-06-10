@@ -80,6 +80,10 @@ public class ProcessModelResourceTest {
 		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
 	}
 
+	/**
+	 * Unexpected exceptions now propagate out of the resource and are turned into a 500
+	 * response by the generic exception mapper in de.envite.proa.rest.mappers.
+	 */
 	@Test
 	public void testUploadProcessModel_InternalError()
 			throws CantReplaceWithCollaborationException {
@@ -90,19 +94,16 @@ public class ProcessModelResourceTest {
 		doThrow(RuntimeException.class).when(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML,
 				DESCRIPTION, IS_COLLABORATION);
 
-		Response response = resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
-				DESCRIPTION, IS_COLLABORATION);
-
-		assertThat(response).isNotNull();
-		assertThat(response.getStatus()).isEqualTo(500);
-		assertThat(response.getEntity()).isNull();
+		assertThrows(RuntimeException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION, IS_COLLABORATION);
 	}
 
 	@Test
-	public void testUploadProcessModel_WithDoctype_BadRequest() {
+	public void testUploadProcessModel_WithDoctype_BadRequest()
+			throws CantReplaceWithCollaborationException {
 		File processModel = new File(Objects.requireNonNull( //
 				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
 		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
@@ -123,16 +124,15 @@ public class ProcessModelResourceTest {
 		when(fileService.readFileToString(processModel))
 				.thenThrow(new UncheckedIOException("Could not read uploaded file", new IOException()));
 
-		Response response = resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
-				DESCRIPTION, IS_COLLABORATION);
-
-		assertThat(response.getStatus()).isEqualTo(500);
+		assertThrows(UncheckedIOException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
 
 		verifyNoInteractions(usecase);
 	}
 
 	@Test
-	public void testReplaceProcessModel_WithDoctype_BadRequest() {
+	public void testReplaceProcessModel_WithDoctype_BadRequest()
+			throws CantReplaceWithCollaborationException {
 		File processModel = new File(Objects.requireNonNull( //
 				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
 		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
@@ -152,9 +152,8 @@ public class ProcessModelResourceTest {
 		when(fileService.readFileToString(processModel))
 				.thenThrow(new UncheckedIOException("Could not read uploaded file", new IOException()));
 
-		Response response = resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION);
-
-		assertThat(response.getStatus()).isEqualTo(500);
+		assertThrows(UncheckedIOException.class,
+				() -> resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION));
 
 		verifyNoInteractions(usecase);
 	}

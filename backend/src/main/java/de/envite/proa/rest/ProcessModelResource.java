@@ -5,7 +5,6 @@ import de.envite.proa.entities.process.ProcessInformation;
 import de.envite.proa.security.RolesAllowedIfWebVersion;
 import de.envite.proa.usecases.processmodel.ProcessModelUsecase;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
-import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -47,30 +46,23 @@ public class ProcessModelResource {
 	@Path("/project/{projectId}/process-model")
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response uploadProcessModel(@RestPath Long projectId, @RestForm File processModel, @RestForm String fileName,
-			@RestForm String description, @RestForm boolean isCollaboration) {
+			@RestForm String description, @RestForm boolean isCollaboration)
+			throws CantReplaceWithCollaborationException {
 		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
-		try {
-			String content = fileService.readFileToString(processModel);
-			if (containsDoctype(content)) {
-				return doctypeNotAllowedResponse();
-			}
-			fileName = fileName.replace(".bpmn", "");
-			return Response //
-					.ok(usecase.saveProcessModel( //
-							projectId, //
-							fileName, //
-							content, //
-							description, //
-							isCollaboration //
-					)) //
-					.build();
-		} catch (CantReplaceWithCollaborationException e) {
-			Log.warn("Cannot replace process model with a collaboration", e);
-			return Response.status(Response.Status.BAD_REQUEST).entity(e).build();
-		} catch (Exception e) {
-			Log.error("Could not upload process model", e);
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+		String content = fileService.readFileToString(processModel);
+		if (containsDoctype(content)) {
+			return doctypeNotAllowedResponse();
 		}
+		fileName = fileName.replace(".bpmn", "");
+		return Response //
+				.ok(usecase.saveProcessModel( //
+						projectId, //
+						fileName, //
+						content, //
+						description, //
+						isCollaboration //
+				)) //
+				.build();
 	}
 
 	@Path("project/{projectId}/process-model/{oldProcessId}")
@@ -78,23 +70,16 @@ public class ProcessModelResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response replaceProcessModel(@RestPath Long projectId, @RestPath Long oldProcessId,
 			@RestForm File processModel,
-			@RestForm String fileName, @RestForm String description) {
+			@RestForm String fileName, @RestForm String description) throws CantReplaceWithCollaborationException {
 		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		projectAccessVerifier.verifyAccessToProcessModel(oldProcessId);
-		try {
-			String content = fileService.readFileToString(processModel);
-			if (containsDoctype(content)) {
-				return doctypeNotAllowedResponse();
-			}
-			fileName = fileName.replace(".bpmn", "");
-			Long id = usecase.replaceProcessModel(projectId, oldProcessId, fileName, content, description);
-			return Response.ok(id).build();
-		} catch (CantReplaceWithCollaborationException e) {
-			return Response.status(Response.Status.BAD_REQUEST).entity(e).build();
-		} catch (Exception e) {
-			Log.error("Could not replace process model", e);
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+		String content = fileService.readFileToString(processModel);
+		if (containsDoctype(content)) {
+			return doctypeNotAllowedResponse();
 		}
+		fileName = fileName.replace(".bpmn", "");
+		Long id = usecase.replaceProcessModel(projectId, oldProcessId, fileName, content, description);
+		return Response.ok(id).build();
 	}
 
 	/**

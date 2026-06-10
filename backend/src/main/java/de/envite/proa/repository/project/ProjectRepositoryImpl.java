@@ -24,8 +24,10 @@ import de.envite.proa.usecases.project.ProjectRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 
 @ApplicationScoped
+@Transactional
 public class ProjectRepositoryImpl implements ProjectRepository {
 
 	@Inject

@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 public class ProjectResourceTest {
@@ -141,6 +142,11 @@ public class ProjectResourceTest {
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
 
+	/**
+	 * Error statuses are produced by the exception mappers in de.envite.proa.rest.mappers,
+	 * so the resource lets the exceptions propagate (NoResultException -> 404,
+	 * AccessDeniedException -> 403, generic -> 500).
+	 */
 	@Test
 	public void testGetProjectWebMode_NotFound() {
 		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
@@ -148,9 +154,8 @@ public class ProjectResourceTest {
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenThrow(new NoResultException());
 
-		Response result = resource.getProject(PROJECT_ID_1);
+		assertThrows(NoResultException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result.getStatus());
 		verify(jwt, times(1)).getClaim("userId");
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
@@ -162,9 +167,8 @@ public class ProjectResourceTest {
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenThrow(new AccessDeniedException());
 
-		Response result = resource.getProject(PROJECT_ID_1);
+		assertThrows(AccessDeniedException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		assertEquals(Response.Status.FORBIDDEN.getStatusCode(), result.getStatus());
 		verify(jwt, times(1)).getClaim("userId");
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
@@ -176,9 +180,8 @@ public class ProjectResourceTest {
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenThrow(new RuntimeException());
 
-		Response result = resource.getProject(PROJECT_ID_1);
+		assertThrows(RuntimeException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), result.getStatus());
 		verify(jwt, times(1)).getClaim("userId");
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
@@ -203,9 +206,8 @@ public class ProjectResourceTest {
 
 		when(usecase.getProject(PROJECT_ID_1)).thenThrow(new NoResultException());
 
-		Response result = resource.getProject(PROJECT_ID_1);
+		assertThrows(NoResultException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result.getStatus());
 		verify(jwt, never()).getClaim("userId");
 		verify(usecase, times(1)).getProject(PROJECT_ID_1);
 	}
@@ -216,9 +218,8 @@ public class ProjectResourceTest {
 
 		when(usecase.getProject(PROJECT_ID_1)).thenThrow(new RuntimeException());
 
-		Response result = resource.getProject(PROJECT_ID_1);
+		assertThrows(RuntimeException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), result.getStatus());
 		verify(jwt, never()).getClaim("userId");
 		verify(usecase, times(1)).getProject(PROJECT_ID_1);
 	}

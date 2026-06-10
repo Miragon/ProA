@@ -63,4 +63,11 @@ public class ProjectVersionTable {
 		ProjectVersionTable other = (ProjectVersionTable) obj;
 		return Objects.equals(id, other.id);
 	}
+
+	@Override
+	public int hashCode() {
+		// Constant hash matching the id-based equals above (which was previously missing a
+		// hashCode counterpart): stays stable when the id is assigned on persist.
+		return ProjectVersionTable.class.hashCode();
+	}
 }
