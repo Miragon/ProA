@@ -19,9 +19,10 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
 		<quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-		<quarkus.platform.version>3.8.3</quarkus.platform.version>
+		<quarkus.platform.version>3.27.4</quarkus.platform.version>
 		<surefire-plugin.version>3.1.2</surefire-plugin.version>
-		<jacoco.version>0.8.10</jacoco.version>
+		<jacoco.version>0.8.15</jacoco.version>
+		<lombok.version>1.18.46</lombok.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -37,7 +38,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>io.quarkus</groupId>
-			<artifactId>quarkus-resteasy-reactive-jackson</artifactId>
+			<artifactId>quarkus-rest-jackson</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>io.quarkus</groupId>
@@ -57,7 +58,7 @@
 		</dependency>
 		<dependency>
 			<groupId>io.quarkus</groupId>
-			<artifactId>quarkus-resteasy-reactive</artifactId>
+			<artifactId>quarkus-rest</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>io.quarkus</groupId>
@@ -95,7 +96,7 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.36</version>
+			<version>${lombok.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -139,7 +140,7 @@
 		<dependency>
 			<groupId>io.quarkiverse.bucket4j</groupId>
 			<artifactId>quarkus-bucket4j</artifactId>
-			<version>1.0.4</version>
+			<version>1.0.7</version>
 		</dependency>
 	</dependencies>
 	<build>
@@ -167,6 +168,13 @@
 					<compilerArgs>
 						<arg>-parameters</arg>
 					</compilerArgs>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
 			<plugin>

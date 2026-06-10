@@ -5,10 +5,7 @@ import de.envite.proa.usecases.processmodel.ProcessModelUsecase;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
-
-import java.net.URI;
 
 @ApplicationScoped
 public class CamundaCloudImportUsecase {
@@ -25,18 +22,14 @@ public class CamundaCloudImportUsecase {
 	@Inject
 	private ProcessOperations processOperations;
 
+	@Inject
+	private CamundaOperateServiceFactory operateServiceFactory;
+
 	public Object getProcessModels(CamundaCloudFetchConfiguration configuration) {
 
 		ProcessSearchObject search = new ProcessSearchObject();
 		search.getFilter().getUpdatedBy().setEmail(configuration.getEmail());
 		return camundaModelerService.getProcessModels("Bearer " + configuration.getToken(), search);
-	}
-
-	protected CamundaOperateService createOperateService(String baseUri) {
-		return RestClientBuilder
-				.newBuilder()
-				.baseUri(URI.create(baseUri))
-				.build(CamundaOperateService.class);
 	}
 
 	public Object getProcessInstances(CamundaCloudFetchConfiguration configuration) {
@@ -45,7 +38,7 @@ public class CamundaCloudImportUsecase {
 				".operate.camunda.io/" + //
 				configuration.getClusterId();
 
-		CamundaOperateService camundaOperateService = createOperateService(operateUri);
+		CamundaOperateService camundaOperateService = operateServiceFactory.createOperateService(operateUri);
 
 		String bpmnProcessId = configuration.getBpmnProcessId();
 
