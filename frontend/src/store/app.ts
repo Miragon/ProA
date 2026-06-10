@@ -183,9 +183,8 @@ export const useAppStore = defineStore("app", {
   },
   persist: {
     storage: sessionStorage,
-    paths: [
+    pick: [
       "selectedProjectId",
-      "activeProjectByGroup",
       "activeVersionByProject",
       "graphByProject",
       "paperLayoutByProject",
