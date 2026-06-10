@@ -47,3 +47,6 @@ nb-configuration.xml
 
 # Generated Frontend
 src/main/resources/META-INF/resources/
+
+# Playwright MCP artifacts
+.playwright-mcp/

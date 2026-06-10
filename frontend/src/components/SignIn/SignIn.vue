@@ -4,7 +4,6 @@
   >
     <Card class="w-full max-w-lg">
       <CardHeader class="border-b">
-        <img src="@/assets/logo.svg" alt="ProA" class="mx-auto size-12" />
         <CardTitle>{{ $t("authentication.welcomeBack") }}</CardTitle>
       </CardHeader>
       <CardContent>
