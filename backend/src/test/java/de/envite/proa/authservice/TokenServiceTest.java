@@ -25,6 +25,7 @@ class TokenServiceTest {
 	private static final String EMAIL = "test@test.de";
 	private static final String ROLE = "Admin";
 	private static final String ISSUER = "proa-issuer";
+	private static final String AUDIENCE = "proa-client";
 	private static final String PUBLIC_KEY_PATH = "src/main/resources/publicKey.test.pem";
 
 	private static User user;
@@ -56,6 +57,8 @@ class TokenServiceTest {
 		assertNotNull(token, "Generated token should not be null.");
 		assertEquals(EMAIL, claims.get("upn"), "UPN should be the user's email.");
 		assertEquals(ISSUER, claims.getIssuer(), "Token should include the correct issuer.");
+		assertEquals(AUDIENCE, claims.getAudience().iterator().next(),
+				"Token should include the audience expected by the verifier.");
 		assertEquals(USER_ID.toString(), claims.get("userId").toString(), "Token should include the user's ID.");
 		assertEquals(ROLE, ((ArrayList<?>) claims.get("groups")).getFirst(),
 				"Token should include the role in groups.");

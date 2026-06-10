@@ -16,6 +16,7 @@ public class TokenService {
 
 		return Jwt //
 				.issuer("proa-issuer") //
+				.audience("proa-client") //
 				.upn(user.getEmail()) //
 				.groups(groups) //
 				.claim("userId", user.getId()) //
