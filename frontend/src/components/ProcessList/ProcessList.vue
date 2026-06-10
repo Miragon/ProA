@@ -280,36 +280,26 @@
 </template>
 
 <script lang="ts">
-import axios from "axios";
 import ProcessDetailDialog from "@/components/ProcessDetailDialog.vue";
 import { defineComponent } from "vue";
 import { useAppStore } from "@/store/app";
-import getProject from "../projectService";
+import { getProject } from "@/api/projects";
+import * as processModelsApi from "@/api/processModels";
+import { getSettings } from "@/api/settings";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { authHeader } from "@/components/Authentication/authHeader";
 import i18n from "@/i18n";
 import ProcessTreeNode from "@/components/ProcessList/ProcessTreeNode.vue";
-import { Settings } from "@/components/SettingsDrawer.vue";
-import { getErrorMessage } from "@/services/axiosErrorHandler";
+import {
+  ProcessModelInformation,
+  ProcessModelNode
+} from "@/types/processModel";
+import { getErrorMessage } from "@/api/errors";
+import { SnackbarType } from "@/utils/snackbar";
 
 interface BPMNContent {
   name: string;
   description: string;
   isCollaboration: boolean;
-}
-
-interface ProcessModelInformation {
-  id: number;
-  bpmnProcessId: string;
-  processName: string;
-  description: string;
-  createdAt: string;
-  childrenIds: number[];
-  processType: string;
-}
-
-export interface ProcessModelNode extends ProcessModelInformation {
-  children: ProcessModelNode[];
 }
 
 enum UploadDialogMode {
@@ -373,8 +363,8 @@ export default defineComponent({
       this.$router.push("/");
       return;
     }
-    getProject(this.selectedProjectId).then((result) => {
-      this.selectedProjectName = result.data.name;
+    getProject(this.selectedProjectId).then((project) => {
+      this.selectedProjectName = project.name;
       this.selectedVersionName = this.appStore.getActiveVersionForProject(
         this.selectedProjectId!
       ).name;
@@ -405,24 +395,20 @@ export default defineComponent({
         return;
       }
       const processId = processModelNode.id;
-      await axios
-        .delete("/api/process-model/" + processId, { headers: authHeader() })
-        .then(() => {
-          this.confirmDeleteDialog = false;
-          this.processModelToBeDeleted = null;
-          this.appStore.setProcessModelsChanged();
-          this.fetchProcessModels();
-        });
+      await processModelsApi.deleteProcessModel(processId).then(() => {
+        this.confirmDeleteDialog = false;
+        this.processModelToBeDeleted = null;
+        this.appStore.setProcessModelsChanged();
+        this.fetchProcessModels();
+      });
     },
 
     fetchProcessModels() {
       this.isFetching = true;
-      axios
-        .get("/api/project/" + this.selectedVersionId + "/process-model", {
-          headers: authHeader()
-        })
-        .then((result) => {
-          this.rootProcessModels = this.collectRoots(result.data);
+      processModelsApi
+        .getProcessModels(this.selectedVersionId!)
+        .then((processModels) => {
+          this.rootProcessModels = this.collectRoots(processModels);
           this.isFetching = false;
         });
     },
@@ -554,29 +540,24 @@ export default defineComponent({
     async uploadProcessModel(
       processModel: ProcessModelToUpload
     ): Promise<number> {
-      const formData = this.createProcessModelFormData(processModel);
-      const { data } = await axios.post(
-        "/api/project/" + this.selectedVersionId + "/process-model",
-        formData,
-        { headers: authHeader() }
+      return await processModelsApi.uploadProcessModel(
+        this.selectedVersionId!,
+        this.toProcessModelUpload(processModel)
       );
-      return data;
     },
 
-    createProcessModelFormData(processModel: ProcessModelToUpload): FormData {
-      const formData = new FormData();
+    toProcessModelUpload(
+      processModel: ProcessModelToUpload
+    ): processModelsApi.ProcessModelUpload {
       const fileName =
         processModel.name ||
         processModel.file.name.replace(this.fileExtensionMatcher, "");
-      formData.append("processModel", processModel.file);
-      formData.append("fileName", fileName);
-      formData.append("description", processModel.description);
-      formData.append(
-        "isCollaboration",
-        processModel.isCollaboration ? "true" : "false"
-      );
-
-      return formData;
+      return {
+        file: processModel.file,
+        fileName,
+        description: processModel.description,
+        isCollaboration: processModel.isCollaboration
+      };
     },
 
     async uploadProcessModels() {
@@ -613,18 +594,11 @@ export default defineComponent({
         return;
       }
 
-      const formData = this.createProcessModelFormData(
-        this.processModelsToUpload[0]
-      );
-
       try {
-        await axios.post(
-          "/api/project/" +
-            this.selectedVersionId +
-            "/process-model/" +
-            this.processModelToBeReplacedId,
-          formData,
-          { headers: authHeader() }
+        await processModelsApi.replaceProcessModel(
+          this.selectedVersionId!,
+          this.processModelToBeReplacedId!,
+          this.toProcessModelUpload(this.processModelsToUpload[0])
         );
       } catch (error) {
         this.afterUploadActions();
@@ -661,45 +635,49 @@ export default defineComponent({
       index: number
     ) {
       processModelToUpload.aiLoading = true;
-      const content = processModelToUpload.content;
+      try {
+        const content = processModelToUpload.content;
 
-      const settings: Settings = (
-        await axios.get("api/settings", { headers: authHeader() })
-      ).data;
-      const apiKey =
-        settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        this.descriptionErrors[index] = this.$t("processList.noApiKeyError");
+        const settings = await getSettings();
+        const apiKey =
+          settings?.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          this.descriptionErrors[index] = this.$t("processList.noApiKeyError");
+          return;
+        }
+        const genAi = new GoogleGenerativeAI(apiKey);
+        const model = genAi.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const promptInstructionsDe =
+          "Ich möchte, dass du aus dem folgenden XML-Dokument " +
+          "eine kurze Beschreibung für einen Geschäftsprozess generierst. " +
+          "Die Beschreibung soll maximal 1-3 Sätze lang sein. " +
+          "Bitte achte genaustens darauf, dass die Beschreibung nicht länger als " +
+          "255 Zeichen lang ist. Sie darf unter keinen Umständen länger sein!\n\n";
+
+        const promptInstructionsEn =
+          "Please generate a short description for the business process from " +
+          "the following XML document. The description should be a maximum of 1-3 sentences long. " +
+          "Ensure that the description is no longer than 255 characters. It must not exceed this " +
+          "length under any circumstances!\n\n";
+
+        const promptInstructions =
+          i18n.global.locale === "de"
+            ? promptInstructionsDe
+            : promptInstructionsEn;
+        const prompt = promptInstructions + content;
+
+        const result = await model.generateContent(prompt);
+        const response = result.response;
+        processModelToUpload.description = response.text().trim();
+      } catch {
+        await this.appStore.showSnackbar(
+          this.$t("processList.generateDescriptionErrorMsg"),
+          SnackbarType.ERROR
+        );
+      } finally {
         processModelToUpload.aiLoading = false;
-        return;
       }
-      const genAi = new GoogleGenerativeAI(apiKey);
-      const model = genAi.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const promptInstructionsDe =
-        "Ich möchte, dass du aus dem folgenden XML-Dokument " +
-        "eine kurze Beschreibung für einen Geschäftsprozess generierst. " +
-        "Die Beschreibung soll maximal 1-3 Sätze lang sein. " +
-        "Bitte achte genaustens darauf, dass die Beschreibung nicht länger als " +
-        "255 Zeichen lang ist. Sie darf unter keinen Umständen länger sein!\n\n";
-
-      const promptInstructionsEn =
-        "Please generate a short description for the business process from " +
-        "the following XML document. The description should be a maximum of 1-3 sentences long. " +
-        "Ensure that the description is no longer than 255 characters. It must not exceed this " +
-        "length under any circumstances!\n\n";
-
-      const promptInstructions =
-        i18n.global.locale === "de"
-          ? promptInstructionsDe
-          : promptInstructionsEn;
-      const prompt = promptInstructions + content;
-
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      processModelToUpload.description = response.text().trim();
-
-      processModelToUpload.aiLoading = false;
     },
     goToC8Import() {
       this.$router.push("CamundaCloudImport");

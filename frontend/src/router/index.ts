@@ -1,5 +1,10 @@
 // Composables
-import { createRouter, createWebHistory } from "vue-router";
+import {
+  createRouter,
+  createWebHistory,
+  RouteLocationNormalized,
+  START_LOCATION
+} from "vue-router";
 import { useAppStore } from "@/store/app";
 import { Role } from "@/components/ProcessMap/types";
 
@@ -72,7 +77,14 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach(async (to, from, next) => {
+/**
+ * Cancels a forbidden navigation: stays on the current route when there is
+ * one, otherwise (e.g. direct URL entry) falls back to the project overview.
+ */
+const cancelNavigation = (from: RouteLocationNormalized) =>
+  from === START_LOCATION ? { name: "ProjectOverview" } : false;
+
+router.beforeEach((to, from) => {
   const store = useAppStore();
   const isLoggedIn = store.getUserToken() != null;
   const isAdmin = store.getUserRole() === Role.ADMIN;
@@ -81,26 +93,22 @@ router.beforeEach(async (to, from, next) => {
   store.snackbar.visible = false;
 
   if (to.meta.requiresWebVersion && !isWebVersion) {
-    window.history.back();
-    return;
+    return cancelNavigation(from);
   }
 
   if (to.meta.requiresAdmin && !isAdmin) {
-    window.history.back();
-    return;
+    return cancelNavigation(from);
   }
 
   if (to.meta.requiresGuest && isLoggedIn) {
-    window.history.back();
-    return;
+    return cancelNavigation(from);
   }
 
   if (to.meta.requiresAuth && isWebVersion && !isLoggedIn) {
-    next({ name: "SignIn" });
-    return;
+    return { name: "SignIn" };
   }
 
-  next();
+  return true;
 });
 
 export default router;

@@ -78,9 +78,8 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { UserData } from "@/components/Home/ProjectOverview.vue";
-import axios from "axios";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { UserData } from "@/types/user";
+import { getAllUsers, getCurrentUser } from "@/api/users";
 import { useAppStore } from "@/store/app";
 import EditUserDialog from "@/components/ManageUsers/EditUserDialog.vue";
 
@@ -134,16 +133,12 @@ export default defineComponent({
   async mounted() {
     await this.fetchUsers();
 
-    this.userId = (
-      await axios.get("/api/user", { headers: authHeader() })
-    ).data.id;
+    this.userId = (await getCurrentUser()).id;
   },
 
   methods: {
     async fetchUsers() {
-      const users = (
-        await axios.get("/api/user/all", { headers: authHeader() })
-      ).data;
+      const users = await getAllUsers();
       this.users = users.sort(
         (user1: UserData, user2: UserData) => user1.id - user2.id
       );

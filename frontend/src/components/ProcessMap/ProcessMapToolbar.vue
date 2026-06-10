@@ -117,9 +117,16 @@ export default defineComponent({
 
   data() {
     const store = useAppStore();
-    const persistedFilterGraphInput = store.getFiltersForProject(
-      this.selectedProjectId!
-    );
+    // Filters are persisted per project *version* (same key as the graph
+    // state in ProcessMap.vue). The version id is derived from the store
+    // because the selectedVersionId prop is not set yet when data() runs.
+    const activeVersionId = store.getActiveVersionForProject(
+      this.selectedProjectId
+    )?.id;
+    const persistedFilterGraphInput =
+      activeVersionId != null
+        ? store.getFiltersForProject(activeVersionId)
+        : undefined;
 
     const defaultFilterGraphInput = {
       hideAbstractDataStores: false,
@@ -181,8 +188,14 @@ export default defineComponent({
       this.$emit("handleFetchProcessInstances");
     },
     saveFilters() {
+      const activeVersionId = this.store.getActiveVersionForProject(
+        this.selectedProjectId
+      )?.id;
+      if (activeVersionId == null) {
+        return;
+      }
       this.store.setFiltersForProject(
-        this.selectedProjectId!,
+        activeVersionId,
         JSON.stringify(this.filterGraphInput)
       );
     }

@@ -118,11 +118,11 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
-import { Project, UserData } from "@/components/Home/ProjectOverview.vue";
-import axios from "axios";
+import { Project } from "@/types/project";
+import { UserData } from "@/types/user";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
-import getUser from "@/components/userService";
+import { getProjects } from "@/api/projects";
+import { getCurrentUser } from "@/api/users";
 
 export default defineComponent({
   name: "ProfileDialog",
@@ -147,7 +147,7 @@ export default defineComponent({
 
   async mounted() {
     this.fetchProjects();
-    if (this.store.getUserToken() != null) this.user = await getUser();
+    if (this.store.getUserToken() != null) this.user = await getCurrentUser();
   },
 
   methods: {
@@ -172,23 +172,21 @@ export default defineComponent({
       this.$router.push("/ProcessList").then(() => window.location.reload());
     },
     fetchProjects() {
-      axios
-        .get("/api/project", { headers: authHeader() })
-        .then((result: { data: Project[] }) => {
-          const sortProjectsByActiveFirstThenAlphabetically = (
-            project1: Project,
-            project2: Project
-          ): number => {
-            if (project1.id === this.store.selectedProjectId) return -1;
-            if (project2.id === this.store.selectedProjectId) return 1;
+      getProjects().then((projects: Project[]) => {
+        const sortProjectsByActiveFirstThenAlphabetically = (
+          project1: Project,
+          project2: Project
+        ): number => {
+          if (project1.id === this.store.selectedProjectId) return -1;
+          if (project2.id === this.store.selectedProjectId) return 1;
 
-            return project1.name.localeCompare(project2.name);
-          };
+          return project1.name.localeCompare(project2.name);
+        };
 
-          this.projects = result.data.sort(
-            sortProjectsByActiveFirstThenAlphabetically
-          );
-        });
+        this.projects = projects.sort(
+          sortProjectsByActiveFirstThenAlphabetically
+        );
+      });
     },
     removeMessage() {
       this.$emit("removeMessage");

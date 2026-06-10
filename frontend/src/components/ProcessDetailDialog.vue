@@ -15,7 +15,7 @@
               sm="6"
               md="6"
             >
-              <b>Start Events</b>
+              <b>{{ $t("processDetailSidebar.startEvents") }}</b>
               <ul class="mt-1">
                 <li
                   v-for="(start, index) in details.startEvents"
@@ -34,7 +34,7 @@
               sm="6"
               md="6"
             >
-              <b class="mb-2">End Events</b>
+              <b class="mb-2">{{ $t("processDetailSidebar.endEvents") }}</b>
               <ul class="mt-1">
                 <li
                   v-for="(end, index) in details.endEvents"
@@ -140,26 +140,13 @@
 </template>
 <script lang="ts">
 import { defineComponent } from "vue";
-import axios from "axios";
 import { dia } from "@joint/core";
 import BpmnViewer from "bpmn-js";
-import { authHeader } from "@/components/Authentication/authHeader";
-
-export interface Process {
-  id: number;
-  name: string;
-  description: string;
-  startEvents: Event[];
-  endEvents: Event[];
-  intermediateCatchEvents: Event[];
-  intermediateThrowEvents: Event[];
-  activities: Event[];
-}
-
-declare interface Event {
-  elementId: string;
-  label: string;
-}
+import {
+  getProcessModelDetails,
+  getProcessModelXml
+} from "@/api/processModels";
+import { ProcessDetails } from "@/types/processModel";
 
 interface RouteObject {
   path: string;
@@ -171,7 +158,7 @@ interface RouteObject {
 export default defineComponent({
   data: () => ({
     infoDialog: false,
-    details: {} as Process
+    details: {} as ProcessDetails
   }),
 
   methods: {
@@ -180,13 +167,9 @@ export default defineComponent({
       await this.$nextTick();
       this.resetProcessModel();
       await this.fetchProcessModel(processId);
-      axios
-        .get("/api/process-model/" + processId + "/details", {
-          headers: authHeader()
-        })
-        .then((result) => {
-          this.details = result.data;
-        });
+      getProcessModelDetails(processId).then((details) => {
+        this.details = details;
+      });
     },
     async goToProcessModel(portId: string | null) {
       const routeObject: RouteObject = {
@@ -202,9 +185,7 @@ export default defineComponent({
         container: "#process-model-viewer"
       });
 
-      const url = "/api/process-model/" + modelId;
-      const response = await axios.get(url, { headers: authHeader() });
-      const xmlText = response.data;
+      const xmlText = await getProcessModelXml(modelId);
       await viewer.importXML(xmlText);
       const canvas = viewer.get("canvas") as {
         zoom(newScale: "fit-viewport", center: "auto"): number;

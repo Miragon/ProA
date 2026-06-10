@@ -40,7 +40,7 @@
         ></v-text-field>
         <v-text-field
           v-model="lastName"
-          type="email"
+          type="text"
           :label="$t('authentication.lastName')"
           required
           variant="outlined"
@@ -88,10 +88,10 @@ import {
   newPasswordRules
 } from "@/components/Authentication/formValidation";
 import { VForm } from "vuetify/components";
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import { SelectedDialog, useAppStore } from "@/store/app";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { register } from "@/api/auth";
 import { Role } from "@/components/ProcessMap/types";
 
 export default defineComponent({
@@ -143,17 +143,13 @@ export default defineComponent({
       }
 
       try {
-        await axios.post(
-          "/api/authentication/register",
-          {
-            email: this.email,
-            password: this.password,
-            firstName: this.firstName,
-            lastName: this.lastName,
-            role: this.selectedRole
-          },
-          { headers: { ...authHeader(), "Content-Type": "application/json" } }
-        );
+        await register({
+          email: this.email,
+          password: this.password,
+          firstName: this.firstName,
+          lastName: this.lastName,
+          role: this.selectedRole
+        });
 
         this.$emit("showMessage", {
           type: "success",

@@ -30,7 +30,7 @@ export function getErrorMessage(error: unknown): string {
         }
       }
     } else if (error.request) {
-      return i18n.global.t("noResponseErrorMsg");
+      return i18n.global.t("processList.noResponseErrorMsg");
     }
   }
   return i18n.global.t("processList.unexpectedErrorMsg");

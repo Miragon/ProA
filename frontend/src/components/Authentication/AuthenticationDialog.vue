@@ -65,8 +65,15 @@ export default defineComponent({
   },
 
   computed: {
-    showDialog() {
-      return this.store.getSelectedDialog() != SelectedDialog.NONE;
+    showDialog: {
+      get(): boolean {
+        return this.store.getSelectedDialog() != SelectedDialog.NONE;
+      },
+      set(value: boolean) {
+        if (!value) {
+          this.store.setSelectedDialog(SelectedDialog.NONE);
+        }
+      }
     },
     selectedDialog(): SelectedDialog {
       return this.store.getSelectedDialog();

@@ -84,11 +84,10 @@ import {
   lastNameRules
 } from "@/components/Authentication/formValidation";
 import { VForm } from "vuetify/components";
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
-import getUser from "@/components/userService";
-import { UserData } from "@/components/Home/ProjectOverview.vue";
+import { getCurrentUser, updateCurrentUser } from "@/api/users";
+import { UserData } from "@/types/user";
 
 export default defineComponent({
   name: "EditProfileDialog",
@@ -116,7 +115,7 @@ export default defineComponent({
   },
 
   async mounted() {
-    this.newUserData = await getUser();
+    this.newUserData = await getCurrentUser();
   },
 
   methods: {
@@ -134,15 +133,13 @@ export default defineComponent({
       if (!valid) {
         return;
       }
-      const currUserData = await getUser();
+      const currUserData = await getCurrentUser();
       if (JSON.stringify(this.newUserData) === JSON.stringify(currUserData)) {
         this.openDialog(SelectedDialog.PROFILE);
         return;
       }
       try {
-        await axios.patch("/api/user", this.newUserData, {
-          headers: { ...authHeader(), "Content-Type": "application/json" }
-        });
+        await updateCurrentUser(this.newUserData);
 
         const message: Message = {
           type: "success",

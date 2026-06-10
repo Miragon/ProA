@@ -61,10 +61,11 @@ import {
   emailRulesSignIn
 } from "@/components/Authentication/formValidation";
 import { VForm } from "vuetify/components";
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
 import { SelectedDialog, useAppStore } from "@/store/app";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { login } from "@/api/auth";
+import { getCurrentUser } from "@/api/users";
 import { Role } from "@/components/ProcessMap/types";
 
 export default defineComponent({
@@ -94,24 +95,11 @@ export default defineComponent({
       }
 
       try {
-        const response = await axios.post(
-          "/api/authentication/login",
-          {
-            email: this.email,
-            password: this.password
-          },
-          { headers: { "Content-Type": "application/json" } }
-        );
+        const token = await login(this.email, this.password);
+        this.store.setUserToken(token);
 
-        const { data } = response;
-        this.store.setUserToken(data);
-
-        const userResponse = await axios.get("/api/user", {
-          headers: authHeader()
-        });
-
-        const role: Role = userResponse.data.role;
-        this.store.setUserRole(role);
+        const user = await getCurrentUser();
+        this.store.setUserRole(user.role as Role);
 
         this.$router.push({ path: "/", state: { showLoggedInBanner: true } });
       } catch (e) {

@@ -75,10 +75,10 @@ import {
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
 import { VForm } from "vuetify/components";
-import axios, { AxiosError } from "axios";
-import { authHeader } from "@/components/Authentication/authHeader";
-import { UserData } from "@/components/Home/ProjectOverview.vue";
-import getUser from "@/components/userService";
+import { AxiosError } from "axios";
+import { login } from "@/api/auth";
+import { getCurrentUser, updateCurrentUser } from "@/api/users";
+import { UserData } from "@/types/user";
 
 export default defineComponent({
   name: "ChangePassword",
@@ -105,7 +105,7 @@ export default defineComponent({
   },
 
   async mounted() {
-    if (this.store.getUserToken() != null) this.user = await getUser();
+    if (this.store.getUserToken() != null) this.user = await getCurrentUser();
   },
 
   methods: {
@@ -152,11 +152,7 @@ export default defineComponent({
       }
 
       try {
-        await axios.patch(
-          "/api/user",
-          { password: this.newPassword },
-          { headers: { ...authHeader(), "Content-Type": "application/json" } }
-        );
+        await updateCurrentUser({ password: this.newPassword });
 
         const message: Message = {
           type: "success",
@@ -185,15 +181,7 @@ export default defineComponent({
     },
     async testSignIn(email: string, currPassword: string): Promise<boolean> {
       try {
-        await axios.post(
-          "/api/authentication/login",
-          {
-            email,
-            password: currPassword
-          },
-          { headers: { "Content-Type": "application/json" } }
-        );
-
+        await login(email, currPassword);
         return true;
       } catch {
         return false;

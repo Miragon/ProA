@@ -191,19 +191,21 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { dia } from "@joint/core";
-import { Process } from "@/components/ProcessDetailDialog.vue";
-import axios from "axios";
+import { ProcessDetails } from "@/types/processModel";
+import {
+  getProcessModelDetails,
+  getProcessModelXml
+} from "@/api/processModels";
 import BpmnViewer from "bpmn-js/lib/Viewer";
 import { AbstractProcessShape } from "@/components/ProcessMap/jointjs/AbstractProcessElement";
 import { ProcessElementType, RouteObject } from "./types";
-import { authHeader } from "@/components/Authentication/authHeader";
 
 export default defineComponent({
   name: "ProcessDetailSidebar",
   emits: ["saveGraphState"],
   data: () => ({
     showSidebar: false as boolean,
-    details: {} as Process,
+    details: {} as ProcessDetails,
     model: null as AbstractProcessShape | null,
     isFetching: false as boolean
   }),
@@ -222,14 +224,10 @@ export default defineComponent({
       const modelId = model.id.toString();
       this.resetProcessModel();
       await this.fetchProcessModel(modelId);
-      axios
-        .get("/api/process-model/" + modelId + "/details", {
-          headers: authHeader()
-        })
-        .then((result) => {
-          this.details = result.data;
-          this.isFetching = false;
-        });
+      getProcessModelDetails(modelId).then((details) => {
+        this.details = details;
+        this.isFetching = false;
+      });
     },
     close() {
       this.showSidebar = false;
@@ -251,9 +249,7 @@ export default defineComponent({
         container: "#process-model-viewer"
       });
 
-      const url = "/api/process-model/" + modelId;
-      const response = await axios.get(url, { headers: authHeader() });
-      const xmlText = response.data;
+      const xmlText = await getProcessModelXml(modelId);
       await viewer.importXML(xmlText);
       viewer
         .get<{

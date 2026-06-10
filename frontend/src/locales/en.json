@@ -52,6 +52,7 @@
   },
   "general": {
     "activity": "Activity",
+    "back": "Back",
     "callActivities": "Call Activities",
     "cancel": "Cancel",
     "clientId": "Client ID",
@@ -75,6 +76,7 @@
     "signOut": "Sign Out"
   },
   "manageUsers": {
+    "deleteUser": "Delete user",
     "saveChanges": "Save changes",
     "editProfile": "Edit profile"
   },
@@ -106,6 +108,7 @@
     "confirmDeletionText2": "? This action will delete all process models associated with the collaboration.",
     "error": "Error",
     "fetchingProcessModels": "Fetching process models...",
+    "generateDescriptionErrorMsg": "Failed to generate the description. Please try again.",
     "generateDescriptionWithAI": "Generate description with AI",
     "importFromC8": "Import from C8",
     "navigateToC8Import": "Navigate to C8 Import",
@@ -134,10 +137,12 @@
     "loadingProcessMap": "Loading process map...",
     "messageFlows": "Message Flows",
     "noInformationAvailable": "No information available",
+    "operateClusterMissing": "Region and/or cluster missing",
+    "operateConnectionMissing": "Camunda Operate connection missing",
     "process": "Process",
     "processesWithoutConnections": "Processes without Connections",
     "resources": "Resources",
-    "retrieveProcessInstances": "Prozessinstanzen abrufen",
+    "retrieveProcessInstances": "Retrieve process instances",
     "startEvent": "Start Event"
   },
   "processView": {
@@ -186,6 +191,7 @@
     "regionId": "Region ID",
     "reset": "Reset",
     "resetToEnvVariables": "Reset to environment variables",
+    "saveErrorMsg": "Failed to save the settings. Please try again.",
     "savedSuccessfully": "Saved successfully"
   },
   "validation": {

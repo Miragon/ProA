@@ -1,10 +1,7 @@
 // Utilities
 import { defineStore } from "pinia";
-import {
-  ActiveVersionByProject,
-  ProjectVersion
-} from "@/components/Home/ProjectOverview.vue";
-import { LanguageCode } from "@/layouts/default/AppBar.vue";
+import { ActiveVersionByProject, ProjectVersion } from "@/types/project";
+import { LanguageCode } from "@/types/language";
 import { Role } from "@/components/ProcessMap/types";
 import { SnackbarConfigs, SnackbarType } from "@/utils/snackbar";
 

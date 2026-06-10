@@ -235,20 +235,12 @@
 </template>
 <script lang="ts">
 import { defineComponent } from "vue";
-import axios from "axios";
 import { useAppStore } from "@/store/app";
-import getProject from "../projectService";
-import { Settings } from "../SettingsDrawer.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
-
-declare interface ProcessModel {
-  id: string;
-  name: string;
-  created: string;
-  updatedBy: {
-    email: string;
-  };
-}
+import { getProject } from "@/api/projects";
+import { getSettings, persistSettings } from "@/api/settings";
+import * as camundaCloudApi from "@/api/camundaCloud";
+import { Settings } from "@/types/settings";
+import { CamundaProcessModel as ProcessModel } from "@/types/camundaCloud";
 
 interface EmailSelection {
   email: string;
@@ -303,8 +295,8 @@ export default defineComponent({
       this.$router.push("/");
       return;
     }
-    getProject(selectedProjectId).then((result) => {
-      this.selectedProjectName = result.data.name;
+    getProject(selectedProjectId).then((project) => {
+      this.selectedProjectName = project.name;
       this.selectedVersionName =
         this.store.getActiveVersionForProject(selectedProjectId).name;
     });
@@ -322,17 +314,13 @@ export default defineComponent({
     },
     fetchToken() {
       this.loadingDialog = true;
-      axios
-        .post(
-          "/api/camunda-cloud/token",
-          {
-            client_id: this.settings.modelerClientId,
-            client_secret: this.settings.modelerClientSecret
-          },
-          { headers: authHeader() }
+      camundaCloudApi
+        .fetchToken(
+          this.settings.modelerClientId,
+          this.settings.modelerClientSecret
         )
-        .then((result) => {
-          this.token = result.data;
+        .then((token) => {
+          this.token = token;
           this.tokenError = false;
           this.loadingDialog = false;
         })
@@ -343,22 +331,17 @@ export default defineComponent({
     },
     async fetchProcessModels() {
       this.loadingDialog = true;
-      axios
-        .post(
-          "/api/camunda-cloud",
-          {
-            token: this.token,
-            email: this.isBlank(this.creatorEmail) ? null : this.creatorEmail,
-            regionId: null,
-            clusterId: null
-          },
-          { headers: authHeader() }
-        )
-        .then(async (result) => {
+      camundaCloudApi
+        .fetchProcessModels({
+          token: this.token,
+          email: this.isBlank(this.creatorEmail) ? null : this.creatorEmail,
+          regionId: null,
+          clusterId: null
+        })
+        .then(async (processModels) => {
           if (this.saveClientInformation) {
             await this.saveSettings();
           }
-          const processModels: ProcessModel[] = result.data.items;
           this.processModels = processModels;
           this.importedProcessModels = processModels;
           this.emailSelections = [
@@ -388,14 +371,11 @@ export default defineComponent({
         }
       );
 
-      axios
-        .post(
-          "/api/camunda-cloud/project/" + this.selectedProjectId + "/import",
-          {
-            token: this.token,
-            selectedProcessModelIds: selectedProcessModelIds
-          },
-          { headers: authHeader() }
+      camundaCloudApi
+        .importProcessModels(
+          this.selectedProjectId!,
+          this.token,
+          selectedProcessModelIds
         )
         .then(() => {
           this.processModels = this.processModels.filter(
@@ -413,16 +393,10 @@ export default defineComponent({
     },
     async fetchSettings() {
       try {
-        await axios
-          .get("/api/settings", { headers: authHeader() })
-          .then((result) => {
-            this.settings = result.data;
-          });
+        this.settings = (await getSettings()) ?? ({} as Settings);
       } catch {
         this.settings = {} as Settings;
       }
-
-      this.settings = this.settings || ({} as Settings);
 
       this.settings.modelerClientId =
         this.settings?.modelerClientId ||
@@ -432,32 +406,7 @@ export default defineComponent({
         import.meta.env.VITE_MODELER_CLIENT_SECRET;
     },
     async saveSettings() {
-      const doSettingsExist = async () => {
-        try {
-          const result = await axios.get("api/settings", {
-            headers: authHeader()
-          });
-          return !!result?.data;
-        } catch {
-          return false;
-        }
-      };
-
-      if (await doSettingsExist()) {
-        await axios.patch("api/settings", this.settings, {
-          headers: {
-            ...authHeader(),
-            "Content-Type": "application/json"
-          }
-        });
-      } else {
-        await axios.post("api/settings", this.settings, {
-          headers: {
-            ...authHeader(),
-            "Content-Type": "application/json"
-          }
-        });
-      }
+      await persistSettings(this.settings);
     },
     getLocaleDate(date: string): string {
       const locales =

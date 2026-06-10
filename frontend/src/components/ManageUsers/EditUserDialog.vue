@@ -55,7 +55,7 @@
             color="red"
             @click="deleteUser(userId)"
           >
-            {{ "Delete User" }}
+            {{ $t("manageUsers.deleteUser") }}
           </v-btn>
         </div>
       </v-card-text>
@@ -65,8 +65,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import axios from "axios";
-import { authHeader } from "@/components/Authentication/authHeader";
+import * as usersApi from "@/api/users";
 import {
   emailRules,
   firstNameRules,
@@ -128,8 +127,15 @@ export default defineComponent({
   },
 
   computed: {
-    dialogModel() {
-      return this.showDialog;
+    dialogModel: {
+      get(): boolean {
+        return this.showDialog;
+      },
+      set(value: boolean) {
+        if (!value) {
+          this.$emit("close");
+        }
+      }
     }
   },
 
@@ -149,7 +155,7 @@ export default defineComponent({
       this.$emit("close");
     },
     async deleteUser(id: number) {
-      await axios.delete(`/api/user/${id}`, { headers: authHeader() });
+      await usersApi.deleteUser(id);
       this.$emit("deleteUser", id);
       this.closeDialog();
     },
@@ -160,7 +166,7 @@ export default defineComponent({
         return;
       }
 
-      const data = {
+      await usersApi.updateUser(id, {
         email:
           this.localUserEmail != this.userEmail ? this.localUserEmail : null,
         firstName:
@@ -172,8 +178,7 @@ export default defineComponent({
             ? this.localUserLastName
             : null,
         password: this.newPassword != "" ? this.newPassword : null
-      };
-      await axios.patch(`/api/user/${id}`, data, { headers: authHeader() });
+      });
       this.$emit("fetchUsers");
       this.closeDialog();
     }

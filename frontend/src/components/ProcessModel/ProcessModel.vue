@@ -85,7 +85,9 @@
       </v-fab-transition>
     </div>
     <div class="ma-4" style="position: absolute; top: 8px; left: 8px">
-      <v-btn prepend-icon="mdi-arrow-left" @click="goBack"> Zurück </v-btn>
+      <v-btn prepend-icon="mdi-arrow-left" @click="goBack">
+        {{ $t("general.back") }}
+      </v-btn>
     </div>
   </v-card>
 </template>
@@ -94,10 +96,9 @@ import { defineComponent } from "vue";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import ElementRegistry from "diagram-js/lib/core/ElementRegistry";
 import { ElementLike } from "diagram-js/lib/model/Types";
-import axios from "axios";
 import { Canvas } from "bpmn-js/lib/features/context-pad/ContextPadProvider";
 import { useAppStore } from "@/store/app";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { getProcessModelXml } from "@/api/processModels";
 
 export default defineComponent({
   data: () => ({
@@ -136,10 +137,8 @@ export default defineComponent({
 
     this.canvas = viewer.get("canvas") as Canvas;
 
-    const url = "/api/process-model/" + this.$route.params.id;
     try {
-      const response = await axios.get(url, { headers: authHeader() });
-      const xmlText = response.data;
+      const xmlText = await getProcessModelXml(this.$route.params.id as string);
       await viewer.importXML(xmlText);
     } catch (error) {
       console.log(error);

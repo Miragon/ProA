@@ -44,7 +44,6 @@
 </template>
 
 <script lang="ts">
-import axios from "axios";
 import { defineComponent } from "vue";
 import { dia, shapes } from "@joint/core";
 import { DirectedGraph } from "@joint/layout-directed-graph";
@@ -61,24 +60,24 @@ import createLinkRemoveButton from "@/components/ProcessMap/jointjs/createLinkRe
 import {
   Connection,
   DataStore,
-  DataStoreConnection,
   FilterGraphInput,
   HiddenLinks,
   HiddenPorts,
   MessageFlow,
   PortsInformation,
   Process,
-  ProcessElementType,
-  ProcessInstance
+  ProcessElementType
 } from "./types";
 
 import ProcessDetailSidebar from "@/components/ProcessMap/ProcessDetailSidebar.vue";
 import ProcessMapToolbar from "@/components/ProcessMap/ProcessMapToolbar.vue";
 import NavigationButtons from "@/components/ProcessMap/NavigationButtons.vue";
-import getProject from "../projectService";
+import { getProject } from "@/api/projects";
+import * as processMapApi from "@/api/processMap";
+import * as camundaCloudApi from "@/api/camundaCloud";
+import { getSettings } from "@/api/settings";
 import { useAppStore } from "@/store/app";
-import { Settings } from "@/components/SettingsDrawer.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { Settings } from "@/types/settings";
 
 export const getPortPrefix = (elementType: ProcessElementType): string => {
   switch (elementType) {
@@ -107,12 +106,23 @@ export default defineComponent({
   data() {
     const appStore = useAppStore();
     const selectedProjectId: number = appStore.getSelectedProjectId()!;
+    // All view state (graph, paper layout, filters, hidden cells/ports/links)
+    // is persisted per project *version*, since the process map contents are
+    // version specific.
+    const activeVersionId =
+      appStore.getActiveVersionForProject(selectedProjectId)?.id;
     const persistedHiddenCells =
-      appStore.getHiddenCellsForProject(selectedProjectId);
+      activeVersionId != null
+        ? appStore.getHiddenCellsForProject(activeVersionId)
+        : undefined;
     const persistedHiddenLinks =
-      appStore.getHiddenLinksForProject(selectedProjectId);
+      activeVersionId != null
+        ? appStore.getHiddenLinksForProject(activeVersionId)
+        : undefined;
     const persistedHiddenPorts =
-      appStore.getHiddenPortsForProject(selectedProjectId);
+      activeVersionId != null
+        ? appStore.getHiddenPortsForProject(activeVersionId)
+        : undefined;
 
     const hiddenCells: dia.Cell[] = persistedHiddenCells
       ? JSON.parse(persistedHiddenCells!)
@@ -171,8 +181,8 @@ export default defineComponent({
       return;
     }
 
-    getProject(this.selectedProjectId).then((result) => {
-      this.selectedProjectName = result.data.name;
+    getProject(this.selectedProjectId).then((project) => {
+      this.selectedProjectName = project.name;
       this.selectedVersionName = this.appStore.getActiveVersionForProject(
         this.selectedProjectId!
       ).name;
@@ -287,22 +297,13 @@ export default defineComponent({
         );
 
         try {
-          await axios.post(
-            `/api/project/${this.selectedVersionId!}/process-map/connection`,
-            {
-              callingProcessid,
-              calledProcessid,
-              callingElementType,
-              calledElementType,
-              userCreated: true
-            },
-            {
-              headers: {
-                ...authHeader(),
-                "Content-Type": "application/json"
-              }
-            }
-          );
+          await processMapApi.createConnection(this.selectedVersionId!, {
+            callingProcessid,
+            calledProcessid,
+            callingElementType,
+            calledElementType,
+            userCreated: true
+          });
         } catch (error) {
           console.error("Error while adding connection:", error);
         }
@@ -324,10 +325,7 @@ export default defineComponent({
         connectionId: number
       ): Promise<boolean> => {
         try {
-          await axios.delete(
-            `/api/project/process-map/process-connection/${connectionId}`,
-            { headers: authHeader() }
-          );
+          await processMapApi.deleteProcessConnection(connectionId);
           return true;
         } catch (error) {
           console.error("Error while removing process connection:", error);
@@ -339,10 +337,7 @@ export default defineComponent({
         connectionId: number
       ): Promise<boolean> => {
         try {
-          await axios.delete(
-            `/api/project/process-map/datastore-connection/${connectionId}`,
-            { headers: authHeader() }
-          );
+          await processMapApi.deleteDataStoreConnection(connectionId);
           return true;
         } catch (error) {
           console.error("Error while removing datastore connection:", error);
@@ -428,13 +423,11 @@ export default defineComponent({
       this.isFetching = true;
       this.resetFilters();
       graph.clear();
-      axios
-        .get("/api/project/" + this.selectedVersionId! + "/process-map", {
-          headers: authHeader()
-        })
-        .then((result) => {
+      processMapApi
+        .getProcessMap(this.selectedVersionId!)
+        .then((processMap) => {
           const abstractProcessShapes: AbstractProcessShape[] =
-            result.data.processes.map((process: Process) => {
+            processMap.processes.map((process: Process) => {
               const filterEmpty = (label: string) => !!label;
 
               this.portsInformation["start-" + process.id] = process.startEvents
@@ -469,7 +462,7 @@ export default defineComponent({
 
           graph.addCell(abstractProcessShapes);
 
-          const connectionsShapes = result.data.connections.map(
+          const connectionsShapes = processMap.connections.map(
             (connection: Connection) => {
               const link = new shapes.standard.Link();
 
@@ -508,7 +501,7 @@ export default defineComponent({
 
           graph.addCell(connectionsShapes);
 
-          const messageFlowShapes = result.data.messageFlows.map(
+          const messageFlowShapes = processMap.messageFlows.map(
             (messageFlow: MessageFlow) => {
               const link = new shapes.standard.Link();
 
@@ -554,7 +547,7 @@ export default defineComponent({
 
           graph.addCell(messageFlowShapes);
 
-          const abstractDataStores = result.data.dataStores.map(
+          const abstractDataStores = processMap.dataStores.map(
             (dataStore: DataStore) => {
               return createAbstractDataStoreElement(
                 dataStore.name,
@@ -565,49 +558,48 @@ export default defineComponent({
 
           graph.addCell(abstractDataStores);
 
-          const dataStoreConnectionShapes =
-            result.data.dataStoreConnections.map(
-              (connection: DataStoreConnection) => {
-                const link = new shapes.standard.Link();
-                const source = {
-                  id: connection.processid,
-                  port: "call-" + connection.processid
-                };
-                const target = {
-                  id: "ds-" + connection.dataStoreId,
-                  anchor: { name: "midSide", args: { rotate: true } }
-                };
+          const dataStoreConnectionShapes = processMap.dataStoreConnections.map(
+            (connection) => {
+              const link = new shapes.standard.Link();
+              const source = {
+                id: connection.processid,
+                port: "call-" + connection.processid
+              };
+              const target = {
+                id: "ds-" + connection.dataStoreId,
+                anchor: { name: "midSide", args: { rotate: true } }
+              };
 
-                if (connection.access === "READ_WRITE") {
-                  link.attr({
-                    line: {
-                      sourceMarker: {
-                        type: "path",
-                        stroke: "black",
-                        fill: "black",
-                        d: "M 10 -5 0 0 10 5 Z"
-                      },
-                      targetMarker: {
-                        type: "path",
-                        stroke: "black"
-                      }
+              if (connection.access === "READ_WRITE") {
+                link.attr({
+                  line: {
+                    sourceMarker: {
+                      type: "path",
+                      stroke: "black",
+                      fill: "black",
+                      d: "M 10 -5 0 0 10 5 Z"
+                    },
+                    targetMarker: {
+                      type: "path",
+                      stroke: "black"
                     }
-                  });
+                  }
+                });
 
-                  link.set({ connectionId: connection.id, source, target });
-                } else if (connection.access === "WRITE") {
-                  link.set({ connectionId: connection.id, source, target });
-                } else if (connection.access === "READ") {
-                  link.set({
-                    connectionId: connection.id,
-                    source: target,
-                    target: source
-                  });
-                }
-
-                return link;
+                link.set({ connectionId: connection.id, source, target });
+              } else if (connection.access === "WRITE") {
+                link.set({ connectionId: connection.id, source, target });
+              } else if (connection.access === "READ") {
+                link.set({
+                  connectionId: connection.id,
+                  source: target,
+                  target: source
+                });
               }
-            );
+
+              return link;
+            }
+          );
 
           graph.addCell(dataStoreConnectionShapes);
 
@@ -779,11 +771,7 @@ export default defineComponent({
     },
     async fetchSettings() {
       try {
-        await axios
-          .get("/api/settings", { headers: authHeader() })
-          .then((result) => {
-            this.settings = result.data;
-          });
+        this.settings = (await getSettings()) ?? ({} as Settings);
       } catch {
         this.settings = {} as Settings;
       }
@@ -813,27 +801,24 @@ export default defineComponent({
         !this.settings.operateClientSecret
       ) {
         this.appStore.setOperateConnectionError(
-          "Camunda Operate Verbindung fehlt"
+          this.$t("processMap.operateConnectionMissing")
         );
         this.appStore.setAreSettingsOpened(true);
         return;
       }
       if (!this.settings.operateRegionId || !this.settings.operateClusterId) {
-        this.appStore.setOperateClusterError("Region und/oder Cluster fehlen");
+        this.appStore.setOperateClusterError(
+          this.$t("processMap.operateClusterMissing")
+        );
         this.appStore.setAreSettingsOpened(true);
         return;
       }
       try {
-        const result = await axios.post(
-          "/api/camunda-cloud/token",
-          {
-            client_id: this.settings.operateClientId,
-            client_secret: this.settings.operateClientSecret,
-            audience: "operate.camunda.io"
-          },
-          { headers: authHeader() }
+        this.operateToken = await camundaCloudApi.fetchToken(
+          this.settings.operateClientId,
+          this.settings.operateClientSecret,
+          "operate.camunda.io"
         );
-        this.operateToken = result.data;
         await this.fetchProcessInstances();
       } catch {
         this.appStore.setAreSettingsOpened(true);
@@ -845,38 +830,26 @@ export default defineComponent({
         .getCells()
         .filter((cell) => cell instanceof AbstractProcessShape)
         .map((cell) => {
-          return axios.post(
-            "/api/camunda-cloud/process-instances",
-            {
-              token: this.operateToken,
-              regionId: this.settings.operateRegionId,
-              clusterId: this.settings.operateClusterId,
-              bpmnProcessId: cell.attributes.bpmnProcessId
-            },
-            { headers: authHeader() }
-          );
+          return camundaCloudApi.fetchProcessInstances({
+            token: this.operateToken,
+            regionId: this.settings.operateRegionId,
+            clusterId: this.settings.operateClusterId,
+            bpmnProcessId: cell.attributes.bpmnProcessId
+          });
         });
 
       const results = await Promise.all(promises);
-      const items = results.flatMap((result) => result.data.items);
+      const items = results.flat();
 
-      const countByProcess = items.reduce(
-        (countByProcess: Map<string, number>, item: ProcessInstance) => {
-          if (
-            countByProcess.get(item.bpmnProcessId) &&
-            item.state == "ACTIVE"
-          ) {
-            countByProcess.set(
-              item.bpmnProcessId,
-              countByProcess.get(item.bpmnProcessId)! + 1
-            );
-          } else {
-            countByProcess.set(item.bpmnProcessId, 1);
-          }
+      const countByProcess = items
+        .filter((item) => item.state === "ACTIVE")
+        .reduce((countByProcess: Map<string, number>, item) => {
+          countByProcess.set(
+            item.bpmnProcessId,
+            (countByProcess.get(item.bpmnProcessId) ?? 0) + 1
+          );
           return countByProcess;
-        },
-        new Map<string, number>()
-      );
+        }, new Map<string, number>());
       for (const cell of graph.getCells()) {
         if (cell instanceof AbstractProcessShape) {
           const countForBpmnProcessId = countByProcess.get(

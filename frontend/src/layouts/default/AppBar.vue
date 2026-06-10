@@ -117,8 +117,7 @@ import SettingsDrawer from "@/components/SettingsDrawer.vue";
 import i18n from "@/i18n";
 import AuthenticationDialog from "@/components/Authentication/AuthenticationDialog.vue";
 import { Role } from "@/components/ProcessMap/types";
-
-export type LanguageCode = "en" | "de";
+import { LanguageCode } from "@/types/language";
 
 interface Language {
   code: LanguageCode;

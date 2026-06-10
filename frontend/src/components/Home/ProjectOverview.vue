@@ -16,18 +16,6 @@
       </template>
     </v-banner>
 
-    <v-snackbar
-      v-model="store.snackbar.visible"
-      :color="store.snackbar.color"
-      :timeout="store.snackbar.timeout"
-      centered
-    >
-      <v-icon left large class="snackbar-icon">
-        {{ store.snackbar.icon }}
-      </v-icon>
-      <span class="snackbar-text">{{ store.snackbar.message }}</span>
-    </v-snackbar>
-
     <v-card
       v-for="(project, index) in projects"
       :key="index"
@@ -247,50 +235,14 @@
 </template>
 <script lang="ts">
 import { defineComponent } from "vue";
-import axios from "axios";
 import { SnackbarType } from "@/utils/snackbar";
 import { useAppStore } from "@/store/app";
 import { VTextField } from "vuetify/components";
-import { authHeader } from "@/components/Authentication/authHeader";
-import getUser from "@/components/userService";
+import * as projectsApi from "@/api/projects";
+import { getCurrentUser } from "@/api/users";
+import { Project, ProjectVersion } from "@/types/project";
+import { UserData } from "@/types/user";
 import ProjectDetailDialog from "@/components/Home/ProjectDetailDialog.vue";
-
-export interface Project {
-  id: number;
-  name: string;
-  versions: ProjectVersion[];
-  createdAt: string;
-  modifiedAt: string;
-  projectMembers: ProjectMember[];
-}
-
-export interface ProjectVersion {
-  id: number;
-  name: string;
-  createdAt: string;
-  modifiedAt: string;
-}
-
-export interface ActiveVersionByProject {
-  [key: number]: ProjectVersion;
-}
-
-export interface ProjectMember {
-  id: number;
-  firstName: string;
-  lastName: string;
-  role: string;
-}
-
-export interface UserData {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  createdAt: string;
-  modifiedAt: string;
-}
 
 export default defineComponent({
   components: { ProjectDetailDialog },
@@ -366,7 +318,7 @@ export default defineComponent({
   },
 
   mounted: async function () {
-    if (this.store.getUserToken() != null) this.user = await getUser();
+    if (this.store.getUserToken() != null) this.user = await getCurrentUser();
 
     const currentState = window.history.state || {};
 
@@ -405,12 +357,15 @@ export default defineComponent({
       }
 
       try {
-        const result = await axios.get("/api/project", {
-          headers: authHeader()
-        });
-        this.projects = result.data.sort((project: Project) => {
-          return project.id === this.store.getSelectedProjectId() ? -1 : 0;
-        });
+        const projects = await projectsApi.getProjects();
+        const selectedProjectId = this.store.getSelectedProjectId();
+        this.projects = projects.sort(
+          (project1: Project, project2: Project) => {
+            if (project1.id === selectedProjectId) return -1;
+            if (project2.id === selectedProjectId) return 1;
+            return 0;
+          }
+        );
         this.syncActiveVersions();
       } catch {
         this.projects = [];
@@ -461,21 +416,15 @@ export default defineComponent({
         }
       }
 
-      const formData = new FormData();
-      formData.append("name", newProjectName);
-      formData.append("version", newProjectVersionName);
-
       try {
-        const result = await axios.post("api/project", formData, {
-          headers: authHeader()
-        });
+        const project = await projectsApi.createProject(
+          newProjectName,
+          newProjectVersionName
+        );
 
         this.projectDialog = false;
-        this.store.setActiveVersionForProject(
-          result.data.id,
-          result.data.versions[0]
-        );
-        this.projects.push(result.data);
+        this.store.setActiveVersionForProject(project.id, project.versions[0]);
+        this.projects.push(project);
 
         await this.store.showSnackbar(
           this.$t("projectOverview.projectSuccessfullyCreated"),
@@ -499,20 +448,17 @@ export default defineComponent({
         return;
       }
 
-      const formData = new FormData();
-      formData.append("versionName", this.newVersionName);
-
       const projectId = this.projectForNewVersion!.id;
-      const url = `/api/project/${projectId}`;
 
       try {
-        const { data } = await axios.post(url, formData, {
-          headers: authHeader()
-        });
-        this.store.setActiveVersionForProject(projectId, data);
+        const version = await projectsApi.createProjectVersion(
+          projectId,
+          this.newVersionName
+        );
+        this.store.setActiveVersionForProject(projectId, version);
         for (const project of this.projects) {
           if (project.id === projectId) {
-            project.versions.push(data);
+            project.versions.push(version);
           }
         }
 
@@ -567,9 +513,7 @@ export default defineComponent({
       }
     },
     async deleteProjectVersion(projectId: number, versionId: number) {
-      await axios.delete(`/api/project/${projectId}/${versionId}`, {
-        headers: authHeader()
-      });
+      await projectsApi.deleteProjectVersion(projectId, versionId);
     },
     openProject(id: number) {
       this.store.setSelectedProjectId(id);

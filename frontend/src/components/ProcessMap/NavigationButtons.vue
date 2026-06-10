@@ -165,8 +165,17 @@ export default defineComponent({
       this.savePaperLayout();
     },
     savePaperLayout() {
-      useAppStore().setPaperLayoutForProject(
-        this.selectedProjectId,
+      // The paper layout is persisted per project *version* (same key as
+      // used when restoring the layout in ProcessMap.vue).
+      const store = useAppStore();
+      const activeVersionId = store.getActiveVersionForProject(
+        this.selectedProjectId
+      )?.id;
+      if (activeVersionId == null) {
+        return;
+      }
+      store.setPaperLayoutForProject(
+        activeVersionId,
         JSON.stringify({
           sx: paper.scale().sx,
           tx: paper.translate().tx,

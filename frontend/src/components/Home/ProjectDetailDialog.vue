@@ -88,9 +88,9 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { Project, ProjectVersion } from "@/components/Home/ProjectOverview.vue";
-import axios, { AxiosError } from "axios";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { Project, ProjectVersion } from "@/types/project";
+import { AxiosError } from "axios";
+import * as projectsApi from "@/api/projects";
 import { useAppStore } from "@/store/app";
 import { VTextField } from "vuetify/components";
 import { emailRules } from "@/components/Authentication/formValidation";
@@ -155,13 +155,7 @@ export default defineComponent({
     },
     async fetchProject() {
       try {
-        const { data } = await axios.get<Project>(
-          `/api/project/${this.projectDetailId}`,
-          {
-            headers: authHeader()
-          }
-        );
-        this.project = data;
+        this.project = await projectsApi.getProject(this.projectDetailId);
       } catch (error) {
         console.error(error);
       }
@@ -180,16 +174,10 @@ export default defineComponent({
         return;
       }
 
-      const formData = new FormData();
-      formData.append("email", this.newContributorEmail);
-
       try {
-        await axios.post(
-          `/api/project/${this.projectDetailId}/contributor`,
-          formData,
-          {
-            headers: authHeader()
-          }
+        await projectsApi.addContributor(
+          this.projectDetailId,
+          this.newContributorEmail
         );
         this.newContributorEmail = "";
         this.resetValidation();

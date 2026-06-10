@@ -106,7 +106,7 @@
 </template>
 
 <script lang="ts">
-import { ProcessModelNode } from "@/components/ProcessList/ProcessList.vue";
+import { ProcessModelNode } from "@/types/processModel";
 import { useAppStore } from "@/store/app";
 
 export default {

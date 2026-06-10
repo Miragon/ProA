@@ -147,20 +147,12 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { useAppStore } from "@/store/app";
-import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import i18n from "@/i18n";
-import { authHeader } from "@/components/Authentication/authHeader";
-
-export interface Settings {
-  geminiApiKey: string;
-  modelerClientId: string;
-  modelerClientSecret: string;
-  operateClientId: string;
-  operateClientSecret: string;
-  operateRegionId: string;
-  operateClusterId: string;
-}
+import { getSettings, persistSettings } from "@/api/settings";
+import * as camundaCloudApi from "@/api/camundaCloud";
+import { Settings } from "@/types/settings";
+import { SnackbarType } from "@/utils/snackbar";
 
 export default defineComponent({
   name: "SettingsDrawer",
@@ -214,34 +206,21 @@ export default defineComponent({
         modelerClientSecret: import.meta.env.VITE_MODELER_CLIENT_SECRET || "",
         operateClientId: import.meta.env.VITE_OPERATE_CLIENT_ID || "",
         operateClientSecret: import.meta.env.VITE_OPERATE_CLIENT_SECRET || "",
-        operateRegionId: import.meta.env.VITE_OPERATE_REGION || "",
+        operateRegionId: import.meta.env.VITE_OPERATE_REGION_ID || "",
         operateClusterId: import.meta.env.VITE_OPERATE_CLUSTER_ID || ""
       };
     },
     async saveSettings() {
-      const doSettingsExist = async () => {
-        const result = await axios.get("/api/settings", {
-          headers: authHeader()
-        });
-        return !!result.data;
-      };
-
       const areSettingsValid = await this.validateSettings();
 
-      if (await doSettingsExist()) {
-        await axios.patch("/api/settings", this.settingsToBeSaved, {
-          headers: {
-            ...authHeader(),
-            "Content-Type": "application/json"
-          }
-        });
-      } else {
-        await axios.post("/api/settings", this.settingsToBeSaved, {
-          headers: {
-            ...authHeader(),
-            "Content-Type": "application/json"
-          }
-        });
+      try {
+        await persistSettings(this.settingsToBeSaved);
+      } catch {
+        await this.appStore.showSnackbar(
+          this.$t("settingsDrawer.saveErrorMsg"),
+          SnackbarType.ERROR
+        );
+        return;
       }
 
       if (areSettingsValid) {
@@ -357,14 +336,7 @@ export default defineComponent({
       if (!modelerClientId && !modelerClientSecret) return true;
       if (!modelerClientId || !modelerClientSecret) return false;
       try {
-        await axios.post(
-          "/api/camunda-cloud/token",
-          {
-            client_id: modelerClientId,
-            client_secret: modelerClientSecret
-          },
-          { headers: authHeader() }
-        );
+        await camundaCloudApi.fetchToken(modelerClientId, modelerClientSecret);
         return true;
       } catch {
         return false;
@@ -380,16 +352,12 @@ export default defineComponent({
       if (!operateClientId || !operateClientSecret)
         return { valid: false, token: null };
       try {
-        const result = await axios.post(
-          "/api/camunda-cloud/token",
-          {
-            client_id: operateClientId,
-            client_secret: operateClientSecret,
-            audience: "operate.camunda.io"
-          },
-          { headers: authHeader() }
+        const token = await camundaCloudApi.fetchToken(
+          operateClientId,
+          operateClientSecret,
+          "operate.camunda.io"
         );
-        return { valid: true, token: result.data };
+        return { valid: true, token };
       } catch {
         return { valid: false, token: null };
       }
@@ -399,15 +367,11 @@ export default defineComponent({
       if (!operateRegionId && !operateClusterId) return true;
       if (!operateRegionId || !operateClusterId) return false;
       try {
-        await axios.post(
-          "/api/camunda-cloud/process-instances",
-          {
-            token: operateToken,
-            regionId: this.settings.operateRegionId,
-            clusterId: this.settings.operateClusterId
-          },
-          { headers: authHeader() }
-        );
+        await camundaCloudApi.fetchProcessInstances({
+          token: operateToken,
+          regionId: this.settings.operateRegionId,
+          clusterId: this.settings.operateClusterId
+        });
         return true;
       } catch {
         return false;
@@ -430,11 +394,7 @@ export default defineComponent({
       if (this.isWebVersion && !this.isUserLoggedIn) {
         return;
       }
-      await axios
-        .get("/api/settings", { headers: authHeader() })
-        .then((result) => {
-          this.settings = result.data || ({} as Settings);
-        });
+      this.settings = (await getSettings()) ?? ({} as Settings);
 
       this.settings.geminiApiKey =
         this.settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
