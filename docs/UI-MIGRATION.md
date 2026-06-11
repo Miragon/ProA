@@ -39,9 +39,10 @@ it anymore.
 
 | Area | Components | Status |
 |------|------------|--------|
-| Sign-in | `SignIn/SignIn.vue` | ✅ migrated |
-| Auth dialogs | `Authentication/*` (5 dialogs) | ✅ migrated |
-| User management | `ManageUsers/*` (2) | ✅ migrated |
+| Sign-in / registration / passwords | Keycloak hosted pages (ADR-0001) | ➖ out of scope |
+| OIDC callback | `views/SigninCallbackView.vue` | ✅ shadcn |
+| Auth dialogs | `Authentication/*` (AuthenticationDialog, ProfileDialog, EditProfileDialog) | ✅ migrated |
+| User management | being replaced by project invitations (ADR-0003) | ➖ see ADR |
 | App shell | `layouts/default/*`, `AppBar.vue` | ⬜ Vuetify |
 | Home / projects | `Home/*` (2) | ⬜ Vuetify |
 | Settings drawer | `SettingsDrawer.vue` | ⬜ Vuetify |

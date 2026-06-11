@@ -43,3 +43,8 @@ nb-configuration.xml
 /.quarkus/cli/plugins/
 
 src/main/resources/META-INF/resources
+
+# Legacy generated JWT keys - checkouts that ran generate-keys.sh before
+# ADR-0001 may still contain them; never track them (test keys are *.test.pem)
+**/privateKey.pem
+**/publicKey.pem

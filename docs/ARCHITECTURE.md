@@ -35,9 +35,9 @@ repository/    port implementations, DAOs (EntityManager), JPA entities (tables/
 entities/      transport/domain objects (currently double as REST DTOs)
 bpmn/          BPMN parsing; implements the usecases.ProcessOperations port
 camundacloud/  Camunda Cloud import (REST clients + import usecase)
-security/      @RolesAllowedIfWebVersion interceptor (no-ops in desktop mode)
-authservice/   JWT issuing (TokenService)
-startup/       admin user provisioning
+security/      @RolesAllowedIfWebVersion interceptor (no-ops in desktop mode);
+               CurrentUserService (resolves the OIDC identity to a provisioned
+               local user — authentication itself is Keycloak's, see ADR-0001)
 ```
 
 The ports-and-adapters skeleton is genuinely in place: usecases define interfaces,
@@ -47,7 +47,7 @@ repository implements them, dependency direction is almost entirely correct.
 
 | # | Deviation | Why it matters | Suggested move |
 |---|-----------|----------------|----------------|
-| 1 | Business logic (login lockout, owner checks, replace-semantics) lives in repository impls; usecases are mostly pass-throughs | Logic is invisible at the usecase level and hard to test without a DB | Move rule-like logic into usecases step by step whenever a feature is touched; repositories shrink to persistence |
+| 1 | Business logic (owner checks, replace-semantics) lives in repository impls; usecases are mostly pass-throughs | Logic is invisible at the usecase level and hard to test without a DB | Move rule-like logic into usecases step by step whenever a feature is touched; repositories shrink to persistence |
 | 2 | `app.mode` web/desktop branching is duplicated through every layer (doubled method stacks) | Every feature costs twice; easy to forget the web-mode auth variant (this caused the IDOR bug) | Introduce a `CurrentUser` abstraction (web: from JWT; desktop: a fixed local user). One code path; authorization becomes data, not control flow |
 | 3 | Tenancy key ambiguity: `projectId` means `ProjectTable` id on `/project` endpoints but `ProjectVersionTable` id almost everywhere else | Repeated source of confusion and bugs | Rename path params and Java parameters to `projectVersionId` where that is what they are (transport-compatible: URL shape can stay) |
 | 4 | Transport objects in `entities/` double as REST DTOs and as domain objects | API shape is coupled to domain evolution | Acceptable at current size; introduce dedicated request/response records only where the API needs to diverge |
@@ -63,8 +63,9 @@ views/ + router/   thin route shells with auth guards
 components/        feature components (ProcessMap, ProcessList, Home, Auth, ...)
 components/ui/     shadcn-vue primitives (generated, see docs/UI-MIGRATION.md)
 api/               typed axios client (client.ts: baseURL /api, auth header,
-                   401 interceptor) + feature modules (auth, users, projects,
+                   401 interceptor) + feature modules (users, projects,
                    processModels, processMap, settings, camundaCloud)
+auth/              OIDC machinery (oidc-client-ts wrapper, ADR-0001)
 types/             shared types (moved out of .vue files)
 lib/               shadcn utils (cn)
 store/             Pinia (persisted to sessionStorage)

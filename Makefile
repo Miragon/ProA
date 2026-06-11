@@ -23,8 +23,8 @@ db-up: ## Start local PostgreSQL (with fuzzystrmatch) via Docker
 db-down: ## Stop local PostgreSQL
 	docker compose stop db
 
-db-reset: ## Stop local PostgreSQL and delete its data volume
-	docker compose down -v
+db-reset: ## Stop local PostgreSQL and delete its data volume (Keycloak stays up)
+	docker compose down -v db
 
 auth-up: ## Start local Keycloak (realm 'proa' auto-imported) - required for web-mode dev
 	docker compose up -d keycloak
@@ -34,7 +34,7 @@ auth-up: ## Start local Keycloak (realm 'proa' auto-imported) - required for web
 auth-down: ## Stop local Keycloak
 	docker compose stop keycloak
 
-backend: ## Run backend in dev mode with in-memory H2 (no Docker needed)
+backend: ## Run backend in dev mode, H2 in-memory (web-mode sign-in needs 'make auth-up')
 	cd backend && ./mvnw quarkus:dev
 
 backend-pg: ## Run backend in dev mode against local PostgreSQL (make db-up first)

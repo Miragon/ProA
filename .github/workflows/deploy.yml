@@ -30,6 +30,10 @@ jobs:
       # baked into the frontend bundle below.
       - name: Create .env file
         run: |
+          if [ "${{ vars.VITE_APP_MODE }}" = "web" ] && { [ -z "${{ vars.VITE_OIDC_AUTHORITY }}" ] || [ -z "${{ vars.VITE_OIDC_CLIENT_ID }}" ]; }; then
+            echo "::error::VITE_OIDC_AUTHORITY and VITE_OIDC_CLIENT_ID repo variables must be set for web-mode deploys (ADR-0001)"
+            exit 1
+          fi
           touch frontend/.env
           echo "VITE_APP_MODE=${{ vars.VITE_APP_MODE }}" >> frontend/.env
           echo "VITE_OIDC_AUTHORITY=${{ vars.VITE_OIDC_AUTHORITY }}" >> frontend/.env
