@@ -10,6 +10,14 @@ import { Role } from "@/components/ProcessMap/types";
 
 const routes = [
   {
+    // OIDC redirect target (web mode): rendered without the default layout
+    // and exempt from the auth guard so the callback can be processed.
+    path: "/signin-callback",
+    name: "SigninCallback",
+    component: () => import("@/views/SigninCallbackView.vue"),
+    meta: { requiresWebVersion: true }
+  },
+  {
     path: "/",
     component: () => import("@/layouts/default/Default.vue"),
     children: [
@@ -47,12 +55,6 @@ const routes = [
         meta: { requiresAuth: true }
       },
       {
-        path: "SignIn",
-        name: "SignIn",
-        component: () => import("@/views/SignInView.vue"),
-        meta: { requiresGuest: true, requiresWebVersion: true }
-      },
-      {
         path: "ManageUsers",
         name: "ManageUsers",
         component: () => import("@/views/ManageUsersView.vue"),
@@ -84,10 +86,8 @@ const router = createRouter({
 const cancelNavigation = (from: RouteLocationNormalized) =>
   from === START_LOCATION ? { name: "ProjectOverview" } : false;
 
-router.beforeEach((to, from) => {
+router.beforeEach(async (to, from) => {
   const store = useAppStore();
-  const isLoggedIn = store.getUserToken() != null;
-  const isAdmin = store.getUserRole() === Role.ADMIN;
   const isWebVersion = import.meta.env.VITE_APP_MODE === "web";
 
   store.snackbar.visible = false;
@@ -96,16 +96,26 @@ router.beforeEach((to, from) => {
     return cancelNavigation(from);
   }
 
-  if (to.meta.requiresAdmin && !isAdmin) {
-    return cancelNavigation(from);
+  // The OIDC redirect callback must stay reachable while signed out.
+  if (to.name === "SigninCallback") {
+    return true;
   }
 
-  if (to.meta.requiresGuest && isLoggedIn) {
-    return cancelNavigation(from);
+  if (isWebVersion) {
+    // Lazy import: desktop mode must never load the OIDC machinery.
+    const { initAuth, signinRedirect } = await import("@/auth/oidc");
+    // Restores an existing Keycloak session from sessionStorage into the
+    // store (no-op after the first navigation).
+    await initAuth();
+
+    if (to.meta.requiresAuth && store.getUserToken() == null) {
+      await signinRedirect();
+      return false;
+    }
   }
 
-  if (to.meta.requiresAuth && isWebVersion && !isLoggedIn) {
-    return { name: "SignIn" };
+  if (to.meta.requiresAdmin && store.getUserRole() !== Role.ADMIN) {
+    return cancelNavigation(from);
   }
 
   return true;

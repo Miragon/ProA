@@ -8,9 +8,7 @@ import { SnackbarConfigs, SnackbarType } from "@/utils/snackbar";
 export enum SelectedDialog {
   NONE = -1,
   PROFILE = 0,
-  EDIT_PROFILE = 1,
-  CREATE_ACCOUNT = 3,
-  CHANGE_PW = 4
+  EDIT_PROFILE = 1
 }
 
 export interface Snackbar {
@@ -195,8 +193,9 @@ export const useAppStore = defineStore("app", {
       "areSettingsOpened",
       "operateConnectionError",
       "operateClusterError",
-      "userToken",
-      "userRole",
+      // userToken/userRole are deliberately NOT persisted: oidc-client-ts
+      // owns the session in sessionStorage and the auth wrapper re-populates
+      // the store on load/renew (double-persistence causes stale tokens).
       "selectedDialog"
     ]
   }

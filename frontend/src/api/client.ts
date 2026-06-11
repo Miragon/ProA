@@ -4,7 +4,7 @@ declare module "axios" {
   export interface AxiosRequestConfig {
     /**
      * Set to true to skip attaching the Authorization header and the
-     * automatic 401 handling (e.g. for the login request itself).
+     * automatic 401 handling.
      */
     skipAuth?: boolean;
   }
@@ -45,12 +45,14 @@ apiClient.interceptors.response.use(
       const store = useAppStore();
       store.setUserToken(null);
       store.setUserRole(null);
-      // Close any open auth dialog so it does not linger on the sign-in page.
+      // Close any open auth dialog so it does not linger after the redirect.
       store.setSelectedDialog(SelectedDialog.NONE);
 
-      const { default: router } = await import("@/router");
-      if (router.currentRoute.value.name !== "SignIn") {
-        await router.push({ name: "SignIn" });
+      // Send the user to Keycloak to sign in again - except while the
+      // OIDC callback itself is being processed (avoids redirect loops).
+      if (window.location.pathname !== "/signin-callback") {
+        const { signinRedirect } = await import("@/auth/oidc");
+        await signinRedirect();
       }
     }
     return Promise.reject(error);

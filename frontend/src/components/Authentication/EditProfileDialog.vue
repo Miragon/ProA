@@ -87,14 +87,13 @@
         </Label>
         <Input
           id="edit-profile-email"
-          v-model="newUserData.email"
+          :model-value="newUserData.email"
           type="email"
-          autocomplete="email"
-          required
-          :aria-invalid="!!errors.email || undefined"
+          readonly
+          disabled
         />
-        <p v-if="errors.email" class="tw:text-destructive tw:text-sm">
-          {{ errors.email }}
+        <p class="tw:text-muted-foreground tw:text-sm">
+          {{ $t("authentication.emailManagedBySso") }}
         </p>
       </div>
       <Button type="button" size="lg" class="tw:w-full" @click="updateUser">
@@ -108,7 +107,6 @@
 import { defineComponent } from "vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
 import {
-  emailRules,
   firstNameRules,
   firstRuleError,
   lastNameRules
@@ -163,7 +161,7 @@ export default defineComponent({
     return {
       store,
       newUserData,
-      errors: { firstName: "", lastName: "", email: "" },
+      errors: { firstName: "", lastName: "" },
       SelectedDialog: SelectedDialog
     };
   },
@@ -179,11 +177,6 @@ export default defineComponent({
     "newUserData.lastName"(value: string) {
       if (this.errors.lastName) {
         this.errors.lastName = firstRuleError(value, lastNameRules);
-      }
-    },
-    "newUserData.email"(value: string) {
-      if (this.errors.email) {
-        this.errors.email = firstRuleError(value, emailRules);
       }
     }
   },
@@ -208,10 +201,7 @@ export default defineComponent({
         this.newUserData.lastName,
         lastNameRules
       );
-      this.errors.email = firstRuleError(this.newUserData.email, emailRules);
-      return (
-        !this.errors.firstName && !this.errors.lastName && !this.errors.email
-      );
+      return !this.errors.firstName && !this.errors.lastName;
     },
     async updateUser() {
       this.$emit("showMessage", { message: "", type: "error" } as Message);
@@ -219,12 +209,19 @@ export default defineComponent({
         return;
       }
       const currUserData = await getCurrentUser();
-      if (JSON.stringify(this.newUserData) === JSON.stringify(currUserData)) {
+      if (
+        this.newUserData.firstName === currUserData.firstName &&
+        this.newUserData.lastName === currUserData.lastName
+      ) {
         this.openDialog(SelectedDialog.PROFILE);
         return;
       }
       try {
-        await updateCurrentUser(this.newUserData);
+        // The email is owned by Keycloak and deliberately not sent.
+        await updateCurrentUser({
+          firstName: this.newUserData.firstName,
+          lastName: this.newUserData.lastName
+        });
 
         const message: Message = {
           type: "success",

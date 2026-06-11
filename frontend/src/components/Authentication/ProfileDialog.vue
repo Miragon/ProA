@@ -56,6 +56,9 @@
             {{ $t("authentication.email") }}
           </span>
           <span>{{ user.email }}</span>
+          <span class="tw:text-muted-foreground tw:text-xs">
+            {{ $t("authentication.emailManagedBySso") }}
+          </span>
         </div>
       </div>
       <div class="tw:flex tw:items-center tw:justify-between tw:gap-2">
@@ -68,12 +71,9 @@
             <span>************</span>
           </div>
         </div>
-        <Button
-          variant="link"
-          type="button"
-          @click="resetMessageAndOpenDialog(SelectedDialog.CHANGE_PW)"
-        >
-          {{ $t("authentication.changePassword") }}
+        <Button variant="link" type="button" @click="openAccountConsole">
+          {{ $t("authentication.manageAccount") }}
+          <ExternalLink />
         </Button>
       </div>
     </div>
@@ -143,9 +143,11 @@ import { UserData } from "@/types/user";
 import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
 import { getProjects } from "@/api/projects";
 import { getCurrentUser } from "@/api/users";
+import { accountConsoleUrl } from "@/auth/config";
 import {
   CircleAlert,
   CircleCheck,
+  ExternalLink,
   Folder,
   KeyRound,
   Mail,
@@ -186,6 +188,7 @@ export default defineComponent({
     DialogDescription,
     DialogHeader,
     DialogTitle,
+    ExternalLink,
     Folder,
     KeyRound,
     Mail,
@@ -236,6 +239,10 @@ export default defineComponent({
     },
     openDialog(dialog: SelectedDialog) {
       this.store.setSelectedDialog(dialog);
+    },
+    /** Password & co. are managed by Keycloak in its account console. */
+    openAccountConsole() {
+      window.open(accountConsoleUrl, "_blank", "noopener,noreferrer");
     },
     getLocaleDate(date: string): string {
       const locales =

@@ -17,18 +17,6 @@
         @show-message="showMessage"
         @remove-message="removeMessage"
       />
-      <CreateAccount
-        v-if="selectedDialog === SelectedDialog.CREATE_ACCOUNT"
-        :message="message"
-        @show-message="showMessage"
-        @remove-message="removeMessage"
-      />
-      <ChangePassword
-        v-if="selectedDialog === SelectedDialog.CHANGE_PW"
-        :message="message"
-        @show-message="showMessage"
-        @remove-message="removeMessage"
-      />
     </DialogContent>
   </Dialog>
 </template>
@@ -37,8 +25,6 @@
 import { defineComponent } from "vue";
 import EditProfileDialog from "@/components/Authentication/EditProfileDialog.vue";
 import ProfileDialog from "@/components/Authentication/ProfileDialog.vue";
-import CreateAccount from "@/components/Authentication/CreateAccount.vue";
-import ChangePassword from "@/components/Authentication/ChangePassword.vue";
 import { useAppStore } from "@/store/app";
 import { SelectedDialog } from "@/store/app";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -51,8 +37,6 @@ export interface Message {
 export default defineComponent({
   name: "AuthenticationDialog",
   components: {
-    ChangePassword,
-    CreateAccount,
     ProfileDialog,
     EditProfileDialog,
     Dialog,

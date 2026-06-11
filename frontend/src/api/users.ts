@@ -1,15 +1,18 @@
 import apiClient from "@/api/client";
 import { UserData } from "@/types/user";
 
-/** Fields of the currently logged-in user that can be updated. */
-export type CurrentUserUpdate = Partial<UserData> & { password?: string };
+/**
+ * Fields of the currently logged-in user that can be updated. Email and
+ * credentials are owned by Keycloak and managed in its account console.
+ */
+export type CurrentUserUpdate = Partial<
+  Pick<UserData, "firstName" | "lastName">
+>;
 
 /** Admin update of another user; null means "keep the current value". */
 export interface UserUpdate {
-  email: string | null;
   firstName: string | null;
   lastName: string | null;
-  password: string | null;
 }
 
 export const getCurrentUser = async (): Promise<UserData> => {

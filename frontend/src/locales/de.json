@@ -1,44 +1,28 @@
 {
   "authentication": {
-    "accountCreationFailed": "Account konnte nicht erstellt werden",
-    "accountLocked": "Account ist gesperrt. Bitte kontaktieren Sie Ihren Administrator.",
     "admin": "Admin",
-    "alreadyAccountQuestion": "Besteht bereits ein Account?",
-    "back": "Zurück",
-    "changePassword": "Passwort ändern",
-    "createAnAccount": "Account erstellen",
-    "createAccountQuestion": "Account erstellen?",
-    "currentPassword": "Aktuelles Passwort",
-    "currentPwWrongError": "Aktuelles Passwort falsch",
     "edit": "Bearbeiten",
     "editYourProfile": "Profil bearbeiten",
     "email": "E-Mail",
-    "emailAlreadyRegistered": "Diese E-Mail Adresse ist bereits registriert",
+    "emailManagedBySso": "Die E-Mail-Adresse wird von Ihrem Anmeldedienst verwaltet.",
     "firstName": "Vorname",
-    "forgotPwQuestion": "Passwort vergessen?",
     "id": "ID",
     "lastName": "Nachname",
+    "manageAccount": "Konto verwalten",
     "name": "Name",
-    "newPassword": "Neues Passwort",
     "openProject": "Projekt öffnen",
     "password": "Passwort",
-    "passwordChangeErrorMsg": "Fehler beim Ändern des Passworts",
-    "passwordSuccessfullyChanged": "Passwort erfolgreich geändert",
     "profileEditFailed": "Profil konnte nicht bearbeitet werden",
     "profileSuccessfullyEdited": "Profil erfolgreich bearbeitet",
     "projects": "Projekte",
-    "resetPwInfo": "Bitte kontaktieren Sie Ihren Administrator, um Ihr Passwort zu ändern.",
+    "redirectingToLogin": "Weiterleitung zur Anmeldung...",
+    "retry": "Erneut versuchen",
     "role": "Rolle",
-    "samePasswordError": "Das neue Passwort muss sich vom alten Passwort unterscheiden.",
-    "signInFailed": "Anmeldung fehlgeschlagen",
-    "successfullyCreatedAccount": "Account erfolgreich erstellt",
+    "signInCallbackFailed": "Die Anmeldung konnte nicht abgeschlossen werden.",
     "tooManyRequests": "Zu viele Anfragen. Versuchen Sie es bitte später erneut.",
     "user": "Nutzer",
     "version": "Version",
-    "welcomeBack": "Willkommen zurück!",
-    "changePasswordDescription": "Ändern Sie das Passwort Ihres Accounts.",
-    "createAccountDescription": "Erstellen Sie einen neuen Benutzeraccount.",
-    "editProfileDescription": "Bearbeiten Sie Ihren Namen und Ihre E-Mail-Adresse.",
+    "editProfileDescription": "Bearbeiten Sie Ihren Namen.",
     "profileDescription": "Sehen Sie Ihre Profildetails ein und verwalten Sie Ihren Account."
   },
   "c8Import": {
@@ -87,15 +71,13 @@
   },
   "navigation": {
     "c8Import": "C8 Import",
-    "createAccount": "Account erstellen",
     "camundaCloudImport": "C8 Import",
     "manageUsers": "Nutzer verwalten",
     "pageNotFound": "Seite nicht gefunden",
     "processList": "Prozessliste",
     "processMap": "Prozesskarte",
     "projectOverview": "Projektübersicht",
-    "processView": "Prozessansicht",
-    "signIn": "Anmelden"
+    "processView": "Prozessansicht"
   },
   "processDetailSidebar": {
     "endEvents": "Endereignisse",
@@ -202,10 +184,6 @@
   "validation": {
     "isRequired": "ist erforderlich",
     "mustBeValid": "muss gültig sein",
-    "max64Characters": "darf höchstens 64 Zeichen lang sein",
-    "min8Characters": "muss mindestens 8 Zeichen lang sein",
-    "atLeastOneLower": "muss mindestens einen Kleinbuchstaben enthalten",
-    "atLeastOneUpper": "muss mindestens einen Großbuchstaben enthalten",
-    "atLeastOneDigit": "muss mindestens eine Zahl enthalten"
+    "max64Characters": "darf höchstens 64 Zeichen lang sein"
   }
 }

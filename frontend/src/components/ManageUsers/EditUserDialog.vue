@@ -15,12 +15,13 @@
           <Label for="edit-user-email">{{ $t("authentication.email") }}</Label>
           <Input
             id="edit-user-email"
-            v-model="localUserEmail"
+            :model-value="userEmail"
             type="email"
-            :aria-invalid="!!errors.email || undefined"
+            readonly
+            disabled
           />
-          <p v-if="errors.email" class="tw:text-destructive tw:text-sm">
-            {{ errors.email }}
+          <p class="tw:text-muted-foreground tw:text-sm">
+            {{ $t("authentication.emailManagedBySso") }}
           </p>
         </div>
         <div class="tw:flex tw:flex-col tw:gap-2">
@@ -51,21 +52,6 @@
             {{ errors.lastName }}
           </p>
         </div>
-        <div class="tw:flex tw:flex-col tw:gap-2">
-          <Label for="edit-user-new-password">
-            {{ $t("authentication.newPassword") }}
-          </Label>
-          <Input
-            id="edit-user-new-password"
-            v-model="newPassword"
-            type="password"
-            autocomplete="new-password"
-            :aria-invalid="!!errors.newPassword || undefined"
-          />
-          <p v-if="errors.newPassword" class="tw:text-destructive tw:text-sm">
-            {{ errors.newPassword }}
-          </p>
-        </div>
       </form>
 
       <DialogFooter class="tw:sm:justify-between">
@@ -89,11 +75,9 @@
 import { defineComponent } from "vue";
 import * as usersApi from "@/api/users";
 import {
-  emailRules,
   firstNameRules,
   firstRuleError,
-  lastNameRules,
-  updateUserPasswordRules
+  lastNameRules
 } from "@/components/Authentication/formValidation";
 import { Button } from "@/components/ui/button";
 import {
@@ -161,11 +145,9 @@ export default defineComponent({
 
   data() {
     return {
-      localUserEmail: "" as string,
       localUserFirstName: "" as string,
       localUserLastName: "" as string,
-      newPassword: "" as string,
-      errors: { email: "", firstName: "", lastName: "", newPassword: "" }
+      errors: { firstName: "", lastName: "" }
     };
   },
 
@@ -185,25 +167,16 @@ export default defineComponent({
   watch: {
     showDialog(newValue: boolean) {
       if (newValue) {
-        this.localUserEmail = this.userEmail;
         this.localUserFirstName = this.userFirstName;
         this.localUserLastName = this.userLastName;
-        this.newPassword = "";
         this.errors = {
-          email: "",
           firstName: "",
-          lastName: "",
-          newPassword: ""
+          lastName: ""
         };
       }
     },
     // "Reward early, punish late": only re-validate a field while typing
     // once an error is already shown, so valid input clears it immediately.
-    localUserEmail(value: string) {
-      if (this.errors.email) {
-        this.errors.email = firstRuleError(value, emailRules);
-      }
-    },
     localUserFirstName(value: string) {
       if (this.errors.firstName) {
         this.errors.firstName = firstRuleError(value, firstNameRules);
@@ -213,14 +186,6 @@ export default defineComponent({
       if (this.errors.lastName) {
         this.errors.lastName = firstRuleError(value, lastNameRules);
       }
-    },
-    newPassword(value: string) {
-      if (this.errors.newPassword) {
-        this.errors.newPassword = firstRuleError(
-          value,
-          updateUserPasswordRules
-        );
-      }
     }
   },
 
@@ -229,7 +194,6 @@ export default defineComponent({
       this.$emit("close");
     },
     validate(): boolean {
-      this.errors.email = firstRuleError(this.localUserEmail, emailRules);
       this.errors.firstName = firstRuleError(
         this.localUserFirstName,
         firstNameRules
@@ -238,16 +202,7 @@ export default defineComponent({
         this.localUserLastName,
         lastNameRules
       );
-      this.errors.newPassword = firstRuleError(
-        this.newPassword,
-        updateUserPasswordRules
-      );
-      return (
-        !this.errors.email &&
-        !this.errors.firstName &&
-        !this.errors.lastName &&
-        !this.errors.newPassword
-      );
+      return !this.errors.firstName && !this.errors.lastName;
     },
     async deleteUser(id: number) {
       await usersApi.deleteUser(id);
@@ -259,9 +214,9 @@ export default defineComponent({
         return;
       }
 
+      // Email and credentials are owned by Keycloak; only the local
+      // profile names can be edited here.
       await usersApi.updateUser(id, {
-        email:
-          this.localUserEmail != this.userEmail ? this.localUserEmail : null,
         firstName:
           this.localUserFirstName != this.userFirstName
             ? this.localUserFirstName
@@ -269,8 +224,7 @@ export default defineComponent({
         lastName:
           this.localUserLastName != this.userLastName
             ? this.localUserLastName
-            : null,
-        password: this.newPassword != "" ? this.newPassword : null
+            : null
       });
       this.$emit("fetchUsers");
       this.closeDialog();

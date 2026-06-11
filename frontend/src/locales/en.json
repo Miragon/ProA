@@ -1,44 +1,28 @@
 {
   "authentication": {
-    "accountCreationFailed": "Failed to create account",
-    "accountLocked": "Account is locked. Please contact your administrator.",
     "admin": "Admin",
-    "alreadyAccountQuestion": "Already have an account?",
-    "back": "Back",
-    "changePassword": "Change Password",
-    "createAnAccount": "Create an account",
-    "createAccountQuestion": "Create an account?",
-    "currentPassword": "Current Password",
-    "currentPwWrongError": "Current password not valid",
     "edit": "Edit",
     "editYourProfile": "Edit your profile",
     "email": "Email",
-    "emailAlreadyRegistered": "This email is already registered",
+    "emailManagedBySso": "The email address is managed by your sign-in provider.",
     "firstName": "First Name",
-    "forgotPwQuestion": "Forgot your password?",
     "id": "ID",
     "lastName": "Last Name",
+    "manageAccount": "Manage account",
     "name": "Name",
-    "newPassword": "New Password",
     "openProject": "Open project",
     "password": "Password",
-    "passwordChangeErrorMsg": "Error while changing password",
-    "passwordSuccessfullyChanged": "Password successfully changed",
     "profileEditFailed": "Failed to edit profile",
     "profileSuccessfullyEdited": "Profile successfully edited",
     "projects": "Projects",
-    "resetPwInfo": "Please contact your administrator to reset your password.",
+    "redirectingToLogin": "Redirecting to sign-in...",
+    "retry": "Try again",
     "role": "Role",
-    "samePasswordError": "New password needs to be different from current password.",
-    "signInFailed": "Sign in failed",
-    "successfullyCreatedAccount": "Successfully created account",
+    "signInCallbackFailed": "Sign-in could not be completed.",
     "tooManyRequests": "Too many requests. Please try again later.",
     "user": "User",
     "version": "Version",
-    "welcomeBack": "Welcome back!",
-    "changePasswordDescription": "Change the password of your account.",
-    "createAccountDescription": "Create a new user account.",
-    "editProfileDescription": "Edit your name and email address.",
+    "editProfileDescription": "Edit your name.",
     "profileDescription": "View your profile details and manage your account."
   },
   "c8Import": {
@@ -87,15 +71,13 @@
   },
   "navigation": {
     "c8Import": "C8 Import",
-    "createAccount": "Create Account",
     "camundaCloudImport": "C8 Import",
     "manageUsers": "Manage Users",
     "pageNotFound": "Page Not Found",
     "processList": "Process List",
     "processMap": "Process Map",
     "projectOverview": "Project Overview",
-    "processView": "Process View",
-    "signIn": "Sign In"
+    "processView": "Process View"
   },
   "processDetailSidebar": {
     "endEvents": "End Events",
@@ -202,10 +184,6 @@
   "validation": {
     "isRequired": "is required",
     "mustBeValid": "must be valid",
-    "max64Characters": "must be at most 64 characters",
-    "min8Characters": "must be at least 8 characters",
-    "atLeastOneLower": "must contain at least one lower case character",
-    "atLeastOneUpper": "must contain at least one upper case character",
-    "atLeastOneDigit": "must contain at least one number"
+    "max64Characters": "must be at most 64 characters"
   }
 }

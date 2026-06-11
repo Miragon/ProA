@@ -309,14 +309,6 @@ export default defineComponent({
     }
   },
 
-  watch: {
-    isUserLoggedIn(newValue) {
-      if (!newValue) {
-        window.location.reload();
-      }
-    }
-  },
-
   mounted: async function () {
     if (this.store.getUserToken() != null) this.user = await getCurrentUser();
 

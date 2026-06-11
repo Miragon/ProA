@@ -23,21 +23,6 @@
       location="bottom"
     >
       <template #activator="{ props }">
-        <v-btn
-          v-bind="props"
-          @click="openDialog(SelectedDialog.CREATE_ACCOUNT)"
-        >
-          <v-icon icon="mdi-account-plus"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("navigation.createAccount") }}
-    </v-tooltip>
-
-    <v-tooltip
-      v-if="webVersion && isUserLoggedIn && isUserAdmin"
-      location="bottom"
-    >
-      <template #activator="{ props }">
         <v-btn v-bind="props" @click="$router.push('/ManageUsers')">
           <v-icon icon="mdi-account-multiple"></v-icon>
         </v-btn>
@@ -219,9 +204,16 @@ export default defineComponent({
     toggleSettings() {
       this.store.setAreSettingsOpened(!this.store.getAreSettingsOpened());
     },
-    signOut() {
+    async signOut() {
+      // Lazy import: desktop mode (which has no sign-out button anyway)
+      // must never load the OIDC machinery.
+      const { signoutRedirect } = await import("@/auth/oidc");
+      // Start the sign-out first: clearing the store triggers watchers
+      // whose navigations would otherwise kick off a sign-in redirect.
+      const redirect = signoutRedirect();
       this.store.setUserToken(null);
       this.store.setUserRole(null);
+      await redirect;
     },
     openDialog(dialog: SelectedDialog) {
       this.store.setSelectedDialog(dialog);

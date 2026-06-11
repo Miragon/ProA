@@ -32,44 +32,6 @@ export const emailRules = baseEmailRules.concat([
     `${t("authentication.email")} ${t("validation.mustBeValid")}`
 ]);
 
-export const emailRulesSignIn = baseEmailRules.concat([
-  (email: string) =>
-    email === "admin" ||
-    /.+@.+\..+/.test(email) ||
-    `${t("authentication.email")} ${t("validation.mustBeValid")}`
-]);
-
-export const newPasswordRules = [
-  (password: string) =>
-    !!password ||
-    `${t("authentication.password")} ${t("validation.isRequired")}`,
-  (password: string) =>
-    password.length >= 8 ||
-    `${t("authentication.password")} ${t("validation.min8Characters")}`,
-  (password: string) =>
-    password.length <= 64 ||
-    `${t("authentication.password")} ${t("validation.max64Characters")}`,
-  (password: string) =>
-    /(?=.*[a-z])/.test(password) ||
-    `${t("authentication.password")} ${t("validation.atLeastOneLower")}`,
-  (password: string) =>
-    /(?=.*[A-Z])/.test(password) ||
-    `${t("authentication.password")} ${t("validation.atLeastOneUpper")}`,
-  (password: string) =>
-    /(?=.*\d)/.test(password) ||
-    `${t("authentication.password")} ${t("validation.atLeastOneDigit")}`
-];
-
-export const updateUserPasswordRules = newPasswordRules.map(
-  (rule) => (password: string) => (password === "" ? true : rule(password))
-);
-
-export const currentPasswordRules = [
-  (password: string) =>
-    !!password ||
-    `${t("authentication.password")} ${t("validation.isRequired")}`
-];
-
 export const firstNameRules = [
   (firstName: string) =>
     !!firstName ||
