@@ -1,25 +1,27 @@
 <template>
-  <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4">
-    <div class="relative w-1/2">
+  <div
+    class="tw:mx-auto tw:flex tw:w-full tw:max-w-7xl tw:flex-col tw:gap-4 tw:p-4"
+  >
+    <div class="tw:relative tw:w-1/2">
       <Search
-        class="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+        class="tw:text-muted-foreground tw:absolute tw:top-1/2 tw:left-2.5 tw:size-4 tw:-translate-y-1/2"
       />
       <Input
         v-model="searchValue"
         type="text"
         :placeholder="$t('general.search')"
-        class="px-8"
+        class="tw:px-8"
       />
       <Button
         v-if="searchValue"
         variant="ghost"
         size="icon-sm"
         type="button"
-        class="absolute top-1/2 right-1 -translate-y-1/2"
+        class="tw:absolute tw:top-1/2 tw:right-1 tw:-translate-y-1/2"
         @click="searchValue = ''"
       >
         <X />
-        <span class="sr-only">{{ $t("general.close") }}</span>
+        <span class="tw:sr-only">{{ $t("general.close") }}</span>
       </Button>
     </div>
     <TooltipProvider>
@@ -61,7 +63,7 @@
                     @click="openEditUser(item)"
                   >
                     <Pencil />
-                    <span class="sr-only">
+                    <span class="tw:sr-only">
                       {{ $t("manageUsers.editProfile") }}
                     </span>
                   </Button>

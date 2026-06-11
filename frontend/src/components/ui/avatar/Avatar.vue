@@ -13,7 +13,7 @@ const props = defineProps<{
     data-slot="avatar"
     :class="
       cn(
-        'relative flex size-8 shrink-0 overflow-hidden rounded-full',
+        'tw:relative tw:flex tw:size-8 tw:shrink-0 tw:overflow-hidden tw:rounded-full',
         props.class
       )
     "

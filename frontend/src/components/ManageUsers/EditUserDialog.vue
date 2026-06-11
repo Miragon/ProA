@@ -3,12 +3,15 @@
     <DialogContent>
       <DialogHeader>
         <DialogTitle>{{ $t("manageUsers.editProfile") }}</DialogTitle>
+        <DialogDescription class="tw:sr-only">
+          {{ $t("manageUsers.editProfileDescription") }}
+        </DialogDescription>
       </DialogHeader>
 
       <Separator />
 
-      <form class="flex flex-col gap-4" novalidate @submit.prevent>
-        <div class="flex flex-col gap-2">
+      <form class="tw:flex tw:flex-col tw:gap-4" novalidate @submit.prevent>
+        <div class="tw:flex tw:flex-col tw:gap-2">
           <Label for="edit-user-email">{{ $t("authentication.email") }}</Label>
           <Input
             id="edit-user-email"
@@ -16,11 +19,11 @@
             type="email"
             :aria-invalid="!!errors.email || undefined"
           />
-          <p v-if="errors.email" class="text-destructive text-sm">
+          <p v-if="errors.email" class="tw:text-destructive tw:text-sm">
             {{ errors.email }}
           </p>
         </div>
-        <div class="flex flex-col gap-2">
+        <div class="tw:flex tw:flex-col tw:gap-2">
           <Label for="edit-user-first-name">
             {{ $t("authentication.firstName") }}
           </Label>
@@ -30,11 +33,11 @@
             type="text"
             :aria-invalid="!!errors.firstName || undefined"
           />
-          <p v-if="errors.firstName" class="text-destructive text-sm">
+          <p v-if="errors.firstName" class="tw:text-destructive tw:text-sm">
             {{ errors.firstName }}
           </p>
         </div>
-        <div class="flex flex-col gap-2">
+        <div class="tw:flex tw:flex-col tw:gap-2">
           <Label for="edit-user-last-name">
             {{ $t("authentication.lastName") }}
           </Label>
@@ -44,11 +47,11 @@
             type="text"
             :aria-invalid="!!errors.lastName || undefined"
           />
-          <p v-if="errors.lastName" class="text-destructive text-sm">
+          <p v-if="errors.lastName" class="tw:text-destructive tw:text-sm">
             {{ errors.lastName }}
           </p>
         </div>
-        <div class="flex flex-col gap-2">
+        <div class="tw:flex tw:flex-col tw:gap-2">
           <Label for="edit-user-new-password">
             {{ $t("authentication.newPassword") }}
           </Label>
@@ -59,13 +62,13 @@
             autocomplete="new-password"
             :aria-invalid="!!errors.newPassword || undefined"
           />
-          <p v-if="errors.newPassword" class="text-destructive text-sm">
+          <p v-if="errors.newPassword" class="tw:text-destructive tw:text-sm">
             {{ errors.newPassword }}
           </p>
         </div>
       </form>
 
-      <DialogFooter class="sm:justify-between">
+      <DialogFooter class="tw:sm:justify-between">
         <Button type="button" @click="patchUser(userId)">
           {{ $t("manageUsers.saveChanges") }}
         </Button>
@@ -96,6 +99,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle
@@ -110,6 +114,7 @@ export default defineComponent({
     Button,
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -190,6 +195,31 @@ export default defineComponent({
           lastName: "",
           newPassword: ""
         };
+      }
+    },
+    // "Reward early, punish late": only re-validate a field while typing
+    // once an error is already shown, so valid input clears it immediately.
+    localUserEmail(value: string) {
+      if (this.errors.email) {
+        this.errors.email = firstRuleError(value, emailRules);
+      }
+    },
+    localUserFirstName(value: string) {
+      if (this.errors.firstName) {
+        this.errors.firstName = firstRuleError(value, firstNameRules);
+      }
+    },
+    localUserLastName(value: string) {
+      if (this.errors.lastName) {
+        this.errors.lastName = firstRuleError(value, lastNameRules);
+      }
+    },
+    newPassword(value: string) {
+      if (this.errors.newPassword) {
+        this.errors.newPassword = firstRuleError(
+          value,
+          updateUserPasswordRules
+        );
       }
     }
   },

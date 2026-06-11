@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const mode = process.argv[2];
 
 if (!mode || (mode !== "web" && mode !== "desktop")) {
-  console.error("Please provide \"web\" or \"desktop\" as an argument.");
+  console.error('Please provide "web" or "desktop" as an argument.');
   process.exit(1);
 }
 
@@ -17,8 +17,12 @@ if (!fs.existsSync(envPath)) {
   fs.writeFileSync(envPath, "");
 }
 
-const propFiles = ["application.properties", "application-dev.properties"];
-const propPaths = propFiles.map((file) => path.join(__dirname, "..", "backend", "src", "main", "resources", file));
+// Only touch the dev profile: application.properties is the production
+// default and must not be rewritten by a local mode switch.
+const propFiles = ["application-dev.properties"];
+const propPaths = propFiles.map((file) =>
+  path.join(__dirname, "..", "backend", "src", "main", "resources", file)
+);
 
 let envContent = fs.readFileSync(envPath, "utf8");
 
@@ -27,7 +31,9 @@ const envReplaceValue = `VITE_APP_MODE="${mode}"`;
 
 const updatedContent = envContent.match(envSearchValue)
   ? envContent.replace(envSearchValue, envReplaceValue)
-  : (envContent.trim() === "" ? `${envReplaceValue}\n` : envContent.trim() + `\n\n${envReplaceValue}\n`);
+  : envContent.trim() === ""
+    ? `${envReplaceValue}\n`
+    : envContent.trim() + `\n\n${envReplaceValue}\n`;
 
 fs.writeFileSync(envPath, updatedContent);
 

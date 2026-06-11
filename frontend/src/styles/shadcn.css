@@ -8,10 +8,14 @@
  * always beats @layer rules - utilities must stay unlayered to win by
  * specificity. Once the Vuetify migration is complete (see
  * docs/UI-MIGRATION.md), replace the two imports below with:
- * @import "tailwindcss";
+ * @import "tailwindcss" prefix(tw);
+ *
+ * All utilities are prefixed (`tw:flex`) so they can never collide with
+ * Vuetify's unlayered, !important utility classes (e.g. `.border`,
+ * `.rounded-lg`, and the runtime theme's `.bg-primary`).
  */
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css";
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" prefix(tw);
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -90,6 +94,6 @@
 @layer base {
   /* Default border color for shadcn components (preflight is not loaded). */
   * {
-    @apply border-border outline-ring/50;
+    @apply tw:border-border tw:outline-ring/50;
   }
 }

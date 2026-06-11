@@ -1,17 +1,17 @@
 <template>
   <div
-    class="bg-background text-foreground flex min-h-screen w-full items-center justify-center p-4"
+    class="tw:bg-background tw:text-foreground tw:flex tw:min-h-[calc(100vh_-_var(--v-layout-top,0px))] tw:w-full tw:items-center tw:justify-center tw:p-4"
   >
-    <Card class="w-full max-w-lg">
-      <CardHeader class="border-b">
+    <Card class="tw:w-full tw:max-w-lg">
+      <CardHeader class="tw:border-b">
         <CardTitle>{{ $t("authentication.welcomeBack") }}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form class="flex flex-col gap-4" novalidate @submit.prevent>
+        <form class="tw:flex tw:flex-col tw:gap-4" novalidate @submit.prevent>
           <Alert
             v-if="message.message !== ''"
             :variant="message.type === 'error' ? 'destructive' : 'default'"
-            class="pr-10"
+            class="tw:pr-10"
           >
             <CircleAlert v-if="message.type === 'error'" />
             <CircleCheck v-else />
@@ -19,15 +19,15 @@
             <Button
               variant="ghost"
               size="icon-sm"
-              class="absolute top-1.5 right-1.5"
+              class="tw:absolute tw:top-1.5 tw:right-1.5"
               type="button"
               @click="message.message = ''"
             >
               <X />
-              <span class="sr-only">{{ $t("general.close") }}</span>
+              <span class="tw:sr-only">{{ $t("general.close") }}</span>
             </Button>
           </Alert>
-          <div class="flex flex-col gap-2">
+          <div class="tw:flex tw:flex-col tw:gap-2">
             <Label for="sign-in-email">{{ $t("authentication.email") }}</Label>
             <Input
               id="sign-in-email"
@@ -37,11 +37,11 @@
               required
               :aria-invalid="!!errors.email || undefined"
             />
-            <p v-if="errors.email" class="text-destructive text-sm">
+            <p v-if="errors.email" class="tw:text-destructive tw:text-sm">
               {{ errors.email }}
             </p>
           </div>
-          <div class="flex flex-col gap-2">
+          <div class="tw:flex tw:flex-col tw:gap-2">
             <Label for="sign-in-password">
               {{ $t("authentication.password") }}
             </Label>
@@ -53,7 +53,7 @@
               required
               :aria-invalid="!!errors.password || undefined"
             />
-            <p v-if="errors.password" class="text-destructive text-sm">
+            <p v-if="errors.password" class="tw:text-destructive tw:text-sm">
               {{ errors.password }}
             </p>
           </div>
@@ -63,11 +63,11 @@
         <Button
           type="button"
           size="lg"
-          class="w-full"
+          class="tw:w-full"
           :disabled="loading"
           @click="signIn"
         >
-          <LoaderCircle v-if="loading" class="animate-spin" />
+          <LoaderCircle v-if="loading" class="tw:animate-spin" />
           {{ $t("navigation.signIn") }}
         </Button>
       </CardFooter>
@@ -132,6 +132,21 @@ export default defineComponent({
       message: { message: "", type: "error" } as Message,
       defaultMessage: { message: "", type: "error" } as Message
     };
+  },
+
+  watch: {
+    // "Reward early, punish late": only re-validate a field while typing
+    // once an error is already shown, so valid input clears it immediately.
+    email(value: string) {
+      if (this.errors.email) {
+        this.errors.email = firstRuleError(value, emailRulesSignIn);
+      }
+    },
+    password(value: string) {
+      if (this.errors.password) {
+        this.errors.password = firstRuleError(value, currentPasswordRules);
+      }
+    }
   },
 
   methods: {

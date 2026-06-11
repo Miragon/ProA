@@ -1,22 +1,25 @@
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="tw:flex tw:flex-col tw:gap-4">
     <DialogHeader>
-      <div class="flex items-center justify-between">
+      <div class="tw:flex tw:items-center tw:justify-between">
         <DialogTitle>{{ $t("authentication.createAnAccount") }}</DialogTitle>
         <Button variant="ghost" size="icon" type="button" @click="closeDialog">
           <X />
-          <span class="sr-only">{{ $t("general.close") }}</span>
+          <span class="tw:sr-only">{{ $t("general.close") }}</span>
         </Button>
       </div>
+      <DialogDescription class="tw:sr-only">
+        {{ $t("authentication.createAccountDescription") }}
+      </DialogDescription>
     </DialogHeader>
 
     <Separator />
 
-    <form class="flex flex-col gap-4" novalidate @submit.prevent>
+    <form class="tw:flex tw:flex-col tw:gap-4" novalidate @submit.prevent>
       <Alert
         v-if="message.message !== ''"
         :variant="message.type === 'error' ? 'destructive' : 'default'"
-        class="pr-10"
+        class="tw:pr-10"
       >
         <CircleAlert v-if="message.type === 'error'" />
         <CircleCheck v-else />
@@ -24,15 +27,15 @@
         <Button
           variant="ghost"
           size="icon-sm"
-          class="absolute top-1.5 right-1.5"
+          class="tw:absolute tw:top-1.5 tw:right-1.5"
           type="button"
           @click="removeMessage"
         >
           <X />
-          <span class="sr-only">{{ $t("general.close") }}</span>
+          <span class="tw:sr-only">{{ $t("general.close") }}</span>
         </Button>
       </Alert>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="create-account-email">
           {{ $t("authentication.email") }}
         </Label>
@@ -44,11 +47,11 @@
           required
           :aria-invalid="!!errors.email || undefined"
         />
-        <p v-if="errors.email" class="text-destructive text-sm">
+        <p v-if="errors.email" class="tw:text-destructive tw:text-sm">
           {{ errors.email }}
         </p>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="create-account-first-name">
           {{ $t("authentication.firstName") }}
         </Label>
@@ -59,11 +62,11 @@
           required
           :aria-invalid="!!errors.firstName || undefined"
         />
-        <p v-if="errors.firstName" class="text-destructive text-sm">
+        <p v-if="errors.firstName" class="tw:text-destructive tw:text-sm">
           {{ errors.firstName }}
         </p>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="create-account-last-name">
           {{ $t("authentication.lastName") }}
         </Label>
@@ -74,11 +77,11 @@
           required
           :aria-invalid="!!errors.lastName || undefined"
         />
-        <p v-if="errors.lastName" class="text-destructive text-sm">
+        <p v-if="errors.lastName" class="tw:text-destructive tw:text-sm">
           {{ errors.lastName }}
         </p>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="create-account-password">
           {{ $t("authentication.password") }}
         </Label>
@@ -90,14 +93,14 @@
           required
           :aria-invalid="!!errors.password || undefined"
         />
-        <p v-if="errors.password" class="text-destructive text-sm">
+        <p v-if="errors.password" class="tw:text-destructive tw:text-sm">
           {{ errors.password }}
         </p>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="create-account-role">{{ $t("authentication.role") }}</Label>
         <Select v-model="selectedRole">
-          <SelectTrigger id="create-account-role" class="w-full">
+          <SelectTrigger id="create-account-role" class="tw:w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -113,7 +116,7 @@
           </SelectContent>
         </Select>
       </div>
-      <Button type="button" size="lg" class="w-full" @click="createAccount">
+      <Button type="button" size="lg" class="tw:w-full" @click="createAccount">
         {{ $t("general.continue") }}
       </Button>
     </form>
@@ -137,7 +140,11 @@ import { Role } from "@/components/ProcessMap/types";
 import { CircleAlert, CircleCheck, X } from "@lucide/vue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -159,6 +166,7 @@ export default defineComponent({
     Button,
     CircleAlert,
     CircleCheck,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     Input,
@@ -202,6 +210,31 @@ export default defineComponent({
         value: role,
         label: this.$t(`authentication.${role.toLowerCase()}`)
       }));
+    }
+  },
+
+  watch: {
+    // "Reward early, punish late": only re-validate a field while typing
+    // once an error is already shown, so valid input clears it immediately.
+    email(value: string) {
+      if (this.errors.email) {
+        this.errors.email = firstRuleError(value, emailRules);
+      }
+    },
+    firstName(value: string) {
+      if (this.errors.firstName) {
+        this.errors.firstName = firstRuleError(value, firstNameRules);
+      }
+    },
+    lastName(value: string) {
+      if (this.errors.lastName) {
+        this.errors.lastName = firstRuleError(value, lastNameRules);
+      }
+    },
+    password(value: string) {
+      if (this.errors.password) {
+        this.errors.password = firstRuleError(value, newPasswordRules);
+      }
     }
   },
 

@@ -1,9 +1,9 @@
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="tw:flex tw:flex-col tw:gap-4">
     <DialogHeader>
-      <div class="flex items-center justify-between gap-2">
+      <div class="tw:flex tw:items-center tw:justify-between tw:gap-2">
         <DialogTitle>{{ $t("authentication.editYourProfile") }}</DialogTitle>
-        <div class="flex items-center gap-2">
+        <div class="tw:flex tw:items-center tw:gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -11,7 +11,7 @@
             @click="openDialog(SelectedDialog.PROFILE)"
           >
             <ArrowLeft />
-            <span class="sr-only">{{ $t("general.back") }}</span>
+            <span class="tw:sr-only">{{ $t("general.back") }}</span>
           </Button>
           <Button
             variant="ghost"
@@ -20,19 +20,22 @@
             @click="closeDialog"
           >
             <X />
-            <span class="sr-only">{{ $t("general.close") }}</span>
+            <span class="tw:sr-only">{{ $t("general.close") }}</span>
           </Button>
         </div>
       </div>
+      <DialogDescription class="tw:sr-only">
+        {{ $t("authentication.editProfileDescription") }}
+      </DialogDescription>
     </DialogHeader>
 
     <Separator />
 
-    <form class="flex flex-col gap-4" novalidate @submit.prevent>
+    <form class="tw:flex tw:flex-col tw:gap-4" novalidate @submit.prevent>
       <Alert
         v-if="message.message !== ''"
         :variant="message.type === 'error' ? 'destructive' : 'default'"
-        class="pr-10"
+        class="tw:pr-10"
       >
         <CircleAlert v-if="message.type === 'error'" />
         <CircleCheck v-else />
@@ -40,15 +43,15 @@
         <Button
           variant="ghost"
           size="icon-sm"
-          class="absolute top-1.5 right-1.5"
+          class="tw:absolute tw:top-1.5 tw:right-1.5"
           type="button"
           @click="removeMessage"
         >
           <X />
-          <span class="sr-only">{{ $t("general.close") }}</span>
+          <span class="tw:sr-only">{{ $t("general.close") }}</span>
         </Button>
       </Alert>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="edit-profile-first-name">
           {{ $t("authentication.firstName") }}
         </Label>
@@ -59,11 +62,11 @@
           required
           :aria-invalid="!!errors.firstName || undefined"
         />
-        <p v-if="errors.firstName" class="text-destructive text-sm">
+        <p v-if="errors.firstName" class="tw:text-destructive tw:text-sm">
           {{ errors.firstName }}
         </p>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="edit-profile-last-name">
           {{ $t("authentication.lastName") }}
         </Label>
@@ -74,11 +77,11 @@
           required
           :aria-invalid="!!errors.lastName || undefined"
         />
-        <p v-if="errors.lastName" class="text-destructive text-sm">
+        <p v-if="errors.lastName" class="tw:text-destructive tw:text-sm">
           {{ errors.lastName }}
         </p>
       </div>
-      <div class="flex flex-col gap-2">
+      <div class="tw:flex tw:flex-col tw:gap-2">
         <Label for="edit-profile-email">
           {{ $t("authentication.email") }}
         </Label>
@@ -90,11 +93,11 @@
           required
           :aria-invalid="!!errors.email || undefined"
         />
-        <p v-if="errors.email" class="text-destructive text-sm">
+        <p v-if="errors.email" class="tw:text-destructive tw:text-sm">
           {{ errors.email }}
         </p>
       </div>
-      <Button type="button" size="lg" class="w-full" @click="updateUser">
+      <Button type="button" size="lg" class="tw:w-full" @click="updateUser">
         {{ $t("general.save") }}
       </Button>
     </form>
@@ -117,7 +120,11 @@ import { UserData } from "@/types/user";
 import { ArrowLeft, CircleAlert, CircleCheck, X } from "@lucide/vue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -132,6 +139,7 @@ export default defineComponent({
     Button,
     CircleAlert,
     CircleCheck,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     Input,
@@ -158,6 +166,26 @@ export default defineComponent({
       errors: { firstName: "", lastName: "", email: "" },
       SelectedDialog: SelectedDialog
     };
+  },
+
+  watch: {
+    // "Reward early, punish late": only re-validate a field while typing
+    // once an error is already shown, so valid input clears it immediately.
+    "newUserData.firstName"(value: string) {
+      if (this.errors.firstName) {
+        this.errors.firstName = firstRuleError(value, firstNameRules);
+      }
+    },
+    "newUserData.lastName"(value: string) {
+      if (this.errors.lastName) {
+        this.errors.lastName = firstRuleError(value, lastNameRules);
+      }
+    },
+    "newUserData.email"(value: string) {
+      if (this.errors.email) {
+        this.errors.email = firstRuleError(value, emailRules);
+      }
+    }
   },
 
   async mounted() {

@@ -35,7 +35,11 @@
     "tooManyRequests": "Zu viele Anfragen. Versuchen Sie es bitte später erneut.",
     "user": "Nutzer",
     "version": "Version",
-    "welcomeBack": "Willkommen zurück!"
+    "welcomeBack": "Willkommen zurück!",
+    "changePasswordDescription": "Ändern Sie das Passwort Ihres Accounts.",
+    "createAccountDescription": "Erstellen Sie einen neuen Benutzeraccount.",
+    "editProfileDescription": "Bearbeiten Sie Ihren Namen und Ihre E-Mail-Adresse.",
+    "profileDescription": "Sehen Sie Ihre Profildetails ein und verwalten Sie Ihren Account."
   },
   "c8Import": {
     "camundaConnectionSuccessMessage": "Mit Camunda 8 verbunden. Sie können Prozessmodelle abrufen.",
@@ -78,7 +82,8 @@
   "manageUsers": {
     "deleteUser": "Nutzer löschen",
     "saveChanges": "Speichern",
-    "editProfile": "Profil bearbeiten"
+    "editProfile": "Profil bearbeiten",
+    "editProfileDescription": "Bearbeiten Sie die Profildaten des Nutzers oder löschen Sie den Nutzer."
   },
   "navigation": {
     "c8Import": "C8 Import",

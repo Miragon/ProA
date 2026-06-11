@@ -7,7 +7,7 @@
     "css": "src/styles/shadcn.css",
     "baseColor": "neutral",
     "cssVariables": true,
-    "prefix": ""
+    "prefix": "tw"
   },
   "iconLibrary": "lucide",
   "aliases": {

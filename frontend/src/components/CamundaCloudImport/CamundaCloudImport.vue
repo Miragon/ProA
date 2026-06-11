@@ -268,6 +268,7 @@ export default defineComponent({
     token: null as string | null,
     selectedProjectId: null as number | null,
     selectedProjectName: "" as string,
+    selectedVersionId: null as number | null,
     selectedVersionName: "" as string,
     selectAll: false as boolean,
     emailSelections: [] as EmailSelection[],
@@ -297,8 +298,10 @@ export default defineComponent({
     }
     getProject(selectedProjectId).then((project) => {
       this.selectedProjectName = project.name;
-      this.selectedVersionName =
-        this.store.getActiveVersionForProject(selectedProjectId).name;
+      const activeVersion =
+        this.store.getActiveVersionForProject(selectedProjectId);
+      this.selectedVersionId = activeVersion.id;
+      this.selectedVersionName = activeVersion.name;
     });
     window.addEventListener("scroll", this.updateStickyButton);
     this.fetchSettings();
@@ -373,7 +376,8 @@ export default defineComponent({
 
       camundaCloudApi
         .importProcessModels(
-          this.selectedProjectId!,
+          // The backend import endpoint expects a project VERSION id.
+          this.selectedVersionId!,
           this.token,
           selectedProcessModelIds
         )

@@ -1,7 +1,7 @@
 <template>
   <Dialog v-model:open="showDialog">
     <DialogContent
-      class="max-h-[90vh] overflow-y-auto"
+      class="tw:max-h-[90vh] tw:overflow-y-auto"
       :show-close-button="false"
       @escape-key-down="preventEscapeClose"
     >

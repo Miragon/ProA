@@ -41,10 +41,12 @@ apiClient.interceptors.response.use(
       error.response?.status === 401 &&
       !error.config?.skipAuth
     ) {
-      const { useAppStore } = await import("@/store/app");
+      const { useAppStore, SelectedDialog } = await import("@/store/app");
       const store = useAppStore();
       store.setUserToken(null);
       store.setUserRole(null);
+      // Close any open auth dialog so it does not linger on the sign-in page.
+      store.setSelectedDialog(SelectedDialog.NONE);
 
       const { default: router } = await import("@/router");
       if (router.currentRoute.value.name !== "SignIn") {

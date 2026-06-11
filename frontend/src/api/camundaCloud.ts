@@ -40,11 +40,11 @@ export const fetchProcessModels = async (
 };
 
 export const importProcessModels = async (
-  projectId: number,
+  projectVersionId: number,
   token: string | null,
   selectedProcessModelIds: string[]
 ): Promise<void> => {
-  await apiClient.post(`/camunda-cloud/project/${projectId}/import`, {
+  await apiClient.post(`/camunda-cloud/project/${projectVersionId}/import`, {
     token,
     selectedProcessModelIds
   });

@@ -1,13 +1,16 @@
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="tw:flex tw:flex-col tw:gap-4">
     <DialogHeader>
-      <div class="flex items-center justify-between">
+      <div class="tw:flex tw:items-center tw:justify-between">
         <DialogTitle>{{ $t("general.myProfile") }}</DialogTitle>
         <Button variant="ghost" size="icon" type="button" @click="closeDialog">
           <X />
-          <span class="sr-only">{{ $t("general.close") }}</span>
+          <span class="tw:sr-only">{{ $t("general.close") }}</span>
         </Button>
       </div>
+      <DialogDescription class="tw:sr-only">
+        {{ $t("authentication.profileDescription") }}
+      </DialogDescription>
     </DialogHeader>
 
     <Separator />
@@ -15,7 +18,7 @@
     <Alert
       v-if="message.message !== ''"
       :variant="message.type === 'error' ? 'destructive' : 'default'"
-      class="pr-10"
+      class="tw:pr-10"
     >
       <CircleAlert v-if="message.type === 'error'" />
       <CircleCheck v-else />
@@ -23,17 +26,17 @@
       <Button
         variant="ghost"
         size="icon-sm"
-        class="absolute top-1.5 right-1.5"
+        class="tw:absolute tw:top-1.5 tw:right-1.5"
         type="button"
         @click="removeMessage"
       >
         <X />
-        <span class="sr-only">{{ $t("general.close") }}</span>
+        <span class="tw:sr-only">{{ $t("general.close") }}</span>
       </Button>
     </Alert>
 
-    <div class="flex items-center justify-between">
-      <span class="font-semibold">
+    <div class="tw:flex tw:items-center tw:justify-between">
+      <span class="tw:font-semibold">
         {{ user.firstName }} {{ user.lastName }}
       </span>
       <Button
@@ -45,21 +48,21 @@
       </Button>
     </div>
 
-    <div class="flex flex-col gap-3">
-      <div class="flex items-center gap-2">
-        <Mail class="size-4 shrink-0" />
-        <div class="flex flex-col">
-          <span class="text-muted-foreground text-xs">
+    <div class="tw:flex tw:flex-col tw:gap-3">
+      <div class="tw:flex tw:items-center tw:gap-2">
+        <Mail class="tw:size-4 tw:shrink-0" />
+        <div class="tw:flex tw:flex-col">
+          <span class="tw:text-muted-foreground tw:text-xs">
             {{ $t("authentication.email") }}
           </span>
           <span>{{ user.email }}</span>
         </div>
       </div>
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <KeyRound class="size-4 shrink-0" />
-          <div class="flex flex-col">
-            <span class="text-muted-foreground text-xs">
+      <div class="tw:flex tw:items-center tw:justify-between tw:gap-2">
+        <div class="tw:flex tw:items-center tw:gap-2">
+          <KeyRound class="tw:size-4 tw:shrink-0" />
+          <div class="tw:flex tw:flex-col">
+            <span class="tw:text-muted-foreground tw:text-xs">
               {{ $t("authentication.password") }}
             </span>
             <span>************</span>
@@ -75,7 +78,9 @@
       </div>
     </div>
 
-    <div class="text-muted-foreground flex flex-col gap-1 text-sm">
+    <div
+      class="tw:text-muted-foreground tw:flex tw:flex-col tw:gap-1 tw:text-sm"
+    >
       <span
         >{{ $t("general.createdOn") }}:
         {{ getLocaleDate(user.createdAt) }}</span
@@ -85,9 +90,9 @@
       </span>
     </div>
 
-    <div v-if="projects.length > 0" class="flex flex-col gap-2">
+    <div v-if="projects.length > 0" class="tw:flex tw:flex-col tw:gap-2">
       <Separator />
-      <h3 class="font-semibold">{{ $t("authentication.projects") }}</h3>
+      <h3 class="tw:font-semibold">{{ $t("authentication.projects") }}</h3>
       <TooltipProvider>
         <Table>
           <TableHeader>
@@ -107,7 +112,7 @@
                     <Button
                       variant="link"
                       type="button"
-                      class="h-auto p-0"
+                      class="tw:h-auto tw:p-0"
                       @click="openProject(project.id)"
                     >
                       <Folder />
@@ -119,7 +124,7 @@
                   </TooltipContent>
                 </Tooltip>
               </TableCell>
-              <TableCell class="whitespace-nowrap">
+              <TableCell class="tw:whitespace-nowrap">
                 {{ store.getActiveVersionForProject(project.id).name }}
               </TableCell>
             </TableRow>
@@ -148,7 +153,11 @@ import {
 } from "@lucide/vue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -174,6 +183,7 @@ export default defineComponent({
     Button,
     CircleAlert,
     CircleCheck,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     Folder,
