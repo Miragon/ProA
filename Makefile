@@ -1,7 +1,7 @@
 # ProA developer commands. Run `make help` for an overview.
 
-.PHONY: help setup db-up db-down db-reset backend backend-pg frontend test \
-        test-backend test-frontend lint format build clean
+.PHONY: help setup db-up db-down db-reset auth-up auth-down backend backend-pg \
+        frontend test test-backend test-frontend lint format build clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -25,6 +25,14 @@ db-down: ## Stop local PostgreSQL
 
 db-reset: ## Stop local PostgreSQL and delete its data volume
 	docker compose down -v
+
+auth-up: ## Start local Keycloak (realm 'proa' auto-imported) - required for web-mode dev
+	docker compose up -d keycloak
+	@echo "Keycloak starting on http://localhost:8181 (admin console: admin/admin)"
+	@echo "Dev logins: admin@proa.local/admin (Admin), user@proa.local/user (User)"
+
+auth-down: ## Stop local Keycloak
+	docker compose stop keycloak
 
 backend: ## Run backend in dev mode with in-memory H2 (no Docker needed)
 	cd backend && ./mvnw quarkus:dev
