@@ -7,6 +7,7 @@ import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborat
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
+import org.camunda.bpm.model.xml.ModelParseException;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,20 +102,29 @@ public class ProcessModelResourceTest {
 		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION, IS_COLLABORATION);
 	}
 
+	/**
+	 * The resource no longer pre-scans uploads for DOCTYPE (a substring scan falsely rejected
+	 * inert occurrences inside CDATA sections or XML comments). Real DOCTYPE declarations are
+	 * rejected by the hardened BPMN parser inside the usecase (XXE protection, see
+	 * BpmnOperationsTest); the resulting {@link ModelParseException} propagates out of the
+	 * resource and is turned into a 400 response by
+	 * {@link de.envite.proa.rest.mappers.ModelParseExceptionMapper} (asserted in
+	 * ExceptionMappersTest).
+	 */
 	@Test
-	public void testUploadProcessModel_WithDoctype_BadRequest()
+	public void testUploadProcessModel_WithDoctype_ModelParseExceptionPropagates()
 			throws CantReplaceWithCollaborationException {
 		File processModel = new File(Objects.requireNonNull( //
 				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
 		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
+		when(usecase.saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION, IS_COLLABORATION))
+				.thenThrow(new ModelParseException("DOCTYPE is disallowed"));
 
-		Response response = resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
-				DESCRIPTION, IS_COLLABORATION);
+		assertThrows(ModelParseException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
 
-		assertThat(response.getStatus()).isEqualTo(400);
-		assertThat(response.getEntity().toString()).contains("DOCTYPE");
-
-		verifyNoInteractions(usecase);
+		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION,
+				IS_COLLABORATION);
 	}
 
 	@Test
@@ -130,19 +140,24 @@ public class ProcessModelResourceTest {
 		verifyNoInteractions(usecase);
 	}
 
+	/**
+	 * Same as {@link #testUploadProcessModel_WithDoctype_ModelParseExceptionPropagates()} for
+	 * the replace endpoint: the parser rejection from the usecase propagates and is mapped to
+	 * 400 by the ModelParseExceptionMapper.
+	 */
 	@Test
-	public void testReplaceProcessModel_WithDoctype_BadRequest()
+	public void testReplaceProcessModel_WithDoctype_ModelParseExceptionPropagates()
 			throws CantReplaceWithCollaborationException {
 		File processModel = new File(Objects.requireNonNull( //
 				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
 		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
+		when(usecase.replaceProcessModel(PROJECT_ID, PROCESS_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION))
+				.thenThrow(new ModelParseException("DOCTYPE is disallowed"));
 
-		Response response = resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION);
+		assertThrows(ModelParseException.class,
+				() -> resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION));
 
-		assertThat(response.getStatus()).isEqualTo(400);
-		assertThat(response.getEntity().toString()).contains("DOCTYPE");
-
-		verifyNoInteractions(usecase);
+		verify(usecase).replaceProcessModel(PROJECT_ID, PROCESS_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION);
 	}
 
 	@Test

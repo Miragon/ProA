@@ -37,14 +37,19 @@ ProA runs in one of two modes:
 - **web** — multi-user with JWT authentication (default).
 - **desktop** — single user, no authentication.
 
-Switch the mode for development with `cd frontend && yarn mode [web|desktop]`
-(this sets `VITE_APP_MODE` in `frontend/.env` and `app.mode` in the backend dev
-properties).
+Switch the mode for development with `cd frontend && yarn mode [web|desktop]`.
+This sets `VITE_APP_MODE` in `frontend/.env` and `app.mode` in
+`backend/src/main/resources/application-dev.properties` (both are tracked-file
+edits for the backend side — don't commit them accidentally). The production
+profile always stays `app.mode=web`; released desktop jars get their mode from
+the `desktop` profile instead.
 
-For a released jar, desktop mode with a persistent local database:
+For a released jar, use the dedicated desktop artifact (`pro-a-*-desktop.jar` from the
+release page — the database kind is fixed at build time in Quarkus, so the regular web
+jar cannot be switched to H2 at runtime):
 
 ```bash
-java -Dquarkus.profile=desktop -jar pro-a-*.jar    # data stored in ~/.proa
+java -Dquarkus.profile=desktop -jar pro-a-*-desktop.jar    # data stored in ~/.proa
 ```
 
 ### JWT keys (web mode only)

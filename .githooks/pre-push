@@ -11,8 +11,10 @@ UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null |
 if [ -n "$UPSTREAM" ]; then
   CHANGED_FILES="$(git diff --name-only "$UPSTREAM"...HEAD)"
 else
-  # New branch without upstream: check everything that differs from develop
-  CHANGED_FILES="$(git diff --name-only origin/develop...HEAD 2>/dev/null || echo 'backend/ frontend/')"
+  # New branch without upstream: check everything that differs from develop;
+  # if even that fails, fall back to running both suites (one path per line
+  # so both greps below match)
+  CHANGED_FILES="$(git diff --name-only origin/develop...HEAD 2>/dev/null || printf 'backend/\nfrontend/\n')"
 fi
 
 BACKEND_CHANGED="$(echo "$CHANGED_FILES" | grep -E '^(backend/|pom\.xml)' || true)"

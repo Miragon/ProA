@@ -37,6 +37,25 @@ class WebModeAuthorizationTest {
 				.sign();
 	}
 
+	private static String tokenWithoutAudience() {
+		return Jwt //
+				.issuer("proa-issuer") //
+				.upn("web-mode-test@example.com") //
+				.groups(Set.of("User")) //
+				.claim("userId", 999L) //
+				.sign();
+	}
+
+	private static String tokenWithWrongAudience() {
+		return Jwt //
+				.issuer("proa-issuer") //
+				.audience("not-the-proa-client") //
+				.upn("web-mode-test@example.com") //
+				.groups(Set.of("User")) //
+				.claim("userId", 999L) //
+				.sign();
+	}
+
 	@Test
 	void testRequestWithoutToken_Unauthorized() {
 		given() //
@@ -50,6 +69,26 @@ class WebModeAuthorizationTest {
 				.auth().oauth2(tokenWithRole("Guest")) //
 				.when().get("/api/user") //
 				.then().statusCode(403);
+	}
+
+	/**
+	 * The audience claim must be enforced (mp.jwt.verify.audiences): a token that is correctly
+	 * signed but carries no audience must be rejected as unauthenticated.
+	 */
+	@Test
+	void testTokenWithoutAudience_Unauthorized() {
+		given() //
+				.auth().oauth2(tokenWithoutAudience()) //
+				.when().get("/api/user") //
+				.then().statusCode(401);
+	}
+
+	@Test
+	void testTokenWithWrongAudience_Unauthorized() {
+		given() //
+				.auth().oauth2(tokenWithWrongAudience()) //
+				.when().get("/api/user") //
+				.then().statusCode(401);
 	}
 
 	@Test

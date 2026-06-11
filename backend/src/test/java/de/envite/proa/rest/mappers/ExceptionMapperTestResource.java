@@ -1,5 +1,7 @@
 package de.envite.proa.rest.mappers;
 
+import org.camunda.bpm.model.xml.ModelParseException;
+
 import de.envite.proa.entities.project.AccessDeniedException;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
@@ -39,6 +41,12 @@ public class ExceptionMapperTestResource {
 	@Path("/cant-replace-with-collaboration")
 	public String cantReplaceWithCollaboration() throws CantReplaceWithCollaborationException {
 		throw new CantReplaceWithCollaborationException(PROCESS_MODEL_ID);
+	}
+
+	@GET
+	@Path("/model-parse")
+	public String modelParse() {
+		throw new ModelParseException("parser internals that must not leak");
 	}
 
 	@GET

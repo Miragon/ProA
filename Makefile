@@ -10,6 +10,7 @@ setup: ## One-time setup: git hooks, JWT keys, frontend dependencies
 	git config core.hooksPath .githooks/
 	./backend/generate-keys.sh
 	cd frontend && yarn install
+	test -f frontend/.env || cp frontend/.env.example frontend/.env
 	@echo ""
 	@echo "Setup complete. Start developing with:"
 	@echo "  make backend   # Quarkus dev mode (H2 in-memory DB) on :8080"

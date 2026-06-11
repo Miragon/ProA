@@ -60,6 +60,7 @@ public class BpmnOperationsTest {
 	public static final String COLLABORATION_WITH_DETAILED_MESSAGE_FLOWS_BPMN = "collaboration-with-detailed-message-flows.bpmn";
 	public static final String COLLABORATION_PARTICIPANT_WITHOUT_PROCESSREF_BPMN = "collaboration-participant-without-processref.bpmn";
 	public static final String PROCESS_WITH_EXTERNAL_ENTITY_BPMN = "process-with-external-entity.bpmn";
+	public static final String PROCESS_WITH_DOCTYPE_IN_CDATA_BPMN = "process-with-doctype-in-cdata.bpmn";
 	public static final String XXE_SECRET_FILE = "xxe-secret.txt";
 	public static final String XXE_SECRET_CONTENT = "XXE-SECRET-CONTENT-MUST-NOT-LEAK";
 
@@ -401,6 +402,22 @@ public class BpmnOperationsTest {
 		assertThatThrownBy(() -> bpmnOperations.getDescription(maliciousXml)) //
 				.isInstanceOf(ModelParseException.class) //
 				.hasMessageNotContaining(XXE_SECRET_CONTENT);
+	}
+
+	/**
+	 * Regression test: '&lt;!DOCTYPE html&gt;' appearing as inert text (inside a CDATA section
+	 * of a script task or inside an XML comment) is not a DOCTYPE declaration and must be
+	 * accepted by the hardened parser. A naive whole-file substring scan falsely rejected such
+	 * files.
+	 */
+	@Test
+	public void testBpmnWithDoctypeAsInertTextInCdata_IsAccepted() {
+		File process = loadFile(PROCESS_WITH_DOCTYPE_IN_CDATA_BPMN);
+		String processXml = fileService.readFileToString(process);
+
+		assertThat(processXml).contains("<!DOCTYPE html>");
+		assertThat(bpmnOperations.getBpmnProcessId(processXml)).isEqualTo(PROCESS_BPMN_ID_1);
+		assertThat(bpmnOperations.getIsCollaboration(processXml)).isFalse();
 	}
 
 	@Test

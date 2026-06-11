@@ -50,9 +50,6 @@ public class ProcessModelResource {
 			throws CantReplaceWithCollaborationException {
 		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		String content = fileService.readFileToString(processModel);
-		if (containsDoctype(content)) {
-			return doctypeNotAllowedResponse();
-		}
 		fileName = fileName.replace(".bpmn", "");
 		return Response //
 				.ok(usecase.saveProcessModel( //
@@ -74,27 +71,9 @@ public class ProcessModelResource {
 		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		projectAccessVerifier.verifyAccessToProcessModel(oldProcessId);
 		String content = fileService.readFileToString(processModel);
-		if (containsDoctype(content)) {
-			return doctypeNotAllowedResponse();
-		}
 		fileName = fileName.replace(".bpmn", "");
 		Long id = usecase.replaceProcessModel(projectId, oldProcessId, fileName, content, description);
 		return Response.ok(id).build();
-	}
-
-	/**
-	 * BPMN uploads must not contain DOCTYPE declarations. The BPMN parser already rejects them
-	 * (XXE protection), this pre-check only turns the rejection into a clear 400 response.
-	 */
-	private static boolean containsDoctype(String content) {
-		return content != null && content.toUpperCase().contains("<!DOCTYPE");
-	}
-
-	private static Response doctypeNotAllowedResponse() {
-		return Response //
-				.status(Response.Status.BAD_REQUEST) //
-				.entity("DOCTYPE declarations are not allowed in BPMN files") //
-				.build();
 	}
 
 	/**

@@ -50,6 +50,15 @@ class ExceptionMappersTest {
 	}
 
 	@Test
+	void testModelParseException_BadRequest_WithoutLeakingParserInternals() {
+		given() //
+				.when().get("/test/exception-mappers/model-parse") //
+				.then().statusCode(400) //
+				.body("error", equalTo("Invalid BPMN file")) //
+				.body(not(containsString("parser internals that must not leak")));
+	}
+
+	@Test
 	void testGenericException_InternalServerError_WithoutLeakingInternals() {
 		given() //
 				.when().get("/test/exception-mappers/generic") //

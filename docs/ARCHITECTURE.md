@@ -56,7 +56,12 @@ repository implements them, dependency direction is almost entirely correct.
 ```
 views/ + router/   thin route shells with auth guards
 components/        feature components (ProcessMap, ProcessList, Home, Auth, ...)
-services/          API access (axios) — being consolidated into a typed client layer
+components/ui/     shadcn-vue primitives (generated, see docs/UI-MIGRATION.md)
+api/               typed axios client (client.ts: baseURL /api, auth header,
+                   401 interceptor) + feature modules (auth, users, projects,
+                   processModels, processMap, settings, camundaCloud)
+types/             shared types (moved out of .vue files)
+lib/               shadcn utils (cn)
 store/             Pinia (persisted to sessionStorage)
 locales/ + i18n.ts en/de translations
 plugins/           Vuetify, Pinia, fonts
@@ -67,7 +72,7 @@ plugins/           Vuetify, Pinia, fonts
 | # | Deviation | Suggested move |
 |---|-----------|----------------|
 | 1 | The Pinia store is a persisted god-object (it even stores serialized JointJS graphs per project) | Split into `auth`, `ui`, `processMap` stores; persist only what must survive a reload |
-| 2 | Types/services exported from `.vue` files (e.g. `ProjectOverview.vue` exports types) create circular imports | Move shared types to `src/types/`, shared logic to composables |
+| 2 | A few types are still exported from `.vue` files (e.g. `Message` from `AuthenticationDialog.vue`) | Move the remainder to `src/types/`, shared logic to composables |
 | 3 | Gemini (`@google/generative-ai`) is called directly from the browser with an API key fetched from the backend | Proxy the call through the backend; the key must never reach the client. Until then, treat the feature as trusted-environment-only |
 | 4 | UI framework: Vuetify (default theme) | Target: shadcn-vue (Reka UI + Tailwind v4). Strangler-fig migration; see `docs/UI-MIGRATION.md` |
 
