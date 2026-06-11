@@ -8,6 +8,7 @@ import de.envite.proa.repository.user.UserRepositoryImpl;
 import jakarta.ws.rs.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -25,12 +26,9 @@ class UserRepositoryImplTest {
 	private static final String OLD_EMAIL = "old@example.com";
 	private static final String OLD_FIRST_NAME = "OldFirstName";
 	private static final String OLD_LAST_NAME = "OldLastName";
-	private static final String OLD_PASSWORD = "oldpassword";
 	private static final String UPDATED_EMAIL = "updated@example.com";
 	private static final String UPDATED_FIRST_NAME = "UpdatedFirstName";
 	private static final String UPDATED_LAST_NAME = "UpdatedLastName";
-	private static final String UPDATED_PASSWORD = "newpassword";
-	private static final String HASHED_PASSWORD = "hashedpassword";
 
 	@InjectMocks
 	private UserRepositoryImpl userRepository;
@@ -90,24 +88,20 @@ class UserRepositoryImplTest {
 	@Test
 	void testPatchUser() {
 		User user = new User();
-		user.setEmail(UPDATED_EMAIL);
 		user.setFirstName(UPDATED_FIRST_NAME);
 		user.setLastName(UPDATED_LAST_NAME);
-		user.setPassword(UPDATED_PASSWORD);
 
 		UserTable existingUser = new UserTable();
 		existingUser.setId(USER_ID);
 		existingUser.setEmail(OLD_EMAIL);
 		existingUser.setFirstName(OLD_FIRST_NAME);
 		existingUser.setLastName(OLD_LAST_NAME);
-		existingUser.setPassword(OLD_PASSWORD);
 
 		UserTable updatedUser = new UserTable();
 		updatedUser.setId(USER_ID);
-		updatedUser.setEmail(user.getEmail());
+		updatedUser.setEmail(OLD_EMAIL);
 		updatedUser.setFirstName(user.getFirstName());
 		updatedUser.setLastName(user.getLastName());
-		updatedUser.setPassword(HASHED_PASSWORD);
 		updatedUser.setModifiedAt(LocalDateTime.now());
 
 		when(userDao.findById(USER_ID)).thenReturn(existingUser);
@@ -116,12 +110,37 @@ class UserRepositoryImplTest {
 		User patchedUser = userRepository.patchUser(USER_ID, user);
 
 		assertNotNull(patchedUser);
-		assertEquals(user.getEmail(), patchedUser.getEmail());
 		assertEquals(user.getFirstName(), patchedUser.getFirstName());
 		assertEquals(user.getLastName(), patchedUser.getLastName());
 
 		verify(userDao).findById(USER_ID);
 		verify(userDao).patchUser(any(UserTable.class));
+	}
+
+	/**
+	 * The e-mail is owned by Keycloak: even if a patch payload carries an e-mail, it must not
+	 * be written to the local row.
+	 */
+	@Test
+	void testPatchUser_EmailIsReadOnly() {
+		User user = new User();
+		user.setEmail(UPDATED_EMAIL);
+		user.setFirstName(UPDATED_FIRST_NAME);
+
+		UserTable existingUser = new UserTable();
+		existingUser.setId(USER_ID);
+		existingUser.setEmail(OLD_EMAIL);
+		existingUser.setFirstName(OLD_FIRST_NAME);
+
+		when(userDao.findById(USER_ID)).thenReturn(existingUser);
+		when(userDao.patchUser(any(UserTable.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		userRepository.patchUser(USER_ID, user);
+
+		ArgumentCaptor<UserTable> captor = ArgumentCaptor.forClass(UserTable.class);
+		verify(userDao).patchUser(captor.capture());
+		assertEquals(OLD_EMAIL, captor.getValue().getEmail());
+		assertEquals(UPDATED_FIRST_NAME, captor.getValue().getFirstName());
 	}
 
 	@Test
@@ -133,14 +152,12 @@ class UserRepositoryImplTest {
 		existingUser.setEmail(OLD_EMAIL);
 		existingUser.setFirstName(OLD_FIRST_NAME);
 		existingUser.setLastName(OLD_LAST_NAME);
-		existingUser.setPassword(OLD_PASSWORD);
 
 		UserTable updatedUser = new UserTable();
 		updatedUser.setId(USER_ID);
 		updatedUser.setEmail(existingUser.getEmail());
 		updatedUser.setFirstName(existingUser.getFirstName());
 		updatedUser.setLastName(existingUser.getLastName());
-		updatedUser.setPassword(existingUser.getPassword());
 		updatedUser.setModifiedAt(LocalDateTime.now());
 
 		when(userDao.findById(USER_ID)).thenReturn(existingUser);

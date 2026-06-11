@@ -1,17 +1,18 @@
 package de.envite.proa.rest;
 
 import de.envite.proa.entities.authentication.User;
+import de.envite.proa.repository.tables.UserTable;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.user.UserUsecase;
-import io.quarkiverse.bucket4j.runtime.RateLimited;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.persistence.NoResultException;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.resteasy.reactive.RestPath;
 
 import java.util.List;
+import java.util.Map;
 
 @Path("/api/user")
 public class UserResource {
@@ -20,7 +21,7 @@ public class UserResource {
 	UserUsecase usecase;
 
 	@Inject
-	JsonWebToken jwt;
+	CurrentUserService currentUserService;
 
 	@PATCH
 	@Path("/{id}")
@@ -34,12 +35,17 @@ public class UserResource {
 	@PATCH
 	@Path("")
 	@RolesAllowed({"User", "Admin"})
-	@RateLimited(bucket = "login")
 	public Response patchUser(User user) {
 
-		Long id = Long.parseLong(jwt.getClaim("userId").toString());
+		UserTable currentUser = currentUserService.getUser();
+		if (user.getEmail() != null && !user.getEmail().equals(currentUser.getEmail())) {
+			return Response //
+					.status(Response.Status.BAD_REQUEST) //
+					.entity(Map.of("message", "Email is managed by the identity provider and cannot be changed")) //
+					.build();
+		}
 
-		User patchedUser = usecase.patchUser(id, user);
+		User patchedUser = usecase.patchUser(currentUser.getId(), user);
 		return Response.ok().entity(patchedUser).build();
 	}
 
@@ -47,7 +53,7 @@ public class UserResource {
 	@Path("")
 	@RolesAllowed({"User", "Admin"})
 	public Response getUser() {
-		Long id = Long.parseLong(jwt.getClaim("userId").toString());
+		Long id = currentUserService.getUserId();
 		try {
 			User user = usecase.findById(id);
 			return Response.ok().entity(user).build();

@@ -6,13 +6,13 @@
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-setup: ## One-time setup: git hooks, JWT keys, frontend dependencies
+setup: ## One-time setup: git hooks, frontend dependencies
 	git config core.hooksPath .githooks/
-	./backend/generate-keys.sh
 	cd frontend && yarn install
 	test -f frontend/.env || cp frontend/.env.example frontend/.env
 	@echo ""
 	@echo "Setup complete. Start developing with:"
+	@echo "  make auth-up   # Keycloak on :8181 (web mode only)"
 	@echo "  make backend   # Quarkus dev mode (H2 in-memory DB) on :8080"
 	@echo "  make frontend  # Vite dev server on :3000"
 

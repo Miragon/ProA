@@ -24,15 +24,16 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      # ADR-0001: authentication is Keycloak/OIDC. The deployed Web Apps must
+      # provide QUARKUS_OIDC_AUTH_SERVER_URL (and the realm must allow the
+      # deployed origins as redirect URIs). VITE_OIDC_AUTHORITY/CLIENT_ID are
+      # baked into the frontend bundle below.
       - name: Create .env file
         run: |
           touch frontend/.env
           echo "VITE_APP_MODE=${{ vars.VITE_APP_MODE }}" >> frontend/.env
-
-      - name: Run key generation script
-        run: |
-          chmod +x ./backend/generate-keys.sh
-          ./backend/generate-keys.sh
+          echo "VITE_OIDC_AUTHORITY=${{ vars.VITE_OIDC_AUTHORITY }}" >> frontend/.env
+          echo "VITE_OIDC_CLIENT_ID=${{ vars.VITE_OIDC_CLIENT_ID }}" >> frontend/.env
 
       - name: Build with Maven
         run: mvn clean package

@@ -65,6 +65,23 @@ public class UserDaoTest {
 
 	@Test
 	@Transactional
+	void testSave() {
+		UserTable user = new UserTable();
+		user.setEmail(EMAIL_1);
+
+		UserTable savedUser = userDao.save(user);
+
+		assertNotNull(savedUser.getId());
+
+		flushAndClear();
+
+		UserTable dbUser = em.find(UserTable.class, savedUser.getId());
+		assertNotNull(dbUser);
+		assertEquals(EMAIL_1, dbUser.getEmail());
+	}
+
+	@Test
+	@Transactional
 	void testPatchUser() {
 		UserTable user = new UserTable();
 		user.setEmail(EMAIL_1);

@@ -4,12 +4,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.RestPath;
 
 import de.envite.proa.entities.project.Project;
 import de.envite.proa.entities.project.ProjectVersion;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.security.RolesAllowedIfWebVersion;
 import de.envite.proa.usecases.project.ProjectUsecase;
 import jakarta.annotation.security.RolesAllowed;
@@ -25,13 +25,11 @@ import jakarta.ws.rs.core.Response;
 @Path("/api")
 public class ProjectResource {
 
-	private static final String USER_ID = "userId";
-
 	@Inject
 	private ProjectUsecase usecase;
 
 	@Inject
-	JsonWebToken jwt;
+	CurrentUserService currentUserService;
 
 	@Inject
 	@ConfigProperty(name = "app.mode", defaultValue = "web")
@@ -48,7 +46,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response createProject(@RestForm String name, @RestForm String version) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			Project project = usecase.createProject(userId, name, version);
 			return Response//
 					.status(Response.Status.CREATED)//
@@ -73,7 +71,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public List<Project> getProjects() {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			return usecase.getProjects(userId);
 		}
 		return usecase.getProjects();
@@ -85,7 +83,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response getProject(@RestPath Long projectId) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			return Response//
 					.ok()//
 					.entity(usecase.getProject(userId, projectId))//
@@ -99,7 +97,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response addVersion(@RestPath Long projectId, @RestForm String versionName) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			ProjectVersion projectVersion = usecase.addVersion(userId, projectId, versionName);
 			return Response//
 					.status(Response.Status.CREATED)//
@@ -119,7 +117,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response removeVersion(@RestPath Long projectId, @RestPath Long versionId) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			usecase.removeVersion(userId, projectId, versionId);
 		} else {
 			usecase.removeVersion(projectId, versionId);
@@ -131,7 +129,7 @@ public class ProjectResource {
 	@Path("/project/{projectId}/contributor")
 	@RolesAllowed({ "User", "Admin" })
 	public Response addContributor(@RestPath Long projectId, @RestForm String email) {
-		Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+		Long userId = currentUserService.getUserId();
 		usecase.addContributor(userId, projectId, email);
 		return Response.ok().entity(Map.of("message", "Contributor added successfully")).build();
 	}
@@ -140,7 +138,7 @@ public class ProjectResource {
 	@Path("/project/{projectId}/contributor/{contributorId}")
 	@RolesAllowed({ "User", "Admin" })
 	public Response removeContributor(@RestPath Long projectId, @RestPath Long contributorId) {
-		Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+		Long userId = currentUserService.getUserId();
 		usecase.removeContributor(userId, projectId, contributorId);
 		return Response.noContent().build();
 	}

@@ -2,13 +2,13 @@ package de.envite.proa.rest;
 
 import de.envite.proa.entities.project.AccessDeniedException;
 import de.envite.proa.entities.project.NoResultException;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.project.ProjectAccessService;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 /**
  * Enforces project membership for project-scoped REST endpoints in web mode. In desktop mode
@@ -21,11 +21,10 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 @RequestScoped
 public class ProjectAccessVerifier {
 
-	private static final String USER_ID = "userId";
 	private static final String WEB_MODE = "web";
 
 	@Inject
-	JsonWebToken jwt;
+	CurrentUserService currentUserService;
 
 	@Inject
 	@ConfigProperty(name = "app.mode", defaultValue = "web")
@@ -91,6 +90,6 @@ public class ProjectAccessVerifier {
 	}
 
 	private Long getUserId() {
-		return Long.parseLong(jwt.getClaim(USER_ID).toString());
+		return currentUserService.getUserId();
 	}
 }

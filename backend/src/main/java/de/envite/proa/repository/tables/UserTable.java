@@ -28,7 +28,6 @@ public class UserTable {
 	private String email;
 	private String firstName;
 	private String lastName;
-	private String password;
 	private LocalDateTime createdAt;
 	private LocalDateTime modifiedAt;
 	private Role role;
@@ -36,8 +35,6 @@ public class UserTable {
 	@OneToOne(cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY, mappedBy = "user")
 	private SettingsTable settings;
 
-	private Integer failedLoginAttempts = 0;
-	
 	@OneToMany(cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY, mappedBy = "user")
 	private Set<ProjectUserRelationTable> userRelations = new HashSet<>();
 }

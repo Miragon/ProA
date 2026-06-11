@@ -1,10 +1,11 @@
 package de.envite.proa.rest;
 
 import de.envite.proa.entities.authentication.User;
+import de.envite.proa.repository.tables.UserTable;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.user.UserUsecase;
 import jakarta.persistence.NoResultException;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -25,15 +26,23 @@ public class UserResourceTest {
 	private UserUsecase usecase;
 
 	@Mock
-	private JsonWebToken jwt;
+	private CurrentUserService currentUserService;
 
 	private static final Long USER_ID = 1L;
+	private static final String USER_EMAIL = "user@example.com";
+	private static final String OTHER_EMAIL = "other@example.com";
 	private static final User USER = new User();
 	private static final User PATCHED_USER = new User();
+
+	private UserTable currentUser;
 
 	@BeforeEach
 	public void setUp() {
 		MockitoAnnotations.openMocks(this);
+
+		currentUser = new UserTable();
+		currentUser.setId(USER_ID);
+		currentUser.setEmail(USER_EMAIL);
 	}
 
 	@Test
@@ -49,51 +58,82 @@ public class UserResourceTest {
 
 	@Test
 	public void testPatchUserUserRole() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUser()).thenReturn(currentUser);
 		when(usecase.patchUser(USER_ID, USER)).thenReturn(PATCHED_USER);
 
 		Response response = resource.patchUser(USER);
 
 		assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 		assertEquals(PATCHED_USER, response.getEntity());
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUser();
 		verify(usecase, times(1)).patchUser(USER_ID, USER);
 	}
 
 	@Test
+	public void testPatchUserUserRole_UnchangedEmailAllowed() {
+		when(currentUserService.getUser()).thenReturn(currentUser);
+
+		User user = new User();
+		user.setEmail(USER_EMAIL);
+		when(usecase.patchUser(USER_ID, user)).thenReturn(PATCHED_USER);
+
+		Response response = resource.patchUser(user);
+
+		assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+		verify(usecase, times(1)).patchUser(USER_ID, user);
+	}
+
+	/**
+	 * The e-mail is owned by Keycloak and read-only in the application: attempting to change it
+	 * is rejected with a clear 400.
+	 */
+	@Test
+	public void testPatchUserUserRole_EmailChangeRejected() {
+		when(currentUserService.getUser()).thenReturn(currentUser);
+
+		User user = new User();
+		user.setEmail(OTHER_EMAIL);
+
+		Response response = resource.patchUser(user);
+
+		assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+		verify(usecase, never()).patchUser(anyLong(), any(User.class));
+	}
+
+	@Test
 	public void testGetUserSuccess() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		when(usecase.findById(USER_ID)).thenReturn(USER);
 
 		Response response = resource.getUser();
 
 		assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
 		assertEquals(USER, response.getEntity());
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).findById(USER_ID);
 	}
 
 	@Test
 	public void testGetUserNotFound() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		when(usecase.findById(USER_ID)).thenThrow(new jakarta.ws.rs.NotFoundException());
 
 		Response response = resource.getUser();
 
 		assertEquals(Response.Status.NOT_FOUND.getStatusCode(), response.getStatus());
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).findById(USER_ID);
 	}
 
 	@Test
 	public void testGetUserServerError() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		when(usecase.findById(USER_ID)).thenThrow(new RuntimeException("Internal Error"));
 
 		Response response = resource.getUser();
 
 		assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), response.getStatus());
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).findById(USER_ID);
 	}
 

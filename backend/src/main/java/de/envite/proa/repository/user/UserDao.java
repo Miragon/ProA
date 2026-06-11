@@ -31,6 +31,13 @@ public class UserDao {
     }
 
     @Transactional
+    public UserTable save(UserTable user) {
+        em.persist(user);
+        em.flush();
+        return user;
+    }
+
+    @Transactional
     public UserTable patchUser(UserTable user) {
         return em.merge(user);
     }

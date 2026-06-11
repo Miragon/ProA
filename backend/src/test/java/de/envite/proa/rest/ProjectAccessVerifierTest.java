@@ -2,11 +2,11 @@ package de.envite.proa.rest;
 
 import de.envite.proa.entities.project.AccessDeniedException;
 import de.envite.proa.entities.project.NoResultException;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.project.ProjectAccessService;
 import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -26,7 +26,6 @@ public class ProjectAccessVerifierTest {
 	private static final Long CONNECTION_ID = 4L;
 	private static final String APP_MODE_WEB = "web";
 	private static final String APP_MODE_DESKTOP = "desktop";
-	private static final String USER_ID_CLAIM = "userId";
 
 	@InjectMocks
 	private ProjectAccessVerifier verifier;
@@ -35,7 +34,7 @@ public class ProjectAccessVerifierTest {
 	private ProjectAccessService projectAccessService;
 
 	@Mock
-	private JsonWebToken jwt;
+	private CurrentUserService currentUserService;
 
 	@BeforeEach
 	public void setUp() {
@@ -45,7 +44,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProjectVersion_WebMode_MemberAllowed() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 
 		assertDoesNotThrow(() -> verifier.verifyAccessToProjectVersion(PROJECT_VERSION_ID));
 
@@ -55,7 +54,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProjectVersion_WebMode_Forbidden() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new AccessDeniedException()).when(projectAccessService)
 				.verifyAccessToProjectVersion(USER_ID, PROJECT_VERSION_ID);
 
@@ -68,7 +67,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProjectVersion_WebMode_NotFound() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new NoResultException()).when(projectAccessService)
 				.verifyAccessToProjectVersion(USER_ID, PROJECT_VERSION_ID);
 
@@ -84,14 +83,14 @@ public class ProjectAccessVerifierTest {
 
 		verifier.verifyAccessToProjectVersion(PROJECT_VERSION_ID);
 
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 		verifyNoInteractions(projectAccessService);
 	}
 
 	@Test
 	public void testVerifyAccessToProcessModel_WebMode_MemberAllowed() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 
 		assertDoesNotThrow(() -> verifier.verifyAccessToProcessModel(PROCESS_MODEL_ID));
 
@@ -101,7 +100,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProcessModel_WebMode_Forbidden() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new AccessDeniedException()).when(projectAccessService)
 				.verifyAccessToProcessModel(USER_ID, PROCESS_MODEL_ID);
 
@@ -114,7 +113,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProcessModel_WebMode_NotFound() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new NoResultException()).when(projectAccessService)
 				.verifyAccessToProcessModel(USER_ID, PROCESS_MODEL_ID);
 
@@ -130,14 +129,14 @@ public class ProjectAccessVerifierTest {
 
 		verifier.verifyAccessToProcessModel(PROCESS_MODEL_ID);
 
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 		verifyNoInteractions(projectAccessService);
 	}
 
 	@Test
 	public void testVerifyAccessToProcessConnection_WebMode_MemberAllowed() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 
 		assertDoesNotThrow(() -> verifier.verifyAccessToProcessConnection(CONNECTION_ID));
 
@@ -147,7 +146,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProcessConnection_WebMode_Forbidden() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new AccessDeniedException()).when(projectAccessService)
 				.verifyAccessToProcessConnection(USER_ID, CONNECTION_ID);
 
@@ -157,7 +156,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToProcessConnection_WebMode_NotFound() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new NoResultException()).when(projectAccessService)
 				.verifyAccessToProcessConnection(USER_ID, CONNECTION_ID);
 
@@ -170,14 +169,14 @@ public class ProjectAccessVerifierTest {
 
 		verifier.verifyAccessToProcessConnection(CONNECTION_ID);
 
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 		verifyNoInteractions(projectAccessService);
 	}
 
 	@Test
 	public void testVerifyAccessToDataStoreConnection_WebMode_MemberAllowed() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 
 		assertDoesNotThrow(() -> verifier.verifyAccessToDataStoreConnection(CONNECTION_ID));
 
@@ -187,7 +186,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToDataStoreConnection_WebMode_Forbidden() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new AccessDeniedException()).when(projectAccessService)
 				.verifyAccessToDataStoreConnection(USER_ID, CONNECTION_ID);
 
@@ -197,7 +196,7 @@ public class ProjectAccessVerifierTest {
 	@Test
 	public void testVerifyAccessToDataStoreConnection_WebMode_NotFound() {
 		verifier.appMode = APP_MODE_WEB;
-		when(jwt.getClaim(USER_ID_CLAIM)).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		doThrow(new NoResultException()).when(projectAccessService)
 				.verifyAccessToDataStoreConnection(USER_ID, CONNECTION_ID);
 
@@ -210,7 +209,7 @@ public class ProjectAccessVerifierTest {
 
 		verifier.verifyAccessToDataStoreConnection(CONNECTION_ID);
 
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 		verifyNoInteractions(projectAccessService);
 	}
 }

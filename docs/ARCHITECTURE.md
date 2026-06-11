@@ -4,6 +4,11 @@ This document describes the current architecture, the target architecture, and t
 roadmap between the two. It was created as part of a comprehensive platform review
 (June 2026); see `docs/IMPROVEMENTS.md` for what was changed in that review.
 
+Architecture decisions are recorded in `docs/adr/`:
+[ADR-0001](adr/0001-keycloak-for-web-mode-authentication.md) (Keycloak/OIDC replaces
+the homegrown web-mode authentication), [ADR-0002](adr/0002-modeler-extraction-and-diagram-stack.md)
+(framework-free diagram core on diagram-js, VS Code extension path).
+
 ## System overview
 
 ```

@@ -5,15 +5,19 @@ processes and shows them in a diagram.
 
 ## Quickstart (local development)
 
-Prerequisites: JDK 21+, Node 22 + Yarn 1.x, Docker (only for PostgreSQL parity), `openssl`.
+Prerequisites: JDK 21+, Node 22 + Yarn 1.x, Docker (Keycloak in web mode,
+PostgreSQL parity).
 
 ```bash
-make setup       # one-time: git hooks, JWT keys, frontend dependencies
+make setup       # one-time: git hooks, frontend dependencies
+make auth-up     # terminal 0: Keycloak on :8181 (web mode only)
 make backend     # terminal 1: Quarkus dev mode on :8080 (H2 in-memory)
 make frontend    # terminal 2: Vite dev server on :3000 (proxies /api to :8080)
 ```
 
-Open http://localhost:3000 — in web mode the default user is `admin` / `admin`.
+Open http://localhost:3000 — in web mode you are redirected to Keycloak;
+dev users are `admin@proa.local` / `admin` (Admin) and `user@proa.local` /
+`user` (User). Desktop mode needs no Docker and no login.
 
 Run `make help` for all targets (tests, lint, db management, full build).
 
@@ -52,10 +56,16 @@ jar cannot be switched to H2 at runtime):
 java -Dquarkus.profile=desktop -jar pro-a-*-desktop.jar    # data stored in ~/.proa
 ```
 
-### JWT keys (web mode only)
+### Authentication (web mode only)
 
-`make setup` generates them. Manually: `./backend/generate-keys.sh` (requires openssl).
-Keys are gitignored; never commit them.
+Web mode authenticates against **Keycloak** via OIDC (see
+`docs/adr/0001-keycloak-for-web-mode-authentication.md`). Locally,
+`make auth-up` starts Keycloak with the `proa` realm auto-imported
+(`scripts/keycloak/proa-realm.json`); the admin console runs on
+http://localhost:8181 (`admin`/`admin`). Registration, password reset and
+credential management all happen in Keycloak — the app itself stores no
+passwords. In production, set `QUARKUS_OIDC_AUTH_SERVER_URL` on the Web App
+and register the deployed origin as a redirect URI in the realm.
 
 ## Building the entire application
 

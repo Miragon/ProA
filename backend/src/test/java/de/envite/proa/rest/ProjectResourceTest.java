@@ -3,9 +3,9 @@ package de.envite.proa.rest;
 import de.envite.proa.entities.project.AccessDeniedException;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.project.ProjectUsecase;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ public class ProjectResourceTest {
 	private ProjectUsecase usecase;
 
 	@Mock
-	private JsonWebToken jwt;
+	private CurrentUserService currentUserService;
 
 	private static final Long USER_ID = 1L;
 	private static final Long PROJECT_ID_1 = 1L;
@@ -63,7 +63,7 @@ public class ProjectResourceTest {
 
 	@Test
 	public void testCreateProjectWebMode() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		resource.appMode = APP_MODE_WEB;
 
 		when(usecase.createProject(USER_ID, PROJECT_NAME_1, PROJECT_VERSION_1)).thenReturn(expectedProject1);
@@ -73,7 +73,7 @@ public class ProjectResourceTest {
 
 		assertEquals(201, response.getStatus());
 		assertEquals(expectedProject1, result);
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).createProject(USER_ID, PROJECT_NAME_1, PROJECT_VERSION_1);
 	}
 
@@ -88,13 +88,13 @@ public class ProjectResourceTest {
 
 		assertEquals(201, response.getStatus());
 		assertEquals(expectedProject1, result);
-		verify(jwt, never()).getClaim("userId");
+		verify(currentUserService, never()).getUserId();
 		verify(usecase, times(1)).createProject(PROJECT_NAME_1, PROJECT_VERSION_1);
 	}
 
 	@Test
 	public void testGetProjectsWebMode() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		resource.appMode = APP_MODE_WEB;
 
 		List<Project> expectedProjects = Arrays.asList(
@@ -106,7 +106,7 @@ public class ProjectResourceTest {
 		List<Project> result = resource.getProjects();
 
 		assertEquals(expectedProjects, result);
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).getProjects(USER_ID);
 	}
 
@@ -123,13 +123,13 @@ public class ProjectResourceTest {
 		List<Project> result = resource.getProjects();
 
 		assertEquals(expectedProjects, result);
-		verify(jwt, never()).getClaim("userId");
+		verify(currentUserService, never()).getUserId();
 		verify(usecase, times(1)).getProjects();
 	}
 
 	@Test
 	public void testGetProjectWebMode() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		resource.appMode = APP_MODE_WEB;
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenReturn(expectedProject1);
@@ -138,7 +138,7 @@ public class ProjectResourceTest {
 
 		assertEquals(Response.Status.OK.getStatusCode(), result.getStatus());
 		assertEquals(expectedProject1, result.getEntity());
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
 
@@ -149,40 +149,40 @@ public class ProjectResourceTest {
 	 */
 	@Test
 	public void testGetProjectWebMode_NotFound() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		resource.appMode = APP_MODE_WEB;
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenThrow(new NoResultException());
 
 		assertThrows(NoResultException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
 
 	@Test
 	public void testGetProjectWebMode_Forbidden() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		resource.appMode = APP_MODE_WEB;
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenThrow(new AccessDeniedException());
 
 		assertThrows(AccessDeniedException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
 
 	@Test
 	public void testGetProjectWebMode_InternalServerError() {
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		resource.appMode = APP_MODE_WEB;
 
 		when(usecase.getProject(USER_ID, PROJECT_ID_1)).thenThrow(new RuntimeException());
 
 		assertThrows(RuntimeException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).getProject(USER_ID, PROJECT_ID_1);
 	}
 
@@ -196,7 +196,7 @@ public class ProjectResourceTest {
 
 		assertEquals(Response.Status.OK.getStatusCode(), result.getStatus());
 		assertEquals(expectedProject1, result.getEntity());
-		verify(jwt, never()).getClaim("userId");
+		verify(currentUserService, never()).getUserId();
 		verify(usecase, times(1)).getProject(PROJECT_ID_1);
 	}
 
@@ -208,7 +208,7 @@ public class ProjectResourceTest {
 
 		assertThrows(NoResultException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		verify(jwt, never()).getClaim("userId");
+		verify(currentUserService, never()).getUserId();
 		verify(usecase, times(1)).getProject(PROJECT_ID_1);
 	}
 
@@ -220,7 +220,7 @@ public class ProjectResourceTest {
 
 		assertThrows(RuntimeException.class, () -> resource.getProject(PROJECT_ID_1));
 
-		verify(jwt, never()).getClaim("userId");
+		verify(currentUserService, never()).getUserId();
 		verify(usecase, times(1)).getProject(PROJECT_ID_1);
 	}
 
@@ -231,7 +231,7 @@ public class ProjectResourceTest {
 
 		resource.removeVersion(PROJECT_ID_1, PROJECT_VERSIOM_ID_1);
 
-		verify(jwt, never()).getClaim("userId");
+		verify(currentUserService, never()).getUserId();
 		verify(usecase, times(1)).removeVersion(PROJECT_ID_1, PROJECT_VERSIOM_ID_1);
 	}
 
@@ -239,11 +239,11 @@ public class ProjectResourceTest {
 	public void testDeleteProject_WebMode() throws AccessDeniedException, NoResultException {
 		resource.appMode = APP_MODE_WEB;
 		doNothing().when(usecase).removeVersion(USER_ID, PROJECT_ID_1, PROJECT_VERSIOM_ID_1);
-		when(jwt.getClaim("userId")).thenReturn(USER_ID);
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 
 		resource.removeVersion(PROJECT_ID_1, PROJECT_VERSIOM_ID_1);
 
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).removeVersion(USER_ID, PROJECT_ID_1, PROJECT_VERSIOM_ID_1);
 	}
 }
