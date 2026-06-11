@@ -26,9 +26,16 @@ public class UserTable {
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	public Long id;
 
-	// Unique: CurrentUserService provisions users by email; parallel first
-	// requests must not be able to create duplicates.
+	// Unique: the OIDC subject is the immutable identity key. CurrentUserService
+	// provisions users by subject; parallel first requests must not be able to
+	// create duplicates. Null only for legacy rows that predate the subject
+	// binding - they are claimed (backfilled) on the owner's next login.
 	@Column(unique = true)
+	private String oidcSubject;
+
+	// Mutable profile data synced from the token on every resolve. Deliberately
+	// NOT unique: a recycled e-mail address may briefly exist on both the old
+	// owner's row and the new owner's freshly provisioned row.
 	private String email;
 	private String firstName;
 	private String lastName;

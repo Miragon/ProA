@@ -1,19 +1,20 @@
 package de.envite.proa.rest;
 
 import de.envite.proa.entities.authentication.User;
-import de.envite.proa.repository.tables.UserTable;
 import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.user.UserUsecase;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.persistence.NoResultException;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.Response;
-import org.jboss.resteasy.reactive.RestPath;
 
-import java.util.List;
-import java.util.Map;
-
+/**
+ * Read-only view of the currently logged-in user. User lifecycle and profile data are owned by
+ * Keycloak (account console / admin console); the local row is a read-cache synced from the
+ * token on every resolve (ADR-0003).
+ */
 @Path("/api/user")
 public class UserResource {
 
@@ -22,32 +23,6 @@ public class UserResource {
 
 	@Inject
 	CurrentUserService currentUserService;
-
-	@PATCH
-	@Path("/{id}")
-	@RolesAllowed({"Admin"})
-	public Response patchUser(@RestPath Long id, User user) {
-
-		User patchedUser = usecase.patchUser(id, user);
-		return Response.ok().entity(patchedUser).build();
-	}
-
-	@PATCH
-	@Path("")
-	@RolesAllowed({"User", "Admin"})
-	public Response patchUser(User user) {
-
-		UserTable currentUser = currentUserService.getUser();
-		if (user.getEmail() != null && !user.getEmail().equals(currentUser.getEmail())) {
-			return Response //
-					.status(Response.Status.BAD_REQUEST) //
-					.entity(Map.of("message", "Email is managed by the identity provider and cannot be changed")) //
-					.build();
-		}
-
-		User patchedUser = usecase.patchUser(currentUser.getId(), user);
-		return Response.ok().entity(patchedUser).build();
-	}
 
 	@GET
 	@Path("")
@@ -61,31 +36,6 @@ public class UserResource {
 			return Response.status(Response.Status.NOT_FOUND).build();
 		} catch (Exception e) {
 			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
-		}
-	}
-
-	@GET
-	@Path("/all")
-	@RolesAllowed({"Admin"})
-	public Response getUsers() {
-		try {
-			List<User> users = usecase.getAllUsers();
-			return Response.ok().entity(users).build();
-		} catch (Exception e) {
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
-		}
-	}
-
-	@DELETE
-	@Path("/{id}")
-	@RolesAllowed({"Admin"})
-	public Response deleteById(@RestPath Long id) {
-		try {
-			usecase.deleteById(id);
-			return Response.ok().build();
-		} catch (NoResultException e) {
-			return Response.status(Response.Status.NOT_FOUND).build();
-		} catch (Exception e) {return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
 		}
 	}
 }

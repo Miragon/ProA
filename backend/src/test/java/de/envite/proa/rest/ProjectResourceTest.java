@@ -1,8 +1,10 @@
 package de.envite.proa.rest;
 
 import de.envite.proa.entities.project.AccessDeniedException;
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.project.ProjectUsecase;
 import jakarta.ws.rs.core.Response;
@@ -245,5 +247,52 @@ public class ProjectResourceTest {
 
 		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).removeVersion(USER_ID, PROJECT_ID_1, PROJECT_VERSIOM_ID_1);
+	}
+
+	@Test
+	public void testAddContributor_ReturnsUsecaseResult() {
+		String email = "invitee@example.com";
+		AddContributorResult expectedResult = AddContributorResult.memberAdded();
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
+		when(usecase.addContributor(USER_ID, PROJECT_ID_1, email)).thenReturn(expectedResult);
+
+		Response response = resource.addContributor(PROJECT_ID_1, email);
+
+		assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+		assertEquals(expectedResult, response.getEntity());
+		verify(usecase, times(1)).addContributor(USER_ID, PROJECT_ID_1, email);
+	}
+
+	@Test
+	public void testAddContributor_BlankEmail_BadRequest() {
+		Response response = resource.addContributor(PROJECT_ID_1, "   ");
+
+		assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+		verify(usecase, never()).addContributor(anyLong(), anyLong(), anyString());
+		verify(currentUserService, never()).getUserId();
+	}
+
+	@Test
+	public void testGetInvitations() {
+		List<ProjectInvitation> expectedInvitations = List.of(new ProjectInvitation());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
+		when(usecase.getInvitations(USER_ID, PROJECT_ID_1)).thenReturn(expectedInvitations);
+
+		List<ProjectInvitation> invitations = resource.getInvitations(PROJECT_ID_1);
+
+		assertEquals(expectedInvitations, invitations);
+		verify(usecase, times(1)).getInvitations(USER_ID, PROJECT_ID_1);
+	}
+
+	@Test
+	public void testRevokeInvitation() {
+		long invitationId = 7L;
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
+		doNothing().when(usecase).revokeInvitation(USER_ID, PROJECT_ID_1, invitationId);
+
+		Response response = resource.revokeInvitation(PROJECT_ID_1, invitationId);
+
+		assertEquals(Response.Status.NO_CONTENT.getStatusCode(), response.getStatus());
+		verify(usecase, times(1)).revokeInvitation(USER_ID, PROJECT_ID_1, invitationId);
 	}
 }

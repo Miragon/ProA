@@ -7,7 +7,9 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.RestPath;
 
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import de.envite.proa.entities.project.ProjectVersion;
 import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.security.RolesAllowedIfWebVersion;
@@ -125,13 +127,24 @@ public class ProjectResource {
 		return Response.ok().entity(Map.of("message", "Version removed")).build();
 	}
 
+	/**
+	 * Invites an e-mail address to the project (owner only). Returns whether the membership was
+	 * created immediately (the invitee already has a local user) or a pending invitation was
+	 * stored, so the frontend can distinguish the two outcomes (ADR-0003).
+	 */
 	@POST
 	@Path("/project/{projectId}/contributor")
 	@RolesAllowed({ "User", "Admin" })
 	public Response addContributor(@RestPath Long projectId, @RestForm String email) {
+		if (email == null || email.isBlank()) {
+			return Response//
+					.status(Response.Status.BAD_REQUEST)//
+					.entity(Map.of("message", "Email must not be blank"))//
+					.build();
+		}
 		Long userId = currentUserService.getUserId();
-		usecase.addContributor(userId, projectId, email);
-		return Response.ok().entity(Map.of("message", "Contributor added successfully")).build();
+		AddContributorResult result = usecase.addContributor(userId, projectId, email);
+		return Response.ok().entity(result).build();
 	}
 
 	@DELETE
@@ -140,6 +153,26 @@ public class ProjectResource {
 	public Response removeContributor(@RestPath Long projectId, @RestPath Long contributorId) {
 		Long userId = currentUserService.getUserId();
 		usecase.removeContributor(userId, projectId, contributorId);
+		return Response.noContent().build();
+	}
+
+	/** Lists the pending invitations of a project (owner only, ADR-0003). */
+	@GET
+	@Path("/project/{projectId}/invitation")
+	@Produces(MediaType.APPLICATION_JSON)
+	@RolesAllowed({ "User", "Admin" })
+	public List<ProjectInvitation> getInvitations(@RestPath Long projectId) {
+		Long userId = currentUserService.getUserId();
+		return usecase.getInvitations(userId, projectId);
+	}
+
+	/** Revokes a pending invitation (owner only, ADR-0003). */
+	@DELETE
+	@Path("/project/{projectId}/invitation/{invitationId}")
+	@RolesAllowed({ "User", "Admin" })
+	public Response revokeInvitation(@RestPath Long projectId, @RestPath Long invitationId) {
+		Long userId = currentUserService.getUserId();
+		usecase.revokeInvitation(userId, projectId, invitationId);
 		return Response.noContent().build();
 	}
 }

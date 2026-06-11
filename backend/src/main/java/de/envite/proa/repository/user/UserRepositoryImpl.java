@@ -7,53 +7,18 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
 @ApplicationScoped
 public class UserRepositoryImpl implements UserRepository {
 
-    @Inject
-    UserDao userDao;
+	@Inject
+	UserDao userDao;
 
-    @Override
-    public User findByEmail(String email) {
-        UserTable userTable = userDao.findByEmail(email);
-        return userTable == null ? null : UserMapper.map(userTable);
-    }
-
-    @Override
-    public User findById(Long id) {
-        UserTable userTable = userDao.findById(id);
-        if (userTable == null) {
+	@Override
+	public User findById(Long id) {
+		UserTable userTable = userDao.findById(id);
+		if (userTable == null) {
 			throw new NotFoundException("User not found");
 		}
-        return UserMapper.map(userTable);
-    }
-
-	@Override
-	public List<User> getAllUsers() {
-		return userDao.getAllUsers().stream().map(UserMapper::map).toList();
+		return UserMapper.map(userTable);
 	}
-
-	@Override
-	public void deleteById(Long id) {
-		userDao.deleteById(id);
-	}
-
-	public User patchUser(Long userId, User user) {
-		UserTable userTable = userDao.findById(userId);
-		mergeIntoUserTableIfNotNull(userTable, user);
-		userTable.setModifiedAt(LocalDateTime.now());
-		return UserMapper.map(userDao.patchUser(userTable));
-	}
-
-    /**
-     * Only the local profile fields are patchable. E-mail (and credentials) are owned by
-     * Keycloak and therefore never updated here.
-     */
-    private void mergeIntoUserTableIfNotNull(UserTable userTable, User user) {
-        userTable.setFirstName(user.getFirstName() != null ? user.getFirstName() : userTable.getFirstName());
-        userTable.setLastName(user.getLastName() != null ? user.getLastName() : userTable.getLastName());
-    }
 }

@@ -101,6 +101,11 @@ public class ProjectDao {
 	@Transactional
 	public void deleteById(Long id) {
 		ProjectTable table = em.find(ProjectTable.class, id);
+		// Pending invitations reference the project but are not part of its object
+		// graph - delete them explicitly before removing the project.
+		em.createQuery("DELETE FROM ProjectInvitationTable i WHERE i.project = :project")//
+				.setParameter("project", table)//
+				.executeUpdate();
 		em.remove(table);
 	}
 	

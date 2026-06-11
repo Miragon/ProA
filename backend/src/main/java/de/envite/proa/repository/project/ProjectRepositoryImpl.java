@@ -1,29 +1,30 @@
 package de.envite.proa.repository.project;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import de.envite.proa.entities.authentication.User;
 import de.envite.proa.entities.project.AccessDeniedException;
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import de.envite.proa.entities.project.ProjectMember;
 import de.envite.proa.entities.project.ProjectRole;
 import de.envite.proa.entities.project.ProjectVersion;
+import de.envite.proa.repository.tables.ProjectInvitationTable;
 import de.envite.proa.repository.tables.ProjectTable;
 import de.envite.proa.repository.tables.ProjectUserRelationTable;
 import de.envite.proa.repository.tables.ProjectVersionTable;
 import de.envite.proa.repository.tables.UserTable;
 import de.envite.proa.repository.user.UserDao;
 import de.envite.proa.usecases.project.ProjectRepository;
+import de.envite.proa.util.EmailNormalizer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 
 @ApplicationScoped
@@ -35,11 +36,15 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 
 	@Inject
 	private UserDao userDao;
-	
+
 	@Inject
-	public ProjectRepositoryImpl(ProjectDao dao, UserDao userDao) {
+	private ProjectInvitationDao invitationDao;
+
+	@Inject
+	public ProjectRepositoryImpl(ProjectDao dao, UserDao userDao, ProjectInvitationDao invitationDao) {
 		this.projectDao = dao;
 		this.userDao = userDao;
+		this.invitationDao = invitationDao;
 	}
 
 	@Override
@@ -211,21 +216,69 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 		}
 	}
 
+	/**
+	 * Invites an e-mail address to the project (ADR-0003): if a local user with that e-mail
+	 * exists the membership is created immediately, otherwise a pending invitation is stored.
+	 * Idempotent - inviting an existing member or re-inviting the same e-mail is not an error.
+	 */
 	@Override
-	public void addContributor(Long userId, Long projectId, String email) throws AccessDeniedException, NoResultException {
+	public AddContributorResult addContributor(Long userId, Long projectId, String email)
+			throws AccessDeniedException, NoResultException {
 		ProjectTable project = findProjectWithContributorsOrThrow(projectId);
 		validateProjectOwner(project, userId);
-		UserTable user = userDao.findByEmail(email);
-		if (user == null) {
-			throw new EntityNotFoundException("User not found with email: " + email);
+		String normalizedEmail = EmailNormalizer.normalize(email);
+
+		UserTable user = userDao.findByEmail(normalizedEmail);
+		if (user != null) {
+			boolean alreadyMember = project//
+					.getUserRelations()//
+					.stream()//
+					.anyMatch(relation -> relation.getUser().getId().equals(user.getId()));
+			if (!alreadyMember) {
+				ProjectUserRelationTable relation = new ProjectUserRelationTable();
+				relation.setProject(project);
+				relation.setUser(user);
+				relation.setRole(ProjectRole.COLLABORATEUR);
+				projectDao.persistProjectMember(relation);
+			}
+			return AddContributorResult.memberAdded();
 		}
-		
-		ProjectUserRelationTable relation = new ProjectUserRelationTable();
-		relation.setProject(project);
-		relation.setUser(user);
-		relation.setRole(ProjectRole.COLLABORATEUR);
-		
-		projectDao.persistProjectMember(relation);
+
+		ProjectInvitationTable invitation = invitationDao.findByEmailAndProject(normalizedEmail, projectId);
+		if (invitation == null) {
+			invitation = new ProjectInvitationTable();
+			invitation.setEmail(normalizedEmail);
+			invitation.setProject(project);
+			invitation.setRole(ProjectRole.COLLABORATEUR);
+			invitation.setInvitedBy(userId);
+			invitation.setCreatedAt(LocalDateTime.now());
+			invitationDao.persist(invitation);
+		}
+		return AddContributorResult.invitationPending(map(invitation));
+	}
+
+	@Override
+	public List<ProjectInvitation> getInvitations(Long userId, Long projectId)
+			throws AccessDeniedException, NoResultException {
+		ProjectTable project = findProjectWithContributorsOrThrow(projectId);
+		validateProjectOwner(project, userId);
+		return invitationDao//
+				.findByProject(projectId)//
+				.stream()//
+				.map(this::map)//
+				.toList();
+	}
+
+	@Override
+	public void revokeInvitation(Long userId, Long projectId, Long invitationId)
+			throws AccessDeniedException, NoResultException {
+		ProjectTable project = findProjectWithContributorsOrThrow(projectId);
+		validateProjectOwner(project, userId);
+		ProjectInvitationTable invitation = invitationDao.findById(invitationId);
+		if (invitation == null || !Objects.equals(invitation.getProject().getId(), projectId)) {
+			throw new NoResultException("Invitation not found with ID: " + invitationId);
+		}
+		invitationDao.deleteById(invitationId);
 	}
 
 	@Override
@@ -316,5 +369,15 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 		member.setLastName(relationTable.getUser().getLastName());
 		member.setRole(relationTable.getRole());
 		return member;
+	}
+
+	private ProjectInvitation map(ProjectInvitationTable table) {
+		ProjectInvitation invitation = new ProjectInvitation();
+		invitation.setId(table.getId());
+		invitation.setEmail(table.getEmail());
+		invitation.setRole(table.getRole());
+		invitation.setInvitedBy(table.getInvitedBy());
+		invitation.setCreatedAt(table.getCreatedAt());
+		return invitation;
 	}
 }

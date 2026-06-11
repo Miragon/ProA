@@ -1,9 +1,13 @@
 package de.envite.proa.rest;
 
+import de.envite.proa.entities.authentication.Role;
+import de.envite.proa.repository.tables.UserTable;
+import de.envite.proa.repository.user.UserDao;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.QuarkusTestProfile;
 import io.quarkus.test.junit.TestProfile;
 import io.smallrye.jwt.build.Jwt;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.jwt.Claims;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +23,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Verifies that authorization is actually enforced in web mode (all other tests run with
@@ -33,6 +39,9 @@ class WebModeAuthorizationTest {
 
 	private static final String ISSUER = "https://keycloak.test/realms/proa";
 	private static final String DEFAULT_EMAIL = "web-mode-test@example.com";
+
+	@Inject
+	UserDao userDao;
 
 	public static class WebModeProfile implements QuarkusTestProfile {
 
@@ -71,25 +80,31 @@ class WebModeAuthorizationTest {
 	}
 
 	private static String token(String role, String email) {
-		return keycloakShapedClaims(role, email) //
+		return token(role, email, "3f1c8b2e-" + email, true);
+	}
+
+	private static String token(String role, String email, String subject, boolean emailVerified) {
+		return keycloakShapedClaims(role, email, subject, emailVerified) //
 				.issuer(ISSUER) //
 				.sign();
 	}
 
 	private static String tokenWithoutIssuer() {
-		return keycloakShapedClaims("User", DEFAULT_EMAIL).sign();
+		return keycloakShapedClaims("User", DEFAULT_EMAIL, "3f1c8b2e-" + DEFAULT_EMAIL, true).sign();
 	}
 
 	private static String tokenWithWrongIssuer() {
-		return keycloakShapedClaims("User", DEFAULT_EMAIL) //
+		return keycloakShapedClaims("User", DEFAULT_EMAIL, "3f1c8b2e-" + DEFAULT_EMAIL, true) //
 				.issuer("https://evil.example.com/realms/proa") //
 				.sign();
 	}
 
-	private static io.smallrye.jwt.build.JwtClaimsBuilder keycloakShapedClaims(String role, String email) {
+	private static io.smallrye.jwt.build.JwtClaimsBuilder keycloakShapedClaims(String role, String email,
+			String subject, boolean emailVerified) {
 		return Jwt.claims() //
-				.subject("3f1c8b2e-" + email) //
+				.subject(subject) //
 				.claim(Claims.email, email) //
+				.claim(Claims.email_verified, emailVerified) //
 				.claim("given_name", "Web") //
 				.claim("family_name", "Tester") //
 				.claim("realm_access", Map.of("roles", List.of(role)));
@@ -202,5 +217,94 @@ class WebModeAuthorizationTest {
 				.extract().path("id");
 
 		assertEquals(id, secondId);
+	}
+
+	/**
+	 * The local identity is bound to the immutable OIDC subject, not the recyclable e-mail:
+	 * when the e-mail changes in Keycloak, the next resolve updates the existing row instead
+	 * of provisioning a second user.
+	 */
+	@Test
+	void testEmailChangeInToken_UpdatesRowInsteadOfCreatingNewOne() {
+		String subject = "email-change-sub";
+
+		Integer id = given() //
+				.auth().oauth2(token("User", "before-change@example.com", subject, true)) //
+				.when().get("/api/user") //
+				.then().statusCode(200) //
+				.body("email", equalTo("before-change@example.com")) //
+				.extract().path("id");
+
+		Integer secondId = given() //
+				.auth().oauth2(token("User", "after-change@example.com", subject, true)) //
+				.when().get("/api/user") //
+				.then().statusCode(200) //
+				.body("email", equalTo("after-change@example.com")) //
+				.extract().path("id");
+
+		assertEquals(id, secondId);
+	}
+
+	/**
+	 * One-time migration: a pre-existing row without subject binding is claimed via its
+	 * verified e-mail exactly once. A later principal with a different subject but the same
+	 * (recycled) e-mail must NOT inherit the row - it gets a fresh one.
+	 */
+	@Test
+	void testLegacyRowWithoutSubject_ClaimedByVerifiedEmailExactlyOnce() {
+		String email = "legacy-claim-test@example.com";
+		Long legacyId = createLegacyUser(email);
+
+		Integer claimedId = given() //
+				.auth().oauth2(token("User", email, "legacy-claim-sub-1", true)) //
+				.when().get("/api/user") //
+				.then().statusCode(200) //
+				.body("email", equalTo(email)) //
+				.extract().path("id");
+
+		assertEquals(legacyId.intValue(), claimedId);
+
+		// Recycled e-mail: different subject, same address -> fresh row, no inheritance
+		Integer freshId = given() //
+				.auth().oauth2(token("User", email, "legacy-claim-sub-2", true)) //
+				.when().get("/api/user") //
+				.then().statusCode(200) //
+				.extract().path("id");
+
+		assertNotEquals(claimedId, freshId);
+	}
+
+	/**
+	 * An unverified e-mail must not claim a legacy row (the realm allows login before e-mail
+	 * verification; self-registering someone else's address must not inherit their projects).
+	 * The row stays claimable: after verification the rightful owner gets it.
+	 */
+	@Test
+	void testLegacyRow_UnverifiedEmailCannotClaim() {
+		String email = "legacy-unverified-test@example.com";
+		Long legacyId = createLegacyUser(email);
+
+		given() //
+				.auth().oauth2(token("User", email, "legacy-unverified-sub", false)) //
+				.when().get("/api/user") //
+				.then().statusCode(401);
+
+		Integer claimedId = given() //
+				.auth().oauth2(token("User", email, "legacy-unverified-sub", true)) //
+				.when().get("/api/user") //
+				.then().statusCode(200) //
+				.extract().path("id");
+
+		assertEquals(legacyId.intValue(), claimedId);
+	}
+
+	private Long createLegacyUser(String email) {
+		UserTable legacy = new UserTable();
+		legacy.setEmail(email);
+		legacy.setRole(Role.User);
+		LocalDateTime now = LocalDateTime.now();
+		legacy.setCreatedAt(now);
+		legacy.setModifiedAt(now);
+		return userDao.save(legacy).getId();
 	}
 }
