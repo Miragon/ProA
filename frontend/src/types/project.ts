@@ -24,3 +24,14 @@ export interface ProjectMember {
   lastName: string;
   role: string;
 }
+
+/**
+ * An invitation for an e-mail address without a ProA account yet. It is
+ * resolved into a membership on the invitee's first sign-in (ADR-0003).
+ */
+export interface PendingInvitation {
+  id: number;
+  email: string;
+  role: string;
+  createdAt: string;
+}

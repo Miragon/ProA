@@ -20,25 +20,68 @@
               }}</span>
             </p>
             <v-text-field
-              ref="newContributorEmailInput"
-              v-model="newContributorEmail"
+              ref="newMemberEmailInput"
+              v-model="newMemberEmail"
               class="mt-2"
               :label="$t('authentication.email')"
               density="compact"
               :rules="emailRules"
-              :error-messages="newContributorErrorMsg"
-              @input="newContributorErrorMsg = ''"
+              :error-messages="newMemberErrorMsg"
+              @input="newMemberErrorMsg = ''"
               @focusout="resetValidation"
             >
               <template #append>
                 <v-btn
                   append-icon="mdi-plus"
-                  :text="$t('projectOverview.addNew')"
+                  :text="$t('projectOverview.inviteMember')"
                   variant="tonal"
-                  @click="addContributor"
+                  @click="inviteMember"
                 ></v-btn>
               </template>
             </v-text-field>
+
+            <div
+              v-if="invitations.length > 0"
+              class="tw:mt-2 tw:flex tw:flex-col tw:gap-2"
+            >
+              <p class="text-body-1 font-weight-bold">
+                {{ $t("projectOverview.pendingInvitations") + ": " }}
+              </p>
+              <TooltipProvider>
+                <ul class="tw:flex tw:flex-col tw:gap-1">
+                  <li
+                    v-for="invitation in invitations"
+                    :key="'invitation-' + invitation.id"
+                    class="tw:flex tw:items-center tw:justify-between tw:gap-2"
+                  >
+                    <div class="tw:flex tw:min-w-0 tw:items-center tw:gap-2">
+                      <span class="tw:truncate">{{ invitation.email }}</span>
+                      <Badge variant="secondary">
+                        {{ $t("projectOverview.invited") }}
+                      </Badge>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          type="button"
+                          @click="revokeInvitation(invitation)"
+                        >
+                          <X />
+                          <span class="tw:sr-only">
+                            {{ $t("projectOverview.revokeInvitation") }}
+                          </span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {{ $t("projectOverview.revokeInvitation") }}
+                      </TooltipContent>
+                    </Tooltip>
+                  </li>
+                </ul>
+              </TooltipProvider>
+            </div>
           </div>
 
           <div class="card-section">
@@ -88,15 +131,35 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { Project, ProjectVersion } from "@/types/project";
+import { PendingInvitation, Project, ProjectVersion } from "@/types/project";
 import { AxiosError } from "axios";
 import * as projectsApi from "@/api/projects";
 import { useAppStore } from "@/store/app";
+import { SnackbarType } from "@/utils/snackbar";
 import { VTextField } from "vuetify/components";
 import { emailRules } from "@/components/Authentication/formValidation";
+import { X } from "@lucide/vue";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export default defineComponent({
   name: "ProjectDetailDialog",
+
+  components: {
+    Badge,
+    Button,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    X
+  },
 
   props: {
     showProjectDetailDialog: {
@@ -116,10 +179,12 @@ export default defineComponent({
   emits: ["resetProjectChangedFlag", "close", "deleteVersion"],
 
   data: () => ({
+    store: useAppStore(),
     emailRules: emailRules,
-    newContributorEmail: "" as string,
-    newContributorErrorMsg: "" as string,
-    project: {} as Project
+    newMemberEmail: "" as string,
+    newMemberErrorMsg: "" as string,
+    project: {} as Project,
+    invitations: [] as PendingInvitation[]
   }),
 
   computed: {
@@ -139,6 +204,7 @@ export default defineComponent({
     showProjectDetailDialog(newVal) {
       if (newVal) {
         this.fetchProject();
+        this.fetchInvitations();
       }
     },
     projectChangedFlag(newVal) {
@@ -160,44 +226,84 @@ export default defineComponent({
         console.error(error);
       }
     },
+    async fetchInvitations() {
+      try {
+        this.invitations = await projectsApi.getInvitations(
+          this.projectDetailId
+        );
+      } catch (error) {
+        this.invitations = [];
+        // Only owners may list invitations: surface the 403 instead of
+        // silently showing nothing.
+        if ((error as AxiosError).response?.status === 403) {
+          await this.store.showSnackbar(
+            this.$t("projectOverview.errorMessage"),
+            SnackbarType.ERROR
+          );
+        } else {
+          console.error(error);
+        }
+      }
+    },
     formatDate(dateString: string) {
       const locales =
-        useAppStore().getSelectedLanguage() === "de" ? "de-DE" : "en-US";
+        this.store.getSelectedLanguage() === "de" ? "de-DE" : "en-US";
       return new Date(dateString).toLocaleString(locales);
     },
-    async addContributor() {
-      const newContributorEmailInput = this.$refs
-        .newContributorEmailInput as VTextField;
+    async inviteMember() {
+      const newMemberEmailInput = this.$refs.newMemberEmailInput as VTextField;
 
-      const errors = await newContributorEmailInput.validate();
+      const errors = await newMemberEmailInput.validate();
       if (errors.length > 0) {
         return;
       }
 
       try {
-        await projectsApi.addContributor(
+        const { status } = await projectsApi.inviteMember(
           this.projectDetailId,
-          this.newContributorEmail
+          this.newMemberEmail
         );
-        this.newContributorEmail = "";
+        this.newMemberEmail = "";
         this.resetValidation();
-        await this.fetchProject();
-      } catch (error) {
-        const e = error as AxiosError;
-        if (e.response?.status === 404) {
-          this.newContributorErrorMsg = this.$t(
-            "projectOverview.emailNotFound"
+
+        if (status === "INVITATION_PENDING") {
+          // The invitee has no account yet: the invitation is resolved
+          // into a membership on their first sign-in (ADR-0003).
+          await this.store.showSnackbar(
+            this.$t("projectOverview.invitationSent"),
+            SnackbarType.SUCCESS
           );
-          return;
+          await this.fetchInvitations();
+        } else {
+          await this.store.showSnackbar(
+            this.$t("projectOverview.memberAdded"),
+            SnackbarType.SUCCESS
+          );
+          await this.fetchProject();
         }
-        this.newContributorErrorMsg = this.$t("projectOverview.errorMessage");
+      } catch {
+        this.newMemberErrorMsg = this.$t("projectOverview.errorMessage");
+      }
+    },
+    async revokeInvitation(invitation: PendingInvitation) {
+      try {
+        await projectsApi.revokeInvitation(this.projectDetailId, invitation.id);
+        await this.store.showSnackbar(
+          this.$t("projectOverview.invitationRevoked"),
+          SnackbarType.SUCCESS
+        );
+        await this.fetchInvitations();
+      } catch {
+        await this.store.showSnackbar(
+          this.$t("projectOverview.invitationRevokeFailed"),
+          SnackbarType.ERROR
+        );
       }
     },
     resetValidation() {
-      this.newContributorErrorMsg = "";
-      const newContributorEmailInput = this.$refs
-        .newContributorEmailInput as VTextField;
-      newContributorEmailInput.resetValidation();
+      this.newMemberErrorMsg = "";
+      const newMemberEmailInput = this.$refs.newMemberEmailInput as VTextField;
+      newMemberEmailInput.resetValidation();
     },
     deleteVersion(project: Project, version: ProjectVersion) {
       this.$emit("deleteVersion", project, version);

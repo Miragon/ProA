@@ -62,7 +62,10 @@ const applyUser = (user: User | null) => {
 };
 
 // Guards against competing redirects (e.g. a sign-out racing watchers that
-// trigger the router guard's sign-in): the first redirect wins.
+// trigger the router guard's sign-in): the first redirect wins. The lock is
+// released once the redirect promise settles: on success the browser is
+// navigating away anyway, and keeping it would brick sign-in when the page
+// is restored from the back/forward cache (browser-Back from Keycloak).
 let redirectInFlight = false;
 
 const redirectOnce = async (redirect: () => Promise<void>): Promise<void> => {
@@ -72,9 +75,8 @@ const redirectOnce = async (redirect: () => Promise<void>): Promise<void> => {
   redirectInFlight = true;
   try {
     await redirect();
-  } catch (error) {
+  } finally {
     redirectInFlight = false;
-    throw error;
   }
 };
 
@@ -98,6 +100,13 @@ export const getUser = (): Promise<User | null> => userManager.getUser();
 
 let initialized = false;
 
+// Tracks whether a failed silent renew has already been retried, so a
+// single transient failure (network blip, brief IdP hiccup) does not
+// throw the user out of their session mid-work.
+let silentRenewRetried = false;
+
+const SILENT_RENEW_RETRY_DELAY_MS = 2000;
+
 /**
  * Loads an existing session from sessionStorage into the app store and
  * subscribes to oidc-client-ts events so token renewals and sign-outs
@@ -109,10 +118,37 @@ export const initAuth = async (): Promise<void> => {
   }
   initialized = true;
 
-  userManager.events.addUserLoaded((user) => applyUser(user));
+  userManager.events.addUserLoaded((user) => {
+    silentRenewRetried = false;
+    applyUser(user);
+  });
   userManager.events.addUserUnloaded(() => applyUser(null));
   userManager.events.addUserSignedOut(() => applyUser(null));
   userManager.events.addAccessTokenExpired(() => applyUser(null));
+
+  // A failed automatic silent renew is retried once after a short delay.
+  // Only on repeated failure is the session cleared from the store - the
+  // router guard / 401 interceptor then re-enter the sign-in flow. No
+  // hard redirect mid-work on the first transient failure.
+  userManager.events.addSilentRenewError(async () => {
+    if (!silentRenewRetried) {
+      silentRenewRetried = true;
+      await new Promise((resolve) =>
+        setTimeout(resolve, SILENT_RENEW_RETRY_DELAY_MS)
+      );
+      try {
+        const user = await userManager.signinSilent();
+        if (user) {
+          // Success raises userLoaded, which updates the store and
+          // resets the retry flag.
+          return;
+        }
+      } catch {
+        // Repeated failure: fall through and clear the session.
+      }
+    }
+    applyUser(null);
+  });
 
   applyUser(await userManager.getUser());
 };

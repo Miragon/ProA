@@ -18,18 +18,6 @@
       {{ $t("general.myProfile") }}
     </v-tooltip>
 
-    <v-tooltip
-      v-if="webVersion && isUserLoggedIn && isUserAdmin"
-      location="bottom"
-    >
-      <template #activator="{ props }">
-        <v-btn v-bind="props" @click="$router.push('/ManageUsers')">
-          <v-icon icon="mdi-account-multiple"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("navigation.manageUsers") }}
-    </v-tooltip>
-
     <v-tooltip v-if="webVersion && isUserLoggedIn" location="bottom">
       <template #activator="{ props }">
         <v-btn v-bind="props" @click="signOut">
@@ -101,7 +89,6 @@ import { SelectedDialog, useAppStore } from "@/store/app";
 import SettingsDrawer from "@/components/SettingsDrawer.vue";
 import i18n from "@/i18n";
 import AuthenticationDialog from "@/components/Authentication/AuthenticationDialog.vue";
-import { Role } from "@/components/ProcessMap/types";
 import { LanguageCode } from "@/types/language";
 
 interface Language {
@@ -121,17 +108,11 @@ export default defineComponent({
       group: null,
       selectedLanguage: store.getSelectedLanguage() as LanguageCode,
       webVersion: (import.meta.env.VITE_APP_MODE === "web") as boolean,
-      showEditDialog: false as boolean,
-      showProfileDialog: false as boolean,
-      showProfileSuccessMessage: false as boolean,
       SelectedDialog: SelectedDialog
     };
   },
 
   computed: {
-    selectedDialog() {
-      return this.store.getSelectedDialog();
-    },
     availableLanguages(): Language[] {
       const availableLanguages: Language[] = [
         {
@@ -174,9 +155,6 @@ export default defineComponent({
     },
     isUserLoggedIn() {
       return this.store.getUserToken() != null;
-    },
-    isUserAdmin() {
-      return this.store.getUserRole() === Role.ADMIN;
     }
   },
 

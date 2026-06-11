@@ -6,7 +6,6 @@ import {
   START_LOCATION
 } from "vue-router";
 import { useAppStore } from "@/store/app";
-import { Role } from "@/components/ProcessMap/types";
 
 const routes = [
   {
@@ -53,16 +52,6 @@ const routes = [
         name: "ProcessMap",
         component: () => import("@/views/ProcessMapView.vue"),
         meta: { requiresAuth: true }
-      },
-      {
-        path: "ManageUsers",
-        name: "ManageUsers",
-        component: () => import("@/views/ManageUsersView.vue"),
-        meta: {
-          requiresAuth: true,
-          requiresAdmin: true,
-          requiresWebVersion: true
-        }
       },
       {
         path: ":pathMatch(.*)*",
@@ -112,10 +101,6 @@ router.beforeEach(async (to, from) => {
       await signinRedirect();
       return false;
     }
-  }
-
-  if (to.meta.requiresAdmin && store.getUserRole() !== Role.ADMIN) {
-    return cancelNavigation(from);
   }
 
   return true;

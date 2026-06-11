@@ -1,5 +1,5 @@
 import apiClient from "@/api/client";
-import { Project, ProjectVersion } from "@/types/project";
+import { PendingInvitation, Project, ProjectVersion } from "@/types/project";
 
 export const getProjects = async (): Promise<Project[]> => {
   const { data } = await apiClient.get<Project[]>("/project");
@@ -44,12 +44,42 @@ export const deleteProjectVersion = async (
   await apiClient.delete(`/project/${projectId}/${versionId}`);
 };
 
-export const addContributor = async (
+/**
+ * Whether an invite-by-email created a membership right away (the invitee
+ * already has an account) or stored a pending invitation (ADR-0003).
+ */
+export type InviteMemberStatus = "MEMBER_ADDED" | "INVITATION_PENDING";
+
+export interface InviteMemberResponse {
+  status: InviteMemberStatus;
+}
+
+export const inviteMember = async (
   projectId: number,
   email: string
-): Promise<void> => {
+): Promise<InviteMemberResponse> => {
   const formData = new FormData();
   formData.append("email", email);
 
-  await apiClient.post(`/project/${projectId}/contributor`, formData);
+  const { data } = await apiClient.post<InviteMemberResponse>(
+    `/project/${projectId}/contributor`,
+    formData
+  );
+  return data;
+};
+
+export const getInvitations = async (
+  projectId: number
+): Promise<PendingInvitation[]> => {
+  const { data } = await apiClient.get<PendingInvitation[]>(
+    `/project/${projectId}/invitation`
+  );
+  return data;
+};
+
+export const revokeInvitation = async (
+  projectId: number,
+  invitationId: number
+): Promise<void> => {
+  await apiClient.delete(`/project/${projectId}/invitation/${invitationId}`);
 };

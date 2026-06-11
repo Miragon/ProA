@@ -15,38 +15,9 @@
 
     <Separator />
 
-    <Alert
-      v-if="message.message !== ''"
-      :variant="message.type === 'error' ? 'destructive' : 'default'"
-      class="tw:pr-10"
-    >
-      <CircleAlert v-if="message.type === 'error'" />
-      <CircleCheck v-else />
-      <AlertDescription>{{ message.message }}</AlertDescription>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        class="tw:absolute tw:top-1.5 tw:right-1.5"
-        type="button"
-        @click="removeMessage"
-      >
-        <X />
-        <span class="tw:sr-only">{{ $t("general.close") }}</span>
-      </Button>
-    </Alert>
-
-    <div class="tw:flex tw:items-center tw:justify-between">
-      <span class="tw:font-semibold">
-        {{ user.firstName }} {{ user.lastName }}
-      </span>
-      <Button
-        variant="link"
-        type="button"
-        @click="resetMessageAndOpenDialog(SelectedDialog.EDIT_PROFILE)"
-      >
-        {{ $t("authentication.edit") }}
-      </Button>
-    </div>
+    <span class="tw:font-semibold">
+      {{ user.firstName }} {{ user.lastName }}
+    </span>
 
     <div class="tw:flex tw:flex-col tw:gap-3">
       <div class="tw:flex tw:items-center tw:gap-2">
@@ -56,9 +27,6 @@
             {{ $t("authentication.email") }}
           </span>
           <span>{{ user.email }}</span>
-          <span class="tw:text-muted-foreground tw:text-xs">
-            {{ $t("authentication.emailManagedBySso") }}
-          </span>
         </div>
       </div>
       <div class="tw:flex tw:items-center tw:justify-between tw:gap-2">
@@ -76,6 +44,9 @@
           <ExternalLink />
         </Button>
       </div>
+      <p class="tw:text-muted-foreground tw:text-xs">
+        {{ $t("authentication.profileManagedByIdp") }}
+      </p>
     </div>
 
     <div
@@ -140,20 +111,10 @@ import { defineComponent } from "vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
 import { Project } from "@/types/project";
 import { UserData } from "@/types/user";
-import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
 import { getProjects } from "@/api/projects";
 import { getCurrentUser } from "@/api/users";
 import { accountConsoleUrl } from "@/auth/config";
-import {
-  CircleAlert,
-  CircleCheck,
-  ExternalLink,
-  Folder,
-  KeyRound,
-  Mail,
-  X
-} from "@lucide/vue";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ExternalLink, Folder, KeyRound, Mail, X } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import {
   DialogDescription,
@@ -180,11 +141,7 @@ export default defineComponent({
   name: "ProfileDialog",
 
   components: {
-    Alert,
-    AlertDescription,
     Button,
-    CircleAlert,
-    CircleCheck,
     DialogDescription,
     DialogHeader,
     DialogTitle,
@@ -206,20 +163,10 @@ export default defineComponent({
     X
   },
 
-  props: {
-    message: {
-      type: Object,
-      required: true
-    }
-  },
-
-  emits: ["showMessage", "removeMessage"],
-
   data() {
     return {
       store: useAppStore(),
       projects: [] as Project[],
-      SelectedDialog: SelectedDialog,
       user: {} as UserData
     };
   },
@@ -230,17 +177,10 @@ export default defineComponent({
   },
 
   methods: {
-    resetMessageAndOpenDialog(selected: SelectedDialog) {
-      this.$emit("showMessage", { message: "", type: "error" } as Message);
-      this.openDialog(selected);
-    },
     closeDialog() {
       this.store.setSelectedDialog(SelectedDialog.NONE);
     },
-    openDialog(dialog: SelectedDialog) {
-      this.store.setSelectedDialog(dialog);
-    },
-    /** Password & co. are managed by Keycloak in its account console. */
+    /** Profile data (names, email, password) is managed by Keycloak. */
     openAccountConsole() {
       window.open(accountConsoleUrl, "_blank", "noopener,noreferrer");
     },
@@ -270,9 +210,6 @@ export default defineComponent({
           sortProjectsByActiveFirstThenAlphabetically
         );
       });
-    },
-    removeMessage() {
-      this.$emit("removeMessage");
     }
   }
 });
