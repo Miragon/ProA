@@ -6,6 +6,7 @@ import java.util.Set;
 
 import de.envite.proa.entities.authentication.Role;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -25,6 +26,9 @@ public class UserTable {
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	public Long id;
 
+	// Unique: CurrentUserService provisions users by email; parallel first
+	// requests must not be able to create duplicates.
+	@Column(unique = true)
 	private String email;
 	private String firstName;
 	private String lastName;

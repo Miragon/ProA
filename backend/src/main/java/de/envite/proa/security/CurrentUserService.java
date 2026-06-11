@@ -11,7 +11,7 @@ import de.envite.proa.repository.user.UserDao;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
+import jakarta.persistence.PersistenceException;
 import jakarta.ws.rs.NotAuthorizedException;
 
 /**
@@ -44,7 +44,11 @@ public class CurrentUserService {
 		return getUser().getId();
 	}
 
-	@Transactional
+	/**
+	 * No outer transaction on purpose: the DAO methods are transactional
+	 * themselves, and a lost unique-constraint race during provisioning must
+	 * only roll back the insert attempt, not the caller's work.
+	 */
 	public UserTable getUser() {
 		if (user == null) {
 			user = resolveUser();
@@ -58,7 +62,16 @@ public class CurrentUserService {
 
 		UserTable existing = userDao.findByEmail(email);
 		if (existing == null) {
-			return createUser(email, role);
+			try {
+				return createUser(email, role);
+			} catch (PersistenceException e) {
+				// A parallel first request of the same user won the unique-constraint
+				// race on email - use the row it created.
+				existing = userDao.findByEmail(email);
+				if (existing == null) {
+					throw e;
+				}
+			}
 		}
 		if (existing.getRole() != role) {
 			existing.setRole(role);
