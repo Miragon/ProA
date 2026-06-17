@@ -6,6 +6,9 @@
 
 // Styles
 import "@/styles/shadcn.css";
+// vue-sonner ships its CSS separately and does no runtime style injection;
+// without this the toaster (store.showSnackbar -> toast) renders unstyled.
+import "vue-sonner/style.css";
 
 // Components
 import App from "./App.vue";
