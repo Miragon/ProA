@@ -610,6 +610,29 @@ export default defineComponent({
 
           graph.addCell(dataStoreConnectionShapes);
 
+          // Guard the directed-graph layout: it builds a graphlib graph via
+          // setEdge(source.id, target.id), which silently creates a phantom
+          // node for any endpoint that is not a real element, then crashes in
+          // importElement when graph.getCell(phantomId) returns undefined.
+          // A single link that ends at a bare point also aborts the library's
+          // cell loop (it uses `break`, not `continue`). Drop any dangling link
+          // before laying out - it cannot be routed on the map anyway.
+          const layoutElementIds = new Set(
+            graph.getElements().map((element) => element.id)
+          );
+          graph.getLinks().forEach((link) => {
+            const source = link.get("source");
+            const target = link.get("target");
+            if (
+              !source?.id ||
+              !target?.id ||
+              !layoutElementIds.has(source.id) ||
+              !layoutElementIds.has(target.id)
+            ) {
+              link.remove();
+            }
+          });
+
           DirectedGraph.layout(graph, {
             nodeSep: 80,
             edgeSep: 100,
@@ -878,7 +901,14 @@ export default defineComponent({
 <style>
 .full-screen-below-toolbar {
   width: 100%;
-  height: calc(100% - 64px) !important;
+  /*
+   * Viewport-based height on purpose: a percentage height (calc(100% - ...))
+   * does NOT resolve here. The routed <main> is a flex item (flex-1) inside a
+   * min-h-screen column, so its height counts as indefinite for percentage
+   * children even though its used height is definite. 100vh minus the 64px app
+   * header (h-16) and the 64px process-map toolbar.
+   */
+  height: calc(100vh - 128px) !important;
 }
 
 .full-screen {

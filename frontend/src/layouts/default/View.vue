@@ -6,7 +6,7 @@
     (see .full-screen / .full-screen-below-toolbar) and need a definite height
     on their ancestor chain.
   -->
-  <main class="tw:h-[calc(100vh-4rem)] tw:flex-1 tw:overflow-auto">
+  <main class="tw:h-[calc(100vh_-_4rem)] tw:flex-1 tw:overflow-auto">
     <router-view />
   </main>
 </template>
