@@ -1,20 +1,19 @@
 /*
  * Tailwind v4 + shadcn-vue theme.
  *
- * IMPORTANT: Tailwind's preflight reset is intentionally NOT imported while
- * Vuetify is still in the app - it would reset Vuetify's global styles.
- * The utilities are imported WITHOUT layer(...) on purpose: Vuetify ships an
- * unlayered element reset (e.g. `div { padding: 0 }`), and unlayered CSS
- * always beats @layer rules - utilities must stay unlayered to win by
- * specificity. Once the Vuetify migration is complete (see
- * docs/UI-MIGRATION.md), replace the two imports below with:
- * @import "tailwindcss" prefix(tw);
+ * Vuetify has been fully removed (see docs/UI-MIGRATION.md), so Preflight is
+ * now enabled: it provides the base element reset (native <button> chrome,
+ * default font-family, margins) that the shadcn components rely on.
  *
- * All utilities are prefixed (`tw:flex`) so they can never collide with
- * Vuetify's unlayered, !important utility classes (e.g. `.border`,
- * `.rounded-lg`, and the runtime theme's `.bg-primary`).
+ * Utilities are kept UNLAYERED (not `layer(utilities)`) so they win by
+ * specificity over both Preflight (layer base) and any scoped component
+ * styles - this matches how every migrated component was authored and built.
+ * All utilities are prefixed (`tw:flex`) - a leftover of the Vuetify
+ * coexistence that is harmless to keep; canonicalizing to
+ * `@import "tailwindcss" prefix(tw);` is an optional future cleanup.
  */
 @import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" prefix(tw);
 @import "tw-animate-css";
 
