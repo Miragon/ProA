@@ -1,4 +1,4 @@
-name: Build and Deploy to Azure
+name: Build and Publish Container Image
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
       - main
 
 permissions:
-  id-token: write
   contents: read
+  packages: write
 
 jobs:
   build:
@@ -24,7 +24,7 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      # ADR-0001: authentication is Keycloak/OIDC. The deployed Web Apps must
+      # ADR-0001: authentication is Keycloak/OIDC. The deployment target must
       # provide QUARKUS_OIDC_AUTH_SERVER_URL (and the realm must allow the
       # deployed origins as redirect URIs). VITE_OIDC_AUTHORITY/CLIENT_ID are
       # baked into the frontend bundle below.
@@ -42,37 +42,18 @@ jobs:
       - name: Build with Maven
         run: mvn clean package
 
-      - name: Build Docker image
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push container image
         run: |
-          docker build . -t pro-a
-          docker tag pro-a ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/pro-a:${{ github.ref_name == 'main' && 'prod' || 'dev' }}
-
-      - name: Log in to Azure Container Registry
-        uses: azure/docker-login@v1
-        with:
-          login-server: ${{ secrets.AZURE_ACR_NAME }}.azurecr.io
-          username: ${{ secrets.AZURE_ACR_USERNAME }}
-          password: ${{ secrets.AZURE_ACR_PASSWORD }}
-
-      - name: Push Docker image to ACR
-        run: |
-          docker push ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/pro-a:${{ github.ref_name == 'main' && 'prod' || 'dev' }}
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ github.ref_name == 'main' && secrets.AZURE_WEB_APP_NAME_PROD || secrets.AZURE_WEB_APP_NAME_DEV }}
-          images: |
-            ${{ secrets.AZURE_ACR_NAME }}.azurecr.io/pro-a:${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+          ENV_TAG=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+          # GHCR image paths must be lowercase; the repo name may contain uppercase.
+          IMAGE=ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          docker build . -t "$IMAGE:$ENV_TAG" -t "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:$ENV_TAG"
+          docker push "$IMAGE:${{ github.sha }}"

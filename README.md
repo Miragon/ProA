@@ -34,6 +34,12 @@ make backend-pg  # Quarkus dev mode against that database
 
 `make db-reset` wipes the data volume.
 
+In production your managed PostgreSQL must allow the `fuzzystrmatch` extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+```
+
 ## Web or desktop mode
 
 ProA runs in one of two modes:
@@ -104,8 +110,6 @@ New UI goes shadcn-first; see the migration doc for the ground rules.
 ## Configuring settings
 
 Settings can be configured by clicking the settings icon in the top right corner of the app.
-
-`Gemini API Key` is used to generate process model descriptions with AI.
 
 Camunda Modeler `Client ID` and `Client Secret` are used to retrieve process models from the Camunda Web Modeler.
 
