@@ -14,24 +14,6 @@
       </div>
       <div class="mt-2">
         <p class="text-subtitle-1 text-grey-darken-2 mb-1">
-          {{ $t("settingsDrawer.geminiApiKey") }}
-        </p>
-        <v-text-field
-          v-model="settings.geminiApiKey"
-          :label="$t('settingsDrawer.apiKey')"
-          :type="showApiKey ? 'text' : 'password'"
-          :append-inner-icon="showApiKey ? 'mdi-eye' : 'mdi-eye-off'"
-          :error-messages="apiKeyError"
-          :loading="isValidating"
-          :disabled="isValidating"
-          :messages="apiKeySuccessMsg"
-          @click:append-inner="showApiKey = !showApiKey"
-          @input="resetMessagesApiKey"
-        >
-        </v-text-field>
-      </div>
-      <div class="mt-2">
-        <p class="text-subtitle-1 text-grey-darken-2 mb-1">
           {{ $t("settingsDrawer.camundaModelerConnection") }}
         </p>
         <v-text-field
@@ -147,7 +129,6 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { useAppStore } from "@/store/app";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import i18n from "@/i18n";
 import { getSettings, persistSettings } from "@/api/settings";
 import * as camundaCloudApi from "@/api/camundaCloud";
@@ -161,12 +142,9 @@ export default defineComponent({
     appStore: useAppStore(),
     settings: {} as Settings,
     settingsToBeSaved: {} as Settings,
-    showApiKey: false,
     showModelerClientSecret: false,
     showOperateClientSecret: false,
-    apiKeyError: "",
     modelerError: "",
-    apiKeySuccessMsg: "",
     modelerSuccessMsg: "",
     operateConnectionSuccessMsg: "",
     operateClusterSuccessMsg: "",
@@ -201,7 +179,6 @@ export default defineComponent({
     },
     resetSettings() {
       this.settings = {
-        geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || "",
         modelerClientId: import.meta.env.VITE_MODELER_CLIENT_ID || "",
         modelerClientSecret: import.meta.env.VITE_MODELER_CLIENT_SECRET || "",
         operateClientId: import.meta.env.VITE_OPERATE_CLIENT_ID || "",
@@ -226,8 +203,6 @@ export default defineComponent({
       if (areSettingsValid) {
         this.closeSettingsDrawer();
       } else {
-        if (this.settingsToBeSaved.geminiApiKey)
-          this.apiKeySuccessMsg = this.$t("settingsDrawer.savedSuccessfully");
         if (this.settingsToBeSaved.modelerClientSecret)
           this.modelerSuccessMsg = this.$t("settingsDrawer.savedSuccessfully");
         if (this.settingsToBeSaved.operateClientSecret)
@@ -258,11 +233,9 @@ export default defineComponent({
       this.resetValidation();
 
       const [
-        isAPIKeyValid,
         isModelerConnectionValid,
         { valid: isOperateConnectionValid, token: operateToken }
       ] = await Promise.all([
-        this.validateAPIKey(),
         this.validateModelerConnection(),
         this.validateOperateConnection()
       ]);
@@ -282,15 +255,10 @@ export default defineComponent({
       this.settingsToBeSaved = { ...this.settings };
 
       if (
-        !isAPIKeyValid ||
         !isModelerConnectionValid ||
         !isOperateConnectionValid ||
         !isOperateClusterValid
       ) {
-        if (!isAPIKeyValid) {
-          this.apiKeyError = this.$t("settingsDrawer.apiKeyInvalidMsg");
-          this.settingsToBeSaved.geminiApiKey = "";
-        }
         if (!isModelerConnectionValid) {
           this.modelerError = this.$t(
             "settingsDrawer.modelerConnectionInvalidMsg"
@@ -315,21 +283,6 @@ export default defineComponent({
         return false;
       }
       return true;
-    },
-    async validateAPIKey(): Promise<boolean> {
-      const { geminiApiKey } = this.settings;
-      if (!geminiApiKey) {
-        return true;
-      }
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      try {
-        await model.generateContent("write yes");
-        return true;
-      } catch {
-        return false;
-      }
     },
     async validateModelerConnection(): Promise<boolean> {
       const { modelerClientId, modelerClientSecret } = this.settings;
@@ -380,12 +333,10 @@ export default defineComponent({
     async resetSettingsBar() {
       await this.fetchSettings();
       this.resetValidation();
-      this.showApiKey = false;
       this.showModelerClientSecret = false;
       this.showOperateClientSecret = false;
     },
     resetValidation() {
-      this.apiKeyError = "";
       this.modelerError = "";
       this.appStore.setOperateClusterError("");
       this.appStore.setOperateConnectionError("");
@@ -396,8 +347,6 @@ export default defineComponent({
       }
       this.settings = (await getSettings()) ?? ({} as Settings);
 
-      this.settings.geminiApiKey =
-        this.settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
       this.settings.modelerClientId =
         this.settings.modelerClientId || import.meta.env.VITE_MODELER_CLIENT_ID;
       this.settings.modelerClientSecret =
@@ -416,10 +365,6 @@ export default defineComponent({
     },
     closeSettingsDrawer() {
       this.appStore.setAreSettingsOpened(false);
-    },
-    resetMessagesApiKey() {
-      this.apiKeyError = "";
-      this.apiKeySuccessMsg = "";
     },
     resetMessagesModeler() {
       this.modelerError = "";

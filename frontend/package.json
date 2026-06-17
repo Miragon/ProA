@@ -14,7 +14,6 @@
     "mode": "node setMode.mjs"
   },
   "dependencies": {
-    "@google/generative-ai": "0.24.1",
     "@joint/core": "4.2.4",
     "@joint/layout-directed-graph": "4.2.3",
     "@lucide/vue": "1.17.0",

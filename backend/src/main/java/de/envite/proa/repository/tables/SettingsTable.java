@@ -18,7 +18,6 @@ public class SettingsTable {
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	public Long id;
 
-	private String geminiApiKey;
 	private String modelerClientId;
 	private String modelerClientSecret;
 	private String operateClientId;

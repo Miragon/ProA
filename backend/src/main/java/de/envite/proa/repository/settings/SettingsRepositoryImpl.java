@@ -71,7 +71,6 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 
 	private Settings map(SettingsTable table) {
 		Settings settings = new Settings();
-		settings.setGeminiApiKey(table.getGeminiApiKey());
 		settings.setModelerClientId(table.getModelerClientId());
 		settings.setModelerClientSecret(table.getModelerClientSecret());
 		settings.setOperateClientId(table.getOperateClientId());
@@ -83,7 +82,6 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 
 	private SettingsTable map(Settings settings) {
 		SettingsTable table = new SettingsTable();
-		table.setGeminiApiKey(settings.getGeminiApiKey());
 		table.setModelerClientId(settings.getModelerClientId());
 		table.setModelerClientSecret(settings.getModelerClientSecret());
 		table.setOperateClientId(settings.getOperateClientId());
@@ -94,9 +92,6 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 	}
 
 	private SettingsTable merge(SettingsTable table, Settings settings) {
-		if (settings.getGeminiApiKey() != null) {
-			table.setGeminiApiKey(settings.getGeminiApiKey());
-		}
 		if (settings.getModelerClientId() != null) {
 			table.setModelerClientId(settings.getModelerClientId());
 		}

@@ -138,47 +138,11 @@
               ></v-text-field>
             </v-col>
             <v-col cols="12" sm="12" md="12" class="py-1">
-              <v-row no-gutters align="center">
-                <v-col style="position: relative">
-                  <v-textarea
-                    v-model="file.description"
-                    rows="3"
-                    :label="$t('general.description')"
-                    :error-messages="descriptionErrors[index]"
-                    @input="resetDescriptionErrors"
-                  />
-                  <v-overlay
-                    class="align-center justify-center"
-                    :model-value="file.aiLoading"
-                    contained
-                    persistent
-                    scrim="grey"
-                  >
-                    <v-progress-circular
-                      color="primary"
-                      size="24"
-                      indeterminate
-                    ></v-progress-circular>
-                  </v-overlay>
-                </v-col>
-                <v-col class="d-flex justify-end" cols="auto">
-                  <v-tooltip
-                    :text="$t('processList.generateDescriptionWithAI')"
-                    location="bottom"
-                  >
-                    <template #activator="{ props }">
-                      <v-icon
-                        v-bind="props"
-                        color="grey"
-                        class="ms-2 hover-icon"
-                        @click="generateDescription(file, index)"
-                      >
-                        mdi-auto-fix
-                      </v-icon>
-                    </template>
-                  </v-tooltip>
-                </v-col>
-              </v-row>
+              <v-textarea
+                v-model="file.description"
+                rows="3"
+                :label="$t('general.description')"
+              />
             </v-col>
           </v-row>
         </v-container>
@@ -285,16 +249,12 @@ import { defineComponent } from "vue";
 import { useAppStore } from "@/store/app";
 import { getProject } from "@/api/projects";
 import * as processModelsApi from "@/api/processModels";
-import { getSettings } from "@/api/settings";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import i18n from "@/i18n";
 import ProcessTreeNode from "@/components/ProcessList/ProcessTreeNode.vue";
 import {
   ProcessModelInformation,
   ProcessModelNode
 } from "@/types/processModel";
 import { getErrorMessage } from "@/api/errors";
-import { SnackbarType } from "@/utils/snackbar";
 
 interface BPMNContent {
   name: string;
@@ -312,7 +272,6 @@ interface ProcessModelToUpload {
   name: string;
   description: string;
   content: string;
-  aiLoading: boolean;
   isCollaboration: boolean;
 }
 
@@ -341,7 +300,6 @@ export default defineComponent({
     selectedVersionId: null as number | null,
     fileExtensionMatcher: /.[^/.]+$/,
     isFetching: false as boolean,
-    descriptionErrors: {} as { [key: number]: string },
     currentlyUploadingProcessModel: {} as ProcessModelToUpload,
     currentUploadStatus: "" as string
   }),
@@ -532,7 +490,6 @@ export default defineComponent({
         name: name || file.name.replace(this.fileExtensionMatcher, ""),
         description,
         content,
-        aiLoading: false,
         isCollaboration
       };
     },
@@ -630,55 +587,6 @@ export default defineComponent({
       this.progress = 0;
     },
 
-    async generateDescription(
-      processModelToUpload: ProcessModelToUpload,
-      index: number
-    ) {
-      processModelToUpload.aiLoading = true;
-      try {
-        const content = processModelToUpload.content;
-
-        const settings = await getSettings();
-        const apiKey =
-          settings?.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
-        if (!apiKey) {
-          this.descriptionErrors[index] = this.$t("processList.noApiKeyError");
-          return;
-        }
-        const genAi = new GoogleGenerativeAI(apiKey);
-        const model = genAi.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        const promptInstructionsDe =
-          "Ich möchte, dass du aus dem folgenden XML-Dokument " +
-          "eine kurze Beschreibung für einen Geschäftsprozess generierst. " +
-          "Die Beschreibung soll maximal 1-3 Sätze lang sein. " +
-          "Bitte achte genaustens darauf, dass die Beschreibung nicht länger als " +
-          "255 Zeichen lang ist. Sie darf unter keinen Umständen länger sein!\n\n";
-
-        const promptInstructionsEn =
-          "Please generate a short description for the business process from " +
-          "the following XML document. The description should be a maximum of 1-3 sentences long. " +
-          "Ensure that the description is no longer than 255 characters. It must not exceed this " +
-          "length under any circumstances!\n\n";
-
-        const promptInstructions =
-          i18n.global.locale === "de"
-            ? promptInstructionsDe
-            : promptInstructionsEn;
-        const prompt = promptInstructions + content;
-
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        processModelToUpload.description = response.text().trim();
-      } catch {
-        await this.appStore.showSnackbar(
-          this.$t("processList.generateDescriptionErrorMsg"),
-          SnackbarType.ERROR
-        );
-      } finally {
-        processModelToUpload.aiLoading = false;
-      }
-    },
     goToC8Import() {
       this.$router.push("CamundaCloudImport");
     },
@@ -689,20 +597,9 @@ export default defineComponent({
     },
     goToProcessMap() {
       this.$router.push("ProcessMap");
-    },
-    resetDescriptionErrors() {
-      this.descriptionErrors = {};
     }
   }
 });
 </script>
 
-<style scoped>
-.hover-icon {
-  transition: color 0.3s ease-in-out;
-}
-
-.hover-icon:hover {
-  color: #757575 !important;
-}
-</style>
+<style scoped></style>

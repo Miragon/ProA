@@ -14,7 +14,6 @@ import static org.mockito.Mockito.*;
 class SettingsUsecaseTest {
 
 	private static final long USER_ID = 1L;
-	private static final String GEMINI_API_KEY = "geminiApiKey";
 	private static final String MODELER_CLIENT_ID = "modelerClientId";
 	private static final String MODELER_CLIENT_SECRET = "modelerClientSecret";
 
@@ -30,7 +29,6 @@ class SettingsUsecaseTest {
 	void setUp() {
 		MockitoAnnotations.openMocks(this);
 		settings = new Settings();
-		settings.setGeminiApiKey(GEMINI_API_KEY);
 		settings.setModelerClientId(MODELER_CLIENT_ID);
 		settings.setModelerClientSecret(MODELER_CLIENT_SECRET);
 	}

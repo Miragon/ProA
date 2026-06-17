@@ -776,8 +776,6 @@ export default defineComponent({
         this.settings = {} as Settings;
       }
 
-      this.settings.geminiApiKey =
-        this.settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
       this.settings.modelerClientId =
         this.settings.modelerClientId || import.meta.env.VITE_MODELER_CLIENT_ID;
       this.settings.modelerClientSecret =
