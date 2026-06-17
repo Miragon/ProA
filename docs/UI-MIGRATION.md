@@ -35,32 +35,41 @@ it anymore.
 6. `cn()` from `@/lib/utils` for conditional classes; `tw:flex tw:gap-*`
    instead of `space-*`; icons from `@lucide/vue`.
 
-## Migration status
+## Migration status — COMPLETE
+
+Vuetify has been fully removed; the entire app runs on shadcn-vue + Tailwind v4.
 
 | Area | Components | Status |
 |------|------------|--------|
 | Sign-in / registration / passwords | Keycloak hosted pages (ADR-0001) | ➖ out of scope |
 | OIDC callback | `views/SigninCallbackView.vue` | ✅ shadcn |
-| Auth dialogs | `Authentication/*` (AuthenticationDialog, ProfileDialog, EditProfileDialog) | ✅ migrated |
-| User management | being replaced by project invitations (ADR-0003) | ➖ see ADR |
-| App shell | `layouts/default/*`, `AppBar.vue` | ⬜ Vuetify |
-| Home / projects | `Home/*` (2) | ⬜ Vuetify |
-| Settings drawer | `SettingsDrawer.vue` | ⬜ Vuetify |
-| Process list | `ProcessList/*` (2) | ⬜ Vuetify |
-| Process map | `ProcessMap/*` (7, JointJS-heavy) | ⬜ Vuetify |
-| Process model | `ProcessModel/*`, `ProcessDetailDialog.vue` | ⬜ Vuetify |
-| Camunda import | `CamundaCloudImport/*` | ⬜ Vuetify |
-| Page not found | `PageNotFound/*` | ⬜ Vuetify |
-| Snackbar/feedback | Vuetify `v-snackbar` (global) | ⬜ replace with `sonner` at the end |
+| Auth dialogs | `Authentication/*` (AuthenticationDialog, ProfileDialog, EditProfileDialog) | ✅ shadcn |
+| User management | replaced by project invitations (ADR-0003) | ➖ see ADR |
+| App shell | `layouts/default/*` (Default, AppBar, View), `SettingsDrawer` | ✅ shadcn (Sheet/DropdownMenu) |
+| Home / projects | `Home/*` (2) | ✅ shadcn |
+| Process list | `ProcessList/*` (2) | ✅ shadcn |
+| Process map chrome | `ProcessMap/*` (Toolbar/Sidebar/Legend/NavigationButtons) | ✅ shadcn |
+| Process map canvas | `ProcessMap.vue` JointJS paper | ⬜ still JointJS — replaced by diagram-js in ADR-0002 |
+| Process model | `ProcessModel/*`, `ProcessDetailDialog.vue` | ✅ shadcn (bpmn-js viewer kept) |
+| Camunda import | `CamundaCloudImport/*` | ✅ shadcn |
+| Page not found | `PageNotFound/*` | ✅ shadcn |
+| Snackbar/feedback | `vue-sonner` (`ui/sonner`, driven by `store.showSnackbar`) | ✅ done |
 
-## Removal checklist (last step)
+## Removal checklist — DONE
 
-- [ ] No `v-` component usages left (`grep -r "v-btn\|v-card\|v-dialog" src/`)
-- [ ] Remove `vuetify`, `vite-plugin-vuetify`, `@mdi/font`, `webfontloader`,
-      `roboto-fontface` from package.json and `src/plugins/`
-- [ ] Replace `v-app`/layout wrappers in `layouts/`
-- [ ] Switch `src/styles/shadcn.css` to `@import "tailwindcss" prefix(tw);`
-      (enables preflight; optionally drop the prefix in a follow-up rename)
-- [ ] Revert the `tw:z-[2400]` overrides in the portaled ui components to
-      `tw:z-50` (no Vuetify layers left to out-stack)
-- [ ] Delete `src/styles/settings.scss`
+- [x] No `v-`/Vuetify usages left in `src/` (only `shadcn.css` comment mentions it historically)
+- [x] Removed `vuetify`, `vite-plugin-vuetify`, `@mdi/font`, `webfontloader`,
+      `roboto-fontface`, `@types/webfontloader`, `sass` from package.json; deleted
+      `src/plugins/vuetify.ts`, `webfontloader.ts`, `src/styles/settings.scss`, `global.css`
+- [x] Replaced `v-app`/`v-main`/`v-navigation-drawer` in `layouts/` with a flex shell + Sheet
+- [x] Tailwind Preflight enabled in `src/styles/shadcn.css` (`preflight.css` in `layer(base)`;
+      utilities kept unlayered + `tw:`-prefixed — see the file comment)
+
+### Optional follow-up cleanups (not blocking)
+
+- Canonicalize `shadcn.css` to `@import "tailwindcss" prefix(tw);` (re-verify specificity if you
+  also move utilities into `layer(utilities)`).
+- The `tw:z-[2400]` overrides on portaled components (dialog/select/dropdown/tooltip/sheet) were
+  needed to out-stack the Vuetify app bar; with Vuetify gone they could revert to `tw:z-50`.
+- Process map: `setTimeout(fitToScreen, 1)` doesn't auto-center a single isolated node on first
+  load (manual fit works) — best addressed in the diagram-js renderer extraction (ADR-0002).

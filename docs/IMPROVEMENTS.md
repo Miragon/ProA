@@ -41,24 +41,28 @@ this file → `git log develop..HEAD` → `docs/ARCHITECTURE.md` → `docs/UI-MI
 1. **Rotate the JWT keypair.** `rsaPrivateKey.pem` is still in git *history* (and in
    every previously built jar). If this pair was ever used in production, treat it as
    compromised: regenerate keys, redeploy, consider a history rewrite (`git filter-repo`).
-2. **Gemini API key reaches the browser.** `@google/generative-ai` runs client-side
-   with a key fetched in plaintext from `/api/settings` (and `VITE_*` fallbacks get
-   baked into the bundle). Real fix: proxy the Gemini call through the backend.
-   Until then, treat the feature as trusted-environments-only.
-3. **Dev and prod share one Azure Postgres server/login**, separated only by the
-   `STAGE` schema — the dev app can read/write prod data with the same `proaadmin`
-   account. Split databases/logins; move the JDBC URL into per-environment Web App
-   config (`QUARKUS_DATASOURCE_JDBC_URL`).
-4. **Default admin credentials** (`admin`/`admin`) are seeded in web mode. Change them
-   in any real deployment (the app now warns loudly at startup).
-5. Settings secrets (Gemini/Camunda) are stored **in plaintext** in the database.
+2. ~~**Gemini API key reaches the browser.**~~ **RESOLVED** on
+   `claude/cleanup-shadcn-wave2`: the client-side `@google/generative-ai` feature
+   and its settings key were removed entirely. The AI description feature returns
+   later as an MCP-backed feature (server-side), so the key never reaches the client.
+3. ~~**Dev and prod share one Azure Postgres server/login.**~~ **Largely resolved**:
+   the prod datasource no longer hardcodes the Azure host — it is fully env-driven
+   (`QUARKUS_DATASOURCE_JDBC_URL/USERNAME/PASSWORD`) and deployment is decoupled from
+   Azure (image published to GHCR). Operators must still point each environment at a
+   **separate** database/login (and include `sslmode=require` in the URL for managed PG).
+4. **Default admin credentials** were eliminated with ADR-0001 (Keycloak owns
+   identity); the homegrown `admin`/`admin` seeding is gone. Configure real users in
+   the Keycloak realm.
+5. Camunda connection secrets are stored **in plaintext** in the settings table.
 
 ## Known trade-offs / deliberate decisions
 
-- **Vuetify and shadcn-vue coexist** (strangler fig). Tailwind's preflight is off and
-  its utilities are deliberately *unlayered* (Vuetify ships an unlayered CSS reset that
-  would otherwise beat every utility — see commit 3395a68). Both quirks resolve
-  themselves when Vuetify is removed.
+- **Vuetify is fully removed** (completed on `claude/cleanup-shadcn-wave2`). The UI is
+  now entirely shadcn-vue + Tailwind v4 with Preflight enabled; the global snackbar is
+  `vue-sonner`. Tailwind utilities remain `tw:`-prefixed and unlayered — a harmless
+  leftover of the coexistence phase (canonicalizing is an optional follow-up; see
+  `docs/UI-MIGRATION.md`). The process-map **canvas** still uses JointJS (replaced by
+  diagram-js in ADR-0002).
 - **No Flyway yet**: prod schema is still `hibernate generation=update`. After the big
   ORM jump (6.4 → 6.6+), watch the first deploy closely. Introducing Flyway with a
   baseline is the top roadmap item (ARCHITECTURE.md #8).

@@ -70,7 +70,8 @@ types/             shared types (moved out of .vue files)
 lib/               shadcn utils (cn)
 store/             Pinia (persisted to sessionStorage)
 locales/ + i18n.ts en/de translations
-plugins/           Vuetify, Pinia, fonts
+plugins/           Pinia (router registered alongside)
+styles/            shadcn.css (Tailwind v4 + theme tokens)
 ```
 
 ### Known deviations from the target (roadmap items)
@@ -79,8 +80,9 @@ plugins/           Vuetify, Pinia, fonts
 |---|-----------|----------------|
 | 1 | The Pinia store is a persisted god-object (it even stores serialized JointJS graphs per project) | Split into `auth`, `ui`, `processMap` stores; persist only what must survive a reload |
 | 2 | A few types are still exported from `.vue` files (e.g. `Message` from `AuthenticationDialog.vue`) | Move the remainder to `src/types/`, shared logic to composables |
-| 3 | Gemini (`@google/generative-ai`) is called directly from the browser with an API key fetched from the backend | Proxy the call through the backend; the key must never reach the client. Until then, treat the feature as trusted-environment-only |
-| 4 | UI framework: Vuetify (default theme) | Target: shadcn-vue (Reka UI + Tailwind v4). Strangler-fig migration; see `docs/UI-MIGRATION.md` |
+| 3 | UI framework migration to shadcn-vue (Reka UI + Tailwind v4) is **complete**; the process-map canvas still uses JointJS | Replace the JointJS canvas with diagram-js (ADR-0002); see `docs/UI-MIGRATION.md` |
+
+(The browser-side Gemini integration was removed entirely — it returns later as an MCP-backed feature; see ADR notes / `docs/IMPROVEMENTS.md`.)
 
 ## Build & deployment
 
@@ -88,7 +90,10 @@ plugins/           Vuetify, Pinia, fonts
   Node/Yarn), copies the Vite output into the Quarkus uber jar, and produces a
   single deployable artifact.
 - GitHub Actions: PR checks (backend tests, frontend lint/type/build) and a
-  deploy workflow that builds a Docker image and deploys to Azure Web Apps.
+  deploy workflow that builds a Docker image and publishes it to the GitHub
+  Container Registry (`ghcr.io`). The runtime target is decoupled: any container
+  host pulls the image and supplies `QUARKUS_DATASOURCE_*` and
+  `QUARKUS_OIDC_AUTH_SERVER_URL` (no Azure coupling).
 - Local development: `make setup`, then `make backend` (H2) or
   `make db-up && make backend-pg` (PostgreSQL incl. `fuzzystrmatch`), plus
   `make frontend`. See README.
