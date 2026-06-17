@@ -1,116 +1,126 @@
 <template>
-  <v-list-group
-    v-if="modelNode.children.length > 0"
-    v-bind="{ value: modelNode.id }"
-  >
-    <template #activator="{ props }">
-      <v-list-item v-bind="props" class="no-select">
-        <v-list-item-title>
-          {{ modelNode.processName }}
-          <span class="text-body-2 text-grey-darken-1">
-            {{ $t("processList.collaboration") }}
-          </span>
-        </v-list-item-title>
+  <div class="tw:select-none">
+    <div class="tw:flex tw:items-center tw:gap-2 tw:py-2">
+      <Button
+        v-if="modelNode.children.length > 0"
+        variant="ghost"
+        size="icon-sm"
+        type="button"
+        @click="expanded = !expanded"
+      >
+        <ChevronDown v-if="expanded" />
+        <ChevronRight v-else />
+        <span class="tw:sr-only">{{ $t("projectOverview.open") }}</span>
+      </Button>
 
-        <v-list-item-subtitle>
+      <div class="tw:flex tw:min-w-0 tw:flex-1 tw:flex-col">
+        <div class="tw:flex tw:items-center tw:gap-2">
+          <span class="tw:truncate tw:font-medium">
+            {{ modelNode.processName }}
+          </span>
+          <span
+            v-if="nodeTypeLabel"
+            class="tw:text-muted-foreground tw:text-sm"
+          >
+            {{ nodeTypeLabel }}
+          </span>
+        </div>
+        <span class="tw:text-muted-foreground tw:truncate tw:text-sm">
           {{ getLocaleDate(modelNode.createdAt) }}
           {{ !!modelNode.description ? "-" : "" }} {{ modelNode.description }}
-        </v-list-item-subtitle>
+        </span>
+      </div>
 
-        <template #append>
-          <v-btn
-            color="grey-lighten-1"
-            icon="mdi-delete"
-            variant="text"
-            @click.stop="$emit('delete-process', modelNode)"
-          >
-          </v-btn>
-          <v-btn
-            color="grey-lighten-1"
-            icon="mdi-more"
-            variant="text"
-            :to="'/ProcessView/' + modelNode.id"
-          ></v-btn>
-          <v-btn
-            color="grey-lighten-1"
-            icon="mdi-information"
-            variant="text"
-            @click.stop="$emit('more-info', modelNode.id)"
-          ></v-btn>
-        </template>
-      </v-list-item>
-    </template>
+      <div class="tw:flex tw:shrink-0 tw:items-center">
+        <Button
+          variant="ghost"
+          size="icon"
+          type="button"
+          @click.stop="$emit('delete-process', modelNode)"
+        >
+          <Trash2 />
+          <span class="tw:sr-only">{{ $t("projectOverview.delete") }}</span>
+        </Button>
 
-    <v-list-item
-      v-for="(child, index) in modelNode.children"
-      :key="'child-' + child.id"
-      density="compact"
-      class="no-select"
+        <Button
+          v-if="
+            modelNode.children.length === 0 &&
+            modelNode.processType !== 'PARTICIPANT'
+          "
+          variant="ghost"
+          size="icon"
+          type="button"
+          @click="$emit('upload-process', modelNode.id)"
+        >
+          <Upload />
+          <span class="tw:sr-only">
+            {{ $t("processList.replaceProcessModel") }}
+          </span>
+        </Button>
+
+        <Button variant="ghost" size="icon" as-child>
+          <RouterLink :to="'/ProcessView/' + modelNode.id">
+            <Eye />
+          </RouterLink>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          type="button"
+          @click.stop="$emit('more-info', modelNode.id)"
+        >
+          <Info />
+        </Button>
+      </div>
+    </div>
+
+    <div
+      v-if="modelNode.children.length > 0 && expanded"
+      class="tw:flex tw:flex-col tw:pl-8"
     >
-      <ProcessTreeNode
-        :key="'child-node-' + child.id"
-        :model="child"
-        @delete-process="$emit('delete-process', child)"
-        @upload-process="$emit('upload-process', child.id)"
-        @more-info="$emit('more-info', child.id)"
-      />
-      <v-divider v-if="index < modelNode.children.length - 1"></v-divider>
-    </v-list-item>
-  </v-list-group>
-
-  <v-list-item v-else class="no-select">
-    <v-list-item-title>
-      {{ modelNode.processName }}
-      <span class="text-body-2 text-grey-darken-1">
-        {{
-          modelNode.processType === "PARTICIPANT"
-            ? $t("processList.participant")
-            : ""
-        }}
-      </span>
-    </v-list-item-title>
-
-    <v-list-item-subtitle>
-      {{ getLocaleDate(modelNode.createdAt) }}
-      {{ !!modelNode.description ? "-" : "" }} {{ modelNode.description }}
-    </v-list-item-subtitle>
-
-    <template #append>
-      <v-btn
-        color="grey-lighten-1"
-        icon="mdi-delete"
-        variant="text"
-        @click="$emit('delete-process', modelNode)"
-      ></v-btn>
-      <v-btn
-        v-if="modelNode.processType !== 'PARTICIPANT'"
-        color="grey-lighten-1"
-        icon="mdi-upload"
-        variant="text"
-        @click="$emit('upload-process', modelNode.id)"
-      ></v-btn>
-      <v-btn
-        color="grey-lighten-1"
-        icon="mdi-more"
-        variant="text"
-        :to="'/ProcessView/' + modelNode.id"
-      ></v-btn>
-      <v-btn
-        color="grey-lighten-1"
-        icon="mdi-information"
-        variant="text"
-        @click="$emit('more-info', modelNode.id)"
-      ></v-btn>
-    </template>
-  </v-list-item>
+      <template
+        v-for="(child, index) in modelNode.children"
+        :key="'child-' + child.id"
+      >
+        <ProcessTreeNode
+          :model="child"
+          @delete-process="$emit('delete-process', child)"
+          @upload-process="$emit('upload-process', child.id)"
+          @more-info="$emit('more-info', child.id)"
+        />
+        <Separator v-if="index < modelNode.children.length - 1" />
+      </template>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
 import { ProcessModelNode } from "@/types/processModel";
 import { useAppStore } from "@/store/app";
+import {
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  Info,
+  Trash2,
+  Upload
+} from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export default {
   name: "ProcessTreeNode",
+  components: {
+    Button,
+    ChevronDown,
+    ChevronRight,
+    Eye,
+    Info,
+    Separator,
+    Trash2,
+    Upload
+  },
   props: {
     model: {
       type: Object,
@@ -121,8 +131,20 @@ export default {
   data() {
     return {
       appStore: useAppStore(),
-      modelNode: this.model as ProcessModelNode
+      modelNode: this.model as ProcessModelNode,
+      expanded: false as boolean
     };
+  },
+  computed: {
+    nodeTypeLabel(): string {
+      if (this.modelNode.children.length > 0) {
+        return this.$t("processList.collaboration");
+      }
+      if (this.modelNode.processType === "PARTICIPANT") {
+        return this.$t("processList.participant");
+      }
+      return "";
+    }
   },
   methods: {
     getLocaleDate(date: string): string {
@@ -133,9 +155,3 @@ export default {
   }
 };
 </script>
-
-<style scoped>
-.no-select {
-  user-select: none;
-}
-</style>

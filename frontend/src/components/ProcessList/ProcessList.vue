@@ -1,25 +1,27 @@
 <template>
-  <v-toolbar>
-    <v-toolbar-title>
-      <div class="d-flex align-center">
-        <span>{{ selectedProjectName }}</span>
-        <span class="text-body-2 text-grey-darken-1 ms-4"
-          >VERSION {{ selectedVersionName }}</span
-        >
-      </div>
-    </v-toolbar-title>
-  </v-toolbar>
+  <div class="tw:flex tw:items-center tw:gap-4 tw:border-b tw:px-6 tw:py-4">
+    <span class="tw:text-lg tw:font-medium">{{ selectedProjectName }}</span>
+    <span class="tw:text-muted-foreground tw:text-sm">
+      VERSION {{ selectedVersionName }}
+    </span>
+  </div>
+
   <ProcessDetailDialog ref="processDetailDialog" />
-  <div v-if="isFetching" class="d-flex align-center justify-center w-100 h-75">
-    <div class="d-flex flex-column align-center justify-center">
-      <span class="mb-2">{{ $t("processList.fetchingProcessModels") }}</span>
-      <v-progress-circular indeterminate />
+
+  <div
+    v-if="isFetching"
+    class="tw:flex tw:h-3/4 tw:w-full tw:items-center tw:justify-center"
+  >
+    <div class="tw:flex tw:flex-col tw:items-center tw:justify-center tw:gap-2">
+      <span>{{ $t("processList.fetchingProcessModels") }}</span>
+      <Loader2 class="tw:size-6 tw:animate-spin" />
     </div>
   </div>
-  <v-list v-else lines="two" class="pa-6">
-    <v-list-item v-if="rootProcessModels.length == 0"
-      >{{ $t("processList.noProcessModelsFound") }}
-    </v-list-item>
+
+  <div v-else class="tw:p-6">
+    <p v-if="rootProcessModels.length == 0">
+      {{ $t("processList.noProcessModelsFound") }}
+    </p>
     <template
       v-for="(model, index) in rootProcessModels"
       :key="'process-' + model.id"
@@ -31,216 +33,214 @@
         @upload-process="openSingleUploadDialog"
         @more-info="showProcessInfoDialog"
       />
-      <v-divider
-        v-if="index < rootProcessModels.length - 1"
-        :key="`${index}-divider`"
-      ></v-divider>
+      <Separator v-if="index < rootProcessModels.length - 1" />
     </template>
-  </v-list>
-  <div
-    class="ma-4"
-    style="position: fixed; bottom: 8px; right: 8px; z-index: 1"
-  >
-    <v-tooltip location="top">
-      <template #activator="{ props }">
-        <v-fab-transition>
-          <v-btn
-            class="mt-auto pointer-events-initial me-4"
-            color="primary"
-            elevation="8"
-            icon="mdi-cloud"
-            size="large"
-            v-bind="props"
-            @click="goToC8Import"
-          ></v-btn>
-        </v-fab-transition>
-      </template>
-      <span>{{ $t("processList.navigateToC8Import") }}</span>
-    </v-tooltip>
-
-    <v-fab-transition>
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-plus"
-        size="large"
-        @click="openMultipleUploadDialog"
-      />
-    </v-fab-transition>
   </div>
+
+  <TooltipProvider>
+    <div class="tw:fixed tw:right-4 tw:bottom-4 tw:z-10 tw:flex tw:gap-4">
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            size="icon-lg"
+            type="button"
+            class="tw:rounded-full tw:shadow-lg"
+            @click="goToC8Import"
+          >
+            <Cloud />
+            <span class="tw:sr-only">
+              {{ $t("processList.navigateToC8Import") }}
+            </span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {{ $t("processList.navigateToC8Import") }}
+        </TooltipContent>
+      </Tooltip>
+
+      <Button
+        size="icon-lg"
+        type="button"
+        class="tw:rounded-full tw:shadow-lg"
+        @click="openMultipleUploadDialog"
+      >
+        <Plus />
+        <span class="tw:sr-only">
+          {{ $t("processList.uploadProcessModels") }}
+        </span>
+      </Button>
+    </div>
+  </TooltipProvider>
+
   <div
     v-if="rootProcessModels.length > 0"
-    class="d-flex align-center justify-center ma-4"
-    style="position: fixed; bottom: 8px; right: 8px; left: 8px; height: 56px"
+    class="tw:fixed tw:right-4 tw:bottom-4 tw:left-4 tw:flex tw:items-center tw:justify-center"
   >
-    <v-btn prepend-icon="mdi-map" @click="goToProcessMap">
+    <Button variant="outline" type="button" @click="goToProcessMap">
+      <MapIcon />
       {{ $t("processList.toTheProcessMap") }}
-    </v-btn>
+    </Button>
   </div>
 
-  <v-dialog
-    v-model="uploadDialog"
-    persistent
-    width="600"
-    @after-leave="resetUploadDialog"
-  >
-    <v-card>
-      <v-card-title>
-        <span v-if="uploadDialogMode === 'multiple'" class="text-h5">{{
-          $t("processList.uploadProcessModels")
-        }}</span>
-        <span v-if="uploadDialogMode === 'single'" class="text-h5">{{
-          $t("processList.replaceProcessModel")
-        }}</span>
-      </v-card-title>
-      <v-card-text>
-        <v-container>
-          <v-row class="pb-5">
-            <v-col cols="12" sm="12" md="12" class="pt-0">
-              <v-file-input
-                v-if="uploadDialogMode === 'multiple'"
-                v-model="processModelFiles"
-                :label="$t('processList.processModels')"
-                chips
-                multiple
-                hide-details
-                @change="handleFileSelection"
-              ></v-file-input>
-              <v-file-input
-                v-if="uploadDialogMode === 'single'"
-                v-model="processModelFiles"
-                :label="$t('general.processModel')"
-                chips
-                hide-details
-                @change="handleFileSelection"
-              ></v-file-input>
-            </v-col>
-          </v-row>
-          <v-row
-            v-for="(file, index) in processModelsToUpload"
-            :key="'file-' + index"
-            class="py-5 mt-0"
-          >
-            <div class="d-flex align-center">
-              <p class="px-3">{{ file.file.name }}</p>
-              <span
-                v-if="file.isCollaboration"
-                class="text-grey-darken-1 text-body-2"
-                >{{ $t("processList.collaboration") }}</span
-              >
-            </div>
-            <v-col cols="12" sm="12" md="12" class="py-1">
-              <v-text-field
-                v-model="file.name"
-                hide-details
-                label="Name"
-              ></v-text-field>
-            </v-col>
-            <v-col cols="12" sm="12" md="12" class="py-1">
-              <v-textarea
-                v-model="file.description"
-                rows="3"
-                :label="$t('general.description')"
-              />
-            </v-col>
-          </v-row>
-        </v-container>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn color="blue-darken-1" variant="text" @click="closeUploadDialog">
+  <Dialog v-model:open="uploadDialog">
+    <DialogContent
+      class="tw:sm:max-w-[600px]"
+      @escape-key-down="preventDialogClose"
+      @pointer-down-outside="preventDialogClose"
+      @interact-outside="preventDialogClose"
+      @close-auto-focus="resetUploadDialog"
+    >
+      <DialogHeader>
+        <DialogTitle>
+          <span v-if="uploadDialogMode === 'multiple'">
+            {{ $t("processList.uploadProcessModels") }}
+          </span>
+          <span v-if="uploadDialogMode === 'single'">
+            {{ $t("processList.replaceProcessModel") }}
+          </span>
+        </DialogTitle>
+      </DialogHeader>
+
+      <div class="tw:flex tw:flex-col tw:gap-4">
+        <div class="tw:flex tw:flex-col tw:gap-1.5">
+          <Label for="process-model-files">
+            {{
+              uploadDialogMode === "multiple"
+                ? $t("processList.processModels")
+                : $t("general.processModel")
+            }}
+          </Label>
+          <input
+            id="process-model-files"
+            ref="fileInput"
+            type="file"
+            :multiple="uploadDialogMode === 'multiple'"
+            class="tw:file:text-foreground tw:placeholder:text-muted-foreground tw:border-input tw:flex tw:h-9 tw:w-full tw:min-w-0 tw:rounded-md tw:border tw:bg-transparent tw:px-3 tw:py-1 tw:text-sm tw:shadow-xs tw:transition-[color,box-shadow] tw:outline-none tw:file:mr-3 tw:file:inline-flex tw:file:h-7 tw:file:border-0 tw:file:bg-transparent tw:file:text-sm tw:file:font-medium tw:focus-visible:border-ring tw:focus-visible:ring-ring/50 tw:focus-visible:ring-3"
+            @change="onFileInputChange"
+          />
+        </div>
+
+        <div
+          v-for="(file, index) in processModelsToUpload"
+          :key="'file-' + index"
+          class="tw:flex tw:flex-col tw:gap-2"
+        >
+          <div class="tw:flex tw:items-center tw:gap-2">
+            <p class="tw:font-medium">{{ file.file.name }}</p>
+            <span
+              v-if="file.isCollaboration"
+              class="tw:text-muted-foreground tw:text-sm"
+            >
+              {{ $t("processList.collaboration") }}
+            </span>
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label :for="'file-name-' + index">Name</Label>
+            <Input :id="'file-name-' + index" v-model="file.name" />
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label :for="'file-description-' + index">
+              {{ $t("general.description") }}
+            </Label>
+            <Textarea
+              :id="'file-description-' + index"
+              v-model="file.description"
+              rows="3"
+            />
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="ghost" type="button" @click="closeUploadDialog">
           {{ $t("general.cancel") }}
-        </v-btn>
-        <v-btn
+        </Button>
+        <Button
           v-if="uploadDialogMode === 'multiple'"
-          color="blue-darken-1"
-          variant="text"
+          type="button"
           @click="uploadProcessModels"
         >
           {{ $t("general.save") }}
-        </v-btn>
-        <v-btn
+        </Button>
+        <Button
           v-if="uploadDialogMode === 'single'"
-          color="blue-darken-1"
-          variant="text"
+          type="button"
           @click="replaceProcessModel"
         >
           {{ $t("general.save") }}
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
-  <v-dialog v-model="progressDialog" max-width="600">
-    <v-card title="Upload">
-      <template #text>
-        {{ $t("processList.uploadingProcessModel") }}:
-        {{ currentlyUploadingProcessModel.name }} ({{ currentUploadStatus }})
-        <v-progress-linear
-          color="primary"
-          :model-value="progress"
-          :height="10"
-        ></v-progress-linear>
-      </template>
+  <Dialog v-model:open="progressDialog">
+    <DialogContent class="tw:sm:max-w-[600px]">
+      <DialogHeader>
+        <DialogTitle>Upload</DialogTitle>
+      </DialogHeader>
+      <div class="tw:flex tw:flex-col tw:gap-3">
+        <p>
+          {{ $t("processList.uploadingProcessModel") }}:
+          {{ currentlyUploadingProcessModel.name }} ({{ currentUploadStatus }})
+        </p>
+        <Progress :model-value="progress" />
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" type="button" @click="progressDialog = false">
+          {{ $t("general.cancel") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
-      <v-card-actions>
-        <v-spacer></v-spacer>
+  <Dialog v-model:open="confirmDeleteDialog">
+    <DialogContent class="tw:sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle class="tw:flex tw:items-center tw:gap-2">
+          <Trash2 class="tw:size-5" />
+          {{ $t("processList.confirmDeletion") }}
+        </DialogTitle>
+        <DialogDescription>
+          {{ $t("processList.confirmDeletionText1")
+          }}<strong>{{ processModelToBeDeleted?.processName }}</strong
+          >{{ $t("processList.confirmDeletionText2") }}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button
+          variant="outline"
+          type="button"
+          @click="confirmDeleteDialog = false"
+        >
+          {{ $t("general.cancel") }}
+        </Button>
+        <Button
+          variant="destructive"
+          type="button"
+          @click="deleteProcessModel(processModelToBeDeleted!, true)"
+        >
+          {{ $t("processList.confirm") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
-        <v-btn
-          :text="$t('general.cancel')"
-          variant="text"
-          @click="progressDialog = false"
-        ></v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-
-  <v-dialog v-model="confirmDeleteDialog" width="auto">
-    <v-card
-      max-width="400"
-      prepend-icon="mdi-delete"
-      :title="$t('processList.confirmDeletion')"
-    >
-      <template #text>
-        {{ $t("processList.confirmDeletionText1")
-        }}<strong>{{ processModelToBeDeleted?.processName }}</strong
-        >{{ $t("processList.confirmDeletionText2") }}
-      </template>
-      <template #actions>
-        <div class="ms-auto">
-          <v-btn
-            :text="$t('general.cancel')"
-            @click="confirmDeleteDialog = false"
-          ></v-btn>
-          <v-btn
-            :text="$t('processList.confirm')"
-            @click="deleteProcessModel(processModelToBeDeleted!, true)"
-          ></v-btn>
-        </div>
-      </template>
-    </v-card>
-  </v-dialog>
-
-  <v-dialog v-model="errorDialog" width="auto">
-    <v-card
-      max-width="400"
-      prepend-icon="mdi-alert-circle-outline"
-      :title="$t('processList.error')"
-    >
-      <template #text>
-        {{ errorMessage }}
-      </template>
-      <template #actions>
-        <div class="ms-auto">
-          <v-btn
-            :text="$t('general.close')"
-            @click="errorDialog = false"
-          ></v-btn>
-        </div>
-      </template>
-    </v-card>
-  </v-dialog>
+  <Dialog v-model:open="errorDialog">
+    <DialogContent class="tw:sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle class="tw:flex tw:items-center tw:gap-2">
+          <AlertCircle class="tw:size-5" />
+          {{ $t("processList.error") }}
+        </DialogTitle>
+        <DialogDescription>{{ errorMessage }}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" type="button" @click="errorDialog = false">
+          {{ $t("general.close") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script lang="ts">
@@ -255,6 +255,34 @@ import {
   ProcessModelNode
 } from "@/types/processModel";
 import { getErrorMessage } from "@/api/errors";
+import {
+  AlertCircle,
+  Cloud,
+  Loader2,
+  Map as MapIcon,
+  Plus,
+  Trash2
+} from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface BPMNContent {
   name: string;
@@ -278,7 +306,29 @@ interface ProcessModelToUpload {
 export default defineComponent({
   components: {
     ProcessTreeNode,
-    ProcessDetailDialog
+    ProcessDetailDialog,
+    AlertCircle,
+    Button,
+    Cloud,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Label,
+    Loader2,
+    MapIcon,
+    Plus,
+    Progress,
+    Separator,
+    Textarea,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    Trash2
   },
   data: () => ({
     appStore: useAppStore(),
@@ -334,6 +384,18 @@ export default defineComponent({
     });
   },
   methods: {
+    /** The previous Vuetify dialog was `persistent`: it ignored ESC and
+     * outside clicks. */
+    preventDialogClose(event: Event) {
+      event.preventDefault();
+    },
+
+    onFileInputChange(event: Event) {
+      const target = event.target as HTMLInputElement;
+      this.processModelFiles = target.files ? Array.from(target.files) : [];
+      this.handleFileSelection();
+    },
+
     showProcessInfoDialog(processId: number) {
       (
         this.$refs.processDetailDialog as InstanceType<
@@ -585,6 +647,10 @@ export default defineComponent({
       this.progressDialog = false;
       this.processModelToBeReplacedId = null;
       this.progress = 0;
+      const fileInput = this.$refs.fileInput as HTMLInputElement | undefined;
+      if (fileInput) {
+        fileInput.value = "";
+      }
     },
 
     goToC8Import() {
@@ -601,5 +667,3 @@ export default defineComponent({
   }
 });
 </script>
-
-<style scoped></style>

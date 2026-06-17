@@ -1,132 +1,130 @@
 <template>
-  <v-dialog v-model="dialogModel" width="600">
-    <v-card>
-      <v-container>
-        <v-card-title>{{ project.name }}</v-card-title>
-        <v-divider />
-        <v-card-text>
-          <div class="card-section">
-            <p class="text-body-1 font-weight-bold">
-              {{ $t("projectOverview.contributors") + ": " }}
-            </p>
-            <p
-              v-for="member in project.projectMembers"
-              :key="'member-' + member.id"
-              class="text-body-1 deletable"
-            >
-              {{ member.firstName + " " + member.lastName }}
-              <span class="font-weight-thin font-italic">{{
-                member.role
-              }}</span>
-            </p>
-            <v-text-field
-              ref="newMemberEmailInput"
+  <Dialog v-model:open="dialogModel">
+    <DialogContent
+      class="tw:max-h-[90vh] tw:overflow-y-auto tw:sm:max-w-[600px]"
+    >
+      <DialogHeader>
+        <DialogTitle>{{ project.name }}</DialogTitle>
+      </DialogHeader>
+
+      <Separator />
+
+      <div class="tw:flex tw:flex-col tw:gap-2">
+        <p class="tw:font-bold">
+          {{ $t("projectOverview.contributors") + ": " }}
+        </p>
+        <p
+          v-for="member in project.projectMembers"
+          :key="'member-' + member.id"
+        >
+          {{ member.firstName + " " + member.lastName }}
+          <span class="tw:text-muted-foreground tw:italic">
+            {{ member.role }}
+          </span>
+        </p>
+
+        <div class="tw:mt-2 tw:flex tw:items-start tw:gap-2">
+          <div class="tw:flex tw:flex-1 tw:flex-col tw:gap-1.5">
+            <Input
               v-model="newMemberEmail"
-              class="mt-2"
-              :label="$t('authentication.email')"
-              density="compact"
-              :rules="emailRules"
-              :error-messages="newMemberErrorMsg"
+              :placeholder="$t('authentication.email')"
+              :aria-invalid="!!newMemberErrorMsg"
               @input="newMemberErrorMsg = ''"
               @focusout="resetValidation"
+            />
+            <span
+              v-if="newMemberErrorMsg"
+              class="tw:text-destructive tw:text-sm"
             >
-              <template #append>
-                <v-btn
-                  append-icon="mdi-plus"
-                  :text="$t('projectOverview.inviteMember')"
-                  variant="tonal"
-                  @click="inviteMember"
-                ></v-btn>
-              </template>
-            </v-text-field>
+              {{ newMemberErrorMsg }}
+            </span>
+          </div>
+          <Button variant="secondary" type="button" @click="inviteMember">
+            {{ $t("projectOverview.inviteMember") }}
+            <Plus />
+          </Button>
+        </div>
 
-            <div
-              v-if="invitations.length > 0"
-              class="tw:mt-2 tw:flex tw:flex-col tw:gap-2"
-            >
-              <p class="text-body-1 font-weight-bold">
-                {{ $t("projectOverview.pendingInvitations") + ": " }}
-              </p>
-              <TooltipProvider>
-                <ul class="tw:flex tw:flex-col tw:gap-1">
-                  <li
-                    v-for="invitation in invitations"
-                    :key="'invitation-' + invitation.id"
-                    class="tw:flex tw:items-center tw:justify-between tw:gap-2"
-                  >
-                    <div class="tw:flex tw:min-w-0 tw:items-center tw:gap-2">
-                      <span class="tw:truncate">{{ invitation.email }}</span>
-                      <Badge variant="secondary">
-                        {{ $t("projectOverview.invited") }}
-                      </Badge>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          type="button"
-                          @click="revokeInvitation(invitation)"
-                        >
-                          <X />
-                          <span class="tw:sr-only">
-                            {{ $t("projectOverview.revokeInvitation") }}
-                          </span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
+        <div
+          v-if="invitations.length > 0"
+          class="tw:mt-2 tw:flex tw:flex-col tw:gap-2"
+        >
+          <p class="tw:font-bold">
+            {{ $t("projectOverview.pendingInvitations") + ": " }}
+          </p>
+          <TooltipProvider>
+            <ul class="tw:flex tw:flex-col tw:gap-1">
+              <li
+                v-for="invitation in invitations"
+                :key="'invitation-' + invitation.id"
+                class="tw:flex tw:items-center tw:justify-between tw:gap-2"
+              >
+                <div class="tw:flex tw:min-w-0 tw:items-center tw:gap-2">
+                  <span class="tw:truncate">{{ invitation.email }}</span>
+                  <Badge variant="secondary">
+                    {{ $t("projectOverview.invited") }}
+                  </Badge>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      type="button"
+                      @click="revokeInvitation(invitation)"
+                    >
+                      <X />
+                      <span class="tw:sr-only">
                         {{ $t("projectOverview.revokeInvitation") }}
-                      </TooltipContent>
-                    </Tooltip>
-                  </li>
-                </ul>
-              </TooltipProvider>
-            </div>
-          </div>
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {{ $t("projectOverview.revokeInvitation") }}
+                  </TooltipContent>
+                </Tooltip>
+              </li>
+            </ul>
+          </TooltipProvider>
+        </div>
+      </div>
 
-          <div class="card-section">
-            <p class="text-body-1 font-weight-bold">
-              {{ $t("projectOverview.versions") + ": " }}
-            </p>
-            <p
-              v-for="version in project.versions"
-              :key="'version-' + version.id"
-              class="text-body-1 deletable"
-              @click="deleteVersion(project, version)"
-            >
-              {{ version.name }}
-            </p>
-          </div>
+      <div class="tw:flex tw:flex-col tw:gap-2">
+        <p class="tw:font-bold">{{ $t("projectOverview.versions") + ": " }}</p>
+        <p
+          v-for="version in project.versions"
+          :key="'version-' + version.id"
+          class="tw:w-fit tw:cursor-pointer tw:hover:line-through"
+          @click="deleteVersion(project, version)"
+        >
+          {{ version.name }}
+        </p>
+      </div>
 
-          <div class="card-section mb-3">
-            <div class="mb-1">
-              <span class="text-body-1 font-weight-bold">
-                {{ $t("general.createdOn") + ": " }}
-              </span>
-              <span class="text-body-1">
-                {{ formatDate(project.createdAt) }}
-              </span>
-            </div>
-            <div>
-              <span class="text-body-1 font-weight-bold">
-                {{ $t("general.lastModifiedOn") + ": " }}
-              </span>
-              <span class="text-body-1">
-                {{ formatDate(project.modifiedAt) }}
-              </span>
-            </div>
-          </div>
-        </v-card-text>
-        <v-divider />
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="blue-darken-1" variant="text" @click="closeDialog">
-            {{ $t("general.close") }}
-          </v-btn>
-        </v-card-actions>
-      </v-container>
-    </v-card>
-  </v-dialog>
+      <div class="tw:flex tw:flex-col tw:gap-1">
+        <div>
+          <span class="tw:font-bold">
+            {{ $t("general.createdOn") + ": " }}
+          </span>
+          <span>{{ formatDate(project.createdAt) }}</span>
+        </div>
+        <div>
+          <span class="tw:font-bold">
+            {{ $t("general.lastModifiedOn") + ": " }}
+          </span>
+          <span>{{ formatDate(project.modifiedAt) }}</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      <DialogFooter>
+        <Button variant="ghost" type="button" @click="closeDialog">
+          {{ $t("general.close") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script lang="ts">
@@ -136,11 +134,19 @@ import { AxiosError } from "axios";
 import * as projectsApi from "@/api/projects";
 import { useAppStore } from "@/store/app";
 import { SnackbarType } from "@/utils/snackbar";
-import { VTextField } from "vuetify/components";
 import { emailRules } from "@/components/Authentication/formValidation";
-import { X } from "@lucide/vue";
+import { Plus, X } from "@lucide/vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
@@ -154,6 +160,14 @@ export default defineComponent({
   components: {
     Badge,
     Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Plus,
+    Separator,
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -219,6 +233,17 @@ export default defineComponent({
     closeDialog() {
       this.$emit("close");
     },
+    validateNewMemberEmail(): boolean {
+      for (const rule of this.emailRules) {
+        const result = rule(this.newMemberEmail);
+        if (typeof result === "string") {
+          this.newMemberErrorMsg = result;
+          return false;
+        }
+      }
+      this.newMemberErrorMsg = "";
+      return true;
+    },
     async fetchProject() {
       try {
         this.project = await projectsApi.getProject(this.projectDetailId);
@@ -251,10 +276,7 @@ export default defineComponent({
       return new Date(dateString).toLocaleString(locales);
     },
     async inviteMember() {
-      const newMemberEmailInput = this.$refs.newMemberEmailInput as VTextField;
-
-      const errors = await newMemberEmailInput.validate();
-      if (errors.length > 0) {
+      if (!this.validateNewMemberEmail()) {
         return;
       }
 
@@ -302,8 +324,6 @@ export default defineComponent({
     },
     resetValidation() {
       this.newMemberErrorMsg = "";
-      const newMemberEmailInput = this.$refs.newMemberEmailInput as VTextField;
-      newMemberEmailInput.resetValidation();
     },
     deleteVersion(project: Project, version: ProjectVersion) {
       this.$emit("deleteVersion", project, version);
@@ -311,14 +331,3 @@ export default defineComponent({
   }
 });
 </script>
-
-<style scoped>
-.card-section {
-  margin: 2rem 0;
-}
-
-.deletable:hover {
-  cursor: pointer;
-  text-decoration: line-through;
-}
-</style>
