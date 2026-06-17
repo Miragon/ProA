@@ -166,7 +166,7 @@ export default defineComponent({
   }),
 
   methods: {
-    /** The previous Vuetify dialog was `persistent`: ESC did not close it. */
+    /** The original dialog was `persistent`: ESC did not close it. */
     preventEscapeClose(event: KeyboardEvent) {
       event.preventDefault();
     },

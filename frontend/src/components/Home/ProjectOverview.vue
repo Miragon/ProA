@@ -382,7 +382,7 @@ export default defineComponent({
     await this.fetchProjects();
   },
   methods: {
-    /** The previous Vuetify dialog was `persistent`: it ignored ESC and
+    /** The original dialog was `persistent`: it ignored ESC and
      * outside clicks. */
     preventDialogClose(event: Event) {
       event.preventDefault();

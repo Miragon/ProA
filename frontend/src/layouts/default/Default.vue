@@ -1,30 +1,15 @@
 <template>
-  <v-app>
-    <default-bar />
+  <div class="tw:flex tw:min-h-screen tw:flex-col">
+    <DefaultBar />
 
-    <default-view />
+    <DefaultView />
 
-    <v-snackbar
-      v-model="store.snackbar.visible"
-      :color="store.snackbar.color"
-      :timeout="store.snackbar.timeout"
-    >
-      <v-icon left large class="snackbar-icon">
-        {{ store.snackbar.icon }}
-      </v-icon>
-      <span class="snackbar-text">{{ store.snackbar.message }}</span>
-    </v-snackbar>
-  </v-app>
+    <Toaster rich-colors close-button />
+  </div>
 </template>
 
 <script lang="ts" setup>
 import DefaultBar from "./AppBar.vue";
 import DefaultView from "./View.vue";
-import { useAppStore } from "@/store/app";
-
-const store = useAppStore();
+import { Toaster } from "@/components/ui/sonner";
 </script>
-
-<style scoped>
-@import "@/styles/global.css";
-</style>

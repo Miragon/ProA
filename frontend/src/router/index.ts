@@ -6,6 +6,7 @@ import {
   START_LOCATION
 } from "vue-router";
 import { useAppStore } from "@/store/app";
+import { toast } from "vue-sonner";
 
 const routes = [
   {
@@ -79,7 +80,8 @@ router.beforeEach(async (to, from) => {
   const store = useAppStore();
   const isWebVersion = import.meta.env.VITE_APP_MODE === "web";
 
-  store.snackbar.visible = false;
+  // Dismiss any open feedback toast when navigating between routes.
+  toast.dismiss();
 
   if (to.meta.requiresWebVersion && !isWebVersion) {
     return cancelNavigation(from);

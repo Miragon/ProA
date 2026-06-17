@@ -3,20 +3,12 @@ import { defineStore } from "pinia";
 import { ActiveVersionByProject, ProjectVersion } from "@/types/project";
 import { LanguageCode } from "@/types/language";
 import { Role } from "@/components/ProcessMap/types";
-import { SnackbarConfigs, SnackbarType } from "@/utils/snackbar";
+import { SnackbarType } from "@/utils/snackbar";
+import { toast } from "vue-sonner";
 
 export enum SelectedDialog {
   NONE = -1,
   PROFILE = 0
-}
-
-export interface Snackbar {
-  visible: boolean;
-  message: string;
-  type: SnackbarType;
-  color: string;
-  icon: string;
-  timeout: number;
 }
 
 export const useAppStore = defineStore("app", {
@@ -40,15 +32,7 @@ export const useAppStore = defineStore("app", {
       operateClusterError: "" as string,
       userToken: null as string | null,
       userRole: null as Role | null,
-      selectedDialog: SelectedDialog.NONE as SelectedDialog,
-      snackbar: {
-        visible: false,
-        message: "",
-        type: "" as SnackbarType,
-        color: "",
-        icon: "",
-        timeout: 3000
-      } as Snackbar
+      selectedDialog: SelectedDialog.NONE as SelectedDialog
     };
   },
   actions: {
@@ -160,13 +144,13 @@ export const useAppStore = defineStore("app", {
       return this.userRole;
     },
     async showSnackbar(message: string, type: SnackbarType) {
-      this.snackbar.visible = false;
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      this.snackbar.message = message;
-      this.snackbar.type = type;
-      this.snackbar.color = SnackbarConfigs[type].color;
-      this.snackbar.icon = SnackbarConfigs[type].icon;
-      this.snackbar.visible = true;
+      // Signature kept stable so all existing callers keep working unchanged;
+      // feedback is now rendered by vue-sonner instead of the old snackbar.
+      if (type === SnackbarType.ERROR) {
+        toast.error(message);
+      } else {
+        toast.success(message);
+      }
     },
     setSelectedProjectId(id: number | null) {
       this.selectedProjectId = id;

@@ -1,82 +1,113 @@
 <template>
-  <v-app-bar color="primary" prominent>
-    <v-app-bar-nav-icon
-      variant="text"
-      @click.stop="drawer = !drawer"
-    ></v-app-bar-nav-icon>
-
-    <v-toolbar-title>ProA – {{ currentRouteName }}</v-toolbar-title>
-
-    <v-spacer></v-spacer>
-
-    <v-tooltip v-if="webVersion && isUserLoggedIn" location="bottom">
-      <template #activator="{ props }">
-        <v-btn v-bind="props" @click="openDialog(SelectedDialog.PROFILE)">
-          <v-icon icon="mdi-account-circle"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("general.myProfile") }}
-    </v-tooltip>
-
-    <v-tooltip v-if="webVersion && isUserLoggedIn" location="bottom">
-      <template #activator="{ props }">
-        <v-btn v-bind="props" @click="signOut">
-          <v-icon icon="mdi-logout"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("general." + "signOut") }}
-    </v-tooltip>
-
-    <v-menu>
-      <template #activator="{ props }">
-        <v-btn color="white" variant="text" v-bind="props">
-          {{ selectedLanguage.toUpperCase() }}
-        </v-btn>
-      </template>
-      <v-list>
-        <v-list-item
-          v-for="language in availableLanguages.sort()"
-          :key="language.code"
-          :value="language.code"
-          @click="changeLanguage(language.code)"
+  <header
+    class="tw:bg-primary tw:text-primary-foreground tw:sticky tw:top-0 tw:z-30 tw:flex tw:h-16 tw:items-center tw:gap-2 tw:px-2 tw:shadow-sm"
+  >
+    <Sheet v-model:open="drawer">
+      <SheetTrigger as-child>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
         >
-          <v-list-item-title>{{ language.name }}</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+          <Menu />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" class="tw:w-72 tw:p-0">
+        <SheetHeader class="tw:sr-only">
+          <SheetTitle>{{ $t("general.menu") }}</SheetTitle>
+        </SheetHeader>
+        <nav class="tw:flex tw:flex-col tw:gap-1 tw:px-2 tw:py-4">
+          <Button
+            v-for="item in items"
+            :key="item.title"
+            variant="ghost"
+            class="tw:justify-start"
+            :disabled="
+              !store.getSelectedProjectId() &&
+              item.title !== $t('navigation.projectOverview')
+            "
+            @click="navigateTo(item.route)"
+          >
+            {{ item.title }}
+          </Button>
+        </nav>
+      </SheetContent>
+    </Sheet>
 
-    <v-tooltip
-      v-if="isUserLoggedIn"
-      :text="$t('general.settings')"
-      location="bottom"
-    >
-      <template #activator="{ props }">
-        <v-btn icon v-bind="props" @click="toggleSettings">
-          <v-icon>mdi-cog</v-icon>
-        </v-btn>
-      </template>
-    </v-tooltip>
-  </v-app-bar>
+    <h1 class="tw:text-lg tw:font-medium">ProA – {{ currentRouteName }}</h1>
 
-  <v-navigation-drawer v-model="drawer" location="left" temporary>
-    <v-list flat dense nav class="py-1 px-0">
-      <v-list-item
-        v-for="item in items"
-        :key="item.title"
-        dense
-        :disabled="
-          !store.getSelectedProjectId() &&
-          item.title !== $t('navigation.projectOverview')
-        "
-        class="px-2"
-        @click="$router.push({ path: item.route })"
-      >
-        <v-list-item-title class="text-body-1 font-weight-regular"
-          >{{ item.title }}
-        </v-list-item-title>
-      </v-list-item>
-    </v-list>
-  </v-navigation-drawer>
+    <div class="tw:flex-1"></div>
+
+    <TooltipProvider>
+      <Tooltip v-if="webVersion && isUserLoggedIn">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+            @click="openDialog(SelectedDialog.PROFILE)"
+          >
+            <CircleUserRound />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("general.myProfile") }}
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip v-if="webVersion && isUserLoggedIn">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+            @click="signOut"
+          >
+            <LogOut />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("general.signOut") }}
+        </TooltipContent>
+      </Tooltip>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+          >
+            {{ selectedLanguage.toUpperCase() }}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            v-for="language in availableLanguages"
+            :key="language.code"
+            @click="changeLanguage(language.code)"
+          >
+            {{ language.name }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Tooltip v-if="isUserLoggedIn">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+            @click="toggleSettings"
+          >
+            <Settings />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("general.settings") }}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </header>
 
   <SettingsDrawer />
 
@@ -90,6 +121,27 @@ import SettingsDrawer from "@/components/SettingsDrawer.vue";
 import i18n from "@/i18n";
 import AuthenticationDialog from "@/components/Authentication/AuthenticationDialog.vue";
 import { LanguageCode } from "@/types/language";
+import { CircleUserRound, LogOut, Menu, Settings } from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface Language {
   code: LanguageCode;
@@ -97,7 +149,28 @@ interface Language {
 }
 
 export default defineComponent({
-  components: { AuthenticationDialog, SettingsDrawer },
+  components: {
+    AuthenticationDialog,
+    SettingsDrawer,
+    Button,
+    CircleUserRound,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    LogOut,
+    Menu,
+    Settings,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger
+  },
 
   data: () => {
     const store = useAppStore();
@@ -168,6 +241,10 @@ export default defineComponent({
     i18n.global.locale = this.selectedLanguage;
   },
   methods: {
+    navigateTo(route: string) {
+      this.drawer = false;
+      this.$router.push({ path: route });
+    },
     changeLanguage(language: LanguageCode) {
       this.selectedLanguage = language;
       this.store.setSelectedLanguage(language);

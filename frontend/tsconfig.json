@@ -14,7 +14,7 @@
     "esModuleInterop": true,
     "lib": ["esnext", "dom"],
     "skipLibCheck": true, // https://github.com/vitejs/vite/issues/15714
-    "types": ["node", "vuetify"],
+    "types": ["node"],
     "paths": {
       "@/*": ["src/*"]
     }
