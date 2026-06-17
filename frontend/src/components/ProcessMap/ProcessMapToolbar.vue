@@ -1,98 +1,152 @@
 <template>
-  <v-toolbar>
-    <v-toolbar-title>
-      <div class="d-flex align-center">
-        <span>{{ selectedProjectName }}</span>
-        <span class="text-body-2 text-grey-darken-1 ms-4"
-          >VERSION {{ selectedVersionName }}</span
-        >
-      </div>
-    </v-toolbar-title>
+  <div
+    class="tw:bg-background tw:flex tw:h-16 tw:items-center tw:gap-2 tw:border-b tw:px-4"
+  >
+    <div class="tw:flex tw:items-center">
+      <span class="tw:text-lg">{{ selectedProjectName }}</span>
+      <span class="tw:text-muted-foreground tw:ml-4 tw:text-sm"
+        >VERSION {{ selectedVersionName }}</span
+      >
+    </div>
 
-    <v-spacer></v-spacer>
+    <div class="tw:flex-1"></div>
 
-    <v-tooltip
-      :text="$t('processMap.retrieveProcessInstances')"
-      location="bottom"
-    >
-      <template #activator="{ props }">
-        <v-btn icon v-bind="props" @click="handleFetchProcessInstances">
-          <v-icon>mdi-play</v-icon>
-        </v-btn>
-      </template>
-    </v-tooltip>
-
-    <v-menu location="bottom" :close-on-content-click="false">
-      <template #activator="{ props }">
-        <v-btn icon v-bind="props" class="me-5px">
-          <v-icon>mdi-map-legend</v-icon>
-        </v-btn>
-      </template>
-
-      <ProcessMapLegend />
-    </v-menu>
-
-    <v-menu location="bottom" :close-on-content-click="false">
-      <template #activator="{ props }">
-        <v-btn v-if="filtersCount > 0" v-bind="props" icon class="me-5px">
-          <v-badge color="white" :bordered="true" :content="filtersCount">
-            <v-icon>mdi-filter-outline</v-icon>
-          </v-badge>
-        </v-btn>
-
-        <v-btn v-else v-bind="props" icon class="me-5px">
-          <v-icon>mdi-filter-outline</v-icon>
-        </v-btn>
-      </template>
-
-      <v-list>
-        <v-list-item>
-          <v-list-item-title
-            class="font-weight-bold d-flex align-center justify-space-between"
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            @click="handleFetchProcessInstances"
           >
-            <div>{{ $t("processMap.hide") }}:</div>
-            <div>
-              <v-btn
-                variant="text"
-                :text="$t('processMap.clear')"
-                color="grey"
-                @click="clearFilters"
-              />
-            </div>
-          </v-list-item-title>
-        </v-list-item>
-        <v-divider></v-divider>
-        <v-list-item
+            <Play />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("processMap.retrieveProcessInstances") }}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+
+    <Popover>
+      <PopoverTrigger as-child>
+        <Button variant="ghost" size="icon" class="tw:mr-[5px]">
+          <Map />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent class="tw:w-auto tw:p-0">
+        <ProcessMapLegend />
+      </PopoverContent>
+    </Popover>
+
+    <Popover>
+      <PopoverTrigger as-child>
+        <Button variant="ghost" size="icon" class="tw:relative tw:mr-[5px]">
+          <Filter />
+          <Badge
+            v-if="filtersCount > 0"
+            class="tw:absolute tw:-top-1 tw:-right-1 tw:size-4 tw:p-0"
+          >
+            {{ filtersCount }}
+          </Badge>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent class="tw:w-auto tw:p-1">
+        <div
+          class="tw:flex tw:items-center tw:justify-between tw:px-2 tw:py-1.5 tw:font-bold"
+        >
+          <div>{{ $t("processMap.hide") }}:</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="tw:text-muted-foreground"
+            @click="clearFilters"
+          >
+            {{ $t("processMap.clear") }}
+          </Button>
+        </div>
+        <Separator class="tw:my-1" />
+        <div
           v-for="(label, filterOption) in filterOptions"
           :key="filterOption"
-          class="filter-item"
+          class="tw:flex tw:items-center tw:gap-2 tw:px-2 tw:py-1.5"
         >
-          <v-checkbox
-            v-model="filterGraphInput[filterOption]"
-            :label="label"
-            color="primary"
-            hide-details
-            @change="filterGraph"
-          ></v-checkbox>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+          <Checkbox
+            :id="'filter-' + filterOption"
+            :model-value="filterGraphInput[filterOption]"
+            @update:model-value="onFilterChange(filterOption, $event)"
+          />
+          <Label :for="'filter-' + filterOption" class="tw:font-normal">
+            {{ label }}
+          </Label>
+        </div>
+      </PopoverContent>
+    </Popover>
 
-    <v-btn icon @click="fetchProcessModels">
-      <v-icon>mdi-refresh</v-icon>
-    </v-btn>
-  </v-toolbar>
+    <Button variant="ghost" size="icon" @click="fetchProcessModels">
+      <RefreshCw />
+    </Button>
+  </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import { Filter, Map, Play, RefreshCw } from "@lucide/vue";
 
 import ProcessMapLegend from "@/components/ProcessMap/ProcessMapLegend.vue";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 import { useAppStore } from "@/store/app";
+
+type FilterOption = keyof ProcessMapToolbarData["filterGraphInput"];
+
+interface ProcessMapToolbarData {
+  filterGraphInput: {
+    hideAbstractDataStores: boolean;
+    hideCallActivities: boolean;
+    hideConnectionLabels: boolean;
+    hideIntermediateEvents: boolean;
+    hideProcessesWithoutConnections: boolean;
+    hideStartEndEvents: boolean;
+    hideMessageFlows: boolean;
+  };
+}
 
 export default defineComponent({
   name: "ProcessMapToolbar",
-  components: { ProcessMapLegend },
+  components: {
+    ProcessMapLegend,
+    Badge,
+    Button,
+    Checkbox,
+    Filter,
+    Label,
+    Map,
+    Play,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    RefreshCw,
+    Separator,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger
+  },
 
   props: {
     selectedProjectId: {
@@ -184,6 +238,13 @@ export default defineComponent({
     filterGraph() {
       this.$emit("filterGraph", this.filterGraphInput);
     },
+    onFilterChange(
+      filterOption: FilterOption,
+      value: boolean | "indeterminate"
+    ) {
+      this.filterGraphInput[filterOption] = value === true;
+      this.filterGraph();
+    },
     handleFetchProcessInstances() {
       this.$emit("handleFetchProcessInstances");
     },
@@ -203,12 +264,4 @@ export default defineComponent({
 });
 </script>
 
-<style scoped>
-.me-5px {
-  margin-right: 5px;
-}
-
-.filter-item {
-  height: 1rem;
-}
-</style>
+<style scoped></style>

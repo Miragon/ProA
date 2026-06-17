@@ -1,11 +1,9 @@
 <template>
-  <v-list>
-    <v-list-item>
-      <v-list-item-title class="font-weight-bold">{{
-        $t("processMap.legend")
-      }}</v-list-item-title>
-    </v-list-item>
-    <v-divider></v-divider>
+  <div class="tw:flex tw:flex-col tw:py-1">
+    <div class="tw:px-2 tw:py-1.5 tw:font-bold">
+      {{ $t("processMap.legend") }}
+    </div>
+    <Separator class="tw:my-1" />
     <LegendItem
       :text="$t('processMap.process')"
       path="M 0 0 h 140 l 10 35 l -10 35 H 0 l 10 -35 l -10 -35 Z"
@@ -54,16 +52,17 @@
       view-box="5 -12 35 25"
       stroke-width="2"
     ></LegendItem>
-  </v-list>
+  </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import LegendItem from "@/components/ProcessMap/LegendItem.vue";
+import { Separator } from "@/components/ui/separator";
 
 export default defineComponent({
   name: "ProcessMapLegend",
-  components: { LegendItem }
+  components: { LegendItem, Separator }
 });
 </script>
 

@@ -1,98 +1,64 @@
 <template>
-  <v-card height="100%">
+  <div class="tw:bg-card tw:relative tw:h-full tw:w-full">
     <div
       v-if="isFetching"
-      class="d-flex align-center justify-center w-100 h-75"
+      class="tw:flex tw:h-3/4 tw:w-full tw:items-center tw:justify-center"
     >
-      <div class="d-flex flex-column align-center justify-center">
-        <span class="mb-2 mx-5 text-center">{{
+      <div class="tw:flex tw:flex-col tw:items-center tw:justify-center">
+        <span class="tw:mx-5 tw:mb-2 tw:text-center">{{
           $t("processView.loadingProcessModel")
         }}</span>
-        <v-progress-circular indeterminate />
+        <Loader2 class="tw:size-6 tw:animate-spin" />
       </div>
     </div>
     <div id="process-modelling" class="full-screen"></div>
-    <div class="ma-4" style="position: absolute; bottom: 8px; right: 8px">
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-chevron-left"
-          size="large"
-          @click="goLeft"
-        />
-      </v-fab-transition>
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-chevron-right"
-          size="large"
-          @click="goRight"
-        />
-      </v-fab-transition>
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-chevron-up"
-          size="large"
-          @click="goUp"
-        />
-      </v-fab-transition>
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-chevron-down"
-          size="large"
-          @click="goDown"
-        />
-      </v-fab-transition>
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-magnify-plus"
-          size="large"
-          @click="zoomIn"
-        />
-      </v-fab-transition>
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-magnify-minus"
-          size="large"
-          @click="zoomOut"
-        />
-      </v-fab-transition>
-      <v-fab-transition style="margin-right: 5px">
-        <v-btn
-          class="mt-auto pointer-events-initial"
-          color="primary"
-          elevation="8"
-          icon="mdi-fit-to-screen"
-          size="large"
-          @click="fitToScreen"
-        />
-      </v-fab-transition>
+    <div
+      class="tw:absolute tw:right-2 tw:bottom-2 tw:flex tw:flex-row tw:gap-[5px]"
+    >
+      <Button size="icon-lg" class="tw:shadow-lg" @click="goLeft">
+        <ChevronLeft />
+      </Button>
+      <Button size="icon-lg" class="tw:shadow-lg" @click="goRight">
+        <ChevronRight />
+      </Button>
+      <Button size="icon-lg" class="tw:shadow-lg" @click="goUp">
+        <ChevronUp />
+      </Button>
+      <Button size="icon-lg" class="tw:shadow-lg" @click="goDown">
+        <ChevronDown />
+      </Button>
+      <Button size="icon-lg" class="tw:shadow-lg" @click="zoomIn">
+        <ZoomIn />
+      </Button>
+      <Button size="icon-lg" class="tw:shadow-lg" @click="zoomOut">
+        <ZoomOut />
+      </Button>
+      <Button size="icon-lg" class="tw:shadow-lg" @click="fitToScreen">
+        <Fullscreen />
+      </Button>
     </div>
-    <div class="ma-4" style="position: absolute; top: 8px; left: 8px">
-      <v-btn prepend-icon="mdi-arrow-left" @click="goBack">
+    <div class="tw:absolute tw:top-2 tw:left-2">
+      <Button @click="goBack">
+        <ArrowLeft />
         {{ $t("general.back") }}
-      </v-btn>
+      </Button>
     </div>
-  </v-card>
+  </div>
 </template>
 <script lang="ts">
 import { defineComponent } from "vue";
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Fullscreen,
+  Loader2,
+  ZoomIn,
+  ZoomOut
+} from "@lucide/vue";
+import { Button } from "@/components/ui/button";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import ElementRegistry from "diagram-js/lib/core/ElementRegistry";
 import { ElementLike } from "diagram-js/lib/model/Types";
@@ -101,6 +67,18 @@ import { useAppStore } from "@/store/app";
 import { getProcessModelXml } from "@/api/processModels";
 
 export default defineComponent({
+  components: {
+    ArrowLeft,
+    Button,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
+    Fullscreen,
+    Loader2,
+    ZoomIn,
+    ZoomOut
+  },
   data: () => ({
     canvas: null as Canvas | null,
     store: useAppStore(),

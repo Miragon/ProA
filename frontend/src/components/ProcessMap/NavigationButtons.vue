@@ -1,81 +1,44 @@
 <template>
-  <div class="ma-4" style="position: absolute; bottom: 8px; right: 8px">
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-chevron-left"
-        size="large"
-        @click="goLeft"
-      />
-    </v-fab-transition>
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-chevron-right"
-        size="large"
-        @click="goRight"
-      />
-    </v-fab-transition>
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-chevron-up"
-        size="large"
-        @click="goUp"
-      />
-    </v-fab-transition>
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-chevron-down"
-        size="large"
-        @click="goDown"
-      />
-    </v-fab-transition>
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-magnify-plus"
-        size="large"
-        @click="zoomIn"
-      />
-    </v-fab-transition>
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-magnify-minus"
-        size="large"
-        @click="zoomOut"
-      />
-    </v-fab-transition>
-    <v-fab-transition style="margin-right: 5px">
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-fit-to-screen"
-        size="large"
-        @click="fitToScreen"
-      />
-    </v-fab-transition>
+  <div
+    class="tw:absolute tw:right-2 tw:bottom-2 tw:flex tw:flex-row tw:gap-[5px]"
+  >
+    <Button size="icon-lg" class="tw:shadow-lg" @click="goLeft">
+      <ChevronLeft />
+    </Button>
+    <Button size="icon-lg" class="tw:shadow-lg" @click="goRight">
+      <ChevronRight />
+    </Button>
+    <Button size="icon-lg" class="tw:shadow-lg" @click="goUp">
+      <ChevronUp />
+    </Button>
+    <Button size="icon-lg" class="tw:shadow-lg" @click="goDown">
+      <ChevronDown />
+    </Button>
+    <Button size="icon-lg" class="tw:shadow-lg" @click="zoomIn">
+      <ZoomIn />
+    </Button>
+    <Button size="icon-lg" class="tw:shadow-lg" @click="zoomOut">
+      <ZoomOut />
+    </Button>
+    <Button size="icon-lg" class="tw:shadow-lg" @click="fitToScreen">
+      <Fullscreen />
+    </Button>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Fullscreen,
+  ZoomIn,
+  ZoomOut
+} from "@lucide/vue";
 
+import { Button } from "@/components/ui/button";
 import { paper } from "@/components/ProcessMap/jointjs/JointJSDiagram";
 import { useAppStore } from "@/store/app";
 import { dia } from "@joint/core";
@@ -89,6 +52,17 @@ const transformFitToContentOptions: TransformToFitContentOptions = {
 
 export default defineComponent({
   name: "NavigationButtons",
+
+  components: {
+    Button,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
+    Fullscreen,
+    ZoomIn,
+    ZoomOut
+  },
 
   props: {
     selectedProjectId: {

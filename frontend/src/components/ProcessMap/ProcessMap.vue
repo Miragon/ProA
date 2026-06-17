@@ -9,18 +9,21 @@
     @filter-graph="filterGraph"
     @handle-fetch-process-instances="handleFetchProcessInstances"
   />
-  <v-card class="full-screen-below-toolbar" @mouseup="saveGraphState">
+  <div
+    class="tw:bg-card tw:relative full-screen-below-toolbar"
+    @mouseup="saveGraphState"
+  >
     <ProcessDetailSidebar
       ref="processDetailSidebar"
       @save-graph-state="saveGraphState"
     />
     <div
       v-if="isFetching"
-      class="d-flex align-center justify-center w-100 h-75"
+      class="tw:flex tw:h-3/4 tw:w-full tw:items-center tw:justify-center"
     >
-      <div class="d-flex flex-column align-center justify-center">
-        <span class="mb-2">{{ $t("processMap.loadingProcessMap") }}</span>
-        <v-progress-circular indeterminate />
+      <div class="tw:flex tw:flex-col tw:items-center tw:justify-center">
+        <span class="tw:mb-2">{{ $t("processMap.loadingProcessMap") }}</span>
+        <Loader2 class="tw:size-6 tw:animate-spin" />
       </div>
     </div>
     <div id="graph-container" :hidden="isFetching" class="full-screen"></div>
@@ -28,10 +31,11 @@
       ref="navigationButtons"
       :selected-project-id="selectedProjectId"
     />
-  </v-card>
-  <v-tooltip
+  </div>
+  <div
+    v-if="tooltipVisible"
     id="tool-tip"
-    v-model="tooltipVisible"
+    class="tw:bg-popover tw:text-popover-foreground tw:z-[2400] tw:rounded-md tw:border tw:px-3 tw:py-1.5 tw:text-sm tw:shadow-md"
     :style="{ position: 'fixed', top: mouseY, left: mouseX }"
   >
     <ul v-if="tooltipList.length > 0">
@@ -40,7 +44,7 @@
     <span v-if="tooltipList.length === 0">{{
       $t("processMap.noInformationAvailable")
     }}</span>
-  </v-tooltip>
+  </div>
 </template>
 
 <script lang="ts">
@@ -68,6 +72,8 @@ import {
   Process,
   ProcessElementType
 } from "./types";
+
+import { Loader2 } from "@lucide/vue";
 
 import ProcessDetailSidebar from "@/components/ProcessMap/ProcessDetailSidebar.vue";
 import ProcessMapToolbar from "@/components/ProcessMap/ProcessMapToolbar.vue";
@@ -98,6 +104,7 @@ export const getPortPrefix = (elementType: ProcessElementType): string => {
 
 export default defineComponent({
   components: {
+    Loader2,
     NavigationButtons,
     ProcessDetailSidebar,
     ProcessMapToolbar

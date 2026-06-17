@@ -1,246 +1,232 @@
 <template>
-  <v-toolbar>
-    <v-toolbar-title>
-      <div class="d-flex align-center">
-        <span>{{ selectedProjectName }}</span>
-        <span class="text-body-2 text-grey-darken-1 ms-4"
-          >VERSION {{ selectedVersionName }}</span
-        >
-      </div>
-    </v-toolbar-title>
-  </v-toolbar>
-  <v-list lines="two" class="pa-6">
+  <div
+    class="tw:bg-background tw:flex tw:h-16 tw:items-center tw:border-b tw:px-4"
+  >
+    <span class="tw:text-lg">{{ selectedProjectName }}</span>
+    <span class="tw:text-muted-foreground tw:ml-4 tw:text-sm"
+      >VERSION {{ selectedVersionName }}</span
+    >
+  </div>
+  <div class="tw:flex tw:flex-col tw:p-6">
     <div v-if="importedProcessModels.length > 0">
-      <v-list-item>
-        <v-checkbox
-          v-model="selectAll"
-          class="d-inline-block pe-3"
-          hide-details
-          @change="toggleSelectAll"
-        >
-          <template #label>
-            <span class="ms-3">{{ $t("c8Import.selectAll") }}</span>
-          </template>
-        </v-checkbox>
-      </v-list-item>
-      <v-divider></v-divider>
+      <div class="tw:flex tw:items-center tw:gap-3 tw:py-2">
+        <Checkbox
+          id="select-all"
+          :model-value="selectAll"
+          @update:model-value="onSelectAllChange"
+        />
+        <Label for="select-all" class="tw:font-normal">
+          {{ $t("c8Import.selectAll") }}
+        </Label>
+      </div>
+      <Separator />
     </div>
     <template
       v-for="(model, index) in processModels"
       :key="'process-' + model.id"
     >
-      <v-list-item>
-        <v-list-item-title>{{ model.name }}</v-list-item-title>
-        <v-list-item-subtitle>
-          {{ getLocaleDate(model.created) }} - {{ model.updatedBy.email }}
-        </v-list-item-subtitle>
-        <template #prepend>
-          <v-checkbox
-            v-model="selectedProcessModels"
-            :value="model"
-            hide-details
-          ></v-checkbox>
-        </template>
-      </v-list-item>
-      <v-divider
-        v-if="index < processModels.length - 1"
-        :key="`${index}-divider`"
-      ></v-divider>
-    </template>
-  </v-list>
-  <v-dialog v-model="camundaCloudDialog" persistent width="600">
-    <v-card>
-      <v-card-title>
-        <span class="text-h5">{{ $t("c8Import.importFromC8") }}</span>
-      </v-card-title>
-      <v-card-text>
-        <v-container>
-          <v-row>
-            <v-col v-if="!!token">
-              <v-icon icon="mdi-check-circle" color="green"></v-icon>
-              {{ $t("c8Import.camundaConnectionSuccessMessage") }}
-            </v-col>
-            <v-col v-if="!token" cols="12" sm="12" md="12">
-              <v-text-field
-                v-model="settings.modelerClientId"
-                class="text-field__styled"
-                dense
-                color="#26376B"
-                :placeholder="$t('general.clientId')"
-              ></v-text-field>
-            </v-col>
-            <v-col v-if="!token" cols="12" sm="12" md="12">
-              <v-text-field
-                v-model="settings.modelerClientSecret"
-                class="text-field__styled"
-                dense
-                color="#26376B"
-                :placeholder="$t('general.clientSecret')"
-                :type="showOperateClientSecret ? 'text' : 'password'"
-                :append-inner-icon="
-                  showOperateClientSecret ? 'mdi-eye' : 'mdi-eye-off'
-                "
-                @click:append-inner="
-                  showOperateClientSecret = !showOperateClientSecret
-                "
-              ></v-text-field>
-            </v-col>
-            <v-col v-if="!token" cols="12" sm="12" md="12">
-              <v-checkbox
-                v-model="saveClientInformation"
-                :label="$t('c8Import.saveInformationQuestion')"
-                color="primary"
-                hide-details
-              ></v-checkbox>
-            </v-col>
-            <v-col v-if="tokenError">
-              {{ $t("c8Import.errorMessage") }}
-            </v-col>
-            <v-col v-if="!token">
-              <v-btn color="blue-darken-1" @click="fetchToken">
-                {{ $t("c8Import.connect") }}
-              </v-btn>
-            </v-col>
-            <v-col cols="12" sm="12" md="12">
-              <v-text-field
-                v-model="creatorEmail"
-                :disabled="!token"
-                class="text-field__styled"
-                dense
-                color="#26376B"
-                :placeholder="$t('c8Import.creatorEmail')"
-                :hint="$t('c8Import.creatorEmailHint')"
-              >
-              </v-text-field>
-            </v-col>
-            <v-col>
-              <v-btn
-                :disabled="!token"
-                color="blue-darken-1"
-                @click="fetchProcessModels"
-              >
-                {{ $t("c8Import.retrieveProcessModels") }}
-              </v-btn>
-            </v-col>
-          </v-row>
-        </v-container>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn
-          color="blue-darken-1"
-          variant="text"
-          @click="camundaCloudDialog = false"
+      <div class="tw:flex tw:items-center tw:gap-3 tw:py-2">
+        <Checkbox
+          :id="'process-checkbox-' + model.id"
+          :model-value="selectedProcessModels.includes(model)"
+          @update:model-value="onModelChange(model, $event)"
+        />
+        <Label
+          :for="'process-checkbox-' + model.id"
+          class="tw:flex tw:flex-col tw:items-start tw:gap-0.5 tw:font-normal"
         >
+          <span>{{ model.name }}</span>
+          <span class="tw:text-muted-foreground tw:text-xs">
+            {{ getLocaleDate(model.created) }} - {{ model.updatedBy.email }}
+          </span>
+        </Label>
+      </div>
+      <Separator v-if="index < processModels.length - 1" />
+    </template>
+  </div>
+  <Dialog v-model:open="camundaCloudDialog">
+    <DialogContent
+      class="tw:sm:max-w-[600px]"
+      @escape-key-down="preventEscapeClose"
+    >
+      <DialogHeader>
+        <DialogTitle>{{ $t("c8Import.importFromC8") }}</DialogTitle>
+        <DialogDescription class="tw:sr-only">
+          {{ $t("c8Import.importFromC8") }}
+        </DialogDescription>
+      </DialogHeader>
+      <div class="tw:flex tw:flex-col tw:gap-4">
+        <div v-if="!!token" class="tw:flex tw:items-center tw:gap-2">
+          <CheckCircle class="tw:size-5 tw:text-green-600" />
+          {{ $t("c8Import.camundaConnectionSuccessMessage") }}
+        </div>
+        <Input
+          v-if="!token"
+          v-model="settings.modelerClientId"
+          :placeholder="$t('general.clientId')"
+        />
+        <div v-if="!token" class="tw:relative">
+          <Input
+            v-model="settings.modelerClientSecret"
+            :type="showOperateClientSecret ? 'text' : 'password'"
+            :placeholder="$t('general.clientSecret')"
+            class="tw:pr-10"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            class="tw:absolute tw:top-0 tw:right-0 tw:h-9 tw:w-9"
+            @click="showOperateClientSecret = !showOperateClientSecret"
+          >
+            <Eye v-if="showOperateClientSecret" />
+            <EyeOff v-else />
+          </Button>
+        </div>
+        <div v-if="!token" class="tw:flex tw:items-center tw:gap-2">
+          <Checkbox id="save-client-info" v-model="saveClientInformation" />
+          <Label for="save-client-info" class="tw:font-normal">
+            {{ $t("c8Import.saveInformationQuestion") }}
+          </Label>
+        </div>
+        <div v-if="tokenError" class="tw:text-destructive">
+          {{ $t("c8Import.errorMessage") }}
+        </div>
+        <div v-if="!token">
+          <Button @click="fetchToken">
+            {{ $t("c8Import.connect") }}
+          </Button>
+        </div>
+        <div class="tw:flex tw:flex-col tw:gap-1">
+          <Input
+            v-model="creatorEmail"
+            :disabled="!token"
+            :placeholder="$t('c8Import.creatorEmail')"
+          />
+          <span class="tw:text-muted-foreground tw:text-xs">
+            {{ $t("c8Import.creatorEmailHint") }}
+          </span>
+        </div>
+        <div>
+          <Button :disabled="!token" @click="fetchProcessModels">
+            {{ $t("c8Import.retrieveProcessModels") }}
+          </Button>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" @click="camundaCloudDialog = false">
           {{ $t("general.cancel") }}
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-  <v-dialog v-model="loadingDialog" max-width="320" persistent>
-    <v-list class="py-2" color="primary" elevation="12" rounded="lg">
-      <v-list-item :title="$t('c8Import.loading')">
-        <template #append>
-          <v-progress-circular
-            color="primary"
-            indeterminate="disable-shrink"
-            size="16"
-            width="2"
-          ></v-progress-circular>
-        </template>
-      </v-list-item>
-    </v-list>
-  </v-dialog>
-  <div
-    class="ma-4"
-    style="position: fixed; z-index: 1; right: 8px; bottom: 8px"
-  >
-    <v-fab-transition>
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-cloud-search"
-        size="large"
-        @click="openDialog"
-      />
-    </v-fab-transition>
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+  <Dialog v-model:open="loadingDialog">
+    <DialogContent
+      class="tw:sm:max-w-[320px]"
+      :show-close-button="false"
+      @escape-key-down="preventEscapeClose"
+      @pointer-down-outside="preventOutsideClose"
+    >
+      <DialogHeader>
+        <DialogTitle class="tw:sr-only">{{
+          $t("c8Import.loading")
+        }}</DialogTitle>
+      </DialogHeader>
+      <div class="tw:flex tw:items-center tw:justify-between tw:gap-2">
+        <span>{{ $t("c8Import.loading") }}</span>
+        <Loader2 class="tw:size-4 tw:animate-spin" />
+      </div>
+    </DialogContent>
+  </Dialog>
+  <div class="tw:fixed tw:right-2 tw:bottom-2 tw:z-[1]">
+    <Button size="icon-lg" class="tw:shadow-lg" @click="openDialog">
+      <CloudCog />
+    </Button>
   </div>
   <div
     v-if="selectedProcessModels.length > 0"
-    class="ma-4 d-flex align-center justify-center"
-    style="position: fixed; bottom: 8px; right: 8px; left: 8px; height: 56px"
+    class="tw:fixed tw:right-2 tw:bottom-2 tw:left-2 tw:flex tw:h-14 tw:items-center tw:justify-center"
   >
-    <v-btn prepend-icon="mdi-import" @click="importProcessModels">
+    <Button @click="importProcessModels">
+      <Import />
       {{ $t("c8Import.importProcessModels") }}
-    </v-btn>
+    </Button>
   </div>
   <div
     v-if="importedProcessModels.length > 0"
-    class="ma-4"
-    :style="{ position: 'fixed', right: '8px', top: stickyButtonTop + 'px' }"
+    class="tw:fixed tw:right-2"
+    :style="{ top: stickyButtonTop + 'px' }"
   >
-    <v-menu :close-on-content-click="false">
-      <template #activator="{ props }">
-        <v-badge
-          v-if="
-            emailSelections.filter((emailSelection) => emailSelection.selected)
-              .length > 0
-          "
-          :content="
-            emailSelections.filter((emailSelection) => emailSelection.selected)
-              .length
-          "
-        >
-          <v-fab-transition>
-            <v-btn
-              class="mt-auto pointer-events-initial"
-              elevation="8"
-              icon="mdi-filter-outline"
-              v-bind="props"
-              size="large"
-            />
-          </v-fab-transition>
-        </v-badge>
-        <v-fab-transition v-else>
-          <v-btn
-            class="mt-auto pointer-events-initial"
-            elevation="8"
-            icon="mdi-filter-outline"
-            v-bind="props"
-            size="large"
-          />
-        </v-fab-transition>
-      </template>
-      <v-list density="compact" class="pa-2">
-        <v-list-subheader>{{ $t("c8Import.creatorEmail") }}</v-list-subheader>
-        <v-list-item
+    <Popover>
+      <PopoverTrigger as-child>
+        <Button size="icon-lg" class="tw:relative tw:shadow-lg">
+          <Filter />
+          <Badge
+            v-if="selectedEmailCount > 0"
+            class="tw:absolute tw:-top-1 tw:-right-1 tw:size-4 tw:p-0"
+          >
+            {{ selectedEmailCount }}
+          </Badge>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent class="tw:w-auto tw:p-2">
+        <p class="tw:text-muted-foreground tw:px-2 tw:py-1.5 tw:text-sm">
+          {{ $t("c8Import.creatorEmail") }}
+        </p>
+        <div
           v-for="(emailSelection, index) in emailSelections"
           :key="'imported-email-' + index"
+          class="tw:flex tw:items-center tw:gap-2 tw:px-2 tw:py-1.5"
         >
-          <v-checkbox
-            v-model="emailSelection.selected"
-            hide-details
-            density="compact"
-            @update:model-value="filterSelectedModels"
-          >
-            <template #label>
-              <span class="ms-1">{{ emailSelection.email }}</span>
-            </template>
-          </v-checkbox>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+          <Checkbox
+            :id="'email-' + index"
+            :model-value="emailSelection.selected"
+            @update:model-value="onEmailSelectionChange(emailSelection, $event)"
+          />
+          <Label :for="'email-' + index" class="tw:font-normal">
+            {{ emailSelection.email }}
+          </Label>
+        </div>
+      </PopoverContent>
+    </Popover>
   </div>
 </template>
 <script lang="ts">
 import { defineComponent } from "vue";
+import {
+  CheckCircle,
+  CloudCog,
+  Eye,
+  EyeOff,
+  Filter,
+  Import,
+  Loader2
+} from "@lucide/vue";
 import { useAppStore } from "@/store/app";
 import { getProject } from "@/api/projects";
 import { getSettings, persistSettings } from "@/api/settings";
 import * as camundaCloudApi from "@/api/camundaCloud";
 import { Settings } from "@/types/settings";
 import { CamundaProcessModel as ProcessModel } from "@/types/camundaCloud";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 
 interface EmailSelection {
   email: string;
@@ -251,6 +237,31 @@ const minStickyOffset = 72;
 const maxStickyOffset = 136;
 
 export default defineComponent({
+  components: {
+    Badge,
+    Button,
+    CheckCircle,
+    Checkbox,
+    CloudCog,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Eye,
+    EyeOff,
+    Filter,
+    Import,
+    Input,
+    Label,
+    Loader2,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Separator
+  },
+
   data: () => ({
     store: useAppStore(),
     showOperateClientSecret: false as boolean,
@@ -258,7 +269,10 @@ export default defineComponent({
     loadingDialog: false as boolean,
     settings: {} as Settings,
     saveClientInformation: true as boolean,
-    creatorEmail: null as string | null,
+    // shadcn `Input` v-model is typed `string | number`; the empty string is
+    // treated as blank by `isBlank`, so `fetchProcessModels` still sends `null`
+    // (preserving the previous behaviour when the field was left empty).
+    creatorEmail: "" as string,
     clientId: "" as string,
     clientSecret: "" as string,
     importedProcessModels: [] as ProcessModel[],
@@ -278,6 +292,11 @@ export default defineComponent({
   computed: {
     isUserLoggedIn(): boolean {
       return this.store.getUserToken() != null;
+    },
+    selectedEmailCount(): number {
+      return this.emailSelections.filter(
+        (emailSelection) => emailSelection.selected
+      ).length;
     }
   },
 
@@ -416,6 +435,34 @@ export default defineComponent({
       const locales =
         this.store.getSelectedLanguage() === "de" ? "de-DE" : "en-US";
       return new Date(date).toLocaleString(locales);
+    },
+    preventEscapeClose(event: KeyboardEvent) {
+      event.preventDefault();
+    },
+    preventOutsideClose(event: Event) {
+      event.preventDefault();
+    },
+    onSelectAllChange(value: boolean | "indeterminate") {
+      this.selectAll = value === true;
+      this.toggleSelectAll();
+    },
+    onModelChange(model: ProcessModel, value: boolean | "indeterminate") {
+      if (value === true) {
+        if (!this.selectedProcessModels.includes(model)) {
+          this.selectedProcessModels.push(model);
+        }
+      } else {
+        this.selectedProcessModels = this.selectedProcessModels.filter(
+          (selected) => selected !== model
+        );
+      }
+    },
+    onEmailSelectionChange(
+      emailSelection: EmailSelection,
+      value: boolean | "indeterminate"
+    ) {
+      emailSelection.selected = value === true;
+      this.filterSelectedModels();
     },
     toggleSelectAll() {
       if (this.selectAll) {
