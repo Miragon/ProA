@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://example.com/bpmn">
+    <process id="Process_Alpha" name="Alpha">
+        <startEvent id="StartEvent_Alpha" name="Alpha started"/>
+        <endEvent id="EndEvent_Alpha" name="Alpha finished"/>
+    </process>
+</definitions>

@@ -196,23 +196,36 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 
 	@Override
 	public void removeVersion(Long projectId, Long versionId) throws NoResultException {
-		ProjectTable project = findProjectWithVersionsAndContributorsOrThrow(projectId);
-		if (isSingleVersion(project, versionId)) {
-			deleteEntireProject(projectId);
-		} else {
-			removeVersionFromProject(project, versionId);
-		}
+		ProjectTable project = findProjectForUpdateOrThrow(projectId);
+		removeVersionOfProject(project, versionId);
 	}
 
 	@Override
 	public void removeVersion(Long userId, Long projectId, Long versionId) throws AccessDeniedException, NoResultException {
-		ProjectTable project = findProjectWithVersionsAndContributorsOrThrow(projectId);
+		ProjectTable project = findProjectForUpdateOrThrow(projectId);
 		validateProjectOwner(project, userId);
+		removeVersionOfProject(project, versionId);
+	}
 
-		if (isSingleVersion(project, versionId)) {
-			deleteEntireProject(projectId);
+	/**
+	 * Removes the version, or the entire project if it is the last version. The version must
+	 * belong to the given project: otherwise the owner of any project could delete versions of
+	 * foreign projects by id. The project must be locked (see {@link #findProjectForUpdateOrThrow})
+	 * so that two concurrent deletions cannot both see "more than one version" and leave the
+	 * project without any.
+	 */
+	private void removeVersionOfProject(ProjectTable project, Long versionId) throws NoResultException {
+		ProjectVersionTable version = project//
+				.getVersions()//
+				.stream()//
+				.filter(v -> Objects.equals(v.getId(), versionId))//
+				.findFirst()//
+				.orElseThrow(() -> new NoResultException("Version not found in project"));
+
+		if (project.getVersions().size() == 1) {
+			deleteEntireProject(project.getId());
 		} else {
-			removeVersionFromProject(project, versionId);
+			removeVersionFromProject(project, version);
 		}
 	}
 
@@ -295,8 +308,8 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 				.orElseThrow(() -> new NoResultException("Project not found with ID: " + projectId));
 	}
 
-	private ProjectTable findProjectWithVersionsAndContributorsOrThrow(Long projectId) throws NoResultException {
-		return Optional.ofNullable(projectDao.findByIdWithVersionsAndContributors(projectId))
+	private ProjectTable findProjectForUpdateOrThrow(Long projectId) throws NoResultException {
+		return Optional.ofNullable(projectDao.findByIdForUpdate(projectId))
 				.orElseThrow(() -> new NoResultException("Project not found with ID: " + projectId));
 	}
 
@@ -314,19 +327,17 @@ public class ProjectRepositoryImpl implements ProjectRepository {
 		}
 	}
 
-	private boolean isSingleVersion(ProjectTable project, Long versionId) {
-		return project.getVersions().size() == 1 &&
-				Objects.equals(project.getVersions().iterator().next().getId(), versionId);
-	}
-
 	private void deleteEntireProject(Long projectId) {
 		projectDao.deleteById(projectId);
 	}
 
-	private void removeVersionFromProject(ProjectTable project, Long versionId) {
+	private void removeVersionFromProject(ProjectTable project, ProjectVersionTable version) {
+		// Remove through the managed collection (orphanRemoval deletes the version and cascades
+		// to its content). A plain em.remove of a version that is still contained in the
+		// project's versions would be cancelled at flush by the PERSIST cascade from the project.
+		project.getVersions().remove(version);
 		project.setModifiedAt(LocalDateTime.now());
 		projectDao.merge(project);
-		projectDao.deleteProjectVersionById(versionId);
 	}
 
 	private Set<ProjectVersion> map(Set<ProjectVersionTable> versions) {

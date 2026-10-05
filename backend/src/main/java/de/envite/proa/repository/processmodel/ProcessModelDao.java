@@ -210,7 +210,11 @@ public class ProcessModelDao {
 	public void addChild(Long parentId, Long childId) {
 		ProcessModelTable parent = em.find(ProcessModelTable.class, parentId);
 		ProcessModelTable child = em.find(ProcessModelTable.class, childId);
+		// Keep both sides in sync: the surrounding usecase transaction later reads the inverse
+		// side (child.getParents()) from the same persistence context, e.g. when the replaced
+		// model is deleted, and must not see a stale state.
 		parent.getChildren().add(child);
+		child.getParents().add(parent);
 		em.merge(parent);
 	}
 
@@ -218,7 +222,9 @@ public class ProcessModelDao {
 	public void removeChild(Long parentId, Long childId) {
 		ProcessModelTable parent = em.find(ProcessModelTable.class, parentId);
 		ProcessModelTable child = em.find(ProcessModelTable.class, childId);
+		// See addChild: update the inverse side as well.
 		parent.getChildren().remove(child);
+		child.getParents().remove(parent);
 		em.merge(parent);
 	}
 }

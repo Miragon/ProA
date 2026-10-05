@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://example.com/bpmn">
+    <collaboration id="Collaboration_Gamma">
+        <participant id="Participant_Gamma_1" name="Gamma" processRef="Process_Gamma_1"/>
+        <participant id="Participant_Gamma_2" name="Gamma" processRef="Process_Gamma_2"/>
+        <messageFlow id="MessageFlow_Gamma" sourceRef="Participant_Gamma_1" targetRef="Participant_Gamma_2"/>
+    </collaboration>
+    <process id="Process_Gamma_1"/>
+    <process id="Process_Gamma_2"/>
+</definitions>
