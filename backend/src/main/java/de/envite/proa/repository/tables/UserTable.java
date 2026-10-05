@@ -6,6 +6,7 @@ import java.util.Set;
 
 import de.envite.proa.entities.authentication.Role;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -25,10 +26,19 @@ public class UserTable {
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	public Long id;
 
+	// Unique: the OIDC subject is the immutable identity key. CurrentUserService
+	// provisions users by subject; parallel first requests must not be able to
+	// create duplicates. Null only for legacy rows that predate the subject
+	// binding - they are claimed (backfilled) on the owner's next login.
+	@Column(unique = true)
+	private String oidcSubject;
+
+	// Mutable profile data synced from the token on every resolve. Deliberately
+	// NOT unique: a recycled e-mail address may briefly exist on both the old
+	// owner's row and the new owner's freshly provisioned row.
 	private String email;
 	private String firstName;
 	private String lastName;
-	private String password;
 	private LocalDateTime createdAt;
 	private LocalDateTime modifiedAt;
 	private Role role;
@@ -36,8 +46,6 @@ public class UserTable {
 	@OneToOne(cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY, mappedBy = "user")
 	private SettingsTable settings;
 
-	private Integer failedLoginAttempts = 0;
-	
 	@OneToMany(cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY, mappedBy = "user")
 	private Set<ProjectUserRelationTable> userRelations = new HashSet<>();
 }

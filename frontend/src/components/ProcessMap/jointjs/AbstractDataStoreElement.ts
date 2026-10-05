@@ -45,7 +45,7 @@ export class AbstractDataStoreShape extends dia.Element {
     ];
   }
 
-  adjustFontSizeAndWrap(label: string, maxWidth: number, maxHeight: number) {
+  adjustFontSizeAndWrap(label: string, maxWidth: number) {
     let fontSize = this.attr("label/fontSize");
     let wrapLabel = util.breakText(label, { width: maxWidth });
     let currentHeight = this.get("size")!.height;
@@ -91,7 +91,6 @@ export class AbstractDataStoreShape extends dia.Element {
 
 const createAbstractDataStoreElement = (label: string, id: number) => {
   const maxWidth = 100;
-  const maxHeight = 100;
 
   const element = new AbstractDataStoreShape({
     id: "ds-" + id,
@@ -102,7 +101,7 @@ const createAbstractDataStoreElement = (label: string, id: number) => {
     }
   });
 
-  element.adjustFontSizeAndWrap(label, maxWidth, maxHeight);
+  element.adjustFontSizeAndWrap(label, maxWidth);
 
   return element;
 };

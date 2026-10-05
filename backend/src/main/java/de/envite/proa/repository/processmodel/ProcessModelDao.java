@@ -1,6 +1,7 @@
 package de.envite.proa.repository.processmodel;
 
 import de.envite.proa.entities.process.ProcessType;
+import de.envite.proa.repository.SearchQueryHelper;
 import de.envite.proa.repository.tables.ProcessModelTable;
 import de.envite.proa.repository.tables.ProjectVersionTable;
 import de.envite.proa.util.SearchLabelBuilder;
@@ -8,25 +9,23 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityGraph;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import jakarta.transaction.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 @RequestScoped
 public class ProcessModelDao {
-	
-    @ConfigProperty(name = "quarkus.datasource.db-kind")
-    private String dbKind;
 
 	private EntityManager em;
+	private SearchQueryHelper searchQueryHelper;
 
 	@Inject
-	public ProcessModelDao(EntityManager em) {
+	public ProcessModelDao(EntityManager em, SearchQueryHelper searchQueryHelper) {
 		this.em = em;
+		this.searchQueryHelper = searchQueryHelper;
 	}
 
 	@Transactional
@@ -58,35 +57,22 @@ public class ProcessModelDao {
 
 	@Transactional
 	public List<ProcessModelTable> getProcessModelsForName(String name, ProjectVersionTable projectVersionTable) {
-		
-		if ("postgresql".equals(dbKind)) { 
-			
-			String searchLabel = SearchLabelBuilder.buildSearchLabel(name);
-			
-			return em
-					.createQuery(
-							"SELECT p " +
-									"FROM ProcessModelTable p " +
-									"WHERE ( p.name = :name " +
-									"OR function('levenshtein', p.searchLabel, :searchLabel) <= 4 )" +
-									"AND p.project = :project",
-							ProcessModelTable.class)
-					.setParameter("name", name)
-					.setParameter("searchLabel", searchLabel)
-					.setParameter("project", projectVersionTable)
-					.getResultList();
-		}else {
-			return em
-					.createQuery(
-							"SELECT p " +
-									"FROM ProcessModelTable p " +
-									"WHERE p.name = :name " +
-									"AND p.project = :project",
-							ProcessModelTable.class)
-					.setParameter("name", name)
-					.setParameter("project", projectVersionTable)
-					.getResultList();
+
+		TypedQuery<ProcessModelTable> query = em
+				.createQuery(
+						"SELECT p " +
+								"FROM ProcessModelTable p " +
+								"WHERE " + searchQueryHelper.fuzzyOrExactCondition("p.name = :name", "p.searchLabel") +
+								" AND p.project = :project",
+						ProcessModelTable.class)
+				.setParameter("name", name)
+				.setParameter("project", projectVersionTable);
+
+		if (searchQueryHelper.isFuzzySearchSupported()) {
+			query.setParameter("searchLabel", SearchLabelBuilder.buildSearchLabel(name));
 		}
+
+		return query.getResultList();
 	}
 
 	@Transactional
@@ -190,6 +176,12 @@ public class ProcessModelDao {
 
 	@Transactional
 	public void delete(List<Long> processModelIds) {
+		// Earlier steps of the surrounding transaction may have loaded connection entities
+		// whose rows have since been bulk-deleted (e.g. in deleteForProcessModel). Flush and
+		// clear the persistence context so those stale entities are not flush-checked against
+		// the process models removed below.
+		em.flush();
+		em.clear();
 		processModelIds.forEach(this::delete);
 	}
 
@@ -218,7 +210,11 @@ public class ProcessModelDao {
 	public void addChild(Long parentId, Long childId) {
 		ProcessModelTable parent = em.find(ProcessModelTable.class, parentId);
 		ProcessModelTable child = em.find(ProcessModelTable.class, childId);
+		// Keep both sides in sync: the surrounding usecase transaction later reads the inverse
+		// side (child.getParents()) from the same persistence context, e.g. when the replaced
+		// model is deleted, and must not see a stale state.
 		parent.getChildren().add(child);
+		child.getParents().add(parent);
 		em.merge(parent);
 	}
 
@@ -226,7 +222,9 @@ public class ProcessModelDao {
 	public void removeChild(Long parentId, Long childId) {
 		ProcessModelTable parent = em.find(ProcessModelTable.class, parentId);
 		ProcessModelTable child = em.find(ProcessModelTable.class, childId);
+		// See addChild: update the inverse side as well.
 		parent.getChildren().remove(child);
+		child.getParents().remove(parent);
 		em.merge(parent);
 	}
 }

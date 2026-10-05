@@ -1,59 +1,38 @@
 #!/bin/bash
+#
+# Fast pre-commit checks (< 15s): lint & format only.
+# Full tests run on pre-push and in CI.
+#
+set -euo pipefail
 
-# Change to the backend directory
-cd backend
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)"
 
-# Run the Maven clean verify command
-mvn clean verify
+# --- Frontend: ESLint + Prettier on staged files -----------------------------
+FRONTEND_STAGED="$(echo "$STAGED_FILES" | grep '^frontend/' | grep -E '\.(ts|tsx|js|vue|scss|css|json)$' || true)"
 
-# If the command fails, abort the commit
-if [ $? -ne 0 ]; then
-  echo "Maven tests failed."
+if [ -n "$FRONTEND_STAGED" ]; then
+  echo "[pre-commit] Checking frontend lint & format..."
+  cd "$REPO_ROOT/frontend"
+
+  # Strip the leading "frontend/" so paths are relative to the frontend dir
+  RELATIVE_FILES="$(echo "$FRONTEND_STAGED" | sed 's|^frontend/||')"
+
+  LINTABLE="$(echo "$RELATIVE_FILES" | grep -E '\.(ts|tsx|js|vue)$' || true)"
+  if [ -n "$LINTABLE" ]; then
+    # shellcheck disable=SC2086
+    yarn --silent eslint $LINTABLE || {
+      echo "[pre-commit] ESLint failed. Fix the issues or run 'yarn lint' to auto-fix." >&2
+      exit 1
+    }
+  fi
+
+  # shellcheck disable=SC2086
+  yarn --silent prettier --check $RELATIVE_FILES || {
+    echo "[pre-commit] Prettier check failed. Run 'yarn format' to fix." >&2
+    exit 1
+  }
+  cd "$REPO_ROOT"
 fi
 
-# Parse the coverage percentage using xmllint
-INSTRUCTIONS_COVERED=$(xmllint --xpath "sum(//counter[@type='INSTRUCTION' and not(ancestor::package)]/@covered)" target/jacoco-report/jacoco.xml)
-INSTRUCTIONS_MISSED=$(xmllint --xpath "sum(//counter[@type='INSTRUCTION' and not(ancestor::package)]/@missed)" target/jacoco-report/jacoco.xml)
-INSTRUCTIONS_COVERAGE=$(echo "scale=2; $INSTRUCTIONS_COVERED / ($INSTRUCTIONS_COVERED + $INSTRUCTIONS_MISSED) * 100" | bc)
-
-BRANCHES_COVERED=$(xmllint --xpath "sum(//counter[@type='BRANCH' and not(ancestor::package)]/@covered)" target/jacoco-report/jacoco.xml)
-BRANCHES_MISSED=$(xmllint --xpath "sum(//counter[@type='BRANCH' and not(ancestor::package)]/@missed)" target/jacoco-report/jacoco.xml)
-BRANCHES_COVERAGE=$(echo "scale=2; $BRANCHES_COVERED / ($BRANCHES_COVERED + $BRANCHES_MISSED) * 100" | bc)
-
-# Define the minimum coverage threshold
-THRESHOLD=99.0
-
-# Compare the coverage with the threshold
-if (( $(echo "$INSTRUCTIONS_COVERAGE < $THRESHOLD" | bc -l) )); then
-  echo -e "[\033[1;33mWARNING\033[0m] Instructions coverage is below $THRESHOLD%. Current coverage is $INSTRUCTIONS_COVERAGE%."
-else
-  echo -e "[\033[1;34mINFO\033[0m] Instructions coverage is $INSTRUCTIONS_COVERAGE%, which is above or equal to the threshold."
-fi
-
-if (( $(echo "$BRANCHES_COVERAGE < $THRESHOLD" | bc -l) )); then
-  echo -e "[\033[1;33mWARNING\033[0m] Branch coverage is below $THRESHOLD%. Current coverage is $BRANCHES_COVERAGE%."
-else
-  echo -e "[\033[1;34mINFO\033[0m] Branch coverage is $BRANCHES_COVERAGE%, which is above or equal to the threshold."
-fi
-
-# Show link to the coverage report
-RELATIVE_COVERAGE_PATH="./target/jacoco-report/index.html"
-COVERAGE_REPORT_PATH="file://$(realpath $RELATIVE_COVERAGE_PATH)"
-echo -e "[\033[1;34mINFO\033[0m] See the coverage report for more details: \033[1;34m$COVERAGE_REPORT_PATH\033[0m"
-
-# Go back to the root directory
-cd ..
-
-# Change to the frontend directory
-cd frontend
-
-# Run the ESLint command
-yarn lint
-
-# If the linting fails, abort the commit
-if [ $? -ne 0 ]; then
-  echo "Frontend linting failed."
-fi
-
-# Go back to the root directory
-cd ..
+echo "[pre-commit] OK"

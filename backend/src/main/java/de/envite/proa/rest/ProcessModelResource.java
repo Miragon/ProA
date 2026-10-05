@@ -26,6 +26,9 @@ public class ProcessModelResource {
 	@Inject
 	FileService fileService;
 
+	@Inject
+	ProjectAccessVerifier projectAccessVerifier;
+
 	/**
 	 * Creates a new process model
 	 *
@@ -43,26 +46,20 @@ public class ProcessModelResource {
 	@Path("/project/{projectId}/process-model")
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response uploadProcessModel(@RestPath Long projectId, @RestForm File processModel, @RestForm String fileName,
-			@RestForm String description, @RestForm boolean isCollaboration) {
-		try {
-			String content = fileService.readFileToString(processModel);
-			fileName = fileName.replace(".bpmn", "");
-			return Response //
-					.ok(usecase.saveProcessModel( //
-							projectId, //
-							fileName, //
-							content, //
-							description, //
-							isCollaboration //
-					)) //
-					.build();
-		} catch (CantReplaceWithCollaborationException e) {
-			e.printStackTrace();
-			return Response.status(Response.Status.BAD_REQUEST).entity(e).build();
-		} catch (Exception e) {
-			e.printStackTrace();
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
-		}
+			@RestForm String description, @RestForm boolean isCollaboration)
+			throws CantReplaceWithCollaborationException {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
+		String content = fileService.readFileToString(processModel);
+		fileName = fileName.replace(".bpmn", "");
+		return Response //
+				.ok(usecase.saveProcessModel( //
+						projectId, //
+						fileName, //
+						content, //
+						description, //
+						isCollaboration //
+				)) //
+				.build();
 	}
 
 	@Path("project/{projectId}/process-model/{oldProcessId}")
@@ -70,17 +67,13 @@ public class ProcessModelResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response replaceProcessModel(@RestPath Long projectId, @RestPath Long oldProcessId,
 			@RestForm File processModel,
-			@RestForm String fileName, @RestForm String description) {
+			@RestForm String fileName, @RestForm String description) throws CantReplaceWithCollaborationException {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
+		projectAccessVerifier.verifyAccessToProcessModel(oldProcessId);
 		String content = fileService.readFileToString(processModel);
 		fileName = fileName.replace(".bpmn", "");
-		try {
-			Long id = usecase.replaceProcessModel(projectId, oldProcessId, fileName, content, description);
-			return Response.ok(id).build();
-		} catch (CantReplaceWithCollaborationException e) {
-			return Response.status(Response.Status.BAD_REQUEST).entity(e).build();
-		} catch (Exception e) {
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
-		}
+		Long id = usecase.replaceProcessModel(projectId, oldProcessId, fileName, content, description);
+		return Response.ok(id).build();
 	}
 
 	/**
@@ -95,6 +88,7 @@ public class ProcessModelResource {
 	@GET
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public String getProcessModel(@RestPath Long id) {
+		projectAccessVerifier.verifyAccessToProcessModel(id);
 		return usecase.getProcessModel(id);
 	}
 
@@ -102,6 +96,7 @@ public class ProcessModelResource {
 	@DELETE
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public RestResponse<?> deleteProcessModel(@RestPath Long id) {
+		projectAccessVerifier.verifyAccessToProcessModel(id);
 		usecase.deleteProcessModel(id);
 		return ResponseBuilder.ok().build();
 	}
@@ -115,6 +110,7 @@ public class ProcessModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public List<ProcessInformation> getProcessInformation(@RestPath Long projectId) {
+		projectAccessVerifier.verifyAccessToProjectVersion(projectId);
 		return usecase.getProcessInformation(projectId);
 	}
 
@@ -123,6 +119,7 @@ public class ProcessModelResource {
 	@Produces(MediaType.APPLICATION_JSON)
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public ProcessDetails getProcessDetails(@RestPath Long id) {
+		projectAccessVerifier.verifyAccessToProcessModel(id);
 		return usecase.getProcessDetails(id);
 	}
 }

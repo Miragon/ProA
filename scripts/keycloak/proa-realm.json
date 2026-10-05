@@ -1,0 +1,89 @@
+{
+  "realm": "proa",
+  "enabled": true,
+  "displayName": "ProA",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "ssoSessionIdleTimeout": 1800,
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      {
+        "name": "User",
+        "description": "Regular ProA user"
+      },
+      {
+        "name": "Admin",
+        "description": "ProA administrator"
+      }
+    ]
+  },
+  "defaultRoles": ["User"],
+  "clients": [
+    {
+      "clientId": "proa-frontend",
+      "name": "ProA Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "rootUrl": "http://localhost:3000",
+      "baseUrl": "http://localhost:3000",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:8080/*"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@proa.local",
+      "email": "admin@proa.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "ProA",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["Admin", "User"]
+    },
+    {
+      "username": "user@proa.local",
+      "email": "user@proa.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "user",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["User"]
+    }
+  ]
+}

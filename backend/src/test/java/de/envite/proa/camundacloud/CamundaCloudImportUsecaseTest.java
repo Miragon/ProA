@@ -51,6 +51,9 @@ class CamundaCloudImportUsecaseTest {
 	@Mock
 	private ProcessOperations processOperations;
 
+	@Mock
+	private CamundaOperateServiceFactory operateServiceFactory;
+
 	@BeforeEach
 	void setUp() {
 		MockitoAnnotations.openMocks(this);
@@ -90,11 +93,9 @@ class CamundaCloudImportUsecaseTest {
 		CamundaOperateService camundaOperateService = mock(CamundaOperateService.class);
 		when(camundaOperateService.getProcessInstances(MOCK_AUTHORIZATION_HEADER, filter))
 				.thenReturn(Collections.singletonList(new Object()));
+		when(operateServiceFactory.createOperateService(operateUri)).thenReturn(camundaOperateService);
 
-		CamundaCloudImportUsecase usecaseSpy = spy(camundaCloudImportUsecase);
-		doReturn(camundaOperateService).when(usecaseSpy).createOperateService(operateUri);
-
-		Object result = usecaseSpy.getProcessInstances(configuration);
+		Object result = camundaCloudImportUsecase.getProcessInstances(configuration);
 
 		verify(camundaOperateService, times(1))
 				.getProcessInstances(MOCK_AUTHORIZATION_HEADER, filter);
@@ -118,11 +119,9 @@ class CamundaCloudImportUsecaseTest {
 		CamundaOperateService camundaOperateService = mock(CamundaOperateService.class);
 		when(camundaOperateService.getProcessInstances(MOCK_AUTHORIZATION_HEADER, filter))
 				.thenReturn(Collections.singletonList(new Object()));
+		when(operateServiceFactory.createOperateService(operateUri)).thenReturn(camundaOperateService);
 
-		CamundaCloudImportUsecase usecaseSpy = spy(camundaCloudImportUsecase);
-		doReturn(camundaOperateService).when(usecaseSpy).createOperateService(operateUri);
-
-		Object result = usecaseSpy.getProcessInstances(configuration);
+		Object result = camundaCloudImportUsecase.getProcessInstances(configuration);
 
 		verify(camundaOperateService, times(1))
 				.getProcessInstances(MOCK_AUTHORIZATION_HEADER, filter);
@@ -177,13 +176,6 @@ class CamundaCloudImportUsecaseTest {
 
 		verify(camundaCloudService, times(1)).getToken(credentials);
 		assertEquals(MOCK_TOKEN, result);
-	}
-
-	@Test
-	void testCreateOperateService() {
-		CamundaOperateService result = camundaCloudImportUsecase.createOperateService(TEST_BASE_URI);
-
-		assertNotNull(result, "CamundaOperateService should not be null.");
 	}
 
 }

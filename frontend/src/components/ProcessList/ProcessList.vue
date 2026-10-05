@@ -1,25 +1,27 @@
 <template>
-  <v-toolbar>
-    <v-toolbar-title>
-      <div class="d-flex align-center">
-        <span>{{ selectedProjectName }}</span>
-        <span class="text-body-2 text-grey-darken-1 ms-4"
-          >VERSION {{ selectedVersionName }}</span
-        >
-      </div>
-    </v-toolbar-title>
-  </v-toolbar>
+  <div class="tw:flex tw:items-center tw:gap-4 tw:border-b tw:px-6 tw:py-4">
+    <span class="tw:text-lg tw:font-medium">{{ selectedProjectName }}</span>
+    <span class="tw:text-muted-foreground tw:text-sm">
+      VERSION {{ selectedVersionName }}
+    </span>
+  </div>
+
   <ProcessDetailDialog ref="processDetailDialog" />
-  <div v-if="isFetching" class="d-flex align-center justify-center w-100 h-75">
-    <div class="d-flex flex-column align-center justify-center">
-      <span class="mb-2">{{ $t("processList.fetchingProcessModels") }}</span>
-      <v-progress-circular indeterminate />
+
+  <div
+    v-if="isFetching"
+    class="tw:flex tw:h-3/4 tw:w-full tw:items-center tw:justify-center"
+  >
+    <div class="tw:flex tw:flex-col tw:items-center tw:justify-center tw:gap-2">
+      <span>{{ $t("processList.fetchingProcessModels") }}</span>
+      <Loader2 class="tw:size-6 tw:animate-spin" />
     </div>
   </div>
-  <v-list v-else lines="two" class="pa-6">
-    <v-list-item v-if="rootProcessModels.length == 0"
-      >{{ $t("processList.noProcessModelsFound") }}
-    </v-list-item>
+
+  <div v-else class="tw:p-6">
+    <p v-if="rootProcessModels.length == 0">
+      {{ $t("processList.noProcessModelsFound") }}
+    </p>
     <template
       v-for="(model, index) in rootProcessModels"
       :key="'process-' + model.id"
@@ -31,295 +33,261 @@
         @upload-process="openSingleUploadDialog"
         @more-info="showProcessInfoDialog"
       />
-      <v-divider
-        v-if="index < rootProcessModels.length - 1"
-        :key="`${index}-divider`"
-      ></v-divider>
+      <Separator v-if="index < rootProcessModels.length - 1" />
     </template>
-  </v-list>
-  <div
-    class="ma-4"
-    style="position: fixed; bottom: 8px; right: 8px; z-index: 1"
-  >
-    <v-tooltip location="top">
-      <template v-slot:activator="{ props }">
-        <v-fab-transition>
-          <v-btn
-            class="mt-auto pointer-events-initial me-4"
-            color="primary"
-            elevation="8"
-            icon="mdi-cloud"
-            @click="goToC8Import"
-            size="large"
-            v-bind="props"
-          ></v-btn>
-        </v-fab-transition>
-      </template>
-      <span>{{ $t("processList.navigateToC8Import") }}</span>
-    </v-tooltip>
-
-    <v-fab-transition>
-      <v-btn
-        class="mt-auto pointer-events-initial"
-        color="primary"
-        elevation="8"
-        icon="mdi-plus"
-        @click="openMultipleUploadDialog"
-        size="large"
-      />
-    </v-fab-transition>
   </div>
+
+  <TooltipProvider>
+    <div class="tw:fixed tw:right-4 tw:bottom-4 tw:z-10 tw:flex tw:gap-4">
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            size="icon-lg"
+            type="button"
+            class="tw:rounded-full tw:shadow-lg"
+            @click="goToC8Import"
+          >
+            <Cloud />
+            <span class="tw:sr-only">
+              {{ $t("processList.navigateToC8Import") }}
+            </span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {{ $t("processList.navigateToC8Import") }}
+        </TooltipContent>
+      </Tooltip>
+
+      <Button
+        size="icon-lg"
+        type="button"
+        class="tw:rounded-full tw:shadow-lg"
+        @click="openMultipleUploadDialog"
+      >
+        <Plus />
+        <span class="tw:sr-only">
+          {{ $t("processList.uploadProcessModels") }}
+        </span>
+      </Button>
+    </div>
+  </TooltipProvider>
+
   <div
     v-if="rootProcessModels.length > 0"
-    class="d-flex align-center justify-center ma-4"
-    style="position: fixed; bottom: 8px; right: 8px; left: 8px; height: 56px"
+    class="tw:fixed tw:right-4 tw:bottom-4 tw:left-4 tw:flex tw:items-center tw:justify-center"
   >
-    <v-btn prepend-icon="mdi-map" @click="goToProcessMap">
+    <Button variant="outline" type="button" @click="goToProcessMap">
+      <MapIcon />
       {{ $t("processList.toTheProcessMap") }}
-    </v-btn>
+    </Button>
   </div>
 
-  <v-dialog
-    v-model="uploadDialog"
-    persistent
-    width="600"
-    @after-leave="resetUploadDialog"
-  >
-    <v-card>
-      <v-card-title>
-        <span class="text-h5" v-if="uploadDialogMode === 'multiple'">{{
-          $t("processList.uploadProcessModels")
-        }}</span>
-        <span class="text-h5" v-if="uploadDialogMode === 'single'">{{
-          $t("processList.replaceProcessModel")
-        }}</span>
-      </v-card-title>
-      <v-card-text>
-        <v-container>
-          <v-row class="pb-5">
-            <v-col cols="12" sm="12" md="12" class="pt-0">
-              <v-file-input
-                v-if="uploadDialogMode === 'multiple'"
-                :label="$t('processList.processModels')"
-                v-model="processModelFiles"
-                chips
-                multiple
-                @change="handleFileSelection"
-                hide-details
-              ></v-file-input>
-              <v-file-input
-                v-if="uploadDialogMode === 'single'"
-                :label="$t('general.processModel')"
-                v-model="processModelFiles"
-                chips
-                @change="handleFileSelection"
-                hide-details
-              ></v-file-input>
-            </v-col>
-          </v-row>
-          <v-row
-            v-for="(file, index) in processModelsToUpload"
-            :key="'file-' + index"
-            class="py-5 mt-0"
-          >
-            <div class="d-flex align-center">
-              <p class="px-3">{{ file.file.name }}</p>
-              <span
-                v-if="file.isCollaboration"
-                class="text-grey-darken-1 text-body-2"
-                >{{ $t("processList.collaboration") }}</span
-              >
-            </div>
-            <v-col cols="12" sm="12" md="12" class="py-1">
-              <v-text-field
-                hide-details
-                label="Name"
-                v-model="file.name"
-              ></v-text-field>
-            </v-col>
-            <v-col cols="12" sm="12" md="12" class="py-1">
-              <v-row no-gutters align="center">
-                <v-col style="position: relative">
-                  <v-textarea
-                    rows="3"
-                    :label="$t('general.description')"
-                    v-model="file.description"
-                    :error-messages="descriptionErrors[index]"
-                    @input="resetDescriptionErrors"
-                  />
-                  <v-overlay
-                    class="align-center justify-center"
-                    :model-value="file.aiLoading"
-                    contained
-                    persistent
-                    scrim="grey"
-                  >
-                    <v-progress-circular
-                      color="primary"
-                      size="24"
-                      indeterminate
-                    ></v-progress-circular>
-                  </v-overlay>
-                </v-col>
-                <v-col class="d-flex justify-end" cols="auto">
-                  <v-tooltip
-                    :text="$t('processList.generateDescriptionWithAI')"
-                    location="bottom"
-                  >
-                    <template v-slot:activator="{ props }">
-                      <v-icon
-                        v-bind="props"
-                        color="grey"
-                        class="ms-2 hover-icon"
-                        @click="generateDescription(file, index)"
-                      >
-                        mdi-auto-fix
-                      </v-icon>
-                    </template>
-                  </v-tooltip>
-                </v-col>
-              </v-row>
-            </v-col>
-          </v-row>
-        </v-container>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn color="blue-darken-1" variant="text" @click="closeUploadDialog">
+  <Dialog v-model:open="uploadDialog">
+    <DialogContent
+      class="tw:sm:max-w-[600px]"
+      @escape-key-down="preventDialogClose"
+      @pointer-down-outside="preventDialogClose"
+      @interact-outside="preventDialogClose"
+      @close-auto-focus="resetUploadDialog"
+    >
+      <DialogHeader>
+        <DialogTitle>
+          <span v-if="uploadDialogMode === 'multiple'">
+            {{ $t("processList.uploadProcessModels") }}
+          </span>
+          <span v-if="uploadDialogMode === 'single'">
+            {{ $t("processList.replaceProcessModel") }}
+          </span>
+        </DialogTitle>
+      </DialogHeader>
+
+      <div class="tw:flex tw:flex-col tw:gap-4">
+        <div class="tw:flex tw:flex-col tw:gap-1.5">
+          <Label for="process-model-files">
+            {{
+              uploadDialogMode === "multiple"
+                ? $t("processList.processModels")
+                : $t("general.processModel")
+            }}
+          </Label>
+          <input
+            id="process-model-files"
+            ref="fileInput"
+            type="file"
+            :multiple="uploadDialogMode === 'multiple'"
+            class="tw:file:text-foreground tw:placeholder:text-muted-foreground tw:border-input tw:flex tw:h-9 tw:w-full tw:min-w-0 tw:rounded-md tw:border tw:bg-transparent tw:px-3 tw:py-1 tw:text-sm tw:shadow-xs tw:transition-[color,box-shadow] tw:outline-none tw:file:mr-3 tw:file:inline-flex tw:file:h-7 tw:file:border-0 tw:file:bg-transparent tw:file:text-sm tw:file:font-medium tw:focus-visible:border-ring tw:focus-visible:ring-ring/50 tw:focus-visible:ring-3"
+            @change="onFileInputChange"
+          />
+        </div>
+
+        <div
+          v-for="(file, index) in processModelsToUpload"
+          :key="'file-' + index"
+          class="tw:flex tw:flex-col tw:gap-2"
+        >
+          <div class="tw:flex tw:items-center tw:gap-2">
+            <p class="tw:font-medium">{{ file.file.name }}</p>
+            <span
+              v-if="file.isCollaboration"
+              class="tw:text-muted-foreground tw:text-sm"
+            >
+              {{ $t("processList.collaboration") }}
+            </span>
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label :for="'file-name-' + index">Name</Label>
+            <Input :id="'file-name-' + index" v-model="file.name" />
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label :for="'file-description-' + index">
+              {{ $t("general.description") }}
+            </Label>
+            <Textarea
+              :id="'file-description-' + index"
+              v-model="file.description"
+              rows="3"
+            />
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="ghost" type="button" @click="closeUploadDialog">
           {{ $t("general.cancel") }}
-        </v-btn>
-        <v-btn
+        </Button>
+        <Button
           v-if="uploadDialogMode === 'multiple'"
-          color="blue-darken-1"
-          variant="text"
+          type="button"
           @click="uploadProcessModels"
         >
           {{ $t("general.save") }}
-        </v-btn>
-        <v-btn
+        </Button>
+        <Button
           v-if="uploadDialogMode === 'single'"
-          color="blue-darken-1"
-          variant="text"
+          type="button"
           @click="replaceProcessModel"
         >
           {{ $t("general.save") }}
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
-  <v-dialog v-model="progressDialog" max-width="600">
-    <v-card title="Upload">
-      <template v-slot:text>
-        {{ $t("processList.uploadingProcessModel") }}:
-        {{ currentlyUploadingProcessModel.name }} ({{ currentUploadStatus }})
-        <v-progress-linear
-          color="primary"
-          :model-value="progress"
-          :height="10"
-        ></v-progress-linear>
-      </template>
+  <Dialog v-model:open="progressDialog">
+    <DialogContent class="tw:sm:max-w-[600px]">
+      <DialogHeader>
+        <DialogTitle>Upload</DialogTitle>
+      </DialogHeader>
+      <div class="tw:flex tw:flex-col tw:gap-3">
+        <p>
+          {{ $t("processList.uploadingProcessModel") }}:
+          {{ currentlyUploadingProcessModel.name }} ({{ currentUploadStatus }})
+        </p>
+        <Progress :model-value="progress" />
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" type="button" @click="progressDialog = false">
+          {{ $t("general.cancel") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
-      <v-card-actions>
-        <v-spacer></v-spacer>
+  <Dialog v-model:open="confirmDeleteDialog">
+    <DialogContent class="tw:sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle class="tw:flex tw:items-center tw:gap-2">
+          <Trash2 class="tw:size-5" />
+          {{ $t("processList.confirmDeletion") }}
+        </DialogTitle>
+        <DialogDescription>
+          {{ $t("processList.confirmDeletionText1")
+          }}<strong>{{ processModelToBeDeleted?.processName }}</strong
+          >{{ $t("processList.confirmDeletionText2") }}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button
+          variant="outline"
+          type="button"
+          @click="confirmDeleteDialog = false"
+        >
+          {{ $t("general.cancel") }}
+        </Button>
+        <Button
+          variant="destructive"
+          type="button"
+          @click="deleteProcessModel(processModelToBeDeleted!, true)"
+        >
+          {{ $t("processList.confirm") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
-        <v-btn
-          :text="$t('general.cancel')"
-          variant="text"
-          @click="progressDialog = false"
-        ></v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
-
-  <v-dialog v-model="confirmDeleteDialog" width="auto">
-    <v-card
-      max-width="400"
-      prepend-icon="mdi-delete"
-      :title="$t('processList.confirmDeletion')"
-    >
-      <template v-slot:text>
-        {{ $t("processList.confirmDeletionText1")
-        }}<strong>{{ processModelToBeDeleted?.processName }}</strong
-        >{{ $t("processList.confirmDeletionText2") }}
-      </template>
-      <template v-slot:actions>
-        <div class="ms-auto">
-          <v-btn
-            :text="$t('general.cancel')"
-            @click="confirmDeleteDialog = false"
-          ></v-btn>
-          <v-btn
-            :text="$t('processList.confirm')"
-            @click="deleteProcessModel(processModelToBeDeleted!, true)"
-          ></v-btn>
-        </div>
-      </template>
-    </v-card>
-  </v-dialog>
-
-  <v-dialog v-model="errorDialog" width="auto">
-    <v-card
-      max-width="400"
-      prepend-icon="mdi-alert-circle-outline"
-      :title="$t('processList.error')"
-    >
-      <template v-slot:text>
-        {{ errorMessage }}
-      </template>
-      <template v-slot:actions>
-        <div class="ms-auto">
-          <v-btn
-            :text="$t('general.close')"
-            @click="errorDialog = false"
-          ></v-btn>
-        </div>
-      </template>
-    </v-card>
-  </v-dialog>
+  <Dialog v-model:open="errorDialog">
+    <DialogContent class="tw:sm:max-w-[400px]">
+      <DialogHeader>
+        <DialogTitle class="tw:flex tw:items-center tw:gap-2">
+          <AlertCircle class="tw:size-5" />
+          {{ $t("processList.error") }}
+        </DialogTitle>
+        <DialogDescription>{{ errorMessage }}</DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <Button variant="outline" type="button" @click="errorDialog = false">
+          {{ $t("general.close") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
-<style scoped>
-.hover-icon {
-  transition: color 0.3s ease-in-out;
-}
-
-.hover-icon:hover {
-  color: #757575 !important;
-}
-</style>
-
 <script lang="ts">
-import axios from "axios";
 import ProcessDetailDialog from "@/components/ProcessDetailDialog.vue";
 import { defineComponent } from "vue";
 import { useAppStore } from "@/store/app";
-import getProject from "../projectService";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { authHeader } from "@/components/Authentication/authHeader";
-import i18n from "@/i18n";
+import { getProject } from "@/api/projects";
+import * as processModelsApi from "@/api/processModels";
 import ProcessTreeNode from "@/components/ProcessList/ProcessTreeNode.vue";
-import { Settings } from "@/components/SettingsDrawer.vue";
-import { getErrorMessage } from "@/services/axiosErrorHandler";
+import {
+  ProcessModelInformation,
+  ProcessModelNode
+} from "@/types/processModel";
+import { getErrorMessage } from "@/api/errors";
+import {
+  AlertCircle,
+  Cloud,
+  Loader2,
+  Map as MapIcon,
+  Plus,
+  Trash2
+} from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface BPMNContent {
   name: string;
   description: string;
   isCollaboration: boolean;
-}
-
-interface ProcessModelInformation {
-  id: number;
-  bpmnProcessId: string;
-  processName: string;
-  description: string;
-  createdAt: string;
-  childrenIds: number[];
-  processType: string;
-}
-
-export interface ProcessModelNode extends ProcessModelInformation {
-  children: ProcessModelNode[];
 }
 
 enum UploadDialogMode {
@@ -332,14 +300,35 @@ interface ProcessModelToUpload {
   name: string;
   description: string;
   content: string;
-  aiLoading: boolean;
   isCollaboration: boolean;
 }
 
 export default defineComponent({
   components: {
     ProcessTreeNode,
-    ProcessDetailDialog
+    ProcessDetailDialog,
+    AlertCircle,
+    Button,
+    Cloud,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Label,
+    Loader2,
+    MapIcon,
+    Plus,
+    Progress,
+    Separator,
+    Textarea,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    Trash2
   },
   data: () => ({
     appStore: useAppStore(),
@@ -361,28 +350,9 @@ export default defineComponent({
     selectedVersionId: null as number | null,
     fileExtensionMatcher: /.[^/.]+$/,
     isFetching: false as boolean,
-    descriptionErrors: {} as { [key: number]: string },
     currentlyUploadingProcessModel: {} as ProcessModelToUpload,
     currentUploadStatus: "" as string
   }),
-  mounted: function () {
-    this.selectedProjectId = this.appStore.selectedProjectId;
-    if (!this.selectedProjectId) {
-      this.$router.push("/");
-      return;
-    }
-    getProject(this.selectedProjectId).then((result) => {
-      this.selectedProjectName = result.data.name;
-      this.selectedVersionName = this.appStore.getActiveVersionForProject(
-        this.selectedProjectId!
-      ).name;
-      this.selectedVersionId = this.appStore.getActiveVersionForProject(
-        this.selectedProjectId!
-      ).id;
-
-      this.fetchProcessModels();
-    });
-  },
   computed: {
     isUserLoggedIn(): boolean {
       return this.appStore.getUserToken() != null;
@@ -395,7 +365,37 @@ export default defineComponent({
       }
     }
   },
+  mounted: function () {
+    this.selectedProjectId = this.appStore.selectedProjectId;
+    if (!this.selectedProjectId) {
+      this.$router.push("/");
+      return;
+    }
+    getProject(this.selectedProjectId).then((project) => {
+      this.selectedProjectName = project.name;
+      this.selectedVersionName = this.appStore.getActiveVersionForProject(
+        this.selectedProjectId!
+      ).name;
+      this.selectedVersionId = this.appStore.getActiveVersionForProject(
+        this.selectedProjectId!
+      ).id;
+
+      this.fetchProcessModels();
+    });
+  },
   methods: {
+    /** The original dialog was `persistent`: it ignored ESC and
+     * outside clicks. */
+    preventDialogClose(event: Event) {
+      event.preventDefault();
+    },
+
+    onFileInputChange(event: Event) {
+      const target = event.target as HTMLInputElement;
+      this.processModelFiles = target.files ? Array.from(target.files) : [];
+      this.handleFileSelection();
+    },
+
     showProcessInfoDialog(processId: number) {
       (
         this.$refs.processDetailDialog as InstanceType<
@@ -415,24 +415,20 @@ export default defineComponent({
         return;
       }
       const processId = processModelNode.id;
-      await axios
-        .delete("/api/process-model/" + processId, { headers: authHeader() })
-        .then(() => {
-          this.confirmDeleteDialog = false;
-          this.processModelToBeDeleted = null;
-          this.appStore.setProcessModelsChanged();
-          this.fetchProcessModels();
-        });
+      await processModelsApi.deleteProcessModel(processId).then(() => {
+        this.confirmDeleteDialog = false;
+        this.processModelToBeDeleted = null;
+        this.appStore.setProcessModelsChanged();
+        this.fetchProcessModels();
+      });
     },
 
     fetchProcessModels() {
       this.isFetching = true;
-      axios
-        .get("/api/project/" + this.selectedVersionId + "/process-model", {
-          headers: authHeader()
-        })
-        .then((result) => {
-          this.rootProcessModels = this.collectRoots(result.data);
+      processModelsApi
+        .getProcessModels(this.selectedVersionId!)
+        .then((processModels) => {
+          this.rootProcessModels = this.collectRoots(processModels);
           this.isFetching = false;
         });
     },
@@ -556,7 +552,6 @@ export default defineComponent({
         name: name || file.name.replace(this.fileExtensionMatcher, ""),
         description,
         content,
-        aiLoading: false,
         isCollaboration
       };
     },
@@ -564,29 +559,24 @@ export default defineComponent({
     async uploadProcessModel(
       processModel: ProcessModelToUpload
     ): Promise<number> {
-      const formData = this.createProcessModelFormData(processModel);
-      const { data } = await axios.post(
-        "/api/project/" + this.selectedVersionId + "/process-model",
-        formData,
-        { headers: authHeader() }
+      return await processModelsApi.uploadProcessModel(
+        this.selectedVersionId!,
+        this.toProcessModelUpload(processModel)
       );
-      return data;
     },
 
-    createProcessModelFormData(processModel: ProcessModelToUpload): FormData {
-      let formData = new FormData();
+    toProcessModelUpload(
+      processModel: ProcessModelToUpload
+    ): processModelsApi.ProcessModelUpload {
       const fileName =
         processModel.name ||
         processModel.file.name.replace(this.fileExtensionMatcher, "");
-      formData.append("processModel", processModel.file);
-      formData.append("fileName", fileName);
-      formData.append("description", processModel.description);
-      formData.append(
-        "isCollaboration",
-        processModel.isCollaboration ? "true" : "false"
-      );
-
-      return formData;
+      return {
+        file: processModel.file,
+        fileName,
+        description: processModel.description,
+        isCollaboration: processModel.isCollaboration
+      };
     },
 
     async uploadProcessModels() {
@@ -623,18 +613,11 @@ export default defineComponent({
         return;
       }
 
-      const formData = this.createProcessModelFormData(
-        this.processModelsToUpload[0]
-      );
-
       try {
-        await axios.post(
-          "/api/project/" +
-            this.selectedVersionId +
-            "/process-model/" +
-            this.processModelToBeReplacedId,
-          formData,
-          { headers: authHeader() }
+        await processModelsApi.replaceProcessModel(
+          this.selectedVersionId!,
+          this.processModelToBeReplacedId!,
+          this.toProcessModelUpload(this.processModelsToUpload[0])
         );
       } catch (error) {
         this.afterUploadActions();
@@ -664,53 +647,12 @@ export default defineComponent({
       this.progressDialog = false;
       this.processModelToBeReplacedId = null;
       this.progress = 0;
-    },
-
-    async generateDescription(
-      processModelToUpload: ProcessModelToUpload,
-      index: number
-    ) {
-      processModelToUpload.aiLoading = true;
-      const content = processModelToUpload.content;
-
-      const settings: Settings = (
-        await axios.get("api/settings", { headers: authHeader() })
-      ).data;
-      const apiKey =
-        settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        this.descriptionErrors[index] = this.$t("processList.noApiKeyError");
-        processModelToUpload.aiLoading = false;
-        return;
+      const fileInput = this.$refs.fileInput as HTMLInputElement | undefined;
+      if (fileInput) {
+        fileInput.value = "";
       }
-      const genAi = new GoogleGenerativeAI(apiKey);
-      const model = genAi.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const promptInstructionsDe =
-        "Ich möchte, dass du aus dem folgenden XML-Dokument " +
-        "eine kurze Beschreibung für einen Geschäftsprozess generierst. " +
-        "Die Beschreibung soll maximal 1-3 Sätze lang sein. " +
-        "Bitte achte genaustens darauf, dass die Beschreibung nicht länger als " +
-        "255 Zeichen lang ist. Sie darf unter keinen Umständen länger sein!\n\n";
-
-      const promptInstructionsEn =
-        "Please generate a short description for the business process from " +
-        "the following XML document. The description should be a maximum of 1-3 sentences long. " +
-        "Ensure that the description is no longer than 255 characters. It must not exceed this " +
-        "length under any circumstances!\n\n";
-
-      const promptInstructions =
-        i18n.global.locale === "de"
-          ? promptInstructionsDe
-          : promptInstructionsEn;
-      const prompt = promptInstructions + content;
-
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      processModelToUpload.description = response.text().trim();
-
-      processModelToUpload.aiLoading = false;
     },
+
     goToC8Import() {
       this.$router.push("CamundaCloudImport");
     },
@@ -721,9 +663,6 @@ export default defineComponent({
     },
     goToProcessMap() {
       this.$router.push("ProcessMap");
-    },
-    resetDescriptionErrors() {
-      this.descriptionErrors = {};
     }
   }
 });

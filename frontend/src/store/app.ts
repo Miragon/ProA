@@ -1,28 +1,14 @@
 // Utilities
 import { defineStore } from "pinia";
-import {
-  ActiveVersionByProject,
-  ProjectVersion
-} from "@/components/Home/ProjectOverview.vue";
-import { LanguageCode } from "@/layouts/default/AppBar.vue";
+import { ActiveVersionByProject, ProjectVersion } from "@/types/project";
+import { LanguageCode } from "@/types/language";
 import { Role } from "@/components/ProcessMap/types";
-import { SnackbarConfigs, SnackbarType } from "@/utils/snackbar";
+import { SnackbarType } from "@/utils/snackbar";
+import { toast } from "vue-sonner";
 
 export enum SelectedDialog {
   NONE = -1,
-  PROFILE = 0,
-  EDIT_PROFILE = 1,
-  CREATE_ACCOUNT = 3,
-  CHANGE_PW = 4
-}
-
-export interface Snackbar {
-  visible: boolean;
-  message: string;
-  type: SnackbarType;
-  color: string;
-  icon: string;
-  timeout: number;
+  PROFILE = 0
 }
 
 export const useAppStore = defineStore("app", {
@@ -46,15 +32,7 @@ export const useAppStore = defineStore("app", {
       operateClusterError: "" as string,
       userToken: null as string | null,
       userRole: null as Role | null,
-      selectedDialog: SelectedDialog.NONE as SelectedDialog,
-      snackbar: {
-        visible: false,
-        message: "",
-        type: "" as SnackbarType,
-        color: "",
-        icon: "",
-        timeout: 3000
-      } as Snackbar
+      selectedDialog: SelectedDialog.NONE as SelectedDialog
     };
   },
   actions: {
@@ -166,13 +144,13 @@ export const useAppStore = defineStore("app", {
       return this.userRole;
     },
     async showSnackbar(message: string, type: SnackbarType) {
-      this.snackbar.visible = false;
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      this.snackbar.message = message;
-      this.snackbar.type = type;
-      this.snackbar.color = SnackbarConfigs[type].color;
-      this.snackbar.icon = SnackbarConfigs[type].icon;
-      this.snackbar.visible = true;
+      // Signature kept stable so all existing callers keep working unchanged;
+      // feedback is now rendered by vue-sonner instead of the old snackbar.
+      if (type === SnackbarType.ERROR) {
+        toast.error(message);
+      } else {
+        toast.success(message);
+      }
     },
     setSelectedProjectId(id: number | null) {
       this.selectedProjectId = id;
@@ -183,9 +161,8 @@ export const useAppStore = defineStore("app", {
   },
   persist: {
     storage: sessionStorage,
-    paths: [
+    pick: [
       "selectedProjectId",
-      "activeProjectByGroup",
       "activeVersionByProject",
       "graphByProject",
       "paperLayoutByProject",
@@ -198,10 +175,13 @@ export const useAppStore = defineStore("app", {
       "selectedLanguage",
       "areSettingsOpened",
       "operateConnectionError",
-      "operateClusterError",
-      "userToken",
-      "userRole",
-      "selectedDialog"
+      "operateClusterError"
+      // userToken/userRole are deliberately NOT persisted: oidc-client-ts
+      // owns the session in sessionStorage and the auth wrapper re-populates
+      // the store on load/renew (double-persistence causes stale tokens).
+      // selectedDialog is transient UI state and deliberately NOT persisted:
+      // stale enum values from removed dialogs would rehydrate into an
+      // empty dialog.
     ]
   }
 });

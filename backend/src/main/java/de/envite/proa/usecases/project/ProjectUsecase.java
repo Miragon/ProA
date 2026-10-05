@@ -1,8 +1,10 @@
 package de.envite.proa.usecases.project;
 
 import de.envite.proa.entities.project.AccessDeniedException;
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import de.envite.proa.entities.project.ProjectVersion;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -55,11 +57,22 @@ public class ProjectUsecase {
 		repository.removeVersion(userId, projectId, versionId);
 	}
 
-	public void addContributor(Long userId, Long projectId, String email) throws AccessDeniedException, NoResultException {
-		repository.addContributor(userId, projectId, email);
+	public AddContributorResult addContributor(Long userId, Long projectId, String email)
+			throws AccessDeniedException, NoResultException {
+		return repository.addContributor(userId, projectId, email);
 	}
 
 	public void removeContributor(Long userId, Long projectId, Long contributorId) throws AccessDeniedException, NoResultException {
 		repository.removeContributor(userId, projectId, contributorId);
+	}
+
+	public List<ProjectInvitation> getInvitations(Long userId, Long projectId)
+			throws AccessDeniedException, NoResultException {
+		return repository.getInvitations(userId, projectId);
+	}
+
+	public void revokeInvitation(Long userId, Long projectId, Long invitationId)
+			throws AccessDeniedException, NoResultException {
+		repository.revokeInvitation(userId, projectId, invitationId);
 	}
 }

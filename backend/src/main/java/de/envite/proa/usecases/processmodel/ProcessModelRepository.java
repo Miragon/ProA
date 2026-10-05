@@ -4,7 +4,6 @@ import de.envite.proa.entities.collaboration.MessageFlowDetails;
 import de.envite.proa.entities.process.ProcessDetails;
 import de.envite.proa.entities.process.ProcessInformation;
 import de.envite.proa.entities.process.ProcessModel;
-import de.envite.proa.repository.tables.ProcessModelTable;
 
 import java.util.List;
 
@@ -22,7 +21,6 @@ public interface ProcessModelRepository {
 
 	void saveMessageFlows(List<MessageFlowDetails> messageFlows, Long projectId);
 
-	ProcessModelTable findByNameOrBpmnProcessIdWithoutCollaborations(String name, String bpmnProcessId, Long projectId);
-
-	ProcessModelTable getProcessModel(Long id);
+	ProcessModelReference findByNameOrBpmnProcessIdWithoutCollaborations(String name, String bpmnProcessId,
+			Long projectId);
 }

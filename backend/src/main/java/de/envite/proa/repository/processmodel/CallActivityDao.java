@@ -1,5 +1,6 @@
 package de.envite.proa.repository.processmodel;
 
+import de.envite.proa.repository.SearchQueryHelper;
 import de.envite.proa.repository.tables.CallActivityTable;
 import de.envite.proa.repository.tables.ProcessModelTable;
 import de.envite.proa.repository.tables.ProjectVersionTable;
@@ -8,21 +9,19 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 
 @RequestScoped
 public class CallActivityDao {
 
-    @ConfigProperty(name = "quarkus.datasource.db-kind")
-    String dbKind;
-
 	private final EntityManager em;
+	private final SearchQueryHelper searchQueryHelper;
 
 	@Inject
-	public CallActivityDao(EntityManager em) {
+	public CallActivityDao(EntityManager em, SearchQueryHelper searchQueryHelper) {
 		this.em = em;
+		this.searchQueryHelper = searchQueryHelper;
 	}
 
 	@Transactional
@@ -35,26 +34,14 @@ public class CallActivityDao {
 
 		String searchLabel = SearchLabelBuilder.buildSearchLabel(label);
 
-		if ("postgresql".equals(dbKind)) {
-			return em.createQuery(
-							 "SELECT c FROM CallActivityTable c " +
-								"WHERE c.project = :project " +
-								"AND ( c.searchLabel = :searchLabel " +
-								"OR function('levenshtein', c.searchLabel, :searchLabel) <= 4 )",
-							CallActivityTable.class)
-					.setParameter("searchLabel", searchLabel)//
-					.setParameter("project", projectVersionTable)//
-					.getResultList();
-		} else {
-			return em.createQuery(
-							 "SELECT c FROM CallActivityTable c " +
-								"WHERE c.project = :project " +
-								"AND c.searchLabel = :searchLabel ",
-							CallActivityTable.class)
-					.setParameter("searchLabel", searchLabel)//
-					.setParameter("project", projectVersionTable)//
-					.getResultList();
-		}
+		return em.createQuery(
+						 "SELECT c FROM CallActivityTable c " +
+							"WHERE c.project = :project " +
+							"AND " + searchQueryHelper.searchLabelCondition("c.searchLabel"),
+						CallActivityTable.class)
+				.setParameter("searchLabel", searchLabel)//
+				.setParameter("project", projectVersionTable)//
+				.getResultList();
 	}
 
 	@Transactional

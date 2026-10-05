@@ -3,249 +3,130 @@
 ProA is a tool that lets you manage your processes and their connections smoothly. It detects relations among the
 processes and shows them in a diagram.
 
+## Quickstart (local development)
+
+Prerequisites: JDK 21+, Node 22 + Yarn 1.x, Docker (Keycloak in web mode,
+PostgreSQL parity).
+
+```bash
+make setup       # one-time: git hooks, frontend dependencies
+make auth-up     # terminal 0: Keycloak on :8181 (web mode only)
+make backend     # terminal 1: Quarkus dev mode on :8080 (H2 in-memory)
+make frontend    # terminal 2: Vite dev server on :3000 (proxies /api to :8080)
+```
+
+Open http://localhost:3000 — in web mode you are redirected to Keycloak;
+dev users are `admin@proa.local` / `admin` (Admin) and `user@proa.local` /
+`user` (User). Desktop mode needs no Docker and no login.
+
+Run `make help` for all targets (tests, lint, db management, full build).
+
+### PostgreSQL parity (optional)
+
+Production uses PostgreSQL with the `fuzzystrmatch` extension (levenshtein-based fuzzy
+matching of BPMN labels). H2 dev mode falls back to exact matching. To develop against
+the real thing:
+
+```bash
+make db-up       # PostgreSQL 17 on localhost:5433 with fuzzystrmatch enabled
+make backend-pg  # Quarkus dev mode against that database
+```
+
+`make db-reset` wipes the data volume.
+
+In production your managed PostgreSQL must allow the `fuzzystrmatch` extension:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+```
+
 ## Web or desktop mode
 
-It is possible to run ProA in web or desktop mode.
+ProA runs in one of two modes:
 
-Web mode includes authentication and allows multiple users to use the app.
+- **web** — multi-user with JWT authentication (default).
+- **desktop** — single user, no authentication.
 
-To activate either mode please navigate to the frontend folder via `cd frontend` and run `yarn mode [web|desktop]`.
+Switch the mode for development with `cd frontend && yarn mode [web|desktop]`.
+This sets `VITE_APP_MODE` in `frontend/.env` and `app.mode` in
+`backend/src/main/resources/application-dev.properties` (both are tracked-file
+edits for the backend side — don't commit them accidentally). The production
+profile always stays `app.mode=web`; released desktop jars get their mode from
+the `desktop` profile instead.
 
-Web mode: The default user is `admin` and the default password is `admin`.
+For a released jar, use the dedicated desktop artifact (`pro-a-*-desktop.jar` from the
+release page — the database kind is fixed at build time in Quarkus, so the regular web
+jar cannot be switched to H2 at runtime):
 
-## Generating JWT keys (web mode only)
-
-To generate the keys necessary for authentication via JWT please run the following script once:
-```
-./backend/generate-keys.sh
-```
-
-## Database and Fuzzy Match
-ProA uses fuzzy match so that the BPMN labels can be matched with some degree of tolerance, e.g. ignoring typos.
-To this end, postgres levenshtein function is used, which needs to be activated by ececuting the following:
-
-```CREATE EXTENSION fuzzystrmatch;```
-
-Furthermore, in Azure before executing the above statement, the extension needs to be activated via: DB >> Settings >> Server parameters >> azure.extensions >> fuzzystrmatch;
-
-
-## The Entire Application
-
-In order to build an uber jar, which also contains the frontend, run the following in the root:
-
-```mvn clean package```
-
-This will build the frontend and will copy the built frontend sources to the quarkus app.
-
-## Backend
-
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
-
-If you want to learn more about Quarkus, please visit its website: https://quarkus.io/ .
-
-### Running the application in dev mode
-
-You can run your application in dev mode that enables live coding using:
-
-
-```shell script
-./mvnw compile quarkus:dev
+```bash
+java -Dquarkus.profile=desktop -jar pro-a-*-desktop.jar    # data stored in ~/.proa
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at http://localhost:8080/q/dev/.
+### Authentication (web mode only)
 
-### Packaging and running the application
+Web mode authenticates against **Keycloak** via OIDC (see
+`docs/adr/0001-keycloak-for-web-mode-authentication.md`). Locally,
+`make auth-up` starts Keycloak with the `proa` realm auto-imported
+(`scripts/keycloak/proa-realm.json`); the admin console runs on
+http://localhost:8181 (`admin`/`admin`). Registration, password reset and
+credential management all happen in Keycloak — the app itself stores no
+passwords. In production, set `QUARKUS_OIDC_AUTH_SERVER_URL` on the Web App
+and register the deployed origin as a redirect URI in the realm.
 
-The application can be packaged using:
+## Building the entire application
 
-
-```shell script
-./mvnw package
+```bash
+mvn clean package
 ```
 
+builds the frontend (Node/Yarn are pinned and downloaded by the build), copies it into
+the Quarkus app, and produces an uber jar under `backend/target/`. Run it with
+`java -jar backend/target/pro-a-*.jar`.
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
+## Quality gates
 
-The produced jar is an uber jar due to the configuration in the application.properties.
+| Gate | What runs |
+|------|-----------|
+| pre-commit hook | ESLint + Prettier on staged frontend files (fast) |
+| pre-push hook | backend `mvnw verify` and/or frontend lint + type-checked build, depending on what changed |
+| CI (PRs) | `Backend Tests` and `Frontend Checks` workflows |
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+Hooks live in `.githooks/` and are activated by `make setup`
+(`git config core.hooksPath .githooks/`).
 
-### Creating a native executable
+Frontend commands (in `frontend/`): `yarn lint` (fix), `yarn lint:check`, `yarn format`,
+`yarn format:check`, `yarn type-check`, `yarn build`.
+Backend coverage: `cd backend && ./mvnw verify` → report under `backend/target/jacoco-report/`.
 
-Important: H2 Database is not supported in native mode. When native mode is used, an external DB needs to be
-configured: https://github.com/quarkusio/quarkus/issues/27021
+## Architecture & docs
 
-### Using GraalVM
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system overview, layering, roadmap
+- [docs/UI-MIGRATION.md](docs/UI-MIGRATION.md) — Vuetify → shadcn-vue migration status and rules
+- [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md) — June 2026 platform review: what changed and what's still open
 
-
-Install GraalVM version 21 from https://github.com/graalvm/graalvm-ce-builds/releases
-
-For Windows Users:
-Install Visual Studio Code: https://www.graalvm.org/latest/docs/getting-started/windows/
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
-```
-
-
-For Windows Users: Execute the above statement using the x64 Native Tools Command Prompt .
-
-#### Using Docker
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
-
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
-```
-
-This will produce a Linux executable.
-
-You can then execute your native executable with: `./target/pro-a-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult https://quarkus.io/guides/maven-tooling.
-
-### Jacoco
-
-To create a jacoco report run:
-
-
-```shell script
-mvn verify
-```
-
-The report can be found under target/jacoco-report
-
-## Frontend
-
-### Project setup
-
-```
-# yarn
-yarn
-
-# npm
-npm install
-
-# pnpm
-pnpm install
-```
-
-### Compiles and hot-reloads for development
-
-```
-# yarn
-yarn dev
-
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-```
-
-### Compiles and minifies for production
-
-```
-# yarn
-yarn build
-
-# npm
-npm run build
-
-# pnpm
-pnpm build
-```
-
-### Lints and fixes files
-
-```
-# yarn
-yarn lint
-
-# npm
-npm run lint
-
-# pnpm
-pnpm lint
-```
+The UI is migrating to [shadcn-vue](https://www.shadcn-vue.com/) (Tailwind v4 + Reka UI).
+New UI goes shadcn-first; see the migration doc for the ground rules.
 
 ## Configuring settings
 
 Settings can be configured by clicking the settings icon in the top right corner of the app.
 
-`Gemini API Key` is used to generate process model descriptions with AI.
-
 Camunda Modeler `Client ID` and `Client Secret` are used to retrieve process models from the Camunda Web Modeler.
 
 Camunda Operate `Client ID`, `Client Secret`, `Region ID` and `Cluster ID` are used to fetch active process instances.
 
-## Code Formatting Guide (IntelliJ IDEA)
+## Backend details (Quarkus)
 
-### 1. Frontend: Prettier for Vue Files
+Dev UI in dev mode: http://localhost:8080/q/dev/.
 
-#### Setup
+### Native executable
 
-1. **Install Prettier** globally or in your project (if not already installed):
+H2 is not supported in native mode; configure an external DB
+(https://github.com/quarkusio/quarkus/issues/27021).
 
-```sh
-npm install --save-dev prettier
+```bash
+./mvnw package -Dnative                                        # with GraalVM installed
+./mvnw package -Dnative -Dquarkus.native.container-build=true  # via container
 ```
 
-2. **Install the Prettier Plugin** in IntelliJ IDEA:
-    - Go to **IntelliJ IDEA** → **Settings...** → **Plugins**
-    - Search for **Prettier** and install it
-
-#### Usage
-
-To format Vue files using Prettier in IntelliJ IDEA:
-
-1. **Enable Prettier**:
-    - Go to **IntelliJ IDEA** → **Settings...** → **Languages & Frameworks** → **JavaScript** → **Prettier**
-    - Select **Manual Prettier configuration**
-    - Set the **Prettier package** to your project's `node_modules/prettier` or the globally installed version
-    - Select **Run on 'Reformat Code' action** and **Run on save**
-2. **Manually Format Vue Files**:
-    - Right-click a file or folder in the **Project** view
-    - Select **Reformat with Prettier**
-
-#### Verification
-
-To check formatting without modifying files, run:
-
-```sh
-npx prettier --check "src/**/*.{vue,js,ts,css,scss,json,md}"
-```
-
-## 2. Backend: Eclipse Formatter for Java Files
-
-### Setup
-
-1. **Import `eclipse-formatter.xml`** in IntelliJ IDEA:
-    - Go to **IntelliJ IDEA** → **Settings...** → **Editor** → **Code Style** → **Java**
-    - Click the gear icon next to **Scheme** → **Import Scheme**
-    - Select `eclipse-formatter.xml` from the project
-    - Click **Apply** and **OK**
-
-### Usage
-
-1. **Format on Save:**
-    - Go to **IntelliJ** → **Settings** → **Tools** → **Actions on Save**
-    - Check **Reformat code** and **Optimize imports**
-
-2. **Manually Format Java Files:**
-    - Open a Java file and press **Ctrl + Alt + L** (Windows/Linux) or **Cmd + Option + L** (Mac)
-	
-	
-## License 
-Shield: [![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
-
-This work is licensed under a
-[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License][cc-by-nc-sa].
-
-[![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]
-
-[cc-by-nc-sa]: http://creativecommons.org/licenses/by-nc-sa/4.0/
-[cc-by-nc-sa-image]: https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png
-[cc-by-nc-sa-shield]: https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg
+More: https://quarkus.io/guides/maven-tooling

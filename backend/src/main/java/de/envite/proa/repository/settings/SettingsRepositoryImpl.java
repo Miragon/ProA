@@ -53,18 +53,24 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 
 	@Override
 	public Settings updateSettings(Settings settings) {
-		return map(settingsDao.merge(merge(settings)));
+		SettingsTable table = settingsDao.getSettings();
+		if (table == null) {
+			return createSettings(settings);
+		}
+		return map(settingsDao.merge(merge(table, settings)));
 	}
 
 	@Override
 	public Settings updateSettings(Long userId, Settings settings) {
-		SettingsTable table = merge(userId, settings);
-		return map(settingsDao.merge(table));
+		SettingsTable table = settingsDao.getSettingsForUser(userDao.findById(userId));
+		if (table == null) {
+			return createSettings(userId, settings);
+		}
+		return map(settingsDao.merge(merge(table, settings)));
 	}
 
 	private Settings map(SettingsTable table) {
 		Settings settings = new Settings();
-		settings.setGeminiApiKey(table.getGeminiApiKey());
 		settings.setModelerClientId(table.getModelerClientId());
 		settings.setModelerClientSecret(table.getModelerClientSecret());
 		settings.setOperateClientId(table.getOperateClientId());
@@ -76,7 +82,6 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 
 	private SettingsTable map(Settings settings) {
 		SettingsTable table = new SettingsTable();
-		table.setGeminiApiKey(settings.getGeminiApiKey());
 		table.setModelerClientId(settings.getModelerClientId());
 		table.setModelerClientSecret(settings.getModelerClientSecret());
 		table.setOperateClientId(settings.getOperateClientId());
@@ -86,21 +91,7 @@ public class SettingsRepositoryImpl implements SettingsRepository {
 		return table;
 	}
 
-	private SettingsTable merge(Settings settings) {
-		SettingsTable table = settingsDao.getSettings();
-
-		return merge(table, settings);
-	}
-
-	private SettingsTable merge(Long userId, Settings settings) {
-		SettingsTable table = settingsDao.getSettingsForUser(userDao.findById(userId));
-		return merge(table, settings);
-	}
-
 	private SettingsTable merge(SettingsTable table, Settings settings) {
-		if (settings.getGeminiApiKey() != null) {
-			table.setGeminiApiKey(settings.getGeminiApiKey());
-		}
 		if (settings.getModelerClientId() != null) {
 			table.setModelerClientId(settings.getModelerClientId());
 		}

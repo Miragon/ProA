@@ -1,8 +1,10 @@
 package de.envite.proa.usecases.project;
 
 import de.envite.proa.entities.project.AccessDeniedException;
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -117,5 +119,38 @@ public class ProjectUsecaseTest {
 		projectUsecase.removeVersion(USER_ID ,PROJECT_ID, PROJECT_VERSION_ID);
 
 		verify(repository, times(1)).removeVersion(USER_ID ,PROJECT_ID, PROJECT_VERSION_ID);
+	}
+
+	@Test
+	public void testAddContributor() {
+		String email = "invitee@example.com";
+		AddContributorResult expectedResult = AddContributorResult.memberAdded();
+		when(repository.addContributor(USER_ID, PROJECT_ID, email)).thenReturn(expectedResult);
+
+		AddContributorResult result = projectUsecase.addContributor(USER_ID, PROJECT_ID, email);
+
+		assertEquals(expectedResult, result);
+		verify(repository, times(1)).addContributor(USER_ID, PROJECT_ID, email);
+	}
+
+	@Test
+	public void testGetInvitations() {
+		List<ProjectInvitation> expectedInvitations = Collections.singletonList(new ProjectInvitation());
+		when(repository.getInvitations(USER_ID, PROJECT_ID)).thenReturn(expectedInvitations);
+
+		List<ProjectInvitation> invitations = projectUsecase.getInvitations(USER_ID, PROJECT_ID);
+
+		assertEquals(expectedInvitations, invitations);
+		verify(repository, times(1)).getInvitations(USER_ID, PROJECT_ID);
+	}
+
+	@Test
+	public void testRevokeInvitation() {
+		long invitationId = 5L;
+		doNothing().when(repository).revokeInvitation(USER_ID, PROJECT_ID, invitationId);
+
+		projectUsecase.revokeInvitation(USER_ID, PROJECT_ID, invitationId);
+
+		verify(repository, times(1)).revokeInvitation(USER_ID, PROJECT_ID, invitationId);
 	}
 }

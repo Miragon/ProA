@@ -8,6 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityGraph;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 
 import java.util.List;
@@ -93,6 +94,16 @@ public class ProjectDao {
 		);
 	}
 
+	/**
+	 * Loads the project and locks its row until the end of the transaction. The collections are
+	 * deliberately not fetched in the locking statement: loaded lazily afterwards, they reflect
+	 * the changes of a concurrent transaction that held the lock before.
+	 */
+	@Transactional
+	public ProjectTable findByIdForUpdate(Long id) {
+		return em.find(ProjectTable.class, id, LockModeType.PESSIMISTIC_WRITE);
+	}
+
 	@Transactional
 	public ProjectVersionTable findVersionById(Long id) {
 		return em.find(ProjectVersionTable.class, id);
@@ -101,12 +112,11 @@ public class ProjectDao {
 	@Transactional
 	public void deleteById(Long id) {
 		ProjectTable table = em.find(ProjectTable.class, id);
-		em.remove(table);
-	}
-	
-	@Transactional
-	public void deleteProjectVersionById(Long id) {
-		ProjectVersionTable table = em.find(ProjectVersionTable.class, id);
+		// Pending invitations reference the project but are not part of its object
+		// graph - delete them explicitly before removing the project.
+		em.createQuery("DELETE FROM ProjectInvitationTable i WHERE i.project = :project")//
+				.setParameter("project", table)//
+				.executeUpdate();
 		em.remove(table);
 	}
 }

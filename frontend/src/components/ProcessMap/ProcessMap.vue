@@ -1,48 +1,53 @@
 <template>
-  <ProcessMapToolbar 
-    ref="toolbar" 
-    :selectedProjectId="selectedProjectId" 
-    :selectedProjectName="selectedProjectName"
-    :selectedVersionName="selectedVersionName" 
-    :selectedVersionId="selectedVersionId!"
-    @fetchProcessModels="fetchProcessModels" 
-    @filterGraph="filterGraph"
-    @handleFetchProcessInstances="handleFetchProcessInstances" />
-  <v-card class="full-screen-below-toolbar" @mouseup="saveGraphState">
-    <ProcessDetailSidebar ref="processDetailSidebar" @saveGraphState="saveGraphState" />
-    <div v-if="isFetching" class="d-flex align-center justify-center w-100 h-75">
-      <div class="d-flex flex-column align-center justify-center">
-        <span class="mb-2">{{ $t("processMap.loadingProcessMap") }}</span>
-        <v-progress-circular indeterminate />
+  <ProcessMapToolbar
+    ref="toolbar"
+    :selected-project-id="selectedProjectId"
+    :selected-project-name="selectedProjectName"
+    :selected-version-name="selectedVersionName"
+    :selected-version-id="selectedVersionId!"
+    @fetch-process-models="fetchProcessModels"
+    @filter-graph="filterGraph"
+    @handle-fetch-process-instances="handleFetchProcessInstances"
+  />
+  <div
+    class="tw:bg-card tw:relative full-screen-below-toolbar"
+    @mouseup="saveGraphState"
+  >
+    <ProcessDetailSidebar
+      ref="processDetailSidebar"
+      @save-graph-state="saveGraphState"
+    />
+    <div
+      v-if="isFetching"
+      class="tw:flex tw:h-3/4 tw:w-full tw:items-center tw:justify-center"
+    >
+      <div class="tw:flex tw:flex-col tw:items-center tw:justify-center">
+        <span class="tw:mb-2">{{ $t("processMap.loadingProcessMap") }}</span>
+        <Loader2 class="tw:size-6 tw:animate-spin" />
       </div>
     </div>
-    <div :hidden="isFetching" id="graph-container" class="full-screen"></div>
-    <NavigationButtons ref="navigationButtons" :selectedProjectId="selectedProjectId" />
-  </v-card>
-  <v-tooltip id="tool-tip" v-model="tooltipVisible" :style="{ position: 'fixed', top: mouseY, left: mouseX }">
+    <div id="graph-container" :hidden="isFetching" class="full-screen"></div>
+    <NavigationButtons
+      ref="navigationButtons"
+      :selected-project-id="selectedProjectId"
+    />
+  </div>
+  <div
+    v-if="tooltipVisible"
+    id="tool-tip"
+    class="tw:bg-popover tw:text-popover-foreground tw:z-[2400] tw:rounded-md tw:border tw:px-3 tw:py-1.5 tw:text-sm tw:shadow-md"
+    :style="{ position: 'fixed', top: mouseY, left: mouseX }"
+  >
     <ul v-if="tooltipList.length > 0">
-      <li v-for="item in tooltipList" v-bind:key="item">{{ item }}</li>
+      <li v-for="item in tooltipList" :key="item">{{ item }}</li>
     </ul>
     <span v-if="tooltipList.length === 0">{{
       $t("processMap.noInformationAvailable")
     }}</span>
-  </v-tooltip>
+  </div>
 </template>
 
-<style>
-.full-screen-below-toolbar {
-  width: 100%;
-  height: calc(100% - 64px) !important;
-}
-
-.full-screen {
-  width: 100%;
-  height: 100%;
-}
-</style>
-
 <script lang="ts">
-import axios from "axios";
 import { defineComponent } from "vue";
 import { dia, shapes } from "@joint/core";
 import { DirectedGraph } from "@joint/layout-directed-graph";
@@ -59,24 +64,26 @@ import createLinkRemoveButton from "@/components/ProcessMap/jointjs/createLinkRe
 import {
   Connection,
   DataStore,
-  DataStoreConnection,
   FilterGraphInput,
   HiddenLinks,
   HiddenPorts,
   MessageFlow,
   PortsInformation,
   Process,
-  ProcessElementType,
-  ProcessInstance
+  ProcessElementType
 } from "./types";
+
+import { Loader2 } from "@lucide/vue";
 
 import ProcessDetailSidebar from "@/components/ProcessMap/ProcessDetailSidebar.vue";
 import ProcessMapToolbar from "@/components/ProcessMap/ProcessMapToolbar.vue";
 import NavigationButtons from "@/components/ProcessMap/NavigationButtons.vue";
-import getProject from "../projectService";
+import { getProject } from "@/api/projects";
+import * as processMapApi from "@/api/processMap";
+import * as camundaCloudApi from "@/api/camundaCloud";
+import { getSettings } from "@/api/settings";
 import { useAppStore } from "@/store/app";
-import { Settings } from "@/components/SettingsDrawer.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { Settings } from "@/types/settings";
 
 export const getPortPrefix = (elementType: ProcessElementType): string => {
   switch (elementType) {
@@ -97,6 +104,7 @@ export const getPortPrefix = (elementType: ProcessElementType): string => {
 
 export default defineComponent({
   components: {
+    Loader2,
     NavigationButtons,
     ProcessDetailSidebar,
     ProcessMapToolbar
@@ -105,12 +113,23 @@ export default defineComponent({
   data() {
     const appStore = useAppStore();
     const selectedProjectId: number = appStore.getSelectedProjectId()!;
+    // All view state (graph, paper layout, filters, hidden cells/ports/links)
+    // is persisted per project *version*, since the process map contents are
+    // version specific.
+    const activeVersionId =
+      appStore.getActiveVersionForProject(selectedProjectId)?.id;
     const persistedHiddenCells =
-      appStore.getHiddenCellsForProject(selectedProjectId);
+      activeVersionId != null
+        ? appStore.getHiddenCellsForProject(activeVersionId)
+        : undefined;
     const persistedHiddenLinks =
-      appStore.getHiddenLinksForProject(selectedProjectId);
+      activeVersionId != null
+        ? appStore.getHiddenLinksForProject(activeVersionId)
+        : undefined;
     const persistedHiddenPorts =
-      appStore.getHiddenPortsForProject(selectedProjectId);
+      activeVersionId != null
+        ? appStore.getHiddenPortsForProject(activeVersionId)
+        : undefined;
 
     const hiddenCells: dia.Cell[] = persistedHiddenCells
       ? JSON.parse(persistedHiddenCells!)
@@ -169,8 +188,8 @@ export default defineComponent({
       return;
     }
 
-    getProject(this.selectedProjectId).then((result) => {
-      this.selectedProjectName = result.data.name;
+    getProject(this.selectedProjectId).then((project) => {
+      this.selectedProjectName = project.name;
       this.selectedVersionName = this.appStore.getActiveVersionForProject(
         this.selectedProjectId!
       ).name;
@@ -213,7 +232,6 @@ export default defineComponent({
           this.tooltipVisible = false;
         }
       });
-
 
       if (store.getProcessModelsChangeFlag()) {
         this.fetchProcessModels();
@@ -262,7 +280,10 @@ export default defineComponent({
         linkView.addTools(
           new dia.ToolsView({
             name: "onhover",
-            tools: [new PortTargetArrowhead(), createLinkRemoveButton(removeLink)]
+            tools: [
+              new PortTargetArrowhead(),
+              createLinkRemoveButton(removeLink)
+            ]
           })
         );
       });
@@ -283,22 +304,13 @@ export default defineComponent({
         );
 
         try {
-          await axios.post(
-            `/api/project/${this.selectedVersionId!}/process-map/connection`,
-            {
-              callingProcessid,
-              calledProcessid,
-              callingElementType,
-              calledElementType,
-              userCreated: true
-            },
-            {
-              headers: {
-                ...authHeader(),
-                "Content-Type": "application/json"
-              }
-            }
-          );
+          await processMapApi.createConnection(this.selectedVersionId!, {
+            callingProcessid,
+            calledProcessid,
+            callingElementType,
+            calledElementType,
+            userCreated: true
+          });
         } catch (error) {
           console.error("Error while adding connection:", error);
         }
@@ -320,10 +332,7 @@ export default defineComponent({
         connectionId: number
       ): Promise<boolean> => {
         try {
-          await axios.delete(
-            `/api/project/process-map/process-connection/${connectionId}`,
-            { headers: authHeader() }
-          );
+          await processMapApi.deleteProcessConnection(connectionId);
           return true;
         } catch (error) {
           console.error("Error while removing process connection:", error);
@@ -335,10 +344,7 @@ export default defineComponent({
         connectionId: number
       ): Promise<boolean> => {
         try {
-          await axios.delete(
-            `/api/project/process-map/datastore-connection/${connectionId}`,
-            { headers: authHeader() }
-          );
+          await processMapApi.deleteDataStoreConnection(connectionId);
           return true;
         } catch (error) {
           console.error("Error while removing datastore connection:", error);
@@ -424,13 +430,11 @@ export default defineComponent({
       this.isFetching = true;
       this.resetFilters();
       graph.clear();
-      axios
-        .get("/api/project/" + this.selectedVersionId! + "/process-map", {
-          headers: authHeader()
-        })
-        .then((result) => {
-          let abstractProcessShapes: AbstractProcessShape[] =
-            result.data.processes.map((process: Process) => {
+      processMapApi
+        .getProcessMap(this.selectedVersionId!)
+        .then((processMap) => {
+          const abstractProcessShapes: AbstractProcessShape[] =
+            processMap.processes.map((process: Process) => {
               const filterEmpty = (label: string) => !!label;
 
               this.portsInformation["start-" + process.id] = process.startEvents
@@ -465,7 +469,7 @@ export default defineComponent({
 
           graph.addCell(abstractProcessShapes);
 
-          let connectionsShapes = result.data.connections.map(
+          const connectionsShapes = processMap.connections.map(
             (connection: Connection) => {
               const link = new shapes.standard.Link();
 
@@ -504,7 +508,7 @@ export default defineComponent({
 
           graph.addCell(connectionsShapes);
 
-          let messageFlowShapes = result.data.messageFlows.map(
+          const messageFlowShapes = processMap.messageFlows.map(
             (messageFlow: MessageFlow) => {
               const link = new shapes.standard.Link();
 
@@ -550,7 +554,7 @@ export default defineComponent({
 
           graph.addCell(messageFlowShapes);
 
-          let abstractDataStores = result.data.dataStores.map(
+          const abstractDataStores = processMap.dataStores.map(
             (dataStore: DataStore) => {
               return createAbstractDataStoreElement(
                 dataStore.name,
@@ -561,8 +565,8 @@ export default defineComponent({
 
           graph.addCell(abstractDataStores);
 
-          let dataStoreConnectionShapes = result.data.dataStoreConnections.map(
-            (connection: DataStoreConnection) => {
+          const dataStoreConnectionShapes = processMap.dataStoreConnections.map(
+            (connection) => {
               const link = new shapes.standard.Link();
               const source = {
                 id: connection.processid,
@@ -605,6 +609,29 @@ export default defineComponent({
           );
 
           graph.addCell(dataStoreConnectionShapes);
+
+          // Guard the directed-graph layout: it builds a graphlib graph via
+          // setEdge(source.id, target.id), which silently creates a phantom
+          // node for any endpoint that is not a real element, then crashes in
+          // importElement when graph.getCell(phantomId) returns undefined.
+          // A single link that ends at a bare point also aborts the library's
+          // cell loop (it uses `break`, not `continue`). Drop any dangling link
+          // before laying out - it cannot be routed on the map anyway.
+          const layoutElementIds = new Set(
+            graph.getElements().map((element) => element.id)
+          );
+          graph.getLinks().forEach((link) => {
+            const source = link.get("source");
+            const target = link.get("target");
+            if (
+              !source?.id ||
+              !target?.id ||
+              !layoutElementIds.has(source.id) ||
+              !layoutElementIds.has(target.id)
+            ) {
+              link.remove();
+            }
+          });
 
           DirectedGraph.layout(graph, {
             nodeSep: 80,
@@ -774,17 +801,11 @@ export default defineComponent({
     },
     async fetchSettings() {
       try {
-        await axios
-          .get("/api/settings", { headers: authHeader() })
-          .then((result) => {
-            this.settings = result.data;
-          });
-      } catch (error) {
+        this.settings = (await getSettings()) ?? ({} as Settings);
+      } catch {
         this.settings = {} as Settings;
       }
 
-      this.settings.geminiApiKey =
-        this.settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
       this.settings.modelerClientId =
         this.settings.modelerClientId || import.meta.env.VITE_MODELER_CLIENT_ID;
       this.settings.modelerClientSecret =
@@ -808,29 +829,26 @@ export default defineComponent({
         !this.settings.operateClientSecret
       ) {
         this.appStore.setOperateConnectionError(
-          "Camunda Operate Verbindung fehlt"
+          this.$t("processMap.operateConnectionMissing")
         );
         this.appStore.setAreSettingsOpened(true);
         return;
       }
       if (!this.settings.operateRegionId || !this.settings.operateClusterId) {
-        this.appStore.setOperateClusterError("Region und/oder Cluster fehlen");
+        this.appStore.setOperateClusterError(
+          this.$t("processMap.operateClusterMissing")
+        );
         this.appStore.setAreSettingsOpened(true);
         return;
       }
       try {
-        const result = await axios.post(
-          "/api/camunda-cloud/token",
-          {
-            client_id: this.settings.operateClientId,
-            client_secret: this.settings.operateClientSecret,
-            audience: "operate.camunda.io"
-          },
-          { headers: authHeader() }
+        this.operateToken = await camundaCloudApi.fetchToken(
+          this.settings.operateClientId,
+          this.settings.operateClientSecret,
+          "operate.camunda.io"
         );
-        this.operateToken = result.data;
         await this.fetchProcessInstances();
-      } catch (error) {
+      } catch {
         this.appStore.setAreSettingsOpened(true);
         return;
       }
@@ -840,38 +858,26 @@ export default defineComponent({
         .getCells()
         .filter((cell) => cell instanceof AbstractProcessShape)
         .map((cell) => {
-          return axios.post(
-            "/api/camunda-cloud/process-instances",
-            {
-              token: this.operateToken,
-              regionId: this.settings.operateRegionId,
-              clusterId: this.settings.operateClusterId,
-              bpmnProcessId: cell.attributes.bpmnProcessId
-            },
-            { headers: authHeader() }
-          );
+          return camundaCloudApi.fetchProcessInstances({
+            token: this.operateToken,
+            regionId: this.settings.operateRegionId,
+            clusterId: this.settings.operateClusterId,
+            bpmnProcessId: cell.attributes.bpmnProcessId
+          });
         });
 
       const results = await Promise.all(promises);
-      const items = results.flatMap((result) => result.data.items);
+      const items = results.flat();
 
-      const countByProcess = items.reduce(
-        (countByProcess: Map<string, number>, item: ProcessInstance) => {
-          if (
-            countByProcess.get(item.bpmnProcessId) &&
-            item.state == "ACTIVE"
-          ) {
-            countByProcess.set(
-              item.bpmnProcessId,
-              countByProcess.get(item.bpmnProcessId)! + 1
-            );
-          } else {
-            countByProcess.set(item.bpmnProcessId, 1);
-          }
+      const countByProcess = items
+        .filter((item) => item.state === "ACTIVE")
+        .reduce((countByProcess: Map<string, number>, item) => {
+          countByProcess.set(
+            item.bpmnProcessId,
+            (countByProcess.get(item.bpmnProcessId) ?? 0) + 1
+          );
           return countByProcess;
-        },
-        new Map<string, number>()
-      );
+        }, new Map<string, number>());
       for (const cell of graph.getCells()) {
         if (cell instanceof AbstractProcessShape) {
           const countForBpmnProcessId = countByProcess.get(
@@ -891,3 +897,22 @@ export default defineComponent({
   }
 });
 </script>
+
+<style>
+.full-screen-below-toolbar {
+  width: 100%;
+  /*
+   * Viewport-based height on purpose: a percentage height (calc(100% - ...))
+   * does NOT resolve here. The routed <main> is a flex item (flex-1) inside a
+   * min-h-screen column, so its height counts as indefinite for percentage
+   * children even though its used height is definite. 100vh minus the 64px app
+   * header (h-16) and the 64px process-map toolbar.
+   */
+  height: calc(100vh - 128px) !important;
+}
+
+.full-screen {
+  width: 100%;
+  height: 100%;
+}
+</style>

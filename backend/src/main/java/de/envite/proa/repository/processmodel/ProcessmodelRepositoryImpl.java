@@ -8,10 +8,12 @@ import de.envite.proa.repository.datastore.DataStoreDao;
 import de.envite.proa.repository.messageflow.MessageFlowDao;
 import de.envite.proa.repository.messageflow.MessageFlowMapper;
 import de.envite.proa.repository.tables.*;
+import de.envite.proa.usecases.processmodel.ProcessModelReference;
 import de.envite.proa.usecases.processmodel.ProcessModelRepository;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.NoResultException;
+import jakarta.transaction.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 @RequestScoped
+@Transactional
 public class ProcessmodelRepositoryImpl implements ProcessModelRepository {
 
 	private ProcessModelDao processModelDao;
@@ -272,11 +275,6 @@ public class ProcessmodelRepositoryImpl implements ProcessModelRepository {
 	}
 
 	@Override
-	public ProcessModelTable getProcessModel(Long id) {
-		return processModelDao.find(id);
-	}
-
-	@Override
 	public String getProcessModelXml(Long id) {
 		byte[] xmlBytes = processModelDao.getBpmnXml(id);
 		return XmlConverter.bytesToString(xmlBytes);
@@ -320,10 +318,12 @@ public class ProcessmodelRepositoryImpl implements ProcessModelRepository {
 	}
 
 	@Override
-	public ProcessModelTable findByNameOrBpmnProcessIdWithoutCollaborations(String name, String bpmnProcessId,
+	public ProcessModelReference findByNameOrBpmnProcessIdWithoutCollaborations(String name, String bpmnProcessId,
 			Long projectId) {
 		ProjectVersionTable project = new ProjectVersionTable();
 		project.setId(projectId);
-		return processModelDao.findByNameOrBpmnProcessIdWithoutCollaborations(name, bpmnProcessId, project);
+		ProcessModelTable table = processModelDao.findByNameOrBpmnProcessIdWithoutCollaborations(name, bpmnProcessId,
+				project);
+		return table == null ? null : new ProcessModelReference(table.getId());
 	}
 }

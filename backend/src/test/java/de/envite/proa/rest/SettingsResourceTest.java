@@ -1,8 +1,8 @@
 package de.envite.proa.rest;
 
 import de.envite.proa.entities.settings.Settings;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.usecases.settings.SettingsUsecase;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -21,7 +21,7 @@ public class SettingsResourceTest {
 	private SettingsUsecase usecase;
 
 	@Mock
-	private JsonWebToken jwt;
+	private CurrentUserService currentUserService;
 
 	private static final Long USER_ID = 1L;
 	private static final String APP_MODE_WEB = "web";
@@ -36,13 +36,13 @@ public class SettingsResourceTest {
 	@Test
 	public void testGetSettingsWebMode() {
 		resource.appMode = APP_MODE_WEB;
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		when(usecase.getSettings(USER_ID)).thenReturn(SETTINGS);
 
 		Settings result = resource.getSettings();
 
 		assertEquals(SETTINGS, result);
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).getSettings(USER_ID);
 	}
 
@@ -55,19 +55,19 @@ public class SettingsResourceTest {
 
 		assertEquals(SETTINGS, result);
 		verify(usecase, times(1)).getSettings();
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 	}
 
 	@Test
 	public void testCreateSettingsWebMode() {
 		resource.appMode = APP_MODE_WEB;
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		when(usecase.createSettings(USER_ID, SETTINGS)).thenReturn(SETTINGS);
 
 		Settings result = resource.createSettings(SETTINGS);
 
 		assertEquals(SETTINGS, result);
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).createSettings(USER_ID, SETTINGS);
 	}
 
@@ -80,19 +80,19 @@ public class SettingsResourceTest {
 
 		assertEquals(SETTINGS, result);
 		verify(usecase, times(1)).createSettings(SETTINGS);
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 	}
 
 	@Test
 	public void testUpdateSettingsWebMode() {
 		resource.appMode = APP_MODE_WEB;
-		when(jwt.getClaim("userId")).thenReturn(USER_ID.toString());
+		when(currentUserService.getUserId()).thenReturn(USER_ID);
 		when(usecase.updateSettings(USER_ID, SETTINGS)).thenReturn(SETTINGS);
 
 		Settings result = resource.updateSettings(SETTINGS);
 
 		assertEquals(SETTINGS, result);
-		verify(jwt, times(1)).getClaim("userId");
+		verify(currentUserService, times(1)).getUserId();
 		verify(usecase, times(1)).updateSettings(USER_ID, SETTINGS);
 	}
 
@@ -105,6 +105,6 @@ public class SettingsResourceTest {
 
 		assertEquals(SETTINGS, result);
 		verify(usecase, times(1)).updateSettings(SETTINGS);
-		verify(jwt, never()).getClaim(anyString());
+		verify(currentUserService, never()).getUserId();
 	}
 }

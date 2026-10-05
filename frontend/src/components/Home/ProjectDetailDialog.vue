@@ -1,109 +1,179 @@
 <template>
-  <v-dialog v-model="showProjectDetailDialog" width="600">
-    <v-card>
-      <v-container>
-        <v-card-title>{{ project.name }}</v-card-title>
-        <v-divider />
-        <v-card-text>
-          <div class="card-section">
-            <p class="text-body-1 font-weight-bold">
-              {{ $t("projectOverview.contributors") + ": " }}
-            </p>
-            <p
-              v-for="member in project.projectMembers"
-              class="text-body-1 deletable"
-            >
-              {{ member.firstName + " " + member.lastName }}
-              <span class="font-weight-thin font-italic">{{ member.role }}</span>
-            </p>
-            <v-text-field
-              class="mt-2"
-              v-model="newContributorEmail"
-              :label="$t('authentication.email')"
-              density="compact"
-              ref="newContributorEmailInput"
-              :rules="emailRules"
-              :error-messages="newContributorErrorMsg"
-              @input="newContributorErrorMsg = ''"
+  <Dialog v-model:open="dialogModel">
+    <DialogContent
+      class="tw:max-h-[90vh] tw:overflow-y-auto tw:sm:max-w-[600px]"
+    >
+      <DialogHeader>
+        <DialogTitle>{{ project.name }}</DialogTitle>
+      </DialogHeader>
+
+      <Separator />
+
+      <div class="tw:flex tw:flex-col tw:gap-2">
+        <p class="tw:font-bold">
+          {{ $t("projectOverview.contributors") + ": " }}
+        </p>
+        <p
+          v-for="member in project.projectMembers"
+          :key="'member-' + member.id"
+        >
+          {{ member.firstName + " " + member.lastName }}
+          <span class="tw:text-muted-foreground tw:italic">
+            {{ member.role }}
+          </span>
+        </p>
+
+        <div class="tw:mt-2 tw:flex tw:items-start tw:gap-2">
+          <div class="tw:flex tw:flex-1 tw:flex-col tw:gap-1.5">
+            <Input
+              v-model="newMemberEmail"
+              :placeholder="$t('authentication.email')"
+              :aria-invalid="!!newMemberErrorMsg"
+              @input="newMemberErrorMsg = ''"
               @focusout="resetValidation"
+            />
+            <span
+              v-if="newMemberErrorMsg"
+              class="tw:text-destructive tw:text-sm"
             >
-              <template v-slot:append>
-                <v-btn
-                  append-icon="mdi-plus"
-                  :text="$t('projectOverview.addNew')"
-                  @click="addContributor"
-                  variant="tonal"
-                ></v-btn>
-              </template>
-            </v-text-field>
+              {{ newMemberErrorMsg }}
+            </span>
           </div>
+          <Button variant="secondary" type="button" @click="inviteMember">
+            {{ $t("projectOverview.inviteMember") }}
+            <Plus />
+          </Button>
+        </div>
 
-          <div class="card-section">
-            <p class="text-body-1 font-weight-bold">
-              {{ $t("projectOverview.versions") + ": " }}
-            </p>
-            <p
-              v-for="version in project.versions"
-              class="text-body-1 deletable"
-              @click="deleteVersion(project, version)"
-            >
-              {{ version.name }}
-            </p>
-          </div>
+        <div
+          v-if="invitations.length > 0"
+          class="tw:mt-2 tw:flex tw:flex-col tw:gap-2"
+        >
+          <p class="tw:font-bold">
+            {{ $t("projectOverview.pendingInvitations") + ": " }}
+          </p>
+          <TooltipProvider>
+            <ul class="tw:flex tw:flex-col tw:gap-1">
+              <li
+                v-for="invitation in invitations"
+                :key="'invitation-' + invitation.id"
+                class="tw:flex tw:items-center tw:justify-between tw:gap-2"
+              >
+                <div class="tw:flex tw:min-w-0 tw:items-center tw:gap-2">
+                  <span class="tw:truncate">{{ invitation.email }}</span>
+                  <Badge variant="secondary">
+                    {{ $t("projectOverview.invited") }}
+                  </Badge>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      type="button"
+                      @click="revokeInvitation(invitation)"
+                    >
+                      <X />
+                      <span class="tw:sr-only">
+                        {{ $t("projectOverview.revokeInvitation") }}
+                      </span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {{ $t("projectOverview.revokeInvitation") }}
+                  </TooltipContent>
+                </Tooltip>
+              </li>
+            </ul>
+          </TooltipProvider>
+        </div>
+      </div>
 
-          <div class="card-section mb-3">
-            <div class="mb-1">
-              <span class="text-body-1 font-weight-bold">
-                {{ $t("general.createdOn") + ": " }}
-              </span>
-              <span class="text-body-1">
-                {{ formatDate(project.createdAt) }}
-              </span>
-            </div>
-            <div>
-              <span class="text-body-1 font-weight-bold">
-                {{ $t("general.lastModifiedOn") + ": " }}
-              </span>
-              <span class="text-body-1">
-                {{ formatDate(project.modifiedAt) }}
-              </span>
-            </div>
-          </div>
-        </v-card-text>
-        <v-divider />
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="blue-darken-1" variant="text" @click="closeDialog">
-            {{ $t("general.close") }}
-          </v-btn>
-        </v-card-actions>
-      </v-container>
-    </v-card>
-  </v-dialog>
+      <div class="tw:flex tw:flex-col tw:gap-2">
+        <p class="tw:font-bold">{{ $t("projectOverview.versions") + ": " }}</p>
+        <p
+          v-for="version in project.versions"
+          :key="'version-' + version.id"
+          class="tw:w-fit tw:cursor-pointer tw:hover:line-through"
+          @click="deleteVersion(project, version)"
+        >
+          {{ version.name }}
+        </p>
+      </div>
+
+      <div class="tw:flex tw:flex-col tw:gap-1">
+        <div>
+          <span class="tw:font-bold">
+            {{ $t("general.createdOn") + ": " }}
+          </span>
+          <span>{{ formatDate(project.createdAt) }}</span>
+        </div>
+        <div>
+          <span class="tw:font-bold">
+            {{ $t("general.lastModifiedOn") + ": " }}
+          </span>
+          <span>{{ formatDate(project.modifiedAt) }}</span>
+        </div>
+      </div>
+
+      <Separator />
+
+      <DialogFooter>
+        <Button variant="ghost" type="button" @click="closeDialog">
+          {{ $t("general.close") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
-
-<style scoped>
-.card-section {
-  margin: 2rem 0;
-}
-
-.deletable:hover {
-  cursor: pointer;
-  text-decoration: line-through;
-}
-</style>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { Project, ProjectVersion } from "@/components/Home/ProjectOverview.vue";
-import axios, { AxiosError } from "axios";
-import { authHeader } from "@/components/Authentication/authHeader";
+import { PendingInvitation, Project, ProjectVersion } from "@/types/project";
+import { AxiosError } from "axios";
+import * as projectsApi from "@/api/projects";
 import { useAppStore } from "@/store/app";
-import { VTextField } from "vuetify/components";
+import { SnackbarType } from "@/utils/snackbar";
 import { emailRules } from "@/components/Authentication/formValidation";
+import { Plus, X } from "@lucide/vue";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export default defineComponent({
   name: "ProjectDetailDialog",
+
+  components: {
+    Badge,
+    Button,
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Input,
+    Plus,
+    Separator,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    X
+  },
 
   props: {
     showProjectDetailDialog: {
@@ -114,26 +184,41 @@ export default defineComponent({
       type: Number,
       required: true
     },
-    userId: {
-      type: Number
-    },
     projectChangedFlag: {
       type: Boolean,
       required: true
     }
   },
 
+  emits: ["resetProjectChangedFlag", "close", "deleteVersion"],
+
   data: () => ({
+    store: useAppStore(),
     emailRules: emailRules,
-    newContributorEmail: "" as string,
-    newContributorErrorMsg: "" as string,
-    project: {} as Project
+    newMemberEmail: "" as string,
+    newMemberErrorMsg: "" as string,
+    project: {} as Project,
+    invitations: [] as PendingInvitation[]
   }),
+
+  computed: {
+    dialogModel: {
+      get(): boolean {
+        return this.showProjectDetailDialog;
+      },
+      set(value: boolean) {
+        if (!value) {
+          this.$emit("close");
+        }
+      }
+    }
+  },
 
   watch: {
     showProjectDetailDialog(newVal) {
       if (newVal) {
         this.fetchProject();
+        this.fetchInvitations();
       }
     },
     projectChangedFlag(newVal) {
@@ -148,63 +233,97 @@ export default defineComponent({
     closeDialog() {
       this.$emit("close");
     },
+    validateNewMemberEmail(): boolean {
+      for (const rule of this.emailRules) {
+        const result = rule(this.newMemberEmail);
+        if (typeof result === "string") {
+          this.newMemberErrorMsg = result;
+          return false;
+        }
+      }
+      this.newMemberErrorMsg = "";
+      return true;
+    },
     async fetchProject() {
       try {
-        const { data } = await axios.get<Project>(
-          `/api/project/${this.projectDetailId}`,
-          {
-            headers: authHeader()
-          }
-        );
-        this.project = data;
+        this.project = await projectsApi.getProject(this.projectDetailId);
       } catch (error) {
         console.error(error);
       }
     },
+    async fetchInvitations() {
+      try {
+        this.invitations = await projectsApi.getInvitations(
+          this.projectDetailId
+        );
+      } catch (error) {
+        this.invitations = [];
+        // Only owners may list invitations: surface the 403 instead of
+        // silently showing nothing.
+        if ((error as AxiosError).response?.status === 403) {
+          await this.store.showSnackbar(
+            this.$t("projectOverview.errorMessage"),
+            SnackbarType.ERROR
+          );
+        } else {
+          console.error(error);
+        }
+      }
+    },
     formatDate(dateString: string) {
       const locales =
-        useAppStore().getSelectedLanguage() === "de" ? "de-DE" : "en-US";
+        this.store.getSelectedLanguage() === "de" ? "de-DE" : "en-US";
       return new Date(dateString).toLocaleString(locales);
     },
-    async addContributor() {
-      const newContributorEmailInput = this.$refs
-        .newContributorEmailInput as VTextField;
-
-      const errors = await newContributorEmailInput.validate();
-      if (errors.length > 0) {
+    async inviteMember() {
+      if (!this.validateNewMemberEmail()) {
         return;
       }
 
-      let formData = new FormData();
-      formData.append("email", this.newContributorEmail);
-
       try {
-        await axios.post(
-          `/api/project/${this.projectDetailId}/contributor`,
-          formData,
-          {
-            headers: authHeader()
-          }
+        const { status } = await projectsApi.inviteMember(
+          this.projectDetailId,
+          this.newMemberEmail
         );
-        this.newContributorEmail = "";
+        this.newMemberEmail = "";
         this.resetValidation();
-        await this.fetchProject();
-      } catch (error) {
-        const e = error as AxiosError;
-        if (e.response?.status === 404) {
-          this.newContributorErrorMsg = this.$t(
-            "projectOverview.emailNotFound"
+
+        if (status === "INVITATION_PENDING") {
+          // The invitee has no account yet: the invitation is resolved
+          // into a membership on their first sign-in (ADR-0003).
+          await this.store.showSnackbar(
+            this.$t("projectOverview.invitationSent"),
+            SnackbarType.SUCCESS
           );
-          return;
+          await this.fetchInvitations();
+        } else {
+          await this.store.showSnackbar(
+            this.$t("projectOverview.memberAdded"),
+            SnackbarType.SUCCESS
+          );
+          await this.fetchProject();
         }
-        this.newContributorErrorMsg = this.$t("projectOverview.errorMessage");
+      } catch {
+        this.newMemberErrorMsg = this.$t("projectOverview.errorMessage");
+      }
+    },
+    async revokeInvitation(invitation: PendingInvitation) {
+      try {
+        await projectsApi.revokeInvitation(this.projectDetailId, invitation.id);
+        await this.store.showSnackbar(
+          this.$t("projectOverview.invitationRevoked"),
+          SnackbarType.SUCCESS
+        );
+        await this.fetchInvitations();
+      } catch {
+        await this.store.showSnackbar(
+          this.$t("projectOverview.invitationRevokeFailed"),
+          SnackbarType.ERROR
+        );
       }
     },
     resetValidation() {
-      this.newContributorErrorMsg = "";
-      const newContributorEmailInput = this.$refs
-        .newContributorEmailInput as VTextField;
-      newContributorEmailInput.resetValidation();
+      this.newMemberErrorMsg = "";
     },
     deleteVersion(project: Project, version: ProjectVersion) {
       this.$emit("deleteVersion", project, version);

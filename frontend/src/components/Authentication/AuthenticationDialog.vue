@@ -1,49 +1,47 @@
 <template>
-  <v-dialog v-model="showDialog" max-width="500" @click:outside="closeDialog" persistent no-click-animation>
-    <ProfileDialog v-if="selectedDialog === SelectedDialog.PROFILE" :message="message" @showMessage="showMessage"
-                   @removeMessage="removeMessage"/>
-    <EditProfileDialog v-if="selectedDialog === SelectedDialog.EDIT_PROFILE" @showMessage="showMessage"
-                       :message="message" @removeMessage="removeMessage"/>
-    <CreateAccount v-if="selectedDialog === SelectedDialog.CREATE_ACCOUNT" :message="message"
-                   @showMessage="showMessage" @removeMessage="removeMessage"/>
-    <ChangePassword v-if="selectedDialog === SelectedDialog.CHANGE_PW" @showMessage="showMessage" :message="message"
-                    @removeMessage="removeMessage"/>
-  </v-dialog>
+  <Dialog v-model:open="showDialog">
+    <DialogContent
+      class="tw:max-h-[90vh] tw:overflow-y-auto"
+      :show-close-button="false"
+      @escape-key-down="preventEscapeClose"
+    >
+      <ProfileDialog v-if="selectedDialog === SelectedDialog.PROFILE" />
+    </DialogContent>
+  </Dialog>
 </template>
 
-<style scoped>
-@import "authentication.css";
-</style>
-
 <script lang="ts">
-import { defineComponent } from 'vue'
-import EditProfileDialog from "@/components/Authentication/EditProfileDialog.vue";
+import { defineComponent } from "vue";
 import ProfileDialog from "@/components/Authentication/ProfileDialog.vue";
-import CreateAccount from "@/components/Authentication/CreateAccount.vue";
-import ChangePassword from "@/components/Authentication/ChangePassword.vue";
 import { useAppStore } from "@/store/app";
 import { SelectedDialog } from "@/store/app";
-
-export interface Message {
-  message: string,
-  type: 'error' | 'success'
-}
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default defineComponent({
   name: "AuthenticationDialog",
-  components: { ChangePassword, CreateAccount, ProfileDialog, EditProfileDialog },
+  components: {
+    ProfileDialog,
+    Dialog,
+    DialogContent
+  },
 
   data() {
     return {
       SelectedDialog: SelectedDialog,
-      message: { message: '', type: 'error' } as Message,
       store: useAppStore()
-    }
+    };
   },
 
   computed: {
-    showDialog() {
-      return this.store.getSelectedDialog() != SelectedDialog.NONE;
+    showDialog: {
+      get(): boolean {
+        return this.store.getSelectedDialog() != SelectedDialog.NONE;
+      },
+      set(value: boolean) {
+        if (!value) {
+          this.store.setSelectedDialog(SelectedDialog.NONE);
+        }
+      }
     },
     selectedDialog(): SelectedDialog {
       return this.store.getSelectedDialog();
@@ -51,30 +49,10 @@ export default defineComponent({
   },
 
   methods: {
-    showMessage(message: Message) {
-      this.message = message;
-    },
-    removeMessage() {
-      this.message.message = '';
-    },
-    resetMessage() {
-      this.message = { message: '', type: 'error' };
-    },
-    closeDialog() {
-      this.store.setSelectedDialog(SelectedDialog.NONE);
-    }
-  },
-
-  watch: {
-    showDialog() {
-      if (!this.showDialog) {
-        this.resetMessage();
-      }
+    /** The original dialog was `persistent`: ESC did not close it. */
+    preventEscapeClose(event: KeyboardEvent) {
+      event.preventDefault();
     }
   }
-})
+});
 </script>
-
-
-
-

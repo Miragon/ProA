@@ -1,162 +1,188 @@
 <template>
-  <v-card class="pa-5">
-    <v-card-title class="px-0 pt-0">
-      <div class="d-flex align-center">
-        <span>{{ $t("general.myProfile") }}</span>
-        <v-btn variant="text" icon class="ms-auto" @click="closeDialog">
-          <v-icon icon="mdi-close"></v-icon>
-        </v-btn>
+  <div class="tw:flex tw:flex-col tw:gap-4">
+    <DialogHeader>
+      <div class="tw:flex tw:items-center tw:justify-between">
+        <DialogTitle>{{ $t("general.myProfile") }}</DialogTitle>
+        <Button variant="ghost" size="icon" type="button" @click="closeDialog">
+          <X />
+          <span class="tw:sr-only">{{ $t("general.close") }}</span>
+        </Button>
       </div>
-    </v-card-title>
+      <DialogDescription class="tw:sr-only">
+        {{ $t("authentication.profileDescription") }}
+      </DialogDescription>
+    </DialogHeader>
 
-    <v-divider />
+    <Separator />
 
-    <v-alert
-      v-if="message.message !== ''"
-      :type="message.type"
-      closable
-      icon="mdi-check-circle-outline"
-      :text="message.message"
-      @click:close="removeMessage"
-    ></v-alert>
-    <v-card-title class="px-0">
-      <div class="d-flex align-center">
-        <span>{{ user.firstName }} {{ user.lastName }}</span>
-        <v-btn
-          variant="text"
-          class="ms-auto"
-          color="primary"
-          @click="resetMessageAndOpenDialog(SelectedDialog.EDIT_PROFILE)"
-        >
-          {{ $t("authentication.edit") }}
-        </v-btn>
-      </div>
-    </v-card-title>
+    <span class="tw:font-semibold">
+      {{ user.firstName }} {{ user.lastName }}
+    </span>
 
-    <v-card-text class="pa-0 mb-3">
-      <div class="d-flex align-center mb-3">
-        <v-icon icon="mdi-email" class="me-2"></v-icon>
-        <div class="d-flex flex-column">
-          <span class="text-caption">{{ $t("authentication.email") }}</span>
+    <div class="tw:flex tw:flex-col tw:gap-3">
+      <div class="tw:flex tw:items-center tw:gap-2">
+        <Mail class="tw:size-4 tw:shrink-0" />
+        <div class="tw:flex tw:flex-col">
+          <span class="tw:text-muted-foreground tw:text-xs">
+            {{ $t("authentication.email") }}
+          </span>
           <span>{{ user.email }}</span>
         </div>
       </div>
-      <div class="d-flex align-center justify-space-between">
-        <div class="d-flex align-center">
-          <v-icon icon="mdi-key" class="me-2"></v-icon>
-          <div class="d-flex flex-column">
-            <span class="text-caption">{{
-              $t("authentication.password")
-            }}</span>
+      <div class="tw:flex tw:items-center tw:justify-between tw:gap-2">
+        <div class="tw:flex tw:items-center tw:gap-2">
+          <KeyRound class="tw:size-4 tw:shrink-0" />
+          <div class="tw:flex tw:flex-col">
+            <span class="tw:text-muted-foreground tw:text-xs">
+              {{ $t("authentication.password") }}
+            </span>
             <span>************</span>
           </div>
         </div>
-        <div class="d-flex align-center justify-end">
-          <v-btn
-            variant="text"
-            color="primary"
-            @click="resetMessageAndOpenDialog(SelectedDialog.CHANGE_PW)"
-          >
-            {{ $t("authentication.changePassword") }}
-          </v-btn>
-        </div>
+        <Button variant="link" type="button" @click="openAccountConsole">
+          {{ $t("authentication.manageAccount") }}
+          <ExternalLink />
+        </Button>
       </div>
-    </v-card-text>
-
-    <v-card-subtitle class="px-0 mb-1">
-      {{ $t("general.createdOn") }}: {{ getLocaleDate(user.createdAt) }}
-    </v-card-subtitle>
-    <v-card-subtitle class="px-0 mb-1">
-      {{ $t("general.lastModifiedOn") }}: {{ getLocaleDate(user.modifiedAt) }}
-    </v-card-subtitle>
-
-    <div v-if="projects.length > 0">
-      <v-divider class="mt-2" />
-      <v-card-title class="px-0">
-        {{ $t("authentication.projects") }}
-      </v-card-title>
-      <v-table density="compact">
-        <thead>
-          <tr>
-            <th class="text-left">
-              {{ $t("authentication.name") }}
-            </th>
-            <th class="text-left">
-              {{ $t("authentication.version") }}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="project in projects" :key="'project-' + project.id">
-            <td>
-              <v-tooltip location="left">
-                <template v-slot:activator="{ props }">
-                  <v-btn
-                    variant="plain"
-                    color="primary"
-                    v-bind="props"
-                    class="text-none table-btn"
-                    prepend-icon="mdi-folder"
-                    @click="openProject(project.id)"
-                  >
-                    {{ project.name }}
-                  </v-btn>
-                </template>
-                {{ $t("authentication.openProject") }}
-              </v-tooltip>
-            </td>
-            <td class="text-no-wrap">
-              {{ store.getActiveVersionForProject(project.id).name }}
-            </td>
-          </tr>
-        </tbody>
-      </v-table>
+      <p class="tw:text-muted-foreground tw:text-xs">
+        {{ $t("authentication.profileManagedByIdp") }}
+      </p>
     </div>
-  </v-card>
-</template>
 
-<style scoped>
-@import "authentication.css";
-</style>
+    <div
+      class="tw:text-muted-foreground tw:flex tw:flex-col tw:gap-1 tw:text-sm"
+    >
+      <span
+        >{{ $t("general.createdOn") }}:
+        {{ getLocaleDate(user.createdAt) }}</span
+      >
+      <span>
+        {{ $t("general.lastModifiedOn") }}: {{ getLocaleDate(user.modifiedAt) }}
+      </span>
+    </div>
+
+    <div v-if="projects.length > 0" class="tw:flex tw:flex-col tw:gap-2">
+      <Separator />
+      <h3 class="tw:font-semibold">{{ $t("authentication.projects") }}</h3>
+      <TooltipProvider>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{{ $t("authentication.name") }}</TableHead>
+              <TableHead>{{ $t("authentication.version") }}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow
+              v-for="project in projects"
+              :key="'project-' + project.id"
+            >
+              <TableCell>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="link"
+                      type="button"
+                      class="tw:h-auto tw:p-0"
+                      @click="openProject(project.id)"
+                    >
+                      <Folder />
+                      {{ project.name }}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {{ $t("authentication.openProject") }}
+                  </TooltipContent>
+                </Tooltip>
+              </TableCell>
+              <TableCell class="tw:whitespace-nowrap">
+                {{ store.getActiveVersionForProject(project.id).name }}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TooltipProvider>
+    </div>
+  </div>
+</template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { SelectedDialog, useAppStore } from "@/store/app";
-import { Project, UserData } from "@/components/Home/ProjectOverview.vue";
-import axios from "axios";
-import { Message } from "@/components/Authentication/AuthenticationDialog.vue";
-import { authHeader } from "@/components/Authentication/authHeader";
-import getUser from "@/components/userService";
+import { Project } from "@/types/project";
+import { UserData } from "@/types/user";
+import { getProjects } from "@/api/projects";
+import { getCurrentUser } from "@/api/users";
+import { accountConsoleUrl } from "@/auth/config";
+import { ExternalLink, Folder, KeyRound, Mail, X } from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import {
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export default defineComponent({
   name: "ProfileDialog",
 
-  props: {
-    message: {
-      type: Object,
-      required: true
-    }
+  components: {
+    Button,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    ExternalLink,
+    Folder,
+    KeyRound,
+    Mail,
+    Separator,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    X
   },
 
   data() {
     return {
       store: useAppStore(),
       projects: [] as Project[],
-      SelectedDialog: SelectedDialog,
       user: {} as UserData
     };
   },
 
+  async mounted() {
+    this.fetchProjects();
+    if (this.store.getUserToken() != null) this.user = await getCurrentUser();
+  },
+
   methods: {
-    resetMessageAndOpenDialog(selected: SelectedDialog) {
-      this.$emit("showMessage", { message: "", type: "error" } as Message);
-      this.openDialog(selected);
-    },
     closeDialog() {
       this.store.setSelectedDialog(SelectedDialog.NONE);
     },
-    openDialog(dialog: SelectedDialog) {
-      this.store.setSelectedDialog(dialog);
+    /** Profile data (names, email, password) is managed by Keycloak. */
+    openAccountConsole() {
+      window.open(accountConsoleUrl, "_blank", "noopener,noreferrer");
     },
     getLocaleDate(date: string): string {
       const locales =
@@ -169,32 +195,22 @@ export default defineComponent({
       this.$router.push("/ProcessList").then(() => window.location.reload());
     },
     fetchProjects() {
-      axios
-        .get("/api/project", { headers: authHeader() })
-        .then((result: { data: Project[] }) => {
-          const sortProjectsByActiveFirstThenAlphabetically = (
-            project1: Project,
-            project2: Project
-          ): number => {
-            if (project1.id === this.store.selectedProjectId) return -1;
-            if (project2.id === this.store.selectedProjectId) return 1;
+      getProjects().then((projects: Project[]) => {
+        const sortProjectsByActiveFirstThenAlphabetically = (
+          project1: Project,
+          project2: Project
+        ): number => {
+          if (project1.id === this.store.selectedProjectId) return -1;
+          if (project2.id === this.store.selectedProjectId) return 1;
 
-            return project1.name.localeCompare(project2.name);
-          };
+          return project1.name.localeCompare(project2.name);
+        };
 
-          this.projects = result.data.sort(
-            sortProjectsByActiveFirstThenAlphabetically
-          );
-        });
-    },
-    removeMessage() {
-      this.$emit("removeMessage");
+        this.projects = projects.sort(
+          sortProjectsByActiveFirstThenAlphabetically
+        );
+      });
     }
-  },
-
-  async mounted() {
-    this.fetchProjects();
-    if (this.store.getUserToken() != null) this.user = await getUser();
   }
 });
 </script>

@@ -5,7 +5,12 @@ on:
     branches: [ main, develop ]
     paths:
       - 'backend/**'
+      - 'pom.xml'
   workflow_dispatch:
+
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:

@@ -1,120 +1,247 @@
 <template>
-  <v-navigation-drawer
-    v-model="appStore.areSettingsOpened"
-    location="right"
-    temporary
-    width="400"
+  <Sheet
+    :open="appStore.areSettingsOpened"
+    @update:open="appStore.setAreSettingsOpened($event)"
   >
-    <div class="d-flex flex-column ma-3 ms-4">
-      <div class="d-flex align-center">
-        <p class="text-h6">{{ $t('general.settings') }}</p>
-        <v-btn class="ms-auto" variant="text" icon @click="closeSettingsDrawer">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </div>
-      <div class="mt-2">
-        <p class="text-subtitle-1 text-grey-darken-2 mb-1">{{ $t('settingsDrawer.geminiApiKey') }}</p>
-        <v-text-field :label="$t('settingsDrawer.apiKey')" v-model="settings.geminiApiKey"
-                      :type="showApiKey ? 'text' : 'password'"
-                      :append-inner-icon="showApiKey ? 'mdi-eye' : 'mdi-eye-off'"
-                      @click:append-inner="showApiKey = !showApiKey"
-                      :error-messages="apiKeyError" @input="resetMessagesApiKey" :loading="isValidating"
-                      :disabled="isValidating" :messages="apiKeySuccessMsg">
-        </v-text-field>
-      </div>
-      <div class="mt-2">
-        <p class="text-subtitle-1 text-grey-darken-2 mb-1">{{ $t('settingsDrawer.camundaModelerConnection') }}</p>
-        <v-text-field :label="$t('general.clientId')" v-model="settings.modelerClientId" hide-details
-                      class="mb-2"
-                      :error-messages="modelerError" @input="resetMessagesModeler" :loading="isValidating"
-                      :disabled="isValidating">
-        </v-text-field>
-        <v-text-field :loading="isValidating" :disabled="isValidating" :label="$t('general.clientSecret')"
-                      v-model="settings.modelerClientSecret"
-                      :type="showModelerClientSecret ? 'text' : 'password'"
-                      :append-inner-icon="showModelerClientSecret ? 'mdi-eye' : 'mdi-eye-off'"
-                      @click:append-inner="showModelerClientSecret = !showModelerClientSecret"
-                      :error-messages="modelerError" @input="resetMessagesModeler" :messages="modelerSuccessMsg">
-        </v-text-field>
-      </div>
-      <div class="mt-2 mb-4">
-        <p class="text-subtitle-1 text-grey-darken-2 mb-1">{{ $t('settingsDrawer.camundaOperateConnection') }}</p>
-        <v-text-field :label="$t('general.clientId')" v-model="settings.operateClientId"
-                      :error-messages="appStore.operateConnectionError" hide-details
-                      class="mb-2" @input="resetMessagesOperateConnection" :loading="isValidating"
-                      :disabled="isValidating">
-        </v-text-field>
-        <v-text-field :label="$t('general.clientSecret')" v-model="settings.operateClientSecret"
-                      :type="showOperateClientSecret ? 'text' : 'password'"
-                      :append-inner-icon="showOperateClientSecret ? 'mdi-eye' : 'mdi-eye-off'"
-                      @click:append-inner="showOperateClientSecret = !showOperateClientSecret"
-                      :error-messages="appStore.operateConnectionError" @input="resetMessagesOperateConnection"
-                      :loading="isValidating"
-                      :disabled="isValidating" :messages="operateConnectionSuccessMsg">
-        </v-text-field>
-        <v-text-field :label="$t('settingsDrawer.regionId')" v-model="settings.operateRegionId"
-                      :error-messages="appStore.operateClusterError" @input="resetMessagesOperateCluster"
-                      :loading="isValidating"
-                      :disabled="isValidating" hide-details class="mb-2">
-        </v-text-field>
-        <v-text-field :label="$t('settingsDrawer.clusterId')" v-model="settings.operateClusterId"
-                      :error-messages="appStore.operateClusterError" @input="resetMessagesOperateCluster"
-                      :loading="isValidating"
-                      :disabled="isValidating" :messages="operateClusterSuccessMsg">
-        </v-text-field>
-      </div>
-      <div class="d-flex">
-        <div class="mt-3 me-5">
-          <v-btn color="primary" @click="saveSettings">{{ $t('general.save') }}</v-btn>
+    <SheetContent side="right" class="tw:w-[400px] tw:sm:max-w-[400px]">
+      <SheetHeader>
+        <SheetTitle>{{ $t("general.settings") }}</SheetTitle>
+        <SheetDescription class="tw:sr-only">
+          {{ $t("general.settings") }}
+        </SheetDescription>
+      </SheetHeader>
+
+      <div class="tw:flex tw:flex-col tw:gap-4 tw:overflow-y-auto tw:px-4">
+        <div class="tw:flex tw:flex-col tw:gap-2">
+          <p class="tw:text-muted-foreground tw:text-sm tw:font-medium">
+            {{ $t("settingsDrawer.camundaModelerConnection") }}
+          </p>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label for="modeler-client-id">{{ $t("general.clientId") }}</Label>
+            <Input
+              id="modeler-client-id"
+              v-model="settings.modelerClientId"
+              :aria-invalid="!!modelerError"
+              :disabled="isValidating"
+              @input="resetMessagesModeler"
+            />
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label for="modeler-client-secret">
+              {{ $t("general.clientSecret") }}
+            </Label>
+            <div class="tw:relative">
+              <Input
+                id="modeler-client-secret"
+                v-model="settings.modelerClientSecret"
+                :type="showModelerClientSecret ? 'text' : 'password'"
+                :aria-invalid="!!modelerError"
+                :disabled="isValidating"
+                class="tw:pr-9"
+                @input="resetMessagesModeler"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                class="tw:absolute tw:top-1/2 tw:right-1 tw:-translate-y-1/2"
+                @click="showModelerClientSecret = !showModelerClientSecret"
+              >
+                <Eye v-if="showModelerClientSecret" />
+                <EyeOff v-else />
+              </Button>
+            </div>
+            <span v-if="modelerError" class="tw:text-destructive tw:text-sm">
+              {{ modelerError }}
+            </span>
+            <span
+              v-else-if="modelerSuccessMsg"
+              class="tw:text-muted-foreground tw:text-sm"
+            >
+              {{ modelerSuccessMsg }}
+            </span>
+          </div>
         </div>
-        <div class="mt-3">
-          <v-tooltip v-if="!isWebVersion" :text="$t('settingsDrawer.resetToEnvVariables')" location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" color="grey" @click="resetSettings">{{ $t('settingsDrawer.reset') }}</v-btn>
-            </template>
-          </v-tooltip>
-          <v-btn v-else color="grey" @click="resetSettings">{{ $t('settingsDrawer.reset') }}</v-btn>
+
+        <div class="tw:flex tw:flex-col tw:gap-2">
+          <p class="tw:text-muted-foreground tw:text-sm tw:font-medium">
+            {{ $t("settingsDrawer.camundaOperateConnection") }}
+          </p>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label for="operate-client-id">{{ $t("general.clientId") }}</Label>
+            <Input
+              id="operate-client-id"
+              v-model="settings.operateClientId"
+              :aria-invalid="!!appStore.operateConnectionError"
+              :disabled="isValidating"
+              @input="resetMessagesOperateConnection"
+            />
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label for="operate-client-secret">
+              {{ $t("general.clientSecret") }}
+            </Label>
+            <div class="tw:relative">
+              <Input
+                id="operate-client-secret"
+                v-model="settings.operateClientSecret"
+                :type="showOperateClientSecret ? 'text' : 'password'"
+                :aria-invalid="!!appStore.operateConnectionError"
+                :disabled="isValidating"
+                class="tw:pr-9"
+                @input="resetMessagesOperateConnection"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                class="tw:absolute tw:top-1/2 tw:right-1 tw:-translate-y-1/2"
+                @click="showOperateClientSecret = !showOperateClientSecret"
+              >
+                <Eye v-if="showOperateClientSecret" />
+                <EyeOff v-else />
+              </Button>
+            </div>
+            <span
+              v-if="appStore.operateConnectionError"
+              class="tw:text-destructive tw:text-sm"
+            >
+              {{ appStore.operateConnectionError }}
+            </span>
+            <span
+              v-else-if="operateConnectionSuccessMsg"
+              class="tw:text-muted-foreground tw:text-sm"
+            >
+              {{ operateConnectionSuccessMsg }}
+            </span>
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label for="operate-region-id">
+              {{ $t("settingsDrawer.regionId") }}
+            </Label>
+            <Input
+              id="operate-region-id"
+              v-model="settings.operateRegionId"
+              :aria-invalid="!!appStore.operateClusterError"
+              :disabled="isValidating"
+              @input="resetMessagesOperateCluster"
+            />
+          </div>
+          <div class="tw:flex tw:flex-col tw:gap-1.5">
+            <Label for="operate-cluster-id">
+              {{ $t("settingsDrawer.clusterId") }}
+            </Label>
+            <Input
+              id="operate-cluster-id"
+              v-model="settings.operateClusterId"
+              :aria-invalid="!!appStore.operateClusterError"
+              :disabled="isValidating"
+              @input="resetMessagesOperateCluster"
+            />
+            <span
+              v-if="appStore.operateClusterError"
+              class="tw:text-destructive tw:text-sm"
+            >
+              {{ appStore.operateClusterError }}
+            </span>
+            <span
+              v-else-if="operateClusterSuccessMsg"
+              class="tw:text-muted-foreground tw:text-sm"
+            >
+              {{ operateClusterSuccessMsg }}
+            </span>
+          </div>
+        </div>
+
+        <div class="tw:flex tw:items-center tw:gap-3">
+          <Button :disabled="isValidating" @click="saveSettings">
+            <Loader2 v-if="isValidating" class="tw:animate-spin" />
+            {{ $t("general.save") }}
+          </Button>
+          <TooltipProvider>
+            <Tooltip v-if="!isWebVersion">
+              <TooltipTrigger as-child>
+                <Button
+                  variant="secondary"
+                  :disabled="isValidating"
+                  @click="resetSettings"
+                >
+                  {{ $t("settingsDrawer.reset") }}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {{ $t("settingsDrawer.resetToEnvVariables") }}
+              </TooltipContent>
+            </Tooltip>
+            <Button
+              v-else
+              variant="secondary"
+              :disabled="isValidating"
+              @click="resetSettings"
+            >
+              {{ $t("settingsDrawer.reset") }}
+            </Button>
+          </TooltipProvider>
         </div>
       </div>
-    </div>
-  </v-navigation-drawer>
+    </SheetContent>
+  </Sheet>
 </template>
 
-<style scoped>
-
-</style>
-
 <script lang="ts">
-import { defineComponent } from 'vue'
+import { defineComponent } from "vue";
 import { useAppStore } from "@/store/app";
-import axios from "axios";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import i18n from "@/i18n";
-import { authHeader } from "@/components/Authentication/authHeader";
-
-export interface Settings {
-  geminiApiKey: string;
-  modelerClientId: string;
-  modelerClientSecret: string;
-  operateClientId: string;
-  operateClientSecret: string;
-  operateRegionId: string;
-  operateClusterId: string;
-}
+import { getSettings, persistSettings } from "@/api/settings";
+import * as camundaCloudApi from "@/api/camundaCloud";
+import { Settings } from "@/types/settings";
+import { SnackbarType } from "@/utils/snackbar";
+import { Eye, EyeOff, Loader2 } from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 export default defineComponent({
-  name: "SettingsDrawer.vue",
+  name: "SettingsDrawer",
+
+  components: {
+    Button,
+    Eye,
+    EyeOff,
+    Input,
+    Label,
+    Loader2,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger
+  },
 
   data: () => ({
     appStore: useAppStore(),
     settings: {} as Settings,
     settingsToBeSaved: {} as Settings,
-    showApiKey: false,
     showModelerClientSecret: false,
     showOperateClientSecret: false,
-    apiKeyError: "",
     modelerError: "",
-    apiKeySuccessMsg: "",
     modelerSuccessMsg: "",
     operateConnectionSuccessMsg: "",
     operateClusterSuccessMsg: "",
@@ -125,6 +252,12 @@ export default defineComponent({
   computed: {
     isUserLoggedIn() {
       return this.appStore.getUserToken() !== null;
+    }
+  },
+
+  watch: {
+    "appStore.areSettingsOpened"() {
+      this.handleAfterToggle();
     }
   },
 
@@ -143,77 +276,69 @@ export default defineComponent({
     },
     resetSettings() {
       this.settings = {
-        geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || "",
         modelerClientId: import.meta.env.VITE_MODELER_CLIENT_ID || "",
         modelerClientSecret: import.meta.env.VITE_MODELER_CLIENT_SECRET || "",
         operateClientId: import.meta.env.VITE_OPERATE_CLIENT_ID || "",
         operateClientSecret: import.meta.env.VITE_OPERATE_CLIENT_SECRET || "",
-        operateRegionId: import.meta.env.VITE_OPERATE_REGION || "",
+        operateRegionId: import.meta.env.VITE_OPERATE_REGION_ID || "",
         operateClusterId: import.meta.env.VITE_OPERATE_CLUSTER_ID || ""
-      }
+      };
     },
     async saveSettings() {
-      const doSettingsExist = async () => {
-        const result = await axios.get(
-          '/api/settings',
-          { headers: authHeader() }
-        );
-        return !!result.data;
-      }
-
       const areSettingsValid = await this.validateSettings();
 
-      if (await doSettingsExist()) {
-        await axios.patch(
-          '/api/settings',
-          this.settingsToBeSaved,
-          {
-            headers: {
-              ...authHeader(),
-              'Content-Type': 'application/json'
-            }
-          });
-      } else {
-        await axios.post(
-          '/api/settings',
-          this.settingsToBeSaved,
-          {
-            headers: {
-              ...authHeader(),
-              'Content-Type': 'application/json'
-            }
-          });
+      try {
+        await persistSettings(this.settingsToBeSaved);
+      } catch {
+        await this.appStore.showSnackbar(
+          this.$t("settingsDrawer.saveErrorMsg"),
+          SnackbarType.ERROR
+        );
+        return;
       }
 
       if (areSettingsValid) {
         this.closeSettingsDrawer();
       } else {
-        if (this.settingsToBeSaved.geminiApiKey) this.apiKeySuccessMsg = this.$t('settingsDrawer.savedSuccessfully');
-        if (this.settingsToBeSaved.modelerClientSecret) this.modelerSuccessMsg = this.$t('settingsDrawer.savedSuccessfully');
-        if (this.settingsToBeSaved.operateClientSecret) this.operateConnectionSuccessMsg = this.$t('settingsDrawer.savedSuccessfully');
-        if (this.settingsToBeSaved.operateClusterId) this.operateClusterSuccessMsg = this.$t('settingsDrawer.savedSuccessfully');
+        if (this.settingsToBeSaved.modelerClientSecret)
+          this.modelerSuccessMsg = this.$t("settingsDrawer.savedSuccessfully");
+        if (this.settingsToBeSaved.operateClientSecret)
+          this.operateConnectionSuccessMsg = this.$t(
+            "settingsDrawer.savedSuccessfully"
+          );
+        if (this.settingsToBeSaved.operateClusterId)
+          this.operateClusterSuccessMsg = this.$t(
+            "settingsDrawer.savedSuccessfully"
+          );
       }
     },
     async validateSettings(): Promise<boolean> {
       const languages = i18n.global.availableLocales;
       this.isValidating = true;
-      const operateConnectionInvalidMsgs =
-        languages.map(lang => i18n.global.getLocaleMessage(lang).settingsDrawer.operateConnectionInvalidMsg);
+      const operateConnectionInvalidMsgs = languages.map(
+        (lang) =>
+          i18n.global.getLocaleMessage(lang).settingsDrawer
+            .operateConnectionInvalidMsg
+      );
       const operateConnectionError = this.appStore.getOperateConnectionError();
-      const operateClusterInvalidMsgs =
-        languages.map(lang => i18n.global.getLocaleMessage(lang).settingsDrawer.operateClusterInvalidMsg);
+      const operateClusterInvalidMsgs = languages.map(
+        (lang) =>
+          i18n.global.getLocaleMessage(lang).settingsDrawer
+            .operateClusterInvalidMsg
+      );
       const operateClusterError = this.appStore.getOperateClusterError();
       this.resetValidation();
 
-      const [isAPIKeyValid, isModelerConnectionValid, {
-        valid: isOperateConnectionValid,
-        token: operateToken
-      }] = await Promise.all([
-        this.validateAPIKey(),
+      const [
+        isModelerConnectionValid,
+        { valid: isOperateConnectionValid, token: operateToken }
+      ] = await Promise.all([
         this.validateModelerConnection(),
         this.validateOperateConnection()
       ]);
-      const isOperateClusterValid = await this.validateOperateClusterId(operateToken || '');
+      const isOperateClusterValid = await this.validateOperateClusterId(
+        operateToken || ""
+      );
       this.isValidating = false;
 
       if (!operateConnectionInvalidMsgs.includes(operateConnectionError)) {
@@ -226,23 +351,29 @@ export default defineComponent({
 
       this.settingsToBeSaved = { ...this.settings };
 
-      if (!isAPIKeyValid || !isModelerConnectionValid || !isOperateConnectionValid || !isOperateClusterValid) {
-        if (!isAPIKeyValid) {
-          this.apiKeyError = this.$t('settingsDrawer.apiKeyInvalidMsg');
-          this.settingsToBeSaved.geminiApiKey = "";
-        }
+      if (
+        !isModelerConnectionValid ||
+        !isOperateConnectionValid ||
+        !isOperateClusterValid
+      ) {
         if (!isModelerConnectionValid) {
-          this.modelerError = this.$t('settingsDrawer.modelerConnectionInvalidMsg');
+          this.modelerError = this.$t(
+            "settingsDrawer.modelerConnectionInvalidMsg"
+          );
           this.settingsToBeSaved.modelerClientId = "";
           this.settingsToBeSaved.modelerClientSecret = "";
         }
         if (!isOperateConnectionValid) {
-          this.appStore.setOperateConnectionError(this.$t('settingsDrawer.operateConnectionInvalidMsg'));
+          this.appStore.setOperateConnectionError(
+            this.$t("settingsDrawer.operateConnectionInvalidMsg")
+          );
           this.settingsToBeSaved.operateClientId = "";
           this.settingsToBeSaved.operateClientSecret = "";
         }
         if (!isOperateClusterValid) {
-          this.appStore.setOperateClusterError(this.$t('settingsDrawer.operateClusterInvalidMsg'));
+          this.appStore.setOperateClusterError(
+            this.$t("settingsDrawer.operateClusterInvalidMsg")
+          );
           this.settingsToBeSaved.operateRegionId = "";
           this.settingsToBeSaved.operateClusterId = "";
         }
@@ -250,47 +381,34 @@ export default defineComponent({
       }
       return true;
     },
-    async validateAPIKey(): Promise<boolean> {
-      const { geminiApiKey } = this.settings;
-      if (!geminiApiKey) {
-        return true;
-      }
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      try {
-        await model.generateContent("write yes")
-        return true;
-      } catch (error) {
-        return false;
-      }
-    },
     async validateModelerConnection(): Promise<boolean> {
       const { modelerClientId, modelerClientSecret } = this.settings;
       if (!modelerClientId && !modelerClientSecret) return true;
       if (!modelerClientId || !modelerClientSecret) return false;
       try {
-        await axios.post("/api/camunda-cloud/token", {
-          "client_id": modelerClientId,
-          "client_secret": modelerClientSecret,
-        }, { headers: authHeader() });
+        await camundaCloudApi.fetchToken(modelerClientId, modelerClientSecret);
         return true;
-      } catch (error) {
+      } catch {
         return false;
       }
     },
-    async validateOperateConnection(): Promise<{ valid: boolean, token: string | null }> {
+    async validateOperateConnection(): Promise<{
+      valid: boolean;
+      token: string | null;
+    }> {
       const { operateClientId, operateClientSecret } = this.settings;
-      if (!operateClientId && !operateClientSecret) return { valid: true, token: null };
-      if (!operateClientId || !operateClientSecret) return { valid: false, token: null };
+      if (!operateClientId && !operateClientSecret)
+        return { valid: true, token: null };
+      if (!operateClientId || !operateClientSecret)
+        return { valid: false, token: null };
       try {
-        const result = await axios.post("/api/camunda-cloud/token", {
-          "client_id": operateClientId,
-          "client_secret": operateClientSecret,
-          "audience": "operate.camunda.io"
-        }, { headers: authHeader() });
-        return { valid: true, token: result.data };
-      } catch (error) {
+        const token = await camundaCloudApi.fetchToken(
+          operateClientId,
+          operateClientSecret,
+          "operate.camunda.io"
+        );
+        return { valid: true, token };
+      } catch {
         return { valid: false, token: null };
       }
     },
@@ -299,54 +417,51 @@ export default defineComponent({
       if (!operateRegionId && !operateClusterId) return true;
       if (!operateRegionId || !operateClusterId) return false;
       try {
-        await axios.post("/api/camunda-cloud/process-instances", {
-          "token": operateToken,
-          "regionId": this.settings.operateRegionId,
-          "clusterId": this.settings.operateClusterId
-        }, { headers: authHeader() });
+        await camundaCloudApi.fetchProcessInstances({
+          token: operateToken,
+          regionId: this.settings.operateRegionId,
+          clusterId: this.settings.operateClusterId
+        });
         return true;
-      } catch (error) {
+      } catch {
         return false;
       }
     },
     async resetSettingsBar() {
       await this.fetchSettings();
       this.resetValidation();
-      this.showApiKey = false;
       this.showModelerClientSecret = false;
       this.showOperateClientSecret = false;
     },
     resetValidation() {
-      this.apiKeyError = "";
       this.modelerError = "";
-      this.appStore.setOperateClusterError('');
+      this.appStore.setOperateClusterError("");
       this.appStore.setOperateConnectionError("");
     },
     async fetchSettings() {
       if (this.isWebVersion && !this.isUserLoggedIn) {
         return;
       }
-      await axios.get(
-        '/api/settings',
-        { headers: authHeader() }
-      ).then(result => {
-        this.settings = result.data || {} as Settings;
-      });
+      this.settings = (await getSettings()) ?? ({} as Settings);
 
-      this.settings.geminiApiKey = this.settings.geminiApiKey || import.meta.env.VITE_GEMINI_API_KEY;
-      this.settings.modelerClientId = this.settings.modelerClientId || import.meta.env.VITE_MODELER_CLIENT_ID;
-      this.settings.modelerClientSecret = this.settings.modelerClientSecret || import.meta.env.VITE_MODELER_CLIENT_SECRET;
-      this.settings.operateClientId = this.settings.operateClientId || import.meta.env.VITE_OPERATE_CLIENT_ID;
-      this.settings.operateClientSecret = this.settings.operateClientSecret || import.meta.env.VITE_OPERATE_CLIENT_SECRET;
-      this.settings.operateRegionId = this.settings.operateRegionId || import.meta.env.VITE_OPERATE_REGION_ID;
-      this.settings.operateClusterId = this.settings.operateClusterId || import.meta.env.VITE_OPERATE_CLUSTER_ID;
+      this.settings.modelerClientId =
+        this.settings.modelerClientId || import.meta.env.VITE_MODELER_CLIENT_ID;
+      this.settings.modelerClientSecret =
+        this.settings.modelerClientSecret ||
+        import.meta.env.VITE_MODELER_CLIENT_SECRET;
+      this.settings.operateClientId =
+        this.settings.operateClientId || import.meta.env.VITE_OPERATE_CLIENT_ID;
+      this.settings.operateClientSecret =
+        this.settings.operateClientSecret ||
+        import.meta.env.VITE_OPERATE_CLIENT_SECRET;
+      this.settings.operateRegionId =
+        this.settings.operateRegionId || import.meta.env.VITE_OPERATE_REGION_ID;
+      this.settings.operateClusterId =
+        this.settings.operateClusterId ||
+        import.meta.env.VITE_OPERATE_CLUSTER_ID;
     },
     closeSettingsDrawer() {
       this.appStore.setAreSettingsOpened(false);
-    },
-    resetMessagesApiKey() {
-      this.apiKeyError = "";
-      this.apiKeySuccessMsg = "";
     },
     resetMessagesModeler() {
       this.modelerError = "";
@@ -360,12 +475,8 @@ export default defineComponent({
       this.appStore.setOperateClusterError("");
       this.operateClusterSuccessMsg = "";
     }
-  },
-
-  watch: {
-    'appStore.areSettingsOpened'() {
-      this.handleAfterToggle();
-    }
   }
 });
 </script>
+
+<style scoped></style>

@@ -1,28 +1,34 @@
 package de.envite.proa.repository;
 
-import de.envite.proa.entities.authentication.User;
+import de.envite.proa.entities.authentication.Role;
 import de.envite.proa.entities.datastore.DataAccess;
 import de.envite.proa.entities.process.*;
 import de.envite.proa.entities.processmap.ProcessMap;
 import de.envite.proa.entities.project.AccessDeniedException;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
-import de.envite.proa.repository.authentication.AuthenticationRepositoryImpl;
 import de.envite.proa.repository.processmap.ProcessMapRepositoryImpl;
 import de.envite.proa.repository.processmodel.ProcessmodelRepositoryImpl;
 import de.envite.proa.repository.project.ProjectRepositoryImpl;
-import de.envite.proa.repository.user.UserRepositoryImpl;
-import de.envite.proa.usecases.authentication.exceptions.EmailAlreadyRegisteredException;
+import de.envite.proa.repository.tables.UserTable;
+import de.envite.proa.repository.user.UserDao;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import jakarta.transaction.UserTransaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -30,8 +36,6 @@ import static org.assertj.core.api.Assertions.*;
 class RepositoryIntegrationTest {
 	private static final String USER_EMAIL_1 = "email1@example.com";
 	private static final String USER_EMAIL_2 = "email2@example.com";
-	private static final String USER_PASSWORD = "P@ssword123";
-	private static final String USER_ROLE = "User";
 	private static final String DATA_STORE_LABEL = "DataStore Label";
 	private static final String DATA_STORE_ID = "dataStoreId";
 	private static final String EVENT_LABEL = "common event label";
@@ -45,7 +49,7 @@ class RepositoryIntegrationTest {
 	private static final String PROJECT_NAME_2 = "Project Name 2";
 	private static final String PROJECT_VERSION_2 = "2.0";
 	@Inject
-	UserRepositoryImpl userRepositoryImpl;
+	UserDao userDao;
 
 	@Inject
 	private EntityManager entityManager;
@@ -60,7 +64,7 @@ class RepositoryIntegrationTest {
 	private ProjectRepositoryImpl projectRepository;
 
 	@Inject
-	private AuthenticationRepositoryImpl authenticationRepository;
+	UserTransaction userTransaction;
 
 	@Test
 	void testSaveAndGetProcessModel() {
@@ -282,7 +286,7 @@ class RepositoryIntegrationTest {
 	}
 
 	@Test
-	void testDeleteProjectVersionWithUser() throws EmailAlreadyRegisteredException, AccessDeniedException, NoResultException {
+	void testDeleteProjectVersionWithUser() throws AccessDeniedException, NoResultException {
 		// Arrange
 		ProcessModel model = new ProcessModel();
 		model.setName(PROCESS_MODEL_NAME);
@@ -293,14 +297,7 @@ class RepositoryIntegrationTest {
 		dataStore.setLabel(DATA_STORE_LABEL);
 		model.setDataStores(Collections.singletonList(dataStore));
 
-		User user = new User();
-		user.setEmail(USER_EMAIL_1);
-		user.setPassword(USER_PASSWORD);
-		user.setRole(USER_ROLE);
-
-		authenticationRepository.register(user);
-		User fetchedUser = userRepositoryImpl.findByEmail(USER_EMAIL_1);
-		Long userId = fetchedUser.getId();
+		Long userId = createUser(USER_EMAIL_1);
 
 		Project project = projectRepository.createProject(userId, PROJECT_NAME, PROJECT_VERSION);
 		Long projectVersionId = project.getVersions().stream().findFirst().get().getId();
@@ -329,23 +326,10 @@ class RepositoryIntegrationTest {
 	}
 
 	@Test
-	void testDeleteProjectVersionWithProjectNotBelongingToUser() throws EmailAlreadyRegisteredException {
+	void testDeleteProjectVersionWithProjectNotBelongingToUser() {
 		// Arrange
-		User user1 = new User();
-		user1.setEmail(USER_EMAIL_1);
-		user1.setPassword(USER_PASSWORD);
-		user1.setRole(USER_ROLE);
-
-		User user2 = new User();
-		user2.setEmail(USER_EMAIL_2);
-		user2.setPassword(USER_PASSWORD);
-		user2.setRole(USER_ROLE);
-
-		authenticationRepository.register(user1);
-		authenticationRepository.register(user2);
-
-		Long userId1 = userRepositoryImpl.findByEmail(USER_EMAIL_1).getId();
-		Long userId2 = userRepositoryImpl.findByEmail(USER_EMAIL_2).getId();
+		Long userId1 = createUser(USER_EMAIL_1);
+		Long userId2 = createUser(USER_EMAIL_2);
 
 		Project project = projectRepository.createProject(userId1, PROJECT_NAME, PROJECT_VERSION);
 
@@ -353,6 +337,162 @@ class RepositoryIntegrationTest {
 		assertThatThrownBy(() -> projectRepository.removeVersion(userId2, project.getId(), project.getVersions().stream().findFirst().get().getId()))
 				.isInstanceOf(AccessDeniedException.class);
 		assertThat(projectRepository.getProjects(userId1)).hasSize(1);
+	}
+
+	@Test
+	void testDeleteNonLastProjectVersionWithUser() throws AccessDeniedException, NoResultException {
+		// Arrange
+		Long userId = createUser(USER_EMAIL_1);
+		Project project = projectRepository.createProject(userId, PROJECT_NAME, PROJECT_VERSION);
+		Long firstVersionId = project.getVersions().stream().findFirst().get().getId();
+		Long secondVersionId = projectRepository.addVersion(userId, project.getId(), PROJECT_VERSION_2).getId();
+		processModelRepository.saveProcessModel(secondVersionId, processModelWithDataStore());
+
+		// Act
+		projectRepository.removeVersion(userId, project.getId(), secondVersionId);
+
+		// Assert
+		assertThat(projectRepository.getProject(userId, project.getId()).getVersions())//
+				.extracting("id")//
+				.containsExactly(firstVersionId);
+		assertThat(countVersionRows(secondVersionId)).isZero();
+		assertThat(countProcessModelRows(secondVersionId)).isZero();
+	}
+
+	@Test
+	void testDeleteNonLastProjectVersionWithoutUser() throws NoResultException {
+		// Arrange
+		Project project = projectRepository.createProject(PROJECT_NAME, PROJECT_VERSION);
+		Long firstVersionId = project.getVersions().stream().findFirst().get().getId();
+		Long secondVersionId = projectRepository.addVersion(project.getId(), PROJECT_VERSION_2).getId();
+		processModelRepository.saveProcessModel(secondVersionId, processModelWithDataStore());
+
+		// Act
+		projectRepository.removeVersion(project.getId(), secondVersionId);
+
+		// Assert
+		assertThat(projectRepository.getProject(project.getId()).getVersions())//
+				.extracting("id")//
+				.containsExactly(firstVersionId);
+		assertThat(countVersionRows(secondVersionId)).isZero();
+		assertThat(countProcessModelRows(secondVersionId)).isZero();
+	}
+
+	@Test
+	void testDeleteProjectVersionOfForeignProjectWithUser() {
+		// Arrange: the attacker owns a project, the victim owns another one
+		Long attackerId = createUser(USER_EMAIL_1);
+		Long victimId = createUser(USER_EMAIL_2);
+		Project attackerProject = projectRepository.createProject(attackerId, PROJECT_NAME, PROJECT_VERSION);
+		Project victimProject = projectRepository.createProject(victimId, PROJECT_NAME_2, PROJECT_VERSION);
+		Long victimFirstVersionId = victimProject.getVersions().stream().findFirst().get().getId();
+		Long victimSecondVersionId = projectRepository.addVersion(victimId, victimProject.getId(), PROJECT_VERSION_2)
+				.getId();
+		processModelRepository.saveProcessModel(victimSecondVersionId, processModelWithDataStore());
+
+		// Act & Assert: owning the project in the path must not allow deleting a foreign version
+		assertThatThrownBy(
+				() -> projectRepository.removeVersion(attackerId, attackerProject.getId(), victimSecondVersionId))
+				.isInstanceOf(NoResultException.class);
+		assertThatThrownBy(
+				() -> projectRepository.removeVersion(attackerId, attackerProject.getId(), victimFirstVersionId))
+				.isInstanceOf(NoResultException.class);
+
+		assertThat(projectRepository.getProject(victimId, victimProject.getId()).getVersions())//
+				.extracting("id")//
+				.containsExactlyInAnyOrder(victimFirstVersionId, victimSecondVersionId);
+		assertThat(countProcessModelRows(victimSecondVersionId)).isOne();
+		assertThat(projectRepository.getProjects(attackerId)).hasSize(1);
+	}
+
+	@Test
+	void testDeleteProjectVersionOfForeignProjectWithoutUser() {
+		// Arrange
+		Project project = projectRepository.createProject(PROJECT_NAME, PROJECT_VERSION);
+		Project otherProject = projectRepository.createProject(PROJECT_NAME_2, PROJECT_VERSION);
+		Long otherVersionId = otherProject.getVersions().stream().findFirst().get().getId();
+
+		// Act & Assert
+		assertThatThrownBy(() -> projectRepository.removeVersion(project.getId(), otherVersionId))
+				.isInstanceOf(NoResultException.class);
+		assertThat(projectRepository.getProjects()).hasSize(2);
+		assertThat(countVersionRows(otherVersionId)).isOne();
+	}
+
+	@Test
+	void testConcurrentDeletionOfTheLastTwoVersions_DeletesTheProject() throws Exception {
+		// Arrange
+		Project project = projectRepository.createProject(PROJECT_NAME, PROJECT_VERSION);
+		Long firstVersionId = project.getVersions().stream().findFirst().get().getId();
+		Long secondVersionId = projectRepository.addVersion(project.getId(), PROJECT_VERSION_2).getId();
+
+		CountDownLatch firstRemoved = new CountDownLatch(1);
+		CountDownLatch commitFirst = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		try {
+			// Act: the first deletion holds its transaction open while the second one starts
+			Future<?> first = executor.submit(() -> {
+				userTransaction.begin();
+				projectRepository.removeVersion(project.getId(), firstVersionId);
+				firstRemoved.countDown();
+				commitFirst.await(10, TimeUnit.SECONDS);
+				userTransaction.commit();
+				return null;
+			});
+			if (!firstRemoved.await(10, TimeUnit.SECONDS)) {
+				first.get(1, TimeUnit.SECONDS); // surfaces the worker's exception
+			}
+			Future<?> second = executor.submit(() -> {
+				userTransaction.begin();
+				projectRepository.removeVersion(project.getId(), secondVersionId);
+				userTransaction.commit();
+				return null;
+			});
+			// Give the second deletion time to reach the project lock before the first commits
+			Thread.sleep(300);
+			commitFirst.countDown();
+			first.get(10, TimeUnit.SECONDS);
+			second.get(10, TimeUnit.SECONDS);
+		} finally {
+			executor.shutdownNow();
+		}
+
+		// Assert: no project without versions is left behind
+		assertThat(projectRepository.getProjects()).isEmpty();
+	}
+
+	private ProcessModel processModelWithDataStore() {
+		ProcessModel model = new ProcessModel();
+		model.setName(PROCESS_MODEL_NAME);
+
+		ProcessDataStore dataStore = new ProcessDataStore();
+		dataStore.setAccess(DataAccess.READ);
+		dataStore.setElementId(DATA_STORE_ID);
+		dataStore.setLabel(DATA_STORE_LABEL);
+		model.setDataStores(Collections.singletonList(dataStore));
+		return model;
+	}
+
+	private Long countVersionRows(Long versionId) {
+		return entityManager//
+				.createQuery("SELECT COUNT(v) FROM ProjectVersionTable v WHERE v.id = :id", Long.class)//
+				.setParameter("id", versionId)//
+				.getSingleResult();
+	}
+
+	private Long countProcessModelRows(Long versionId) {
+		return entityManager//
+				.createQuery("SELECT COUNT(p) FROM ProcessModelTable p WHERE p.project.id = :id", Long.class)//
+				.setParameter("id", versionId)//
+				.getSingleResult();
+	}
+
+	private Long createUser(String email) {
+		UserTable user = new UserTable();
+		user.setEmail(email);
+		user.setRole(Role.User);
+		user.setCreatedAt(LocalDateTime.now());
+		return userDao.save(user).getId();
 	}
 
 	/**

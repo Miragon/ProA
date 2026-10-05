@@ -4,7 +4,10 @@ import de.envite.proa.entities.process.ProcessDetails;
 import de.envite.proa.entities.process.ProcessInformation;
 import de.envite.proa.usecases.processmodel.ProcessModelUsecase;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
+import org.camunda.bpm.model.xml.ModelParseException;
 import org.jboss.resteasy.reactive.RestResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,10 +16,13 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 public class ProcessModelResourceTest {
@@ -30,12 +36,19 @@ public class ProcessModelResourceTest {
 	private static final boolean IS_COLLABORATION = true;
 	private static final Long NEW_PROCESS_ID = 123L;
 	private static final String TEST_DIAGRAM = "test-diagram.bpmn";
+	private static final String XML_WITH_DOCTYPE = """
+			<?xml version="1.0"?>
+			<!DOCTYPE definitions [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+			<definitions>&xxe;</definitions>""";
 
 	@Mock
 	private ProcessModelUsecase usecase;
 
 	@Mock
 	private FileService fileService;
+
+	@Mock
+	private ProjectAccessVerifier projectAccessVerifier;
 
 	@InjectMocks
 	ProcessModelResource resource;
@@ -65,8 +78,13 @@ public class ProcessModelResourceTest {
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION, IS_COLLABORATION);
+		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
 	}
 
+	/**
+	 * Unexpected exceptions now propagate out of the resource and are turned into a 500
+	 * response by the generic exception mapper in de.envite.proa.rest.mappers.
+	 */
 	@Test
 	public void testUploadProcessModel_InternalError()
 			throws CantReplaceWithCollaborationException {
@@ -77,15 +95,82 @@ public class ProcessModelResourceTest {
 		doThrow(RuntimeException.class).when(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML,
 				DESCRIPTION, IS_COLLABORATION);
 
-		Response response = resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
-				DESCRIPTION, IS_COLLABORATION);
-
-		assertThat(response).isNotNull();
-		assertThat(response.getStatus()).isEqualTo(500);
-		assertThat(response.getEntity()).isNull();
+		assertThrows(RuntimeException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION, IS_COLLABORATION);
+	}
+
+	/**
+	 * The resource no longer pre-scans uploads for DOCTYPE (a substring scan falsely rejected
+	 * inert occurrences inside CDATA sections or XML comments). Real DOCTYPE declarations are
+	 * rejected by the hardened BPMN parser inside the usecase (XXE protection, see
+	 * BpmnOperationsTest); the resulting {@link ModelParseException} propagates out of the
+	 * resource and is turned into a 400 response by
+	 * {@link de.envite.proa.rest.mappers.ModelParseExceptionMapper} (asserted in
+	 * ExceptionMappersTest).
+	 */
+	@Test
+	public void testUploadProcessModel_WithDoctype_ModelParseExceptionPropagates()
+			throws CantReplaceWithCollaborationException {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
+		when(usecase.saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION, IS_COLLABORATION))
+				.thenThrow(new ModelParseException("DOCTYPE is disallowed"));
+
+		assertThrows(ModelParseException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
+
+		verify(usecase).saveProcessModel(PROJECT_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION,
+				IS_COLLABORATION);
+	}
+
+	@Test
+	public void testUploadProcessModel_FileNotReadable_InternalError() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel))
+				.thenThrow(new UncheckedIOException("Could not read uploaded file", new IOException()));
+
+		assertThrows(UncheckedIOException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
+
+		verifyNoInteractions(usecase);
+	}
+
+	/**
+	 * Same as {@link #testUploadProcessModel_WithDoctype_ModelParseExceptionPropagates()} for
+	 * the replace endpoint: the parser rejection from the usecase propagates and is mapped to
+	 * 400 by the ModelParseExceptionMapper.
+	 */
+	@Test
+	public void testReplaceProcessModel_WithDoctype_ModelParseExceptionPropagates()
+			throws CantReplaceWithCollaborationException {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel)).thenReturn(XML_WITH_DOCTYPE);
+		when(usecase.replaceProcessModel(PROJECT_ID, PROCESS_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION))
+				.thenThrow(new ModelParseException("DOCTYPE is disallowed"));
+
+		assertThrows(ModelParseException.class,
+				() -> resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION));
+
+		verify(usecase).replaceProcessModel(PROJECT_ID, PROCESS_ID, FILE_NAME_TRIMMED, XML_WITH_DOCTYPE, DESCRIPTION);
+	}
+
+	@Test
+	public void testReplaceProcessModel_FileNotReadable_InternalError() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		when(fileService.readFileToString(processModel))
+				.thenThrow(new UncheckedIOException("Could not read uploaded file", new IOException()));
+
+		assertThrows(UncheckedIOException.class,
+				() -> resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION));
+
+		verifyNoInteractions(usecase);
 	}
 
 	@Test
@@ -97,6 +182,7 @@ public class ProcessModelResourceTest {
 		assertThat(result).isEqualTo(PROCESS_XML);
 
 		verify(usecase).getProcessModel(PROCESS_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
 	}
 
 	@Test
@@ -109,6 +195,7 @@ public class ProcessModelResourceTest {
 		assertThat(response.getEntity()).isNull();
 
 		verify(usecase).deleteProcessModel(PROCESS_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
 	}
 
 	@Test
@@ -122,6 +209,7 @@ public class ProcessModelResourceTest {
 		assertThat(result).isEqualTo(expectedResultList);
 
 		verify(usecase).getProcessInformation(PROJECT_ID);
+		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
 	}
 
 	@Test
@@ -134,6 +222,7 @@ public class ProcessModelResourceTest {
 
 		assertThat(result).isEqualTo(expected);
 		verify(usecase).getProcessDetails(PROCESS_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
 	}
 
 	@Test
@@ -151,5 +240,76 @@ public class ProcessModelResourceTest {
 
 		verify(fileService).readFileToString(processModel);
 		verify(usecase).replaceProcessModel(PROJECT_ID, PROCESS_ID, FILE_NAME_TRIMMED, PROCESS_XML, DESCRIPTION);
+		verify(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
+		verify(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+	}
+
+	@Test
+	public void testUploadProcessModel_NoAccess_Forbidden() {
+		File processModel = new File(Objects.requireNonNull( //
+				getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.uploadProcessModel(PROJECT_ID, processModel, FILE_NAME, //
+				DESCRIPTION, IS_COLLABORATION));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testReplaceProcessModel_NoAccessToOldProcess_Forbidden() {
+		File processModel = new File(
+				Objects.requireNonNull(getClass().getClassLoader().getResource(TEST_DIAGRAM)).getFile());
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class,
+				() -> resource.replaceProcessModel(PROJECT_ID, PROCESS_ID, processModel, FILE_NAME, DESCRIPTION));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessModel_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.getProcessModel(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessModel_Unknown_NotFound() {
+		doThrow(new NotFoundException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(NotFoundException.class, () -> resource.getProcessModel(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testDeleteProcessModel_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.deleteProcessModel(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessInformation_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProjectVersion(PROJECT_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.getProcessInformation(PROJECT_ID));
+
+		verifyNoInteractions(usecase);
+	}
+
+	@Test
+	public void testGetProcessDetails_NoAccess_Forbidden() {
+		doThrow(new ForbiddenException()).when(projectAccessVerifier).verifyAccessToProcessModel(PROCESS_ID);
+
+		assertThrows(ForbiddenException.class, () -> resource.getProcessDetails(PROCESS_ID));
+
+		verifyNoInteractions(usecase);
 	}
 }

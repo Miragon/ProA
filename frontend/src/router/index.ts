@@ -1,9 +1,22 @@
 // Composables
-import { createRouter, createWebHistory } from "vue-router";
+import {
+  createRouter,
+  createWebHistory,
+  RouteLocationNormalized,
+  START_LOCATION
+} from "vue-router";
 import { useAppStore } from "@/store/app";
-import { Role } from "@/components/ProcessMap/types";
+import { toast } from "vue-sonner";
 
 const routes = [
+  {
+    // OIDC redirect target (web mode): rendered without the default layout
+    // and exempt from the auth guard so the callback can be processed.
+    path: "/signin-callback",
+    name: "SigninCallback",
+    component: () => import("@/views/SigninCallbackView.vue"),
+    meta: { requiresWebVersion: true }
+  },
   {
     path: "/",
     component: () => import("@/layouts/default/Default.vue"),
@@ -42,22 +55,6 @@ const routes = [
         meta: { requiresAuth: true }
       },
       {
-        path: "SignIn",
-        name: "SignIn",
-        component: () => import("@/views/SignInView.vue"),
-        meta: { requiresGuest: true, requiresWebVersion: true }
-      },
-      {
-        path: "ManageUsers",
-        name: "ManageUsers",
-        component: () => import("@/views/ManageUsersView.vue"),
-        meta: {
-          requiresAuth: true,
-          requiresAdmin: true,
-          requiresWebVersion: true
-        }
-      },
-      {
         path: ":pathMatch(.*)*",
         name: "PageNotFound",
         component: () => import("@/views/PageNotFoundView.vue"),
@@ -72,35 +69,43 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach(async (to, from, next) => {
+/**
+ * Cancels a forbidden navigation: stays on the current route when there is
+ * one, otherwise (e.g. direct URL entry) falls back to the project overview.
+ */
+const cancelNavigation = (from: RouteLocationNormalized) =>
+  from === START_LOCATION ? { name: "ProjectOverview" } : false;
+
+router.beforeEach(async (to, from) => {
   const store = useAppStore();
-  const isLoggedIn = store.getUserToken() != null;
-  const isAdmin = store.getUserRole() === Role.ADMIN;
   const isWebVersion = import.meta.env.VITE_APP_MODE === "web";
 
-  store.snackbar.visible = false;
+  // Dismiss any open feedback toast when navigating between routes.
+  toast.dismiss();
 
   if (to.meta.requiresWebVersion && !isWebVersion) {
-    window.history.back();
-    return;
+    return cancelNavigation(from);
   }
 
-  if (to.meta.requiresAdmin && !isAdmin) {
-    window.history.back();
-    return;
+  // The OIDC redirect callback must stay reachable while signed out.
+  if (to.name === "SigninCallback") {
+    return true;
   }
 
-  if (to.meta.requiresGuest && isLoggedIn) {
-    window.history.back();
-    return;
+  if (isWebVersion) {
+    // Lazy import: desktop mode must never load the OIDC machinery.
+    const { initAuth, signinRedirect } = await import("@/auth/oidc");
+    // Restores an existing Keycloak session from sessionStorage into the
+    // store (no-op after the first navigation).
+    await initAuth();
+
+    if (to.meta.requiresAuth && store.getUserToken() == null) {
+      await signinRedirect();
+      return false;
+    }
   }
 
-  if (to.meta.requiresAuth && isWebVersion && !isLoggedIn) {
-    next({ name: "SignIn" });
-    return;
-  }
-
-  next();
+  return true;
 });
 
 export default router;

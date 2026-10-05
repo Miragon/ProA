@@ -4,21 +4,20 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.RestPath;
 
-import de.envite.proa.entities.project.AccessDeniedException;
-import de.envite.proa.entities.project.NoResultException;
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import de.envite.proa.entities.project.ProjectVersion;
+import de.envite.proa.security.CurrentUserService;
 import de.envite.proa.security.RolesAllowedIfWebVersion;
 import de.envite.proa.usecases.project.ProjectUsecase;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -28,16 +27,14 @@ import jakarta.ws.rs.core.Response;
 @Path("/api")
 public class ProjectResource {
 
-	private static final String USER_ID = "userId";
-
 	@Inject
 	private ProjectUsecase usecase;
 
 	@Inject
-	JsonWebToken jwt;
+	CurrentUserService currentUserService;
 
 	@Inject
-	@ConfigProperty(name = "app.mode", defaultValue = "desktop")
+	@ConfigProperty(name = "app.mode", defaultValue = "web")
 	String appMode;
 
 	/**
@@ -51,7 +48,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response createProject(@RestForm String name, @RestForm String version) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			Project project = usecase.createProject(userId, name, version);
 			return Response//
 					.status(Response.Status.CREATED)//
@@ -76,7 +73,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public List<Project> getProjects() {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			return usecase.getProjects(userId);
 		}
 		return usecase.getProjects();
@@ -88,35 +85,13 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response getProject(@RestPath Long projectId) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
-			try {
-				return Response//
-						.ok()//
-						.entity(usecase.getProject(userId, projectId))//
-						.build();
-			} catch (NoResultException e) {
-				return Response.status(Response.Status.NOT_FOUND).build();
-			} catch (AccessDeniedException e) {
-				return Response//
-						.status(Response.Status.FORBIDDEN)//
-						.build();
-			} catch (Exception e) {
-				return Response//
-						.status(Response.Status.INTERNAL_SERVER_ERROR)//
-						.build();
-			}
-		}
-		try {
-			return Response.ok().entity(usecase.getProject(projectId)).build();
-		} catch (NoResultException e) {
+			Long userId = currentUserService.getUserId();
 			return Response//
-					.status(Response.Status.NOT_FOUND)//
-					.build();
-		} catch (Exception e) {
-			return Response//
-					.status(Response.Status.INTERNAL_SERVER_ERROR)//
+					.ok()//
+					.entity(usecase.getProject(userId, projectId))//
 					.build();
 		}
+		return Response.ok().entity(usecase.getProject(projectId)).build();
 	}
 
 	@POST
@@ -124,7 +99,7 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response addVersion(@RestPath Long projectId, @RestForm String versionName) {
 		if (appMode.equals("web")) {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
+			Long userId = currentUserService.getUserId();
 			ProjectVersion projectVersion = usecase.addVersion(userId, projectId, versionName);
 			return Response//
 					.status(Response.Status.CREATED)//
@@ -144,83 +119,60 @@ public class ProjectResource {
 	@RolesAllowedIfWebVersion({ "User", "Admin" })
 	public Response removeVersion(@RestPath Long projectId, @RestPath Long versionId) {
 		if (appMode.equals("web")) {
-			try {
-				Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
-				usecase.removeVersion(userId, projectId, versionId);
-				return Response//
-						.ok()//
-						.entity(Map.of("message", "Version removed"))//
-						.build();
-			} catch (AccessDeniedException e) {
-				return Response//
-						.status(Response.Status.FORBIDDEN)//
-						.entity(Map.of("error", "You don't have permission to remove Version"))//
-						.build();
-			} catch (NoResultException e) {
-				return Response//
-						.status(Response.Status.NOT_FOUND)//
-						.entity(Map.of("error", "Project or user not found"))//
-						.build();
-			}
-		}
-		try {
+			Long userId = currentUserService.getUserId();
+			usecase.removeVersion(userId, projectId, versionId);
+		} else {
 			usecase.removeVersion(projectId, versionId);
-		} catch (NoResultException e) {
-			return Response//
-					.status(Response.Status.NOT_FOUND)//
-					.entity(Map.of("error", "Project or user not found"))//
-					.build();
 		}
 		return Response.ok().entity(Map.of("message", "Version removed")).build();
 	}
 
+	/**
+	 * Invites an e-mail address to the project (owner only). Returns whether the membership was
+	 * created immediately (the invitee already has a local user) or a pending invitation was
+	 * stored, so the frontend can distinguish the two outcomes (ADR-0003).
+	 */
 	@POST
 	@Path("/project/{projectId}/contributor")
 	@RolesAllowed({ "User", "Admin" })
 	public Response addContributor(@RestPath Long projectId, @RestForm String email) {
-		try {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
-			usecase.addContributor(userId, projectId, email);
-			return Response.ok().entity(Map.of("message", "Contributor added successfully")).build();
-		} catch (NoResultException e) {
+		if (email == null || email.isBlank()) {
 			return Response//
-					.status(Response.Status.NOT_FOUND)//
-					.entity(Map.of("error", "Project or user not found"))//
+					.status(Response.Status.BAD_REQUEST)//
+					.entity(Map.of("message", "Email must not be blank"))//
 					.build();
-		} catch (AccessDeniedException e) {
-			return Response//
-					.status(Response.Status.FORBIDDEN)//
-					.entity(Map.of("error", "You don't have permission to add contributors"))//
-					.build();
-		} catch (Exception e) {
-			e.printStackTrace();
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-					.entity(Map.of("error", "Failed to add contributor")).build();
 		}
+		Long userId = currentUserService.getUserId();
+		AddContributorResult result = usecase.addContributor(userId, projectId, email);
+		return Response.ok().entity(result).build();
 	}
 
 	@DELETE
 	@Path("/project/{projectId}/contributor/{contributorId}")
 	@RolesAllowed({ "User", "Admin" })
 	public Response removeContributor(@RestPath Long projectId, @RestPath Long contributorId) {
-		try {
-			Long userId = Long.parseLong(jwt.getClaim(USER_ID).toString());
-			usecase.removeContributor(userId, projectId, contributorId);
-			return Response.noContent().build();
-		} catch (NoResultException e) {
-			return Response//
-					.status(Response.Status.NOT_FOUND)//
-					.entity(Map.of("error", "Project not found"))//
-					.build();
-		} catch (AccessDeniedException e) {
-			return Response//
-					.status(Response.Status.FORBIDDEN)//
-					.entity(Map.of("error", "You don't have permission to remove contributors"))//
-					.build();
-		} catch (Exception e) {
-			e.printStackTrace();
-			return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
-					.entity(Map.of("error", "Failed to remove contributor")).build();
-		}
+		Long userId = currentUserService.getUserId();
+		usecase.removeContributor(userId, projectId, contributorId);
+		return Response.noContent().build();
+	}
+
+	/** Lists the pending invitations of a project (owner only, ADR-0003). */
+	@GET
+	@Path("/project/{projectId}/invitation")
+	@Produces(MediaType.APPLICATION_JSON)
+	@RolesAllowed({ "User", "Admin" })
+	public List<ProjectInvitation> getInvitations(@RestPath Long projectId) {
+		Long userId = currentUserService.getUserId();
+		return usecase.getInvitations(userId, projectId);
+	}
+
+	/** Revokes a pending invitation (owner only, ADR-0003). */
+	@DELETE
+	@Path("/project/{projectId}/invitation/{invitationId}")
+	@RolesAllowed({ "User", "Admin" })
+	public Response revokeInvitation(@RestPath Long projectId, @RestPath Long invitationId) {
+		Long userId = currentUserService.getUserId();
+		usecase.revokeInvitation(userId, projectId, invitationId);
+		return Response.noContent().build();
 	}
 }

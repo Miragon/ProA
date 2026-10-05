@@ -240,7 +240,7 @@ export class AbstractProcessShape extends dia.Element {
     ];
   }
 
-  adjustFontSizeAndWrap(label: string, maxWidth: number, maxHeight: number) {
+  adjustFontSizeAndWrap(label: string, maxWidth: number) {
     let fontSize = this.attr("label/fontSize");
     const padding = 10;
     let wrapLabel = util.breakText(label, { width: maxWidth });
@@ -303,7 +303,6 @@ const createAbstractProcessElement = (
   bpmnProcessId: string
 ) => {
   const maxWidth = 150;
-  const maxHeight = 75;
 
   const element = new AbstractProcessShape({
     id: id,
@@ -342,7 +341,7 @@ const createAbstractProcessElement = (
     }
   });
 
-  element.adjustFontSizeAndWrap(label, maxWidth, maxHeight);
+  element.adjustFontSizeAndWrap(label, maxWidth);
 
   return element;
 };

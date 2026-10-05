@@ -3,5 +3,5 @@
 </template>
 
 <script lang="ts" setup>
-  import ProcessList from '@/components/ProcessList/ProcessList.vue';
+import ProcessList from "@/components/ProcessList/ProcessList.vue";
 </script>

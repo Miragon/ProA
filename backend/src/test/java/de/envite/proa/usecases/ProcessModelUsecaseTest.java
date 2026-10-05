@@ -3,8 +3,8 @@ package de.envite.proa.usecases;
 import de.envite.proa.entities.collaboration.MessageFlowDetails;
 import de.envite.proa.entities.collaboration.ParticipantDetails;
 import de.envite.proa.entities.process.*;
-import de.envite.proa.repository.tables.ProcessModelTable;
 import de.envite.proa.usecases.processmap.ProcessMapRespository;
+import de.envite.proa.usecases.processmodel.ProcessModelReference;
 import de.envite.proa.usecases.processmodel.ProcessModelRepository;
 import de.envite.proa.usecases.processmodel.ProcessModelUsecase;
 import de.envite.proa.usecases.processmodel.exceptions.CantReplaceWithCollaborationException;
@@ -137,9 +137,7 @@ public class ProcessModelUsecaseTest {
 	public void testSaveProcessModel_Replace()
 			throws CantReplaceWithCollaborationException {
 		when(processOperations.getBpmnProcessId(TEST_PROCESS_XML)).thenReturn(TEST_BPMN_PROCESS_ID);
-		ProcessModelTable existingProcessModel = new ProcessModelTable();
-		existingProcessModel.setId(TEST_OLD_PROCESS_ID);
-		existingProcessModel.setProcessType(ProcessType.PROCESS);
+		ProcessModelReference existingProcessModel = new ProcessModelReference(TEST_OLD_PROCESS_ID);
 		when(repository.findByNameOrBpmnProcessIdWithoutCollaborations(TEST_PROCESS_NAME, TEST_BPMN_PROCESS_ID,
 				TEST_PROJECT_ID))
 				.thenReturn(existingProcessModel);
@@ -288,12 +286,6 @@ public class ProcessModelUsecaseTest {
 
 		when(repository.saveProcessModel(eq(TEST_PROJECT_ID), eq(participantModel))).thenReturn(PARTICIPANT_ID_1);
 
-		ProcessModelTable participantProcessDetails = new ProcessModelTable();
-		participantProcessDetails.setId(PARTICIPANT_ID_1);
-		participantProcessDetails.setBpmnProcessId(PARTICIPANT_BPMN_ID);
-
-		when(repository.getProcessModel(PARTICIPANT_ID_1)).thenReturn(participantProcessDetails);
-
 		List<MessageFlowDetails> messageFlowDetailsList = new ArrayList<>();
 		Map<String, Long> bpmnIdToIdMap = new HashMap<>();
 		bpmnIdToIdMap.put(PARTICIPANT_BPMN_ID, PARTICIPANT_ID_1);
@@ -408,9 +400,7 @@ public class ProcessModelUsecaseTest {
 		when(processOperations.getBpmnProcessId(PARTICIPANT_XML_1)).thenReturn(PARTICIPANT_BPMN_ID);
 		when(processOperations.getBpmnProcessId(PARTICIPANT_XML_2)).thenReturn(PARTICIPANT_BPMN_ID_2);
 
-		ProcessModelTable existingParticipant = new ProcessModelTable();
-		existingParticipant.setId(PARTICIPANT_ID_1);
-		existingParticipant.setProcessType(ProcessType.PARTICIPANT);
+		ProcessModelReference existingParticipant = new ProcessModelReference(PARTICIPANT_ID_1);
 		when(repository.findByNameOrBpmnProcessIdWithoutCollaborations(PARTICIPANT_NAME_1, PARTICIPANT_BPMN_ID,
 				TEST_PROJECT_ID))
 				.thenReturn(null)

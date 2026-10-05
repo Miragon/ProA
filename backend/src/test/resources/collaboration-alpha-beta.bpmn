@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://example.com/bpmn">
+    <collaboration id="Collaboration_AlphaBeta">
+        <participant id="Participant_Alpha" name="Alpha" processRef="Process_Alpha"/>
+        <participant id="Participant_Beta" name="Beta" processRef="Process_Beta"/>
+        <messageFlow id="MessageFlow_Order" name="Order" sourceRef="Participant_Alpha" targetRef="Participant_Beta"/>
+    </collaboration>
+    <process id="Process_Alpha" name="Alpha">
+        <startEvent id="StartEvent_Alpha" name="Alpha started"/>
+        <endEvent id="EndEvent_Alpha" name="Alpha finished"/>
+    </process>
+    <process id="Process_Beta" name="Beta">
+        <startEvent id="StartEvent_Beta" name="Beta started"/>
+        <endEvent id="EndEvent_Beta" name="Beta finished"/>
+    </process>
+</definitions>

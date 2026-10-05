@@ -7,9 +7,11 @@ import org.mockito.MockitoAnnotations;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 public class FileServiceTest {
 
@@ -37,9 +39,8 @@ public class FileServiceTest {
 
     @Test
     public void readFileToString_IOException() {
-        String result = fileService.readFileToString(new File(NONEXISTENT_FILE_NAME));
-
-        assertThat(result).isNotNull();
-        assertThat(result).isEmpty();
+        assertThatThrownBy(() -> fileService.readFileToString(new File(NONEXISTENT_FILE_NAME)))
+                .isInstanceOf(UncheckedIOException.class)
+                .hasCauseInstanceOf(IOException.class);
     }
 }

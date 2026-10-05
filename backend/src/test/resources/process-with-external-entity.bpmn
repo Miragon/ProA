@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE definitions [
+        <!ENTITY xxe SYSTEM "file:///__XXE_TARGET__">
+        ]>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             targetNamespace="http://example.com/bpmn">
+    <process id="Process_1" name="&xxe;">
+        <documentation>&xxe;</documentation>
+    </process>
+</definitions>

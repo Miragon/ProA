@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class SettingsDaoTest {
 
 	private static final String EMAIL = "example@email.com";
-	private static final String API_KEY = "api-key";
+	private static final String MODELER_CLIENT_ID = "modeler-client-id";
 
 	@Inject
 	EntityManager em;
@@ -102,12 +102,12 @@ class SettingsDaoTest {
 	@Test
 	@Transactional
 	void testMergeSettings() {
-		settings.setGeminiApiKey(API_KEY);
+		settings.setModelerClientId(MODELER_CLIENT_ID);
 		settingsDao.merge(settings);
 
 		flushAndClear();
 
 		SettingsTable retrievedSettings = em.find(SettingsTable.class, settings.getId());
-		assertEquals(API_KEY, retrievedSettings.getGeminiApiKey());
+		assertEquals(MODELER_CLIENT_ID, retrievedSettings.getModelerClientId());
 	}
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Regression fixture: the string <!DOCTYPE html> below is inert text inside a CDATA
+     section (and inside this comment), not an XML DOCTYPE declaration. The hardened
+     parser must accept this file. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  id="Definitions_DoctypeInCdata"
+                  targetNamespace="http://example.com/bpmn">
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:scriptTask id="ScriptTask_RenderPage" name="Render page" scriptFormat="javascript">
+      <bpmn:script><![CDATA[
+        var page = "<!DOCTYPE html>" +
+            "<html><body><h1>Order confirmation</h1></body></html>";
+        execution.setVariable("page", page);
+      ]]></bpmn:script>
+    </bpmn:scriptTask>
+  </bpmn:process>
+</bpmn:definitions>

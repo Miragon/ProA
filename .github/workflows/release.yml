@@ -42,6 +42,13 @@ jobs:
            mkdir ./tmp
            sudo cp -r /home/runner/work/ProA/ProA/backend/target/ /tmp
            sudo chown -R runner:runner /tmp
+      - name: Build desktop jar (file-backed H2; db-kind is fixed at build time)
+        run: |
+           ./mvnw clean package -Dquarkus.profile=desktop
+           mkdir -p /tmp/desktop
+           for f in backend/target/pro-a-*.jar; do
+             cp "$f" "/tmp/desktop/$(basename "${f%.jar}")-desktop.jar"
+           done
       - name: Upload files
         uses: softprops/action-gh-release@v2
         with:

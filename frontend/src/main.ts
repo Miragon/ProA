@@ -1,24 +1,30 @@
 /**
  * main.ts
  *
- * Bootstraps Vuetify and other plugins then mounts the App`
+ * Registers plugins then mounts the App.
  */
 
+// Styles
+import "@/styles/shadcn.css";
+// vue-sonner ships its CSS separately and does no runtime style injection;
+// without this the toaster (store.showSnackbar -> toast) renders unstyled.
+import "vue-sonner/style.css";
+
 // Components
-import App from './App.vue'
+import App from "./App.vue";
 
 // Composables
-import { createApp } from 'vue'
+import { createApp } from "vue";
 
 // Plugins
-import { registerPlugins } from '@/plugins'
+import { registerPlugins } from "@/plugins";
 
-import i18n from './i18n';
+import i18n from "./i18n";
 
-const app = createApp(App)
+const app = createApp(App);
 
-registerPlugins(app)
+registerPlugins(app);
 
 app.use(i18n);
 
-app.mount('#app')
+app.mount("#app");

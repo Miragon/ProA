@@ -1,116 +1,118 @@
 <template>
-  <v-app-bar color="primary" prominent>
-    <v-app-bar-nav-icon
-      variant="text"
-      @click.stop="drawer = !drawer"
-    ></v-app-bar-nav-icon>
-
-    <v-toolbar-title>ProA – {{ currentRouteName }}</v-toolbar-title>
-
-    <v-spacer></v-spacer>
-
-    <v-tooltip location="bottom" v-if="webVersion && isUserLoggedIn">
-      <template v-slot:activator="{ props }">
-        <v-btn v-bind="props" @click="openDialog(SelectedDialog.PROFILE)">
-          <v-icon icon="mdi-account-circle"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("general.myProfile") }}
-    </v-tooltip>
-
-    <v-tooltip
-      location="bottom"
-      v-if="webVersion && isUserLoggedIn && isUserAdmin"
-    >
-      <template v-slot:activator="{ props }">
-        <v-btn
-          v-bind="props"
-          @click="openDialog(SelectedDialog.CREATE_ACCOUNT)"
+  <header
+    class="tw:bg-primary tw:text-primary-foreground tw:sticky tw:top-0 tw:z-30 tw:flex tw:h-16 tw:items-center tw:gap-2 tw:px-2 tw:shadow-sm"
+  >
+    <Sheet v-model:open="drawer">
+      <SheetTrigger as-child>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
         >
-          <v-icon icon="mdi-account-plus"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("navigation.createAccount") }}
-    </v-tooltip>
+          <Menu />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" class="tw:w-72 tw:p-0">
+        <SheetHeader class="tw:sr-only">
+          <SheetTitle>{{ $t("general.menu") }}</SheetTitle>
+        </SheetHeader>
+        <nav class="tw:flex tw:flex-col tw:gap-1 tw:px-2 tw:py-4">
+          <Button
+            v-for="item in items"
+            :key="item.title"
+            variant="ghost"
+            class="tw:justify-start"
+            :disabled="
+              !store.getSelectedProjectId() &&
+              item.title !== $t('navigation.projectOverview')
+            "
+            @click="navigateTo(item.route)"
+          >
+            {{ item.title }}
+          </Button>
+        </nav>
+      </SheetContent>
+    </Sheet>
 
-    <v-tooltip
-      location="bottom"
-      v-if="webVersion && isUserLoggedIn && isUserAdmin"
-    >
-      <template v-slot:activator="{ props }">
-        <v-btn v-bind="props" @click="$router.push('/ManageUsers')">
-          <v-icon icon="mdi-account-multiple"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("navigation.manageUsers") }}
-    </v-tooltip>
+    <h1 class="tw:text-lg tw:font-medium">ProA – {{ currentRouteName }}</h1>
 
-    <v-tooltip location="bottom" v-if="webVersion && isUserLoggedIn">
-      <template v-slot:activator="{ props }">
-        <v-btn v-bind="props" @click="signOut">
-          <v-icon icon="mdi-logout"></v-icon>
-        </v-btn>
-      </template>
-      {{ $t("general." + "signOut") }}
-    </v-tooltip>
+    <div class="tw:flex-1"></div>
 
-    <v-menu>
-      <template v-slot:activator="{ props }">
-        <v-btn color="white" variant="text" v-bind="props">
-          {{ selectedLanguage.toUpperCase() }}
-        </v-btn>
-      </template>
-      <v-list>
-        <v-list-item
-          v-for="language in availableLanguages.sort()"
-          :key="language.code"
-          :value="language.code"
-          @click="changeLanguage(language.code)"
-        >
-          <v-list-item-title>{{ language.name }}</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
+    <TooltipProvider>
+      <Tooltip v-if="webVersion && isUserLoggedIn">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+            @click="openDialog(SelectedDialog.PROFILE)"
+          >
+            <CircleUserRound />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("general.myProfile") }}
+        </TooltipContent>
+      </Tooltip>
 
-    <v-tooltip
-      v-if="isUserLoggedIn"
-      :text="$t('general.settings')"
-      location="bottom"
-    >
-      <template v-slot:activator="{ props }">
-        <v-btn icon v-bind="props" @click="toggleSettings">
-          <v-icon>mdi-cog</v-icon>
-        </v-btn>
-      </template>
-    </v-tooltip>
-  </v-app-bar>
+      <Tooltip v-if="webVersion && isUserLoggedIn">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+            @click="signOut"
+          >
+            <LogOut />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("general.signOut") }}
+        </TooltipContent>
+      </Tooltip>
 
-  <v-navigation-drawer v-model="drawer" location="left" temporary>
-    <v-list flat dense nav class="py-1 px-0">
-      <v-list-item
-        @click="$router.push({ path: item.route })"
-        v-for="item in items"
-        :key="item.title"
-        dense
-        :disabled="
-          !store.getSelectedProjectId() &&
-          item.title !== $t('navigation.projectOverview')
-        "
-        class="px-2"
-      >
-        <v-list-item-title class="text-body-1 font-weight-regular"
-          >{{ item.title }}
-        </v-list-item-title>
-      </v-list-item>
-    </v-list>
-  </v-navigation-drawer>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button
+            variant="ghost"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+          >
+            {{ selectedLanguage.toUpperCase() }}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            v-for="language in availableLanguages"
+            :key="language.code"
+            @click="changeLanguage(language.code)"
+          >
+            {{ language.name }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Tooltip v-if="isUserLoggedIn">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="tw:text-primary-foreground tw:hover:bg-white/10 tw:hover:text-primary-foreground"
+            @click="toggleSettings"
+          >
+            <Settings />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {{ $t("general.settings") }}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </header>
 
   <SettingsDrawer />
 
   <AuthenticationDialog v-if="webVersion" />
 </template>
-
-<style scoped></style>
 
 <script lang="ts">
 import { defineComponent } from "vue";
@@ -118,9 +120,28 @@ import { SelectedDialog, useAppStore } from "@/store/app";
 import SettingsDrawer from "@/components/SettingsDrawer.vue";
 import i18n from "@/i18n";
 import AuthenticationDialog from "@/components/Authentication/AuthenticationDialog.vue";
-import { Role } from "@/components/ProcessMap/types";
-
-export type LanguageCode = "en" | "de";
+import { LanguageCode } from "@/types/language";
+import { CircleUserRound, LogOut, Menu, Settings } from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
 
 interface Language {
   code: LanguageCode;
@@ -128,29 +149,27 @@ interface Language {
 }
 
 export default defineComponent({
-  components: { AuthenticationDialog, SettingsDrawer },
-  methods: {
-    changeLanguage(language: LanguageCode) {
-      this.selectedLanguage = language;
-      this.store.setSelectedLanguage(language);
-      i18n.global.locale = language;
-    },
-    lowerFirstLetter(s: string | undefined) {
-      if (!s) {
-        return "";
-      }
-      return s.charAt(0).toLowerCase() + s.slice(1);
-    },
-    toggleSettings() {
-      this.store.setAreSettingsOpened(!this.store.getAreSettingsOpened());
-    },
-    signOut() {
-      this.store.setUserToken(null);
-      this.store.setUserRole(null);
-    },
-    openDialog(dialog: SelectedDialog) {
-      this.store.setSelectedDialog(dialog);
-    }
+  components: {
+    AuthenticationDialog,
+    SettingsDrawer,
+    Button,
+    CircleUserRound,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    LogOut,
+    Menu,
+    Settings,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger
   },
 
   data: () => {
@@ -162,21 +181,11 @@ export default defineComponent({
       group: null,
       selectedLanguage: store.getSelectedLanguage() as LanguageCode,
       webVersion: (import.meta.env.VITE_APP_MODE === "web") as boolean,
-      showEditDialog: false as boolean,
-      showProfileDialog: false as boolean,
-      showProfileSuccessMessage: false as boolean,
       SelectedDialog: SelectedDialog
     };
   },
 
-  async mounted() {
-    i18n.global.locale = this.selectedLanguage;
-  },
-
   computed: {
-    selectedDialog() {
-      return this.store.getSelectedDialog();
-    },
     availableLanguages(): Language[] {
       const availableLanguages: Language[] = [
         {
@@ -219,9 +228,6 @@ export default defineComponent({
     },
     isUserLoggedIn() {
       return this.store.getUserToken() != null;
-    },
-    isUserAdmin() {
-      return this.store.getUserRole() === Role.ADMIN;
     }
   },
 
@@ -229,6 +235,46 @@ export default defineComponent({
     group() {
       this.drawer = false;
     }
+  },
+
+  async mounted() {
+    i18n.global.locale = this.selectedLanguage;
+  },
+  methods: {
+    navigateTo(route: string) {
+      this.drawer = false;
+      this.$router.push({ path: route });
+    },
+    changeLanguage(language: LanguageCode) {
+      this.selectedLanguage = language;
+      this.store.setSelectedLanguage(language);
+      i18n.global.locale = language;
+    },
+    lowerFirstLetter(s: string | undefined) {
+      if (!s) {
+        return "";
+      }
+      return s.charAt(0).toLowerCase() + s.slice(1);
+    },
+    toggleSettings() {
+      this.store.setAreSettingsOpened(!this.store.getAreSettingsOpened());
+    },
+    async signOut() {
+      // Lazy import: desktop mode (which has no sign-out button anyway)
+      // must never load the OIDC machinery.
+      const { signoutRedirect } = await import("@/auth/oidc");
+      // Start the sign-out first: clearing the store triggers watchers
+      // whose navigations would otherwise kick off a sign-in redirect.
+      const redirect = signoutRedirect();
+      this.store.setUserToken(null);
+      this.store.setUserRole(null);
+      await redirect;
+    },
+    openDialog(dialog: SelectedDialog) {
+      this.store.setSelectedDialog(dialog);
+    }
   }
 });
 </script>
+
+<style scoped></style>

@@ -8,6 +8,7 @@ import de.envite.proa.repository.datastore.DataStoreDao;
 import de.envite.proa.repository.messageflow.MessageFlowDao;
 import de.envite.proa.repository.processmodel.*;
 import de.envite.proa.repository.tables.*;
+import de.envite.proa.usecases.processmodel.ProcessModelReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -358,32 +359,41 @@ class ProcessModelRepositoryTest {
 	@Test
 	public void testFindByNameOrBpmnProcessIdWithoutCollaborations() {
 		ProcessModelTable process = new ProcessModelTable();
+		process.setId(PROCESS_MODEL_ID_1);
 		ProjectVersionTable project = new ProjectVersionTable();
 		project.setId(PROJECT_ID);
 
 		when(processModelDao.findByNameOrBpmnProcessIdWithoutCollaborations(NEW_PROCESS_MODEL_NAME, BPMN_PROCESS_ID,
 				project)).thenReturn(process);
 
-		ProcessModelTable result = repository.findByNameOrBpmnProcessIdWithoutCollaborations(NEW_PROCESS_MODEL_NAME,
+		ProcessModelReference result = repository.findByNameOrBpmnProcessIdWithoutCollaborations(
+				NEW_PROCESS_MODEL_NAME,
 				BPMN_PROCESS_ID,
 				PROJECT_ID);
 
-		assertThat(result).isEqualTo(process);
+		assertThat(result).isEqualTo(new ProcessModelReference(PROCESS_MODEL_ID_1));
 
 		verify(processModelDao, times(1)).findByNameOrBpmnProcessIdWithoutCollaborations(NEW_PROCESS_MODEL_NAME,
 				BPMN_PROCESS_ID, project);
 	}
 
 	@Test
-	public void testGetProcessModel() {
-		ProcessModelTable processModel = new ProcessModelTable();
+	public void testFindByNameOrBpmnProcessIdWithoutCollaborations_NotFound() {
+		ProjectVersionTable project = new ProjectVersionTable();
+		project.setId(PROJECT_ID);
 
-		when(processModelDao.find(PROCESS_MODEL_ID_1)).thenReturn(processModel);
+		when(processModelDao.findByNameOrBpmnProcessIdWithoutCollaborations(NEW_PROCESS_MODEL_NAME, BPMN_PROCESS_ID,
+				project)).thenReturn(null);
 
-		ProcessModelTable result = repository.getProcessModel(PROCESS_MODEL_ID_1);
+		ProcessModelReference result = repository.findByNameOrBpmnProcessIdWithoutCollaborations(
+				NEW_PROCESS_MODEL_NAME,
+				BPMN_PROCESS_ID,
+				PROJECT_ID);
 
-		assertEquals(processModel, result);
-		verify(processModelDao, times(1)).find(PROCESS_MODEL_ID_1);
+		assertThat(result).isNull();
+
+		verify(processModelDao, times(1)).findByNameOrBpmnProcessIdWithoutCollaborations(NEW_PROCESS_MODEL_NAME,
+				BPMN_PROCESS_ID, project);
 	}
 
 	@Test

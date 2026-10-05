@@ -16,7 +16,7 @@ import java.util.Arrays;
 public class RolesAllowedIfWebVersionInterceptor {
 
     @Inject
-    @ConfigProperty(name = "app.mode", defaultValue = "desktop")
+    @ConfigProperty(name = "app.mode", defaultValue = "web")
     String appMode;
 
     @Inject

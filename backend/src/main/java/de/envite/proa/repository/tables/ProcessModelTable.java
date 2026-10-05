@@ -3,8 +3,8 @@ package de.envite.proa.repository.tables;
 import de.envite.proa.entities.process.ProcessType;
 import de.envite.proa.util.SearchLabelBuilder;
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -39,8 +39,8 @@ import java.util.Set;
 )
 
 @Entity
-@Data
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Getter
+@Setter
 public class ProcessModelTable {
 
 	public ProcessModelTable() {
@@ -52,15 +52,12 @@ public class ProcessModelTable {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
-	@EqualsAndHashCode.Include
 	public Long id;
 
-	@EqualsAndHashCode.Include
 	private String name;
-	
+
     private String searchLabel;
 
-	@EqualsAndHashCode.Include
 	private String bpmnProcessId;
 
 	@Column(columnDefinition = "BYTEA")
@@ -78,15 +75,12 @@ public class ProcessModelTable {
 
 	@Lob
 	@Column
-	@EqualsAndHashCode.Include
 	private String description;
-	
+
 	@Column
-	@EqualsAndHashCode.Include
 	private LocalDateTime createdAt;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@EqualsAndHashCode.Include
 	private ProjectVersionTable project;
 
 	@ManyToMany(fetch = FetchType.LAZY)
@@ -100,12 +94,34 @@ public class ProcessModelTable {
 	@ManyToMany(mappedBy = "children", fetch = FetchType.LAZY)
 	private Set<ProcessModelTable> parents = new HashSet<>();
 
-	@EqualsAndHashCode.Include
 	private ProcessType processType;
-	
+
     @PrePersist
     @PreUpdate
     private void generateSearchLabel() {
         this.searchLabel = SearchLabelBuilder.buildSearchLabel(this.name);
     }
+
+	/**
+	 * Identifier-based equality: instances are stored in {@link java.util.HashSet}s (children
+	 * and parents) so equals and hashCode must not depend on mutable state or trigger lazy
+	 * loading of relations. Unsaved instances (id == null) are only equal to themselves.
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof ProcessModelTable other)) {
+			return false;
+		}
+		return id != null && id.equals(other.getId());
+	}
+
+	@Override
+	public int hashCode() {
+		// Constant hash so that the value stays stable when the id is assigned on persist
+		// and so that Hibernate proxies hash the same as their underlying entities.
+		return ProcessModelTable.class.hashCode();
+	}
 }

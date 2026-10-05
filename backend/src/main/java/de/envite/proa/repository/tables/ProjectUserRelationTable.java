@@ -9,12 +9,19 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 
+// Unique (user, project): a user is a member of a project at most once. This is
+// also the backstop that keeps parallel invitation redemptions (two concurrent
+// first requests) and concurrent addContributor calls from creating duplicate
+// memberships.
 @Getter
 @Setter
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = { "user_id", "project_id" }))
 public class ProjectUserRelationTable {
 
 	@Id

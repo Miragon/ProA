@@ -44,6 +44,7 @@ nb-configuration.xml
 
 src/main/resources/META-INF/resources
 
-# JWT keys
+# Legacy generated JWT keys - checkouts that ran generate-keys.sh before
+# ADR-0001 may still contain them; never track them (test keys are *.test.pem)
 **/privateKey.pem
 **/publicKey.pem

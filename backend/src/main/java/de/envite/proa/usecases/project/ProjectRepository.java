@@ -1,8 +1,10 @@
 package de.envite.proa.usecases.project;
 
 import de.envite.proa.entities.project.AccessDeniedException;
+import de.envite.proa.entities.project.AddContributorResult;
 import de.envite.proa.entities.project.NoResultException;
 import de.envite.proa.entities.project.Project;
+import de.envite.proa.entities.project.ProjectInvitation;
 import de.envite.proa.entities.project.ProjectVersion;
 
 import java.util.List;
@@ -29,7 +31,13 @@ public interface ProjectRepository {
 
 	void removeVersion(Long userId, Long projectId, Long versionId) throws AccessDeniedException, NoResultException;
 
-	void addContributor(Long userId, Long projectId, String email) throws AccessDeniedException, NoResultException;
+	AddContributorResult addContributor(Long userId, Long projectId, String email)
+			throws AccessDeniedException, NoResultException;
 
 	void removeContributor(Long userId, Long projectId, Long contributorId) throws AccessDeniedException, NoResultException;
+
+	List<ProjectInvitation> getInvitations(Long userId, Long projectId) throws AccessDeniedException, NoResultException;
+
+	void revokeInvitation(Long userId, Long projectId, Long invitationId)
+			throws AccessDeniedException, NoResultException;
 }

@@ -15,6 +15,7 @@ import de.envite.proa.repository.tables.*;
 import de.envite.proa.usecases.processmap.ProcessMapRespository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
+@Transactional
 public class ProcessMapRepositoryImpl implements ProcessMapRespository {
 
 	private final ProjectDao projectDao;
@@ -128,9 +130,15 @@ public class ProcessMapRepositoryImpl implements ProcessMapRespository {
 			if (!isOutgoing && connection.getCallingProcess().getId().equals(newProcessId)) {
 				return;
 			}
-			connection.setCallingProcess(isOutgoing ? newProcess : connection.getCallingProcess());
-			connection.setCalledProcess(isOutgoing ? connection.getCalledProcess() : newProcess);
-			ProcessConnectionTable newConnection = map(projectId, map(connection));
+			// Build the copy without mutating the (potentially managed) old connection,
+			// otherwise the redirected processes would be flushed to the old row.
+			ProcessConnection copy = map(connection);
+			if (isOutgoing) {
+				copy.setCallingProcessid(newProcessId);
+			} else {
+				copy.setCalledProcessid(newProcessId);
+			}
+			ProcessConnectionTable newConnection = map(projectId, copy);
 			processConnectionDao.persist(newConnection);
 		});
 	}
