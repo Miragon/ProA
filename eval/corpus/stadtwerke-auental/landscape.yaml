@@ -1,0 +1,19 @@
+name: stadtwerke-auental
+description: >-
+  Stadtwerke Auental, a fictional municipal utility for power, gas, water and
+  district heating, with its grid subsidiary Auental Netz (grid service, grid
+  control centre, metering). Grid, metering, sales, market communication
+  (GPKE supplier switch as before LFW24, 2025), customer service and
+  disconnection run on Camunda 8; the billing core and receivables (annual
+  consumption billing, instalments, final invoices, dunning, payment posting)
+  still run on Camunda 7 and talk to the C8 side over a message bus with
+  shared message names, matched after umlaut transliteration. The C7 billing
+  team writes labels without umlauts (legacy migration); a few
+  system-integration events (customer portal, e-invoice) are English.
+  26 models, 2 engines, 8 collaboration files, 3 models with lanes.
+lang: mixed
+split: holdout
+closed_world: true
+engines:
+  c7: 7.24.0
+  c8: 8.9.0

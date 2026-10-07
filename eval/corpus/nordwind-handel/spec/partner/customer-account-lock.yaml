@@ -1,0 +1,29 @@
+key: partner/customer-account-lock
+engine: c8
+name: Customer account lock
+notes: >-
+  Started by KundeGesperrt from the C7 dunning process (cross-engine, English
+  label "Customer blocked"). There is no C8 counterpart for KundeEntsperrt
+  yet: the near-miss must not be linked to this start.
+
+processes:
+  - id: Process_CustomerAccountLock
+    name: Customer account lock
+    documentation: Disables purchase on account in the shop for customers blocked by dunning and holds their open on-account orders.
+    dataStores:
+      - { id: DataStore_CustomerMaster, name: Customer master }
+    elements:
+      - type: startEvent
+        id: Start_CustomerBlocked
+        name: Customer blocked
+        message: KundeGesperrt
+      - type: serviceTask
+        id: Task_DisablePurchaseOnAccount
+        name: Disable purchase on account
+        writes: [DataStore_CustomerMaster]
+      - { type: serviceTask, id: Task_HoldOpenOrders, name: Put open on-account orders on hold }
+      - type: userTask
+        id: Task_InformKeyAccountManager
+        name: Inform key account manager
+        candidateGroups: key-account
+      - { type: endEvent, id: End_AccountLocked, name: Account locked }

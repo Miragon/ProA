@@ -1,0 +1,125 @@
+key: netz/hausanschluss
+engine: c8
+name: Hausanschluss beantragen
+notes: >-
+  Collaboration with two black-box pools (Anschlussnehmer, Installateur) and
+  three lanes. The participant process also talks to other files: it calls
+  netz/netzanschlusspruefung (call-unique) and hands over to
+  messwesen/zaehlermontage through its labelled none end "Zählersetzung
+  beauftragt" (trigger, semantic: the target start is labelled "Hausanschluss
+  fertiggestellt"). The none end "Hausanschluss fertiggestellt" inside the
+  embedded subprocess carries exactly that label but is never an endpoint
+  (subprocess-scope).
+
+collaboration:
+  participants:
+    - { id: Participant_Anschlussnehmer, name: Anschlussnehmer }
+    - { id: Participant_Netzservice, name: Auental Netz - Netzservice, process: Process_Hausanschluss }
+    - { id: Participant_Installateur, name: Installateur }
+  messageFlows:
+    - { from: Participant_Anschlussnehmer, to: Start_AntragEingegangen, name: Anschlussantrag }
+    - { from: Task_UnterlagenNachfordern, to: Participant_Anschlussnehmer, name: Nachforderung }
+    - { from: Participant_Anschlussnehmer, to: Task_UnterlagenErhalten, name: Unterlagen }
+    - { from: Task_AblehnungVersenden, to: Participant_Anschlussnehmer, name: Ablehnung }
+    - { from: Task_AngebotVersenden, to: Participant_Anschlussnehmer, name: Anschlussangebot }
+    - { from: Participant_Anschlussnehmer, to: Task_AngebotsannahmeErhalten, name: Auftrag }
+    - { from: Participant_Installateur, to: Task_FertigmeldungErhalten, name: Fertigmeldung }
+
+processes:
+  - id: Process_Hausanschluss
+    name: Hausanschluss beantragen
+    documentation: >-
+      Neuer Netzanschluss für Strom, Gas oder Wasser: Antrag prüfen,
+      Netzanschlussprüfung, Angebot, Bau des Hausanschlusses und Übergabe an den
+      Messstellenbetrieb zur Zählersetzung.
+    lanes:
+      - { id: Lane_Netzkundenservice, name: Netzkundenservice }
+      - { id: Lane_Netzplanung, name: Netzplanung }
+      - { id: Lane_Netzbau, name: Netzbau }
+    dataStores:
+      - { id: DataStore_Nis, name: Netzinformationssystem }
+    elements:
+      - type: startEvent
+        id: Start_AntragEingegangen
+        name: Antrag auf Hausanschluss eingegangen
+        lane: Lane_Netzkundenservice
+        message: Hausanschlussantrag
+      - { type: exclusiveGateway, id: Gateway_UnterlagenJoin }
+      - type: userTask
+        id: Task_AntragPruefen
+        name: Antrag prüfen
+        candidateGroups: netzkundenservice
+      - type: exclusiveGateway
+        id: Gateway_UnterlagenVollstaendig
+        name: Unterlagen vollständig?
+        next:
+          - { to: Call_NetzanschlussPruefen, name: ja, condition: "=unterlagenVollstaendig" }
+          - { to: Task_UnterlagenNachfordern, name: nein, default: true }
+      - type: callActivity
+        id: Call_NetzanschlussPruefen
+        name: Netzanschluss prüfen
+        lane: Lane_Netzplanung
+        calledElement: Process_Netzanschlusspruefung
+      - type: exclusiveGateway
+        id: Gateway_AnschlussMoeglich
+        name: Anschluss möglich?
+        next:
+          - { to: Task_AngebotErstellen, name: ja, condition: "=anschlussMoeglich" }
+          - { to: Task_AblehnungVersenden, name: nein, default: true }
+      - type: userTask
+        id: Task_AngebotErstellen
+        name: Anschlussangebot erstellen
+        candidateGroups: netzplanung
+        reads: [DataStore_Nis]
+      - type: sendTask
+        id: Task_AngebotVersenden
+        name: Angebot versenden
+        lane: Lane_Netzkundenservice
+      - type: receiveTask
+        id: Task_AngebotsannahmeErhalten
+        name: Angebotsannahme erhalten
+        message: { name: AngebotAngenommen, correlationKey: "=antragsnummer" }
+        boundary:
+          - id: Boundary_AnnahmefristAbgelaufen
+            name: Annahmefrist abgelaufen
+            timer: { duration: P56D }
+            next: End_AngebotVerfallen
+      - type: subProcess
+        id: Sub_HausanschlussHerstellen
+        name: Hausanschluss herstellen
+        lane: Lane_Netzbau
+        elements:
+          - { type: startEvent, id: Start_BauauftragErteilt, name: Bauauftrag erteilt }
+          - { type: userTask, id: Task_TiefbauKoordinieren, name: Tiefbau koordinieren, candidateGroups: netzbau }
+          - { type: manualTask, id: Task_LeitungVerlegen, name: Hausanschlussleitung verlegen }
+          - { type: manualTask, id: Task_AnschlusskastenSetzen, name: Hausanschlusskasten setzen }
+          - { type: endEvent, id: End_HausanschlussFertiggestellt, name: Hausanschluss fertiggestellt }
+      - type: serviceTask
+        id: Task_AnschlussDokumentieren
+        name: Anschluss im NIS dokumentieren
+        writes: [DataStore_Nis]
+      - type: receiveTask
+        id: Task_FertigmeldungErhalten
+        name: Fertigmeldung Installateur erhalten
+        lane: Lane_Netzkundenservice
+        message: { name: FertigmeldungInstallateur, correlationKey: "=antragsnummer" }
+      - type: serviceTask
+        id: Task_ZaehlersetzungBeauftragen
+        name: Zählersetzung beauftragen
+      - { type: endEvent, id: End_ZaehlersetzungBeauftragt, name: Zählersetzung beauftragt }
+
+      - { type: endEvent, id: End_AngebotVerfallen, name: Angebot verfallen }
+
+      - type: sendTask
+        id: Task_UnterlagenNachfordern
+        name: Unterlagen nachfordern
+      - type: receiveTask
+        id: Task_UnterlagenErhalten
+        name: Unterlagen erhalten
+        message: { name: UnterlagenNachgereicht, correlationKey: "=antragsnummer" }
+        next: Gateway_UnterlagenJoin
+
+      - type: sendTask
+        id: Task_AblehnungVersenden
+        name: Ablehnung versenden
+      - { type: endEvent, id: End_AntragAbgelehnt, name: Antrag abgelehnt }

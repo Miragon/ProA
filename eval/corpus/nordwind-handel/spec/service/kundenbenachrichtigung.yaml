@@ -1,0 +1,37 @@
+key: service/kundenbenachrichtigung
+engine: c8
+name: Kundenbenachrichtigung Lieferverzug
+notes: >-
+  Started by LieferungVerspaetet from parcel shipping (exact key). The
+  near-miss LieferungVersendet (thrown by parcel shipping and pallet freight)
+  must not start it, and the none end "Lieferung verspätet" of the C7 pallet
+  freight process throws nothing (event-def-mismatch).
+
+processes:
+  - id: Process_Kundenbenachrichtigung
+    name: Kundenbenachrichtigung Lieferverzug
+    documentation: Informiert Kunden über verspätete Paketsendungen, Premiumkunden zusätzlich telefonisch.
+    dataStores:
+      - { id: DataStore_CrmKunden, name: CRM Kunden }
+    elements:
+      - type: startEvent
+        id: Start_LieferungVerspaetet
+        name: Lieferung verspätet
+        message: LieferungVerspaetet
+      - type: serviceTask
+        id: Task_KundendatenLaden
+        name: Kundendaten und Kanalpräferenz laden
+        reads: [DataStore_CrmKunden]
+      - { type: serviceTask, id: Task_VerzugsinfoSenden, name: Verzugsinformation per E-Mail senden }
+      - type: exclusiveGateway
+        id: Gateway_Premium
+        name: Premiumkunde?
+        next:
+          - { to: Task_KundenAnrufen, name: ja, condition: "=premium" }
+          - { to: Gateway_Informiert, name: nein, default: true }
+      - type: userTask
+        id: Task_KundenAnrufen
+        name: Kunden anrufen und Gutschein anbieten
+        candidateGroups: kundenservice
+      - { type: exclusiveGateway, id: Gateway_Informiert }
+      - { type: endEvent, id: End_KundeInformiert, name: Kunde informiert }

@@ -1,0 +1,79 @@
+# Ground truth for the _sample landscape (closed world: every unlisted
+# cross-process endpoint pair counts as must_not_link).
+
+relations:
+  - type: call
+    from: vertrieb/auftragsabwicklung#Call_ZahlungAbwickeln
+    to: finance/payment-collection#Process_PaymentCollection
+    expect: must_link
+    tags: [call-unique, collaboration]
+    rationale: Static calledElement equals exactly one process id; the caller is a participant process of a collaboration.
+
+  - type: message
+    from: vertrieb/auftragsabwicklung#Event_WareVersandbereit
+    to: finanzen/rechnungsstellung#Start_WareVersandbereit
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The c7 throw and the c8 message start share the message name WareVersandbereit (integration via message bus).
+
+  - type: message
+    from: vertrieb/auftragsabwicklung#End_WareVersandbereit
+    to: finanzen/rechnungsstellung#Start_WareVersandbereit
+    expect: must_not_link
+    tags: [subprocess-scope, event-def-mismatch]
+    rationale: Same label, but the none end lies inside the embedded subprocess and throws nothing; the message comes from Event_WareVersandbereit.
+
+  - type: message
+    from: finanzen/rechnungsstellung#Event_RechnungVersendet
+    to: finance/payment-collection#Event_InvoiceSent
+    expect: must_link
+    tags: [de-en]
+    rationale: '"Rechnung versendet" and "Invoice sent" mean the same event across a German and an English team; the message names differ, so only the semantic tier finds it.'
+
+  - type: signal
+    from: finanzen/rechnungsstellung#End_RechnungsstellungAbgeschlossen
+    to: vertrieb/auftragsabwicklung#Start_RechnungsstellungAbgeschlossen
+    expect: must_link
+    tags: [signal-broadcast, collaboration]
+    rationale: Signal RechnungsstellungAbgeschlossen is caught by the event subprocess of the order process.
+
+  - type: signal
+    from: finanzen/rechnungsstellung#End_RechnungsstellungAbgeschlossen
+    to: finance/payment-collection#Start_InvoicingCompleted
+    expect: must_link
+    tags: [signal-broadcast]
+    rationale: The same signal is also caught by payment collection, under an English label.
+
+  - type: trigger
+    from: finance/payment-collection#End_InvoicePaid
+    to: finance/payment-collection#Event_InvoiceSent
+    expect: must_not_link
+    tags: [near-miss, self-link]
+    rationale: '"Invoice paid" vs "Invoice sent" is within Levenshtein 4 but means the opposite stage, and both lie in the same process.'
+
+expected_findings:
+  - kind: dynamic-call
+    refs: [finanzen/rechnungsstellung#Call_RechnungAusgeben]
+    tags: [call-dynamic]
+    rationale: calledElement is the FEEL expression =ausgabekanal; no process in the landscape is a plausible target, so there is no may_link.
+
+  - kind: unresolved-call
+    refs: [finanzen/rechnungsstellung#Call_Mahnwesen]
+    tags: [call-unresolved]
+    rationale: Process_Mahnwesen is not defined anywhere in the landscape.
+
+  - kind: dangling-throw
+    refs: [finance/payment-collection#Task_SendReminder]
+    tags: [dangling-throw]
+    rationale: The reminder goes to the customer, who is not modelled in this landscape.
+
+  - kind: unmatched-catch
+    refs: [finance/payment-collection#Event_PaymentReceived]
+    tags: [unmatched-catch]
+    rationale: The payment notification comes from the bank, which is not modelled in this landscape.
+
+data_store_groups:
+  - name: Kundenstamm
+    labels: [Kundenstamm, Kunden-Stammdaten, CRM Kunden]
+    tags: [data-store-variants]
+    rationale: Three teams name the same customer master data differently.

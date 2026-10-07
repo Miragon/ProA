@@ -1,0 +1,78 @@
+key: finanzen/rechnungsstellung
+engine: c7
+name: Rechnungsstellung
+notes: >-
+  Started by the message LieferungVersendet, thrown by the C8 parcel shipping
+  (cross-engine) and by the C7 pallet freight process (same engine). The none
+  end "Lieferung versendet" of service/ersatzlieferung and the subprocess end
+  "Shipment dispatched" of logistik/shipping look like senders but are not
+  (event-def-mismatch, subprocess-scope). Rechnung versendet reaches
+  forderungsmanagement under the same name and the English shop as
+  InvoiceSent (de-en). The output channel is called dynamically. Catches the
+  C7 period-lock signal.
+
+processes:
+  - id: Process_Rechnungsstellung
+    name: Rechnungsstellung
+    documentation: >-
+      Erstellt nach dem Versand die Ausgangsrechnung, gibt sie über den vom
+      Kunden gewählten Kanal (E-Rechnung oder Brief) aus und meldet den
+      Versand der Rechnung.
+    dataStores:
+      - { id: DataStore_Kundenstamm, name: Kundenstamm }
+      - { id: DataStore_Hauptbuch, name: Hauptbuch }
+    elements:
+      - type: startEvent
+        id: Start_LieferungVersendet
+        name: Lieferung versendet
+        message: LieferungVersendet
+      - type: serviceTask
+        id: Task_AuftragsdatenLaden
+        name: Auftrags- und Kundendaten laden
+        reads: [DataStore_Kundenstamm]
+      - type: exclusiveGateway
+        id: Gateway_Kostenpflichtig
+        name: Kostenpflichtige Lieferung?
+        next:
+          - { to: Task_SteuersatzErmitteln, name: ja, default: true }
+          - { to: End_KeineRechnungErforderlich, name: "nein, Ersatzlieferung", condition: "${kostenloserErsatz}" }
+      - type: businessRuleTask
+        id: Task_SteuersatzErmitteln
+        name: Steuersatz und Zahlungsziel ermitteln
+      - type: exclusiveGateway
+        id: Gateway_Sammelrechnung
+        name: Sammelrechnung vereinbart?
+        next:
+          - { to: Task_AufSammelrechnungVormerken, name: ja, condition: "${sammelrechnung}" }
+          - { to: Task_RechnungErzeugen, name: nein, default: true }
+      - { type: serviceTask, id: Task_AufSammelrechnungVormerken, name: Auf Sammelrechnung vormerken }
+      - { type: endEvent, id: End_FuerSammelrechnungVorgemerkt, name: Für Sammelrechnung vorgemerkt }
+
+      - type: serviceTask
+        id: Task_RechnungErzeugen
+        name: Rechnung erzeugen und buchen
+        writes: [DataStore_Hauptbuch]
+      - type: callActivity
+        id: Call_RechnungAusgeben
+        name: Rechnung über Ausgabekanal versenden
+        calledElement: "${ausgabekanal}"
+        documentation: ausgabekanal ist Process_ERechnungVersand oder Process_Briefversand, je nach Kundeneinstellung.
+      - type: intermediateThrowEvent
+        id: Event_RechnungVersendet
+        name: Rechnung versendet
+        message: RechnungVersendet
+      - { type: endEvent, id: End_RechnungGestellt, name: Rechnung gestellt }
+
+      - { type: endEvent, id: End_KeineRechnungErforderlich, name: Keine Rechnung erforderlich }
+
+      - type: eventSubProcess
+        id: EventSub_BuchungsperiodeGesperrt
+        name: Buchungsperiode gesperrt
+        elements:
+          - type: startEvent
+            id: Start_BuchungsperiodeGesperrt
+            name: Buchungsperiode gesperrt
+            signal: BuchungsperiodeGesperrt
+            interrupting: false
+          - { type: serviceTask, id: Task_RechnungsdatumVerschieben, name: Rechnungsdatum auf Folgeperiode setzen }
+          - { type: endEvent, id: End_RechnungsdatumVerschoben, name: Rechnungsdatum verschoben }

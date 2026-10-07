@@ -1,0 +1,38 @@
+{
+  "name": "@proa/eval-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Spec format, BPMN generator and validator for the ProA eval corpus",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "generate": "node generate.mjs",
+    "generate:all": "node generate.mjs --all",
+    "check": "node generate.mjs --all --check",
+    "validate": "node validate.mjs",
+    "validate:all": "node validate.mjs --all",
+    "engines:up": "docker compose -f engines.compose.yaml up -d --wait",
+    "deploy-check": "node deploy-check.mjs",
+    "deploy-check:all": "node deploy-check.mjs --all test/fixtures/stress",
+    "engines:down": "docker compose -f engines.compose.yaml down -v",
+    "test": "node --test \"test/**/*.test.mjs\" \"test/**/*.test.ts\"",
+    "lint": "eslint .",
+    "typecheck": "tsc",
+    "candidates": "node src/candidates.ts"
+  },
+  "dependencies": {
+    "@proa/bpmn-facts": "workspace:0.0.0",
+    "@proa/contracts": "workspace:0.0.0",
+    "@proa/relations": "workspace:0.0.0",
+    "bpmn-moddle": "10.3.1",
+    "bpmnlint": "11.14.0",
+    "bpmnlint-plugin-camunda-compat": "2.61.1",
+    "camunda-bpmn-moddle": "8.0.2",
+    "modeler-moddle": "0.2.0",
+    "yaml": "2.9.1",
+    "zeebe-bpmn-moddle": "2.0.0",
+    "zod": "4.6.5"
+  }
+}

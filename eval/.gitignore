@@ -1,0 +1,2 @@
+# eval tooling: node_modules is managed by the root pnpm workspace
+tools/node_modules/

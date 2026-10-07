@@ -1,0 +1,74 @@
+key: lager/wareneingang
+engine: c8
+name: Wareneingang
+notes: >-
+  Started by BestellungAusgeloest from the C7 purchase requisition
+  (cross-engine). Calls the incoming goods inspection (call-unique); goods
+  the inspection blocks end it with the BPMN error WARE_GESPERRT, caught by
+  an error boundary on the call, and are sent back to the supplier without
+  being booked or reported.
+  Reports the checked receipt as WareneingangGeprüft (with umlaut); the C7
+  supplier invoice check waits for WareneingangGeprueft (transliteration).
+  The none start of the embedded putaway subprocess is labelled "Ware
+  freigegeben", exactly like the process-level none end of the inspection
+  (subprocess-scope: only the scope rules the trigger out).
+
+processes:
+  - id: Process_Wareneingang
+    name: Wareneingang
+    documentation: Avisiert erwartete Lieferungen, nimmt Ware an, lässt sie stichprobenartig prüfen, bucht freigegebene Ware und lagert sie ein; gesperrte Ware geht an den Lieferanten zurück.
+    dataStores:
+      - { id: DataStore_WmsLagerbestand, name: WMS Lagerbestand }
+    elements:
+      - type: startEvent
+        id: Start_BestellungAusgeloest
+        name: Bestellung ausgelöst
+        message: BestellungAusgeloest
+      - { type: serviceTask, id: Task_LieferavisAnlegen, name: Lieferavis anlegen }
+      - type: userTask
+        id: Task_WareAnnehmen
+        name: Ware annehmen und Menge prüfen
+        candidateGroups: wareneingang
+        boundary:
+          - id: Boundary_LieferungUeberfaellig
+            name: Lieferung 5 Tage überfällig
+            timer: { duration: P5D }
+            interrupting: false
+            next: Task_EinkaufInformieren
+      - type: serviceTask
+        id: Task_QsBestandBuchen
+        name: Ware in Qualitätsprüfbestand buchen
+        documentation: Die Ware ist erfasst, aber bis zur Freigabe nicht verfügbar.
+      - { type: manualTask, id: Task_PruefzoneBereitstellen, name: Ware in Prüfzone bereitstellen }
+      - type: callActivity
+        id: Call_Wareneingangspruefung
+        name: Wareneingangsprüfung durchführen
+        calledElement: Process_Wareneingangspruefung
+        boundary:
+          - id: Boundary_WareGesperrt
+            name: Ware gesperrt
+            error: { code: WARE_GESPERRT, name: Ware gesperrt }
+            next: Task_RuecksendungVeranlassen
+      - { type: serviceTask, id: Task_WareneingangBuchen, name: Ware in frei verfügbaren Bestand umbuchen }
+      - type: intermediateThrowEvent
+        id: Event_WareneingangGeprueft
+        name: Wareneingang geprüft
+        message: { name: WareneingangGeprüft, correlationKey: "=bestellnummer" }
+      - type: subProcess
+        id: Sub_Einlagerung
+        name: Einlagerung
+        elements:
+          - { type: startEvent, id: Start_EinlagerungGestartet, name: Ware freigegeben }
+          - { type: serviceTask, id: Task_LagerplatzErmitteln, name: Lagerplatz ermitteln, reads: [DataStore_WmsLagerbestand] }
+          - { type: userTask, id: Task_WareEinlagern, name: Ware einlagern, candidateGroups: lagerlogistik, writes: [DataStore_WmsLagerbestand] }
+          - { type: endEvent, id: End_WareEingelagert, name: Ware eingelagert }
+      - { type: endEvent, id: End_WareneingangAbgeschlossen, name: Wareneingang abgeschlossen }
+
+      - type: serviceTask
+        id: Task_RuecksendungVeranlassen
+        name: Rücksendung an Lieferanten veranlassen
+        documentation: Bucht die gesperrte Ware als Retoure aus und beauftragt die Abholung; die Mängelrüge hat die Qualitätsprüfung bereits versendet.
+      - { type: endEvent, id: End_WareZurueckgewiesen, name: Ware zurückgewiesen }
+
+      - { type: serviceTask, id: Task_EinkaufInformieren, name: Einkauf über Lieferverzug informieren }
+      - { type: endEvent, id: End_EinkaufInformiert, name: Einkauf informiert }

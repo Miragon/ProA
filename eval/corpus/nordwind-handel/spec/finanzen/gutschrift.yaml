@@ -1,0 +1,56 @@
+key: finanzen/gutschrift
+engine: c7
+name: Gutschrift erstellen
+notes: >-
+  Started by GutschriftAngefordert from the German C8 complaint process
+  (cross-engine, exact key) and by CreditNoteRequested from the English C8
+  returns process (de-en). Answers both with GutschriftErstellt. Reuses the
+  letter output process (call-unique) and catches the C7 period-lock signal.
+
+processes:
+  - id: Process_Gutschrift
+    name: Gutschrift erstellen
+    documentation: Erstellt, gibt frei, bucht und versendet Gutschriften für Reklamationen und Retouren.
+    dataStores:
+      - { id: DataStore_Debitorenkonten, name: Debitorenkonten }
+    elements:
+      - type: startEvent
+        id: Start_GutschriftAngefordert
+        name: Gutschrift angefordert
+        message: GutschriftAngefordert
+      - { type: serviceTask, id: Task_GutschriftsbetragErmitteln, name: Gutschriftsbetrag ermitteln }
+      - type: exclusiveGateway
+        id: Gateway_FreigabeNoetig
+        name: Betrag über 500 EUR?
+        next:
+          - { to: Task_GutschriftFreigeben, name: ja, condition: "${betrag > 500}" }
+          - { to: Gateway_Freigegeben, name: nein, default: true }
+      - type: userTask
+        id: Task_GutschriftFreigeben
+        name: Gutschrift freigeben
+        candidateGroups: buchhaltung-leitung
+      - { type: exclusiveGateway, id: Gateway_Freigegeben }
+      - type: serviceTask
+        id: Task_GutschriftBuchen
+        name: Gutschrift buchen
+        writes: [DataStore_Debitorenkonten]
+      - type: callActivity
+        id: Call_GutschriftVersenden
+        name: Gutschrift per Post versenden
+        calledElement: Process_Briefversand
+      - type: endEvent
+        id: End_GutschriftErstellt
+        name: Gutschrift erstellt
+        message: GutschriftErstellt
+
+      - type: eventSubProcess
+        id: EventSub_BuchungsperiodeGesperrt
+        name: Buchungsperiode gesperrt
+        elements:
+          - type: startEvent
+            id: Start_BuchungsperiodeGesperrt
+            name: Buchungsperiode gesperrt
+            signal: BuchungsperiodeGesperrt
+            interrupting: false
+          - { type: serviceTask, id: Task_BuchungsdatumAnpassen, name: Buchungsdatum auf Folgeperiode setzen }
+          - { type: endEvent, id: End_BuchungsdatumAngepasst, name: Buchungsdatum angepasst }

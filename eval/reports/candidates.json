@@ -1,0 +1,2067 @@
+{
+  "pass": true,
+  "landscapes": [
+    {
+      "name": "nordwind-handel",
+      "split": "dev",
+      "lang": "mixed",
+      "closedWorld": true,
+      "pass": true,
+      "gates": [
+        {
+          "id": "rule-precision",
+          "title": "Rule-tier precision (accepted relations)",
+          "value": "100.0 % (9/9)",
+          "target": "100 %",
+          "pass": true
+        },
+        {
+          "id": "rule-must-not-link",
+          "title": "must_not_link accepted by the rule tier",
+          "value": "0",
+          "target": "0",
+          "pass": true
+        },
+        {
+          "id": "must-link-recall",
+          "title": "must_link among rules ∪ candidates",
+          "value": "100.0 % (42/42)",
+          "target": "≥ 98 %",
+          "pass": true
+        },
+        {
+          "id": "findings-exact",
+          "title": "Findings unresolved-call, dynamic-call, duplicate-process-id equal expected",
+          "value": "equal",
+          "target": "equal",
+          "pass": true
+        },
+        {
+          "id": "findings-judged",
+          "title": "Findings dangling-throw, unmatched-catch: all expected found, extras explained",
+          "value": "ok",
+          "target": "ok",
+          "pass": true
+        }
+      ],
+      "counts": {
+        "models": 31,
+        "processes": 32,
+        "facts": 383,
+        "expected": {
+          "must_link": 42,
+          "must_not_link": 28,
+          "may_link": 7
+        },
+        "findings": 10,
+        "rules": {
+          "accepted": 9,
+          "proposed": 33
+        },
+        "candidates": {
+          "rule": 9,
+          "key": 33,
+          "lexical": 165,
+          "compatible": 1599,
+          "total": 1806
+        },
+        "baseline": 21
+      },
+      "ruleTier": {
+        "accepted": 9,
+        "correct": 9,
+        "precision": 1,
+        "wrong": []
+      },
+      "systems": {
+        "rules": {
+          "pairs": 42,
+          "mustLink": 37,
+          "mayLink": 2,
+          "mustNotLink": 3,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.925,
+          "recall": 0.8809523809523809
+        },
+        "keyLexical": {
+          "pairs": 207,
+          "mustLink": 42,
+          "mayLink": 5,
+          "mustNotLink": 15,
+          "unlisted": 145,
+          "sameProcess": 0,
+          "precision": 0.2079207920792079,
+          "recall": 1
+        },
+        "candidates": {
+          "pairs": 1806,
+          "mustLink": 42,
+          "mayLink": 7,
+          "mustNotLink": 19,
+          "unlisted": 1738,
+          "sameProcess": 0,
+          "precision": 0.023346303501945526,
+          "recall": 1
+        },
+        "baseline": {
+          "pairs": 21,
+          "mustLink": 14,
+          "mayLink": 0,
+          "mustNotLink": 6,
+          "unlisted": 0,
+          "sameProcess": 1,
+          "precision": 0.6666666666666666,
+          "recall": 0.3333333333333333
+        }
+      },
+      "byType": {
+        "call": {
+          "mustLink": 9,
+          "mustLinkRules": 9,
+          "mustLinkKeyLexical": 9,
+          "mustLinkCandidates": 9,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 2,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 5,
+          "mayLinkCandidates": 5,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 9,
+          "ruleAcceptedCorrect": 9
+        },
+        "message": {
+          "mustLink": 25,
+          "mustLinkRules": 22,
+          "mustLinkKeyLexical": 25,
+          "mustLinkCandidates": 25,
+          "mustLinkBaseline": 8,
+          "mustNotLink": 22,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 3,
+          "mustNotLinkKeyLexical": 15,
+          "mustNotLinkCandidates": 15,
+          "mustNotLinkBaseline": 4,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "signal": {
+          "mustLink": 6,
+          "mustLinkRules": 6,
+          "mustLinkKeyLexical": 6,
+          "mustLinkCandidates": 6,
+          "mustLinkBaseline": 4,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "trigger": {
+          "mustLink": 2,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 2,
+          "mustLinkCandidates": 2,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 4,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 2,
+          "mayLink": 2,
+          "mayLinkCandidates": 2,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        }
+      },
+      "byTag": {
+        "call-ambiguous": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 2,
+          "mayLinkCandidates": 2,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "call-dynamic": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 1,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 1,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 3,
+          "mayLinkCandidates": 3,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "call-unique": {
+          "mustLink": 9,
+          "mustLinkRules": 9,
+          "mustLinkKeyLexical": 9,
+          "mustLinkCandidates": 9,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 9,
+          "ruleAcceptedCorrect": 9
+        },
+        "call-unresolved": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 1,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 1,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "collaboration": {
+          "mustLink": 25,
+          "mustLinkRules": 22,
+          "mustLinkKeyLexical": 25,
+          "mustLinkCandidates": 25,
+          "mustLinkBaseline": 9,
+          "mustNotLink": 4,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 3,
+          "mustNotLinkKeyLexical": 4,
+          "mustNotLinkCandidates": 4,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 4,
+          "mayLinkCandidates": 4,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 3,
+          "ruleAcceptedCorrect": 3
+        },
+        "cross-engine-message": {
+          "mustLink": 14,
+          "mustLinkRules": 14,
+          "mustLinkKeyLexical": 14,
+          "mustLinkCandidates": 14,
+          "mustLinkBaseline": 5,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "de-en": {
+          "mustLink": 2,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 2,
+          "mustLinkCandidates": 2,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "distractor": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 10,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 3,
+          "mustNotLinkCandidates": 7,
+          "mustNotLinkBaseline": 1,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "event-def-mismatch": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 4,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 3,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "exact-key": {
+          "mustLink": 8,
+          "mustLinkRules": 8,
+          "mustLinkKeyLexical": 8,
+          "mustLinkCandidates": 8,
+          "mustLinkBaseline": 3,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "generic-name": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 3,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 3,
+          "mustNotLinkKeyLexical": 3,
+          "mustNotLinkCandidates": 3,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "lexical": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 2,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 2,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "near-miss": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 10,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 9,
+          "mustNotLinkCandidates": 9,
+          "mustNotLinkBaseline": 2,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "self-link": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 2,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 1,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "semantic": {
+          "mustLink": 1,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 1,
+          "mustLinkCandidates": 1,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 2,
+          "mayLinkCandidates": 2,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "signal-broadcast": {
+          "mustLink": 6,
+          "mustLinkRules": 6,
+          "mustLinkKeyLexical": 6,
+          "mustLinkCandidates": 6,
+          "mustLinkBaseline": 4,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "subprocess-scope": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 3,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 2,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "transliteration": {
+          "mustLink": 3,
+          "mustLinkRules": 2,
+          "mustLinkKeyLexical": 3,
+          "mustLinkCandidates": 3,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "trigger": {
+          "mustLink": 2,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 2,
+          "mustLinkCandidates": 2,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 2,
+          "mayLinkCandidates": 2,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        }
+      },
+      "mustLinkMissed": [],
+      "mustLinkOnlyCompatible": [],
+      "mustNotLinkProposed": [
+        {
+          "type": "message",
+          "from": "service/reklamation#Task_AntwortSenden",
+          "to": "finanzen/kreditpruefung#Event_AntwortErhalten",
+          "expect": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "rationale": "Both use the generic message name Antwort, but one answers a complaining customer and the other is the credit agency's report; key tier would propose it at confidence 1.0."
+        },
+        {
+          "type": "message",
+          "from": "service/reklamation#Task_AntwortSenden",
+          "to": "einkauf/bestellanforderung#Event_AntwortErhalten",
+          "expect": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "rationale": "Same generic name Antwort; the requisition waits for the supplier's order confirmation, not for a customer reply."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/kreditpruefung#End_AntwortGesendet",
+          "to": "einkauf/bestellanforderung#Event_AntwortErhalten",
+          "expect": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "rationale": "The credit agency adapter's Antwort goes to Event_AntwortErhalten of the credit check in its own file (internal message flow, a fact); the requisition's Antwort is the supplier's order confirmation. Key tier would propose it at confidence 1.0."
+        }
+      ],
+      "baselineMustNotLink": [
+        {
+          "type": "message",
+          "from": "vertrieb/marketplace-order-import#End_OrderRejected",
+          "to": "vertrieb/order-handling#Start_OrderReceived",
+          "expect": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "rationale": "\"Order rejected\" vs \"Order received\" (Levenshtein 3, OrderRejected vs OrderReceived): the rejection goes back to the marketplace, never into order handling."
+        },
+        {
+          "type": "message",
+          "from": "service/ersatzlieferung#End_LieferungVersendet",
+          "to": "finanzen/rechnungsstellung#Start_LieferungVersendet",
+          "expect": "must_not_link",
+          "tags": [
+            "event-def-mismatch"
+          ],
+          "rationale": "Same label, but a none end throws no message; free replacement deliveries are not invoiced from here."
+        },
+        {
+          "type": "message",
+          "from": "logistik/speditionsversand#End_LieferungVerspaetet",
+          "to": "service/kundenbenachrichtigung#Start_LieferungVerspaetet",
+          "expect": "must_not_link",
+          "tags": [
+            "event-def-mismatch"
+          ],
+          "rationale": "Same label, but the C7 none end throws nothing; pallet delays are not notified yet (migration gap)."
+        },
+        {
+          "type": "message",
+          "from": "lager/kommissionierung#End_WareVersandbereit",
+          "to": "logistik/speditionsversand#Start_WareVersandbereit",
+          "expect": "must_not_link",
+          "tags": [
+            "event-def-mismatch",
+            "subprocess-scope"
+          ],
+          "rationale": "Same label, but a none end throws no message, and it lies inside the packing subprocess, so it is never an endpoint; the message comes from Event_WareVersandbereit."
+        },
+        {
+          "type": "trigger",
+          "from": "partner/partner-onboarding#End_ApplicationRejected",
+          "to": "partner/partner-onboarding#Start_DealerApplicationReceived",
+          "expect": "must_not_link",
+          "tags": [
+            "self-link",
+            "near-miss"
+          ],
+          "rationale": "\"Dealer application rejected\" vs \"Dealer application received\" (Levenshtein 3), own none end and none start: a rejected application starts nothing, and endpoints must lie in different processes."
+        },
+        {
+          "type": "trigger",
+          "from": "qualitaet/wareneingangspruefung#End_WareFreigegeben",
+          "to": "lager/wareneingang#Start_EinlagerungGestartet",
+          "expect": "must_not_link",
+          "tags": [
+            "subprocess-scope",
+            "distractor"
+          ],
+          "rationale": "Identical label \"Ware freigegeben\", none end -> none start, different processes; only scope excludes it. The start lies inside the embedded subprocess Sub_Einlagerung, and Process_Wareneingang itself calls the inspection."
+        }
+      ],
+      "baselineMissed": [
+        {
+          "type": "call",
+          "from": "vertrieb/order-handling#Call_PickAndPack",
+          "to": "lager/kommissionierung#Process_Kommissionierung",
+          "expect": "must_link",
+          "tags": [
+            "call-unique",
+            "collaboration"
+          ],
+          "rationale": "Static zeebe:calledElement Process_Kommissionierung matches exactly one process; the caller is the participant process of the shop collaboration."
+        },
+        {
+          "type": "call",
+          "from": "service/ersatzlieferung#Call_ErsatzwareKommissionieren",
+          "to": "lager/kommissionierung#Process_Kommissionierung",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "Replacement deliveries reuse the picking process through its unique process id."
+        },
+        {
+          "type": "call",
+          "from": "service/ersatzlieferung#Call_ErsatzwareVersenden",
+          "to": "logistik/shipping#Process_Shipping",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "Replacement deliveries reuse parcel shipping through its unique process id."
+        },
+        {
+          "type": "call",
+          "from": "service/reklamation#Call_Ersatzlieferung",
+          "to": "service/ersatzlieferung#Process_Ersatzlieferung",
+          "expect": "must_link",
+          "tags": [
+            "call-unique",
+            "collaboration"
+          ],
+          "rationale": "Static calledElement Process_Ersatzlieferung matches exactly one process."
+        },
+        {
+          "type": "call",
+          "from": "finanzen/forderungsmanagement#Call_Mahnwesen",
+          "to": "finanzen/mahnwesen#Process_Mahnwesen",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "C7 calledElement Process_Mahnwesen matches exactly one process."
+        },
+        {
+          "type": "call",
+          "from": "finanzen/mahnwesen#Call_MahnungVersenden",
+          "to": "finanzen/briefversand#Process_Briefversand",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "Dunning letters go through the shared letter output process."
+        },
+        {
+          "type": "call",
+          "from": "finanzen/gutschrift#Call_GutschriftVersenden",
+          "to": "finanzen/briefversand#Process_Briefversand",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "Credit notes go through the shared letter output process."
+        },
+        {
+          "type": "call",
+          "from": "lager/wareneingang#Call_Wareneingangspruefung",
+          "to": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "Static calledElement Process_Wareneingangspruefung matches exactly one process."
+        },
+        {
+          "type": "message",
+          "from": "vertrieb/order-handling#Task_RequestCreditCheck",
+          "to": "finanzen/kreditpruefung#Start_KreditpruefungAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The C8 send task and the C7 message start share the message name KreditpruefungAngefordert (message bus between the engines)."
+        },
+        {
+          "type": "message",
+          "from": "partner/partner-onboarding#Task_RequestCreditCheck",
+          "to": "finanzen/kreditpruefung#Start_KreditpruefungAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "transliteration",
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "KreditprüfungAngefordert (umlaut, C8 dealer onboarding) and KreditpruefungAngefordert (C7) are the same request; only the ü/ue spelling differs."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/kreditpruefung#End_KreditpruefungAbgeschlossen",
+          "to": "vertrieb/order-handling#Task_WaitForCreditDecision",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The C7 message end and the C8 receive task share KreditpruefungAbgeschlossen; the shop waits for the decision it requested."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/kreditpruefung#End_KreditpruefungAbgeschlossen",
+          "to": "partner/partner-onboarding#Task_AwaitCreditDecision",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The same answer also reaches dealer onboarding; one throw legitimately serves both requesters."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungseingang#Task_ZuordnungMelden",
+          "to": "finanzen/forderungsmanagement#Event_ZahlungZugeordnet",
+          "expect": "must_link",
+          "tags": [
+            "exact-key"
+          ],
+          "rationale": "Identical message name ZahlungZugeordnet; receivables close the open item when the payment is allocated."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungseingang#Task_ZuordnungMelden",
+          "to": "finanzen/mahnwesen#Event_ZahlungZugeordnet",
+          "expect": "must_link",
+          "tags": [
+            "exact-key"
+          ],
+          "rationale": "Identical message name ZahlungZugeordnet; a payment ends a running dunning procedure."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungseingang#Task_ZuordnungMelden",
+          "to": "vertrieb/order-handling#Event_PaymentAllocated",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The English shop catch \"Payment allocated\" uses the legacy message name ZahlungZugeordnet from C7."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/rechnungsstellung#Event_RechnungVersendet",
+          "to": "vertrieb/order-handling#Start_InvoiceSent",
+          "expect": "must_link",
+          "tags": [
+            "de-en",
+            "collaboration"
+          ],
+          "rationale": "\"Rechnung versendet\" (RechnungVersendet) and \"Invoice sent\" (InvoiceSent) are the same event for a German and an English team; the names differ, so only the semantic tier finds it."
+        },
+        {
+          "type": "message",
+          "from": "logistik/shipping#Event_ShipmentDispatched",
+          "to": "finanzen/rechnungsstellung#Start_LieferungVersendet",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The English C8 throw \"Shipment dispatched\" sends the legacy message LieferungVersendet that starts C7 invoicing."
+        },
+        {
+          "type": "message",
+          "from": "logistik/shipping#Event_DeliveryDelayed",
+          "to": "service/kundenbenachrichtigung#Start_LieferungVerspaetet",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration"
+          ],
+          "rationale": "Identical message name LieferungVerspaetet; the English label \"Delivery delayed\" and the German \"Lieferung verspätet\" agree."
+        },
+        {
+          "type": "message",
+          "from": "vertrieb/marketplace-order-import#Event_ForwardOrder",
+          "to": "vertrieb/order-handling#Start_OrderReceived",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration"
+          ],
+          "rationale": "Identical message name OrderReceived; marketplace orders enter the same order handling as shop orders."
+        },
+        {
+          "type": "message",
+          "from": "service/reklamation#Task_GutschriftAnfordern",
+          "to": "finanzen/gutschrift#Start_GutschriftAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The C8 send task and the C7 message start share GutschriftAngefordert."
+        },
+        {
+          "type": "message",
+          "from": "service/returns#Task_RequestCreditNote",
+          "to": "finanzen/gutschrift#Start_GutschriftAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "de-en"
+          ],
+          "rationale": "\"Request credit note\" (CreditNoteRequested) is the English team's name for \"Gutschrift angefordert\"; same request, different language and message name."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/gutschrift#End_GutschriftErstellt",
+          "to": "service/returns#Task_AwaitCreditNote",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message"
+          ],
+          "rationale": "The C7 message end and the C8 receive task share GutschriftErstellt."
+        },
+        {
+          "type": "message",
+          "from": "service/reklamation#Task_RuecksendungVeranlassen",
+          "to": "service/returns#Start_ReturnRequested",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration"
+          ],
+          "rationale": "The German complaint team starts the English returns process with its message name ReturnRequested."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/mahnwesen#End_KundeGesperrt",
+          "to": "partner/customer-account-lock#Start_CustomerBlocked",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message"
+          ],
+          "rationale": "KundeGesperrt from C7 dunning starts the C8 account lock, labelled \"Customer blocked\"."
+        },
+        {
+          "type": "message",
+          "from": "finanzen/lieferantenrechnung#Event_VorgezogeneZahlungAngefordert",
+          "to": "finanzen/zahlungslauf#Start_EilzahlungAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "semantic",
+            "collaboration"
+          ],
+          "rationale": "\"Vorgezogene Zahlung angefordert\" and \"Eilzahlung angefordert\" both request an ad-hoc payment run to keep the cash discount; same language, different words and message names."
+        },
+        {
+          "type": "signal",
+          "from": "qualitaet/produktrueckruf#Event_ProduktrueckrufAusgeloest",
+          "to": "vertrieb/order-handling#Start_ProductRecall",
+          "expect": "must_link",
+          "tags": [
+            "signal-broadcast",
+            "collaboration"
+          ],
+          "rationale": "The recall signal Produktrueckruf reaches every running order, here under the English label \"Product recall\"."
+        },
+        {
+          "type": "signal",
+          "from": "qualitaet/produktrueckruf#Event_ProduktrueckrufAusgeloest",
+          "to": "service/returns#Start_ProductRecall",
+          "expect": "must_link",
+          "tags": [
+            "signal-broadcast"
+          ],
+          "rationale": "Returns flag recall-related cases on the same signal."
+        },
+        {
+          "type": "trigger",
+          "from": "einkauf/bestellanforderung#End_NeuerLieferantBenoetigt",
+          "to": "einkauf/lieferantenanlage#Start_NeuerLieferantBenoetigt",
+          "expect": "must_link",
+          "tags": [
+            "trigger",
+            "transliteration",
+            "collaboration"
+          ],
+          "rationale": "\"Neuer Lieferant benötigt\" hands over to supplier onboarding, whose older model spells it \"benoetigt\"."
+        }
+      ],
+      "findings": [
+        {
+          "kind": "unresolved-call",
+          "mode": "exact",
+          "expected": [
+            "finanzen/forderungsmanagement#Call_Inkasso",
+            "vertrieb/order-handling#Call_FraudCheck"
+          ],
+          "computed": [
+            "finanzen/forderungsmanagement#Call_Inkasso",
+            "vertrieb/order-handling#Call_FraudCheck"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": []
+        },
+        {
+          "kind": "dynamic-call",
+          "mode": "exact",
+          "expected": [
+            "finanzen/rechnungsstellung#Call_RechnungAusgeben",
+            "service/returns#Call_ShipExchangeItem"
+          ],
+          "computed": [
+            "finanzen/rechnungsstellung#Call_RechnungAusgeben",
+            "service/returns#Call_ShipExchangeItem"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": []
+        },
+        {
+          "kind": "duplicate-process-id",
+          "mode": "exact",
+          "expected": [
+            "einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe einkauf/bestellfreigabe#Process_Bestellfreigabe"
+          ],
+          "computed": [
+            "einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe einkauf/bestellfreigabe#Process_Bestellfreigabe"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": []
+        },
+        {
+          "kind": "dangling-throw",
+          "mode": "judged",
+          "expected": [
+            "finanzen/zahlungseingang#Task_KundensperreAufheben",
+            "finanzen/zahlungslauf#Task_ZahlungsdateiUebermitteln",
+            "vertrieb/marketplace-order-import#End_OrderRejected"
+          ],
+          "computed": [
+            "finanzen/lieferantenrechnung#Event_VorgezogeneZahlungAngefordert",
+            "finanzen/zahlungseingang#Task_KundensperreAufheben",
+            "finanzen/zahlungslauf#Task_ZahlungsdateiUebermitteln",
+            "service/returns#Task_RequestCreditNote",
+            "vertrieb/marketplace-order-import#End_OrderRejected"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": [
+            {
+              "finding": "finanzen/lieferantenrechnung#Event_VorgezogeneZahlungAngefordert",
+              "links": [
+                "message finanzen/lieferantenrechnung#Event_VorgezogeneZahlungAngefordert -> finanzen/zahlungslauf#Start_EilzahlungAngefordert (must_link; semantic, collaboration)"
+              ]
+            },
+            {
+              "finding": "service/returns#Task_RequestCreditNote",
+              "links": [
+                "message service/returns#Task_RequestCreditNote -> finanzen/gutschrift#Start_GutschriftAngefordert (must_link; de-en)"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "unmatched-catch",
+          "mode": "judged",
+          "expected": [
+            "finanzen/forderungsmanagement#Start_RuecklastschriftEingegangen",
+            "vertrieb/marketplace-order-import#Start_MarketplaceOrderNotified"
+          ],
+          "computed": [
+            "finanzen/forderungsmanagement#Start_RuecklastschriftEingegangen",
+            "finanzen/zahlungslauf#Start_EilzahlungAngefordert",
+            "vertrieb/marketplace-order-import#Start_MarketplaceOrderNotified",
+            "vertrieb/order-handling#Start_InvoiceSent"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": [
+            {
+              "finding": "finanzen/zahlungslauf#Start_EilzahlungAngefordert",
+              "links": [
+                "message finanzen/lieferantenrechnung#Event_VorgezogeneZahlungAngefordert -> finanzen/zahlungslauf#Start_EilzahlungAngefordert (must_link; semantic, collaboration)"
+              ]
+            },
+            {
+              "finding": "vertrieb/order-handling#Start_InvoiceSent",
+              "links": [
+                "message finanzen/rechnungsstellung#Event_RechnungVersendet -> vertrieb/order-handling#Start_InvoiceSent (must_link; de-en, collaboration)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stadtwerke-auental",
+      "split": "holdout",
+      "lang": "mixed",
+      "closedWorld": true,
+      "pass": true,
+      "gates": [
+        {
+          "id": "rule-precision",
+          "title": "Rule-tier precision (accepted relations)",
+          "value": "100.0 % (3/3)",
+          "target": "100 %",
+          "pass": true
+        },
+        {
+          "id": "rule-must-not-link",
+          "title": "must_not_link accepted by the rule tier",
+          "value": "0",
+          "target": "0",
+          "pass": true
+        },
+        {
+          "id": "must-link-recall",
+          "title": "must_link among rules ∪ candidates",
+          "value": "100.0 % (40/40)",
+          "target": "≥ 98 %",
+          "pass": true
+        },
+        {
+          "id": "findings-exact",
+          "title": "Findings unresolved-call, dynamic-call, duplicate-process-id equal expected",
+          "value": "equal",
+          "target": "equal",
+          "pass": true
+        },
+        {
+          "id": "findings-judged",
+          "title": "Findings dangling-throw, unmatched-catch: all expected found, extras explained",
+          "value": "ok",
+          "target": "ok",
+          "pass": true
+        }
+      ],
+      "counts": {
+        "models": 26,
+        "processes": 27,
+        "facts": 367,
+        "expected": {
+          "must_link": 40,
+          "must_not_link": 39,
+          "may_link": 5
+        },
+        "findings": 7,
+        "rules": {
+          "accepted": 3,
+          "proposed": 36
+        },
+        "candidates": {
+          "rule": 3,
+          "key": 36,
+          "lexical": 117,
+          "compatible": 1735,
+          "total": 1891
+        },
+        "baseline": 26
+      },
+      "ruleTier": {
+        "accepted": 3,
+        "correct": 3,
+        "precision": 1,
+        "wrong": []
+      },
+      "systems": {
+        "rules": {
+          "pairs": 39,
+          "mustLink": 35,
+          "mayLink": 2,
+          "mustNotLink": 2,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.9459459459459459,
+          "recall": 0.875
+        },
+        "keyLexical": {
+          "pairs": 156,
+          "mustLink": 38,
+          "mayLink": 2,
+          "mustNotLink": 18,
+          "unlisted": 98,
+          "sameProcess": 0,
+          "precision": 0.24675324675324675,
+          "recall": 0.95
+        },
+        "candidates": {
+          "pairs": 1891,
+          "mustLink": 40,
+          "mayLink": 5,
+          "mustNotLink": 24,
+          "unlisted": 1822,
+          "sameProcess": 0,
+          "precision": 0.021208907741251327,
+          "recall": 1
+        },
+        "baseline": {
+          "pairs": 26,
+          "mustLink": 17,
+          "mayLink": 0,
+          "mustNotLink": 9,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.6538461538461539,
+          "recall": 0.425
+        }
+      },
+      "byType": {
+        "call": {
+          "mustLink": 3,
+          "mustLinkRules": 3,
+          "mustLinkKeyLexical": 3,
+          "mustLinkCandidates": 3,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 1,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 5,
+          "mayLinkCandidates": 5,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 3,
+          "ruleAcceptedCorrect": 3
+        },
+        "message": {
+          "mustLink": 30,
+          "mustLinkRules": 26,
+          "mustLinkKeyLexical": 29,
+          "mustLinkCandidates": 30,
+          "mustLinkBaseline": 10,
+          "mustNotLink": 30,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 2,
+          "mustNotLinkKeyLexical": 14,
+          "mustNotLinkCandidates": 20,
+          "mustNotLinkBaseline": 6,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "signal": {
+          "mustLink": 6,
+          "mustLinkRules": 6,
+          "mustLinkKeyLexical": 6,
+          "mustLinkCandidates": 6,
+          "mustLinkBaseline": 6,
+          "mustNotLink": 3,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 2,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "trigger": {
+          "mustLink": 1,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 1,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 5,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 2,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 3,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        }
+      },
+      "byTag": {
+        "call-ambiguous": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 2,
+          "mayLinkCandidates": 2,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "call-dynamic": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 3,
+          "mayLinkCandidates": 3,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "call-unique": {
+          "mustLink": 3,
+          "mustLinkRules": 3,
+          "mustLinkKeyLexical": 3,
+          "mustLinkCandidates": 3,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 3,
+          "ruleAcceptedCorrect": 3
+        },
+        "collaboration": {
+          "mustLink": 22,
+          "mustLinkRules": 20,
+          "mustLinkKeyLexical": 21,
+          "mustLinkCandidates": 22,
+          "mustLinkBaseline": 11,
+          "mustNotLink": 2,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 1,
+          "mustNotLinkKeyLexical": 2,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 1,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 1,
+          "ruleAcceptedCorrect": 1
+        },
+        "cross-engine-message": {
+          "mustLink": 12,
+          "mustLinkRules": 12,
+          "mustLinkKeyLexical": 12,
+          "mustLinkCandidates": 12,
+          "mustLinkBaseline": 7,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "de-en": {
+          "mustLink": 4,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 3,
+          "mustLinkCandidates": 4,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "distractor": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 20,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 11,
+          "mustNotLinkCandidates": 17,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "event-def-mismatch": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 10,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 4,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "exact-key": {
+          "mustLink": 10,
+          "mustLinkRules": 10,
+          "mustLinkKeyLexical": 10,
+          "mustLinkCandidates": 10,
+          "mustLinkBaseline": 2,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "generic-name": {
+          "mustLink": 2,
+          "mustLinkRules": 2,
+          "mustLinkKeyLexical": 2,
+          "mustLinkCandidates": 2,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 3,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 2,
+          "mustNotLinkKeyLexical": 2,
+          "mustNotLinkCandidates": 2,
+          "mustNotLinkBaseline": 1,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "near-miss": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 6,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 5,
+          "mustNotLinkCandidates": 5,
+          "mustNotLinkBaseline": 3,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "self-link": {
+          "mustLink": 0,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 0,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 1,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "semantic": {
+          "mustLink": 1,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 1,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "signal-broadcast": {
+          "mustLink": 6,
+          "mustLinkRules": 6,
+          "mustLinkKeyLexical": 6,
+          "mustLinkCandidates": 6,
+          "mustLinkBaseline": 6,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "subprocess-scope": {
+          "mustLink": 7,
+          "mustLinkRules": 6,
+          "mustLinkKeyLexical": 6,
+          "mustLinkCandidates": 7,
+          "mustLinkBaseline": 4,
+          "mustNotLink": 3,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 2,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "transliteration": {
+          "mustLink": 2,
+          "mustLinkRules": 2,
+          "mustLinkKeyLexical": 2,
+          "mustLinkCandidates": 2,
+          "mustLinkBaseline": 1,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        },
+        "trigger": {
+          "mustLink": 1,
+          "mustLinkRules": 0,
+          "mustLinkKeyLexical": 0,
+          "mustLinkCandidates": 1,
+          "mustLinkBaseline": 0,
+          "mustNotLink": 0,
+          "mustNotLinkAccepted": 0,
+          "mustNotLinkRules": 0,
+          "mustNotLinkKeyLexical": 0,
+          "mustNotLinkCandidates": 0,
+          "mustNotLinkBaseline": 0,
+          "mayLink": 0,
+          "mayLinkCandidates": 0,
+          "mayLinkBaseline": 0,
+          "ruleAccepted": 0,
+          "ruleAcceptedCorrect": 0
+        }
+      },
+      "mustLinkMissed": [],
+      "mustLinkOnlyCompatible": [
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_MeterReadingSubmitted",
+          "to": "messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt",
+          "expect": "must_link",
+          "tags": [
+            "de-en",
+            "subprocess-scope"
+          ],
+          "rationale": "\"Meter reading submitted\" is the portal's English name for the customer self-reading that the reading process waits for as \"Zählerstand übermittelt\"; the message names differ, so only the semantic tier finds it. The catch lies inside an embedded subprocess, which is fine: only start and end events there are excluded."
+        },
+        {
+          "type": "trigger",
+          "from": "netz/hausanschluss#End_ZaehlersetzungBeauftragt",
+          "to": "messwesen/zaehlermontage#Start_HausanschlussFertiggestellt",
+          "expect": "must_link",
+          "tags": [
+            "trigger",
+            "semantic",
+            "collaboration"
+          ],
+          "rationale": "Handover from grid service to metering - after the installer's completion notice the grid side orders the first meter, and the meter setting process starts at \"Hausanschluss fertiggestellt\". Labels differ; agents only."
+        }
+      ],
+      "mustNotLinkProposed": [
+        {
+          "type": "message",
+          "from": "netz/entstoerung#Event_RueckmeldungGesendet",
+          "to": "netz/pv-einspeisung#Task_RueckmeldungErhalten",
+          "expect": "must_not_link",
+          "tags": [
+            "generic-name"
+          ],
+          "rationale": "Same generic message name Rueckmeldung, but a repair report has nothing to do with a PV registration waiting for its bidirectional meter."
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerwechsel#Task_RueckmeldungSenden",
+          "to": "netz/stoerungsannahme#Task_RueckmeldungErhalten",
+          "expect": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "rationale": "Same generic message name Rueckmeldung, but a meter change confirmation never closes a fault report."
+        }
+      ],
+      "baselineMustNotLink": [
+        {
+          "type": "message",
+          "from": "netz/pv-einspeisung#End_EinspeiseanlageInBetrieb",
+          "to": "abrechnung/einspeiseverguetung#Start_EinspeiseanlageInBetrieb",
+          "expect": "must_not_link",
+          "tags": [
+            "event-def-mismatch"
+          ],
+          "rationale": "Identical label \"Einspeiseanlage in Betrieb genommen\", but the none end throws nothing; the message comes from Event_InbetriebnahmeGemeldet."
+        },
+        {
+          "type": "message",
+          "from": "marktkommunikation/lieferantenwechsel#Event_AbmeldungBestaetigt",
+          "to": "marktkommunikation/lieferbeginn#Event_AnmeldungBestaetigt",
+          "expect": "must_not_link",
+          "tags": [
+            "near-miss",
+            "collaboration"
+          ],
+          "rationale": "\"Abmeldung bestätigt\" vs \"Anmeldung bestätigt\" is Levenshtein 1 but opposite GPKE steps; both are internal message flows with the grid operator pool."
+        },
+        {
+          "type": "message",
+          "from": "netz/pv-einspeisung#End_AnmeldungAbgelehnt",
+          "to": "marktkommunikation/lieferbeginn#Event_AnmeldungAbgelehnt",
+          "expect": "must_not_link",
+          "tags": [
+            "generic-name",
+            "event-def-mismatch"
+          ],
+          "rationale": "Same generic label \"Anmeldung abgelehnt\" for two different registrations (a PV plant at the grid operator vs a supply point under GPKE); the none end throws nothing and the catch is fed by the internal message flow from Participant_Netzbetreiber."
+        },
+        {
+          "type": "message",
+          "from": "marktkommunikation/lieferbeginn#End_LieferbeginnAngemeldet",
+          "to": "abrechnung/stammdatenuebernahme#Start_LieferbeginnGemeldet",
+          "expect": "must_not_link",
+          "tags": [
+            "event-def-mismatch"
+          ],
+          "rationale": "\"Lieferbeginn angemeldet\" is Levenshtein 2 from the C7 start label, but the none end throws nothing; Event_LieferbeginnGemeldet carries the message."
+        },
+        {
+          "type": "message",
+          "from": "forderung/sperrung#Event_AnlageGesperrt",
+          "to": "kundenservice/kundeninformation#Start_AnlageEntsperrt",
+          "expect": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "rationale": "\"Anlage gesperrt\" vs \"Anlage entsperrt\" is Levenshtein 3 but the opposite event."
+        },
+        {
+          "type": "message",
+          "from": "forderung/sperrung#End_AnlageEntsperrt",
+          "to": "kundenservice/kundeninformation#Start_AnlageGesperrt",
+          "expect": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "rationale": "\"Anlage entsperrt\" vs \"Anlage gesperrt\" is Levenshtein 3 but the opposite event."
+        },
+        {
+          "type": "trigger",
+          "from": "netz/hausanschluss#End_HausanschlussFertiggestellt",
+          "to": "messwesen/zaehlermontage#Start_HausanschlussFertiggestellt",
+          "expect": "must_not_link",
+          "tags": [
+            "subprocess-scope"
+          ],
+          "rationale": "Identical label, but the end lies inside the embedded construction subprocess, which is never an endpoint; the handover happens at End_ZaehlersetzungBeauftragt."
+        },
+        {
+          "type": "trigger",
+          "from": "messwesen/zaehlerablesung#End_ZaehlerstaendeErfasst",
+          "to": "messwesen/messwertplausibilisierung#Start_ZaehlerstaendeErfasst",
+          "expect": "must_not_link",
+          "tags": [
+            "subprocess-scope"
+          ],
+          "rationale": "Identical label \"Zählerstände erfasst\", but the end lies inside the embedded subprocess; the plausibility process is reached by Call_MesswertePlausibilisieren."
+        },
+        {
+          "type": "trigger",
+          "from": "messwesen/messwertplausibilisierung#End_TurnuswechselFaellig",
+          "to": "messwesen/zaehlerwechsel#Start_TurnuswechselFaellig",
+          "expect": "must_not_link",
+          "tags": [
+            "event-def-mismatch"
+          ],
+          "rationale": "Identical label \"Turnuswechsel fällig\" and both are evt_start/evt_end facts, but the target is the timer start of the monthly rotation run, which fires on its own schedule and picks the flagged meter up from the Gerätestamm; a trigger needs a none start."
+        }
+      ],
+      "baselineMissed": [
+        {
+          "type": "call",
+          "from": "netz/hausanschluss#Call_NetzanschlussPruefen",
+          "to": "netz/netzanschlusspruefung#Process_Netzanschlusspruefung",
+          "expect": "must_link",
+          "tags": [
+            "call-unique",
+            "collaboration"
+          ],
+          "rationale": "Static zeebe:calledElement Process_Netzanschlusspruefung matches exactly one process; the caller is the participant process of a collaboration."
+        },
+        {
+          "type": "call",
+          "from": "abrechnung/schlussrechnung#Call_SchlussrechnungDrucken",
+          "to": "abrechnung/rechnungsausgabe-druck#Process_RechnungsausgabeDruck",
+          "expect": "must_link",
+          "tags": [
+            "call-unique"
+          ],
+          "rationale": "C7 calledElement=\"Process_RechnungsausgabeDruck\" matches exactly one process; final invoices always go out on paper."
+        },
+        {
+          "type": "message",
+          "from": "netz/stoerungsannahme#Task_EntstoerauftragUebermitteln",
+          "to": "netz/entstoerung#Start_EntstoerauftragEingegangen",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration"
+          ],
+          "rationale": "Send task and message start share the message name Entstoerauftrag; the sender is the participant process of the fault desk collaboration."
+        },
+        {
+          "type": "message",
+          "from": "netz/entstoerung#Event_RueckmeldungGesendet",
+          "to": "netz/stoerungsannahme#Task_RueckmeldungErhalten",
+          "expect": "must_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "rationale": "The repair crew reports back to the fault desk that issued the order; same message name Rueckmeldung, same correlation key stoerungsnummer."
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerwechsel#Task_RueckmeldungSenden",
+          "to": "netz/pv-einspeisung#Task_RueckmeldungErhalten",
+          "expect": "must_link",
+          "tags": [
+            "generic-name"
+          ],
+          "rationale": "The meter change ordered by the PV registration reports back to it; same message name Rueckmeldung, correlation key anlagennummer."
+        },
+        {
+          "type": "message",
+          "from": "netz/pv-einspeisung#Task_ZweirichtungszaehlerBeauftragen",
+          "to": "messwesen/zaehlerwechsel#Start_ZaehlerwechselBeauftragt",
+          "expect": "must_link",
+          "tags": [
+            "exact-key"
+          ],
+          "rationale": "The PV registration orders the bidirectional meter; send task and message start share ZaehlerwechselBeauftragt."
+        },
+        {
+          "type": "message",
+          "from": "netz/pv-einspeisung#Event_InbetriebnahmeGemeldet",
+          "to": "abrechnung/einspeiseverguetung#Start_EinspeiseanlageInBetrieb",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message"
+          ],
+          "rationale": "The C8 throw and the C7 message start share the message name EinspeiseanlageInBetrieb (message bus between the engines)."
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerwechsel#Event_ZaehlerwechselDurchgefuehrt",
+          "to": "abrechnung/stammdatenuebernahme#Start_ZaehlerwechselDurchgefuehrt",
+          "expect": "must_link",
+          "tags": [
+            "transliteration"
+          ],
+          "rationale": "Message name ZählerwechselDurchgeführt (C8) and ZaehlerwechselDurchgefuehrt (C7) differ only by umlaut transliteration, as do the labels."
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerablesung#Event_ZwischenstandBereitgestellt",
+          "to": "abrechnung/schlussrechnung#Task_SchlusszaehlerstandErhalten",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message"
+          ],
+          "rationale": "The C7 final invoice waits in a receive task for the interim reading; shared message name ZwischenstandBereitgestellt."
+        },
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_MeterReadingSubmitted",
+          "to": "messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt",
+          "expect": "must_link",
+          "tags": [
+            "de-en",
+            "subprocess-scope"
+          ],
+          "rationale": "\"Meter reading submitted\" is the portal's English name for the customer self-reading that the reading process waits for as \"Zählerstand übermittelt\"; the message names differ, so only the semantic tier finds it. The catch lies inside an embedded subprocess, which is fine: only start and end events there are excluded."
+        },
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_TariffChangeRequested",
+          "to": "vertrieb/tarifwechsel#Start_TarifwechselBeantragt",
+          "expect": "must_link",
+          "tags": [
+            "de-en"
+          ],
+          "rationale": "\"Tariff change requested\" and \"Tarifwechsel beantragt\" are the same request, English in the portal and German in sales; different message names."
+        },
+        {
+          "type": "message",
+          "from": "vertrieb/tarifwechsel#Task_ZwischenablesungAnfordern",
+          "to": "messwesen/zaehlerablesung#Start_ZwischenablesungAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "exact-key"
+          ],
+          "rationale": "Shared message name Zwischenablesung; the tariff change needs a reading at the switch date."
+        },
+        {
+          "type": "message",
+          "from": "vertrieb/umzug#Task_ZwischenablesungAnfordern",
+          "to": "messwesen/zaehlerablesung#Start_ZwischenablesungAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration"
+          ],
+          "rationale": "Shared message name Zwischenablesung; sent by the participant process of the move collaboration."
+        },
+        {
+          "type": "message",
+          "from": "vertrieb/umzug#Task_BelieferungBeauftragen",
+          "to": "marktkommunikation/lieferbeginn#Start_BelieferungBeauftragt",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration",
+            "subprocess-scope"
+          ],
+          "rationale": "The send task inside the embedded subprocess is a valid endpoint (only start and end events inside a subprocess are excluded); shared message name BelieferungBeauftragt."
+        },
+        {
+          "type": "message",
+          "from": "marktkommunikation/lieferantenwechsel#Task_ZwischenablesungAnfordern",
+          "to": "messwesen/zaehlerablesung#Start_ZwischenablesungAngefordert",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "collaboration"
+          ],
+          "rationale": "Shared message name Zwischenablesung; the supplier switch needs a reading at the end of supply."
+        },
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_InstalmentChangeRequested",
+          "to": "abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht",
+          "expect": "must_link",
+          "tags": [
+            "de-en"
+          ],
+          "rationale": "\"Instalment change requested\" is the English portal event for \"Abschlagsaenderung gewuenscht\" in the C7 instalment process; different message names."
+        },
+        {
+          "type": "message",
+          "from": "abrechnung/rechnungsausgabe-digital#Event_InvoicePublished",
+          "to": "kundenservice/kundeninformation#Start_RechnungBereitgestellt",
+          "expect": "must_link",
+          "tags": [
+            "de-en",
+            "collaboration"
+          ],
+          "rationale": "\"Invoice published\" (e-invoice platform, English) and \"Rechnung bereitgestellt\" are the same event; different message names, so only the semantic tier finds it."
+        },
+        {
+          "type": "message",
+          "from": "forderung/zahlungseingang#Event_ZahlungsverzugGemeldet",
+          "to": "forderung/mahnverfahren#Start_ZahlungsverzugFestgestellt",
+          "expect": "must_link",
+          "tags": [
+            "exact-key"
+          ],
+          "rationale": "Shared message name ZahlungsverzugFestgestellt within the C7 receivables team."
+        },
+        {
+          "type": "message",
+          "from": "forderung/zahlungseingang#Event_ZahlungEingegangen",
+          "to": "forderung/mahnverfahren#Start_ZahlungEingegangen",
+          "expect": "must_link",
+          "tags": [
+            "exact-key",
+            "subprocess-scope"
+          ],
+          "rationale": "The interrupting event subprocess of the dunning process catches ZahlungEingegangen; the typed start of an event subprocess is an endpoint."
+        },
+        {
+          "type": "message",
+          "from": "forderung/zahlungseingang#Event_ZahlungEingegangen",
+          "to": "forderung/sperrung#Event_ZahlungVorSperrung",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "Identical message name ZahlungEingegangen from C7 to C8; a payment before the deadline averts the disconnection."
+        },
+        {
+          "type": "message",
+          "from": "forderung/zahlungseingang#Event_ZahlungEingegangen",
+          "to": "forderung/sperrung#Task_ZahlungAbwarten",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "The same message is caught a second time after the disconnection to trigger reconnection."
+        },
+        {
+          "type": "message",
+          "from": "forderung/mahnverfahren#End_SperrauftragErteilt",
+          "to": "forderung/sperrung#Start_SperrauftragEingegangen",
+          "expect": "must_link",
+          "tags": [
+            "cross-engine-message",
+            "collaboration"
+          ],
+          "rationale": "Identical message name SperrauftragErteilt from the C7 dunning process to the C8 disconnection collaboration."
+        },
+        {
+          "type": "trigger",
+          "from": "netz/hausanschluss#End_ZaehlersetzungBeauftragt",
+          "to": "messwesen/zaehlermontage#Start_HausanschlussFertiggestellt",
+          "expect": "must_link",
+          "tags": [
+            "trigger",
+            "semantic",
+            "collaboration"
+          ],
+          "rationale": "Handover from grid service to metering - after the installer's completion notice the grid side orders the first meter, and the meter setting process starts at \"Hausanschluss fertiggestellt\". Labels differ; agents only."
+        }
+      ],
+      "findings": [
+        {
+          "kind": "unresolved-call",
+          "mode": "exact",
+          "expected": [
+            "messwesen/zaehlerwechsel#Call_BefundpruefungBeauftragen"
+          ],
+          "computed": [
+            "messwesen/zaehlerwechsel#Call_BefundpruefungBeauftragen"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": []
+        },
+        {
+          "kind": "dynamic-call",
+          "mode": "exact",
+          "expected": [
+            "abrechnung/jahresverbrauchsabrechnung#Call_RechnungAusgeben",
+            "netz/pv-einspeisung#Call_NetzvertraeglichkeitPruefen"
+          ],
+          "computed": [
+            "abrechnung/jahresverbrauchsabrechnung#Call_RechnungAusgeben",
+            "netz/pv-einspeisung#Call_NetzvertraeglichkeitPruefen"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": []
+        },
+        {
+          "kind": "duplicate-process-id",
+          "mode": "exact",
+          "expected": [
+            "abrechnung/abschlagsanpassung#Process_Abschlagsanpassung abrechnung/archiv/abschlagsanpassung-2021#Process_Abschlagsanpassung"
+          ],
+          "computed": [
+            "abrechnung/abschlagsanpassung#Process_Abschlagsanpassung abrechnung/archiv/abschlagsanpassung-2021#Process_Abschlagsanpassung"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": []
+        },
+        {
+          "kind": "dangling-throw",
+          "mode": "judged",
+          "expected": [
+            "forderung/mahnverfahren#Task_ForderungAbgeben",
+            "netz/pv-einspeisung#Task_MastrBestaetigen"
+          ],
+          "computed": [
+            "abrechnung/rechnungsausgabe-digital#Event_InvoicePublished",
+            "forderung/mahnverfahren#Task_ForderungAbgeben",
+            "kundenservice/kundenportal#Event_InstalmentChangeRequested",
+            "kundenservice/kundenportal#Event_MeterReadingSubmitted",
+            "kundenservice/kundenportal#Event_TariffChangeRequested",
+            "netz/pv-einspeisung#Task_MastrBestaetigen"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": [
+            {
+              "finding": "abrechnung/rechnungsausgabe-digital#Event_InvoicePublished",
+              "links": [
+                "message abrechnung/rechnungsausgabe-digital#Event_InvoicePublished -> kundenservice/kundeninformation#Start_RechnungBereitgestellt (must_link; de-en, collaboration)"
+              ]
+            },
+            {
+              "finding": "kundenservice/kundenportal#Event_InstalmentChangeRequested",
+              "links": [
+                "message kundenservice/kundenportal#Event_InstalmentChangeRequested -> abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht (must_link; de-en)"
+              ]
+            },
+            {
+              "finding": "kundenservice/kundenportal#Event_MeterReadingSubmitted",
+              "links": [
+                "message kundenservice/kundenportal#Event_MeterReadingSubmitted -> messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt (must_link; de-en, subprocess-scope)"
+              ]
+            },
+            {
+              "finding": "kundenservice/kundenportal#Event_TariffChangeRequested",
+              "links": [
+                "message kundenservice/kundenportal#Event_TariffChangeRequested -> vertrieb/tarifwechsel#Start_TarifwechselBeantragt (must_link; de-en)"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "unmatched-catch",
+          "mode": "judged",
+          "expected": [
+            "abrechnung/rechnungsausgabe-druck#Task_VersandbestaetigungErhalten",
+            "kundenservice/kundenportal#Start_PortalRequestReceived",
+            "netz/pv-einspeisung#Start_AnmeldungEingegangen"
+          ],
+          "computed": [
+            "abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht",
+            "abrechnung/rechnungsausgabe-druck#Task_VersandbestaetigungErhalten",
+            "kundenservice/kundeninformation#Start_RechnungBereitgestellt",
+            "kundenservice/kundenportal#Start_PortalRequestReceived",
+            "messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt",
+            "netz/pv-einspeisung#Start_AnmeldungEingegangen",
+            "vertrieb/tarifwechsel#Start_TarifwechselBeantragt"
+          ],
+          "missing": [],
+          "unexpected": [],
+          "explained": [
+            {
+              "finding": "abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht",
+              "links": [
+                "message kundenservice/kundenportal#Event_InstalmentChangeRequested -> abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht (must_link; de-en)"
+              ]
+            },
+            {
+              "finding": "kundenservice/kundeninformation#Start_RechnungBereitgestellt",
+              "links": [
+                "message abrechnung/rechnungsausgabe-digital#Event_InvoicePublished -> kundenservice/kundeninformation#Start_RechnungBereitgestellt (must_link; de-en, collaboration)"
+              ]
+            },
+            {
+              "finding": "messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt",
+              "links": [
+                "message kundenservice/kundenportal#Event_MeterReadingSubmitted -> messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt (must_link; de-en, subprocess-scope)"
+              ]
+            },
+            {
+              "finding": "vertrieb/tarifwechsel#Start_TarifwechselBeantragt",
+              "links": [
+                "message kundenservice/kundenportal#Event_TariffChangeRequested -> vertrieb/tarifwechsel#Start_TarifwechselBeantragt (must_link; de-en)"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

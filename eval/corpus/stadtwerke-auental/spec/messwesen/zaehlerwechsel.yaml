@@ -1,0 +1,106 @@
+key: messwesen/zaehlerwechsel
+engine: c8
+name: Zählerwechsel
+notes: >-
+  Two starts: a timer for the calibration-driven rotation and the message
+  ZaehlerwechselBeauftragt from netz/pv-einspeisung. The timer start "Turnuswechsel
+  fällig" has exactly the label of the none end of
+  messwesen/messwertplausibilisierung, which only flags the meter in the
+  Gerätestamm (event-def-mismatch: a trigger needs a none start). The throw
+  "Zählerwechsel durchgeführt" uses the message name with umlauts; the C7
+  billing intake catches "ZaehlerwechselDurchgefuehrt" (transliteration). The
+  send task "Rückmeldung senden" reuses the generic message name Rueckmeldung
+  (generic-name). The message end "Zähler ausgebaut" (decommissioning) reaches
+  the C7 billing intake under its own name and is a near-miss of "Zaehler
+  eingebaut". The Befundprüfung at a state-approved test lab is called as
+  Process_Befundpruefung, which is not in the landscape (call-unresolved).
+  Catches the broadcast signal "Großstörung" in an event subprocess.
+
+processes:
+  - id: Process_Zaehlerwechsel
+    name: Zählerwechsel
+    documentation: >-
+      Turnuswechsel nach Ablauf der Eichfrist, Wechsel auf Auftrag (zum Beispiel
+      Zweirichtungszähler für eine PV-Anlage) oder Ausbau ohne Ersatz bei
+      Stilllegung einer Anlage. Auf Kundenwunsch wird der ausgebaute Zähler
+      einer Befundprüfung unterzogen. Vereinfachung: Der monatliche Zeitstart
+      steht für den Turnuslauf, der die im Gerätestamm vorgemerkten Zähler
+      ermittelt; produktiv startet der Lauf je Zählpunkt eine eigene Instanz.
+    dataStores:
+      - { id: DataStore_Geraetestamm, name: Gerätestamm }
+    elements:
+      - type: startEvent
+        id: Start_TurnuswechselFaellig
+        name: Turnuswechsel fällig
+        timer: { cycle: R/P1M }
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_ZaehlerwechselBeauftragt
+        name: Zählerwechsel beauftragt
+        message: ZaehlerwechselBeauftragt
+      - { type: exclusiveGateway, id: Gateway_AnlassJoin }
+      - type: userTask
+        id: Task_WechselterminVereinbaren
+        name: Wechseltermin vereinbaren
+        candidateGroups: messstellenbetrieb
+        reads: [DataStore_Geraetestamm]
+      - type: exclusiveGateway
+        id: Gateway_Wechselart
+        name: Wechselart?
+        next:
+          - { to: Task_ZaehlerTauschen, name: Tausch, default: true }
+          - { to: Task_ZaehlerAusbauen, name: Ausbau ohne Ersatz, condition: '=wechselart = "stilllegung"' }
+      - { type: manualTask, id: Task_ZaehlerTauschen, name: Zähler tauschen }
+      - type: serviceTask
+        id: Task_StaendeErfassen
+        name: Ein- und Ausbaustände erfassen
+        writes: [DataStore_Geraetestamm]
+      - type: intermediateThrowEvent
+        id: Event_ZaehlerwechselDurchgefuehrt
+        name: Zählerwechsel durchgeführt
+        message: { name: ZählerwechselDurchgeführt, correlationKey: "=zaehlpunkt" }
+      - type: exclusiveGateway
+        id: Gateway_AusEinspeiseanmeldung
+        name: Auftrag aus Einspeiseanmeldung?
+        next:
+          - { to: Task_RueckmeldungSenden, name: ja, condition: "=anlagennummer != null" }
+          - { to: Gateway_RueckmeldungJoin, name: nein, default: true }
+      - type: sendTask
+        id: Task_RueckmeldungSenden
+        name: Rückmeldung senden
+        message: { name: Rueckmeldung, correlationKey: "=anlagennummer" }
+      - { type: exclusiveGateway, id: Gateway_RueckmeldungJoin }
+      - type: exclusiveGateway
+        id: Gateway_Befundpruefung
+        name: Befundprüfung beantragt?
+        next:
+          - { to: Call_BefundpruefungBeauftragen, name: ja, condition: "=befundpruefungBeantragt = true" }
+          - { to: Gateway_BefundpruefungJoin, name: nein, default: true }
+      - type: callActivity
+        id: Call_BefundpruefungBeauftragen
+        name: Befundprüfung beauftragen
+        calledElement: Process_Befundpruefung
+      - { type: exclusiveGateway, id: Gateway_BefundpruefungJoin }
+      - { type: endEvent, id: End_ZaehlerwechselAbgeschlossen, name: Zählerwechsel abgeschlossen }
+
+      - { type: manualTask, id: Task_ZaehlerAusbauen, name: Zähler ausbauen }
+      - type: serviceTask
+        id: Task_AusbaustandErfassen
+        name: Ausbaustand erfassen
+        writes: [DataStore_Geraetestamm]
+      - type: endEvent
+        id: End_ZaehlerAusgebaut
+        name: Zähler ausgebaut
+        message: { name: ZaehlerAusgebaut, correlationKey: "=zaehlpunkt" }
+
+      - type: eventSubProcess
+        id: EventSub_Grossstoerung
+        name: Großstörung
+        elements:
+          - type: startEvent
+            id: Start_GrossstoerungAusgerufen
+            name: Großstörung ausgerufen
+            signal: Großstörung
+            interrupting: false
+          - { type: serviceTask, id: Task_TermineVerschieben, name: Wechseltermine im Störungsgebiet verschieben }
+          - { type: endEvent, id: End_TermineVerschoben, name: Wechseltermine verschoben }

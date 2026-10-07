@@ -1,0 +1,114 @@
+key: stress/c8-collaboration
+engine: c8
+name: C8 stress collaboration
+collaboration:
+  participants:
+    - { id: Participant_Shop, name: Shop, process: Process_Shop }
+    - { id: Participant_Partner, name: Partner }
+    - { id: Participant_Lager, name: Lager, process: Process_Lager }
+  messageFlows:
+    - { from: Participant_Partner, to: Start_Bestellung, name: Bestellung }
+    - { from: Task_LagerAnfragen, to: Start_LagerAnfrage, name: Anfrage }
+    - { from: End_LagerBestaetigt, to: Event_LagerAntwort, name: Antwort }
+    - { from: Event_Rueckfrage, to: Participant_Partner }
+    - { from: Participant_Partner, to: Boundary_Abbruch, name: Abbruch }
+processes:
+  - id: Process_Shop
+    name: Shop
+    lanes:
+      - { id: Lane_Front, name: Frontoffice }
+      - { id: Lane_Back, name: Backoffice }
+    dataStores:
+      - { id: DataStore_Bestellungen, name: Bestellungen }
+      - { id: DataStore_Lagerbestand, name: Lagerbestand }
+    elements:
+      - { type: startEvent, id: Start_Bestellung, name: Bestellung eingegangen, message: { name: Bestellung } }
+      - { type: userTask, id: Task_Erfassen, name: Bestellung erfassen, writes: [DataStore_Bestellungen], assignee: "=initiator", candidateGroups: shop }
+      - { type: parallelGateway, id: Gateway_Split, next: [Task_LagerAnfragen, Sub_Pruefung] }
+      - { type: sendTask, id: Task_LagerAnfragen, name: Lager anfragen, next: Event_LagerAntwort }
+      - type: intermediateCatchEvent
+        id: Event_LagerAntwort
+        name: Lagerantwort erhalten
+        message: { name: LagerAntwort, correlationKey: "=bestellnummer" }
+        next: Gateway_Join
+      - type: subProcess
+        id: Sub_Pruefung
+        name: Prüfung
+        lane: Lane_Back
+        boundary:
+          - { id: Boundary_Fehler, name: Prüfung fehlgeschlagen, error: PRUEFUNG_FEHLER, next: Task_Klaeren }
+          - { id: Boundary_Abbruch, name: Abbruch erhalten, message: { name: Abbruch, correlationKey: "=bestellnummer" }, next: End_Abbruch }
+        elements:
+          - { type: startEvent, id: Start_Pruefung, name: Prüfung gestartet }
+          - { type: scriptTask, id: Task_Score, name: Score berechnen, script: "=1 + 1", resultVariable: score }
+          - { type: businessRuleTask, id: Task_Regeln, name: Regeln anwenden, topic: regeln }
+          - type: exclusiveGateway
+            id: Gateway_Score
+            name: Score ok?
+            next:
+              - { to: Sub_Detail, name: ja, condition: "=score > 1" }
+              - { to: End_PruefungFehler, name: nein, default: true }
+          - type: subProcess
+            id: Sub_Detail
+            name: Detailprüfung
+            elements:
+              - { type: startEvent, id: Start_Detail, name: Detail gestartet }
+              - { type: serviceTask, id: Task_Detail, name: Details prüfen, reads: [DataStore_Lagerbestand] }
+              - { type: intermediateThrowEvent, id: Event_Eskalation, name: Eskalation gemeldet, escalation: { code: ESK, name: Eskalation } }
+              - { type: endEvent, id: End_Detail, name: Detail fertig }
+          - { type: endEvent, id: End_PruefungOk, name: Prüfung ok }
+          - { type: endEvent, id: End_PruefungFehler, name: Prüfung nicht ok, error: { code: PRUEFUNG_FEHLER, name: Prüfungsfehler } }
+          - type: eventSubProcess
+            id: EventSub_Eskalation
+            name: Eskalation
+            elements:
+              - { type: startEvent, id: Start_Eskalation, name: Eskalation erhalten, escalation: ESK, interrupting: false }
+              - { type: manualTask, id: Task_Info, name: Team informieren }
+              - { type: endEvent, id: End_Info, name: Team informiert }
+      - { type: parallelGateway, id: Gateway_Join, lane: Lane_Front }
+      - { type: exclusiveGateway, id: Gateway_FreigabeMerge }
+      - { type: userTask, id: Task_Freigeben, name: Freigeben }
+      - type: exclusiveGateway
+        id: Gateway_Freigabe
+        name: Freigegeben?
+        next:
+          - { to: Event_Rueckfrage, name: nein, condition: "=not(freigabe)" }
+          - { to: Task_Versenden, name: ja, default: true }
+      - { type: intermediateThrowEvent, id: Event_Rueckfrage, name: Rückfrage gesendet, message: { name: Rueckfrage, correlationKey: "=bestellnummer" }, topic: rueckfrage }
+      - type: eventBasedGateway
+        id: Gateway_Warten
+        next: [Event_Antwort, Event_Timeout, Event_Bedingung]
+      - { type: intermediateCatchEvent, id: Event_Antwort, name: Antwort erhalten, message: { name: Antwort, correlationKey: "=bestellnummer" }, next: Gateway_FreigabeMerge }
+      - { type: intermediateCatchEvent, id: Event_Timeout, name: 3 Tage vergangen, timer: { duration: P3D }, next: End_Timeout }
+      - { type: intermediateCatchEvent, id: Event_Bedingung, name: Kunde storniert, message: { name: Storno, correlationKey: "=bestellnummer" }, next: End_Storniert }
+      - { type: serviceTask, id: Task_Versenden, name: Versenden, topic: versand }
+      - { type: endEvent, id: End_Versendet, name: Versendet, signal: Versendet }
+      - { type: userTask, id: Task_Klaeren, name: Fehler klären, lane: Lane_Back }
+      - { type: endEvent, id: End_Abgebrochen, name: Abgebrochen, terminate: true }
+      - { type: endEvent, id: End_Timeout, name: Zeit abgelaufen }
+      - { type: endEvent, id: End_Storniert, name: Storniert }
+      - { type: endEvent, id: End_Abbruch, name: Abbruch beendet }
+      - type: eventSubProcess
+        id: EventSub_Timer
+        name: Erinnerung
+        lane: Lane_Front
+        elements:
+          - { type: startEvent, id: Start_Erinnerung, name: Täglich, timer: { cycle: R/P1D }, interrupting: false }
+          - { type: serviceTask, id: Task_Erinnern, name: Erinnern }
+          - { type: endEvent, id: End_Erinnert, name: Erinnert }
+  - id: Process_Lager
+    name: Lager
+    elements:
+      - { type: startEvent, id: Start_LagerAnfrage, name: Anfrage erhalten, message: LagerAnfrage }
+      - { type: receiveTask, id: Task_Warten, name: Bestätigung abwarten, message: { name: Bestaetigung, correlationKey: "=bestellnummer" } }
+      - { type: callActivity, id: Call_Kommission, name: Kommissionieren, calledElement: Process_Kommission, binding: versionTag, versionTag: v1 }
+      - type: callActivity
+        id: Call_Dynamisch
+        name: Dynamisch
+        calledElement: "=ziel"
+        boundary:
+          - { id: Boundary_Signal, name: Stopp, signal: Stopp, interrupting: false, next: End_Gestoppt }
+          - { id: Boundary_Bedingung, name: Bedingung erfüllt, conditional: "=x > 1", next: End_Bedingung }
+      - { type: endEvent, id: End_LagerBestaetigt, name: Lager bestätigt, message: { name: LagerBestaetigt, correlationKey: "=bestellnummer" } }
+      - { type: endEvent, id: End_Gestoppt, name: Gestoppt }
+      - { type: endEvent, id: End_Bedingung, name: Bedingung beendet }

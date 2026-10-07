@@ -1,0 +1,18 @@
+name: nordwind-handel
+description: >-
+  Nordwind Handel GmbH, a fictional mid-sized wholesale and e-commerce company
+  in Hamburg, halfway through its migration from Camunda 7 to Camunda 8.
+  Finance, procurement and the legacy pallet freight process still run on
+  Camunda 7 with German labels. Order-to-cash, warehouse, parcel shipping,
+  customer service, partner management and quality run on Camunda 8; the shop,
+  shipping, returns and partner teams model in English, warehouse, complaints
+  and quality in German. Both engines talk over a message bus whose message
+  names follow the legacy (German) integration contract. Subprocesses for
+  picking, parcel shipping, letter output, dunning and order approval are
+  reused through call activities.
+lang: mixed
+split: dev
+closed_world: true
+engines:
+  c7: 7.24.0
+  c8: 8.9.0

@@ -1,0 +1,39 @@
+key: stress/c7-loops
+engine: c7
+name: C7 stress loops
+processes:
+  - id: Process_Loops
+    name: Loops
+    historyTimeToLive: P30D
+    dataStores:
+      - { id: DataStore_A, name: Archiv }
+    elements:
+      - { type: startEvent, id: Start_Timer, name: Jeden Montag, timer: { cycle: "0 0 8 ? * MON" } }
+      - { type: exclusiveGateway, id: Gateway_Start }
+      - { type: exclusiveGateway, id: Gateway_Wieder }
+      - { type: userTask, id: Task_Bearbeiten, name: Bearbeiten, writes: [DataStore_A], reads: [DataStore_A] }
+      - type: exclusiveGateway
+        id: Gateway_Fertig
+        name: Fertig?
+        next:
+          - { to: Gateway_Wieder, name: nein, condition: "${!fertig}" }
+          - { to: Task_Pruefen, name: ja, condition: "${fertig}" }
+      - type: userTask
+        id: Task_Pruefen
+        name: Prüfen
+        boundary:
+          - { id: Boundary_Frist, name: Frist, timer: { date: "2030-01-01T00:00:00Z" }, next: Gateway_Wieder }
+      - type: eventBasedGateway
+        id: Gateway_Ereignis
+        next: [Event_Signal, Event_Cond]
+      - { type: intermediateCatchEvent, id: Event_Signal, name: Signal erhalten, signal: Weiter, next: Gateway_Merge }
+      - { type: intermediateCatchEvent, id: Event_Cond, name: Bedingung erfüllt, conditional: { condition: "${weiter}", variableName: weiter }, next: Gateway_Merge }
+      - { type: exclusiveGateway, id: Gateway_Merge }
+      - { type: scriptTask, id: Script_Log, name: Protokollieren, scriptFormat: groovy, script: "println 'ok'", resultVariable: logged }
+      - { type: callActivity, id: Call_Version, name: Version aufrufen, calledElement: Process_Other, binding: version, version: "3" }
+      - { type: callActivity, id: Call_Expr, name: Ausdruck aufrufen, calledElement: "${ziel}", binding: deployment }
+      - { type: intermediateThrowEvent, id: Event_Signal2, name: Signal gesendet, signal: Gesendet }
+      - { type: intermediateThrowEvent, id: Event_Esk, name: Eskaliert, escalation: ESK7 }
+      - { type: endEvent, id: End_Done, name: Erledigt, escalation: { code: ESK7 } }
+      - { type: startEvent, id: Start_Signal, name: Signal-Start, signal: Start7, next: Gateway_Start }
+      - { type: startEvent, id: Start_Cond, name: Bedingungs-Start, conditional: "${go}", next: Gateway_Start }

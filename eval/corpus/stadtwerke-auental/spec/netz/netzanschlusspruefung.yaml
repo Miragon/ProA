@@ -1,0 +1,52 @@
+key: netz/netzanschlusspruefung
+engine: c8
+name: Netzanschlussprüfung
+notes: >-
+  Called process with a none start. Statically called by netz/hausanschluss
+  (call-unique) and dynamically by netz/pv-einspeisung (call-dynamic, may_link).
+
+processes:
+  - id: Process_Netzanschlusspruefung
+    name: Netzanschlussprüfung
+    documentation: >-
+      Technische Prüfung, ob ein Anschluss oder eine Erzeugungsanlage am
+      gewünschten Ort ans Netz darf: Kapazität Strom, Versorgungsdruck Gas und
+      Wasser, gegebenenfalls Netzverstärkung.
+    dataStores:
+      - { id: DataStore_GisNetzdaten, name: GIS Netzdaten }
+    elements:
+      - { type: startEvent, id: Start_PruefungAngefordert, name: Netzanschlussprüfung angefordert }
+      - { type: serviceTask, id: Task_AnschlussdatenUebernehmen, name: Anschlussdaten übernehmen }
+      - type: parallelGateway
+        id: Gateway_SpartenSplit
+        next: [Task_KapazitaetStromBewerten, Task_DruckBewerten]
+      - type: businessRuleTask
+        id: Task_KapazitaetStromBewerten
+        name: Netzkapazität Strom bewerten
+        reads: [DataStore_GisNetzdaten]
+        next: Gateway_SpartenJoin
+      - type: businessRuleTask
+        id: Task_DruckBewerten
+        name: Versorgungsdruck Gas und Wasser bewerten
+        reads: [DataStore_GisNetzdaten]
+      - { type: parallelGateway, id: Gateway_SpartenJoin }
+      - type: exclusiveGateway
+        id: Gateway_NetzausbauNoetig
+        name: Netzausbau nötig?
+        next:
+          - { to: Task_NetzverstaerkungPlanen, name: ja, condition: "=netzausbauNoetig" }
+          - { to: Gateway_AusbauJoin, name: nein, default: true }
+      - { type: userTask, id: Task_NetzverstaerkungPlanen, name: Netzverstärkung planen, candidateGroups: netzplanung }
+      - type: exclusiveGateway
+        id: Gateway_Zumutbar
+        name: Ausbau wirtschaftlich zumutbar?
+        next:
+          - { to: Gateway_AusbauJoin, name: ja, condition: "=ausbauZumutbar" }
+          - { to: End_AnschlussNichtMoeglich, name: nein, default: true }
+      - { type: exclusiveGateway, id: Gateway_AusbauJoin }
+      - type: serviceTask
+        id: Task_AnschlusspunktFestlegen
+        name: Netzanschlusspunkt festlegen
+        writes: [DataStore_GisNetzdaten]
+      - { type: endEvent, id: End_NetzanschlussGeprueft, name: Netzanschluss geprüft }
+      - { type: endEvent, id: End_AnschlussNichtMoeglich, name: Anschluss nicht möglich }

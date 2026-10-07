@@ -1,0 +1,59 @@
+key: finanzen/zahlungseingang
+engine: c7
+name: Zahlungseingang
+notes: >-
+  Daily bank statement run. Reports ZahlungZugeordnet to receivables, dunning
+  (both C7) and the C8 shop. KundeEntsperrt has no receiver yet: the C8 side
+  only implements the lock (dangling-throw, migration gap) and its
+  near-miss KundeGesperrt must not be linked. Returned direct debits are not
+  read from camt.053 here but from the separate R-transaction import, which
+  is not modelled (unmatched-catch in finanzen/forderungsmanagement).
+
+processes:
+  - id: Process_Zahlungseingang
+    name: Zahlungseingang
+    documentation: Ruft werktags den Kontoauszug ab, ordnet Zahlungen den offenen Posten zu und meldet die Zuordnung. Rücklastschriften werden nicht hier, sondern über den R-Transaktions-Import verarbeitet.
+    dataStores:
+      - { id: DataStore_OpListe, name: OP-Liste }
+    elements:
+      - type: startEvent
+        id: Start_KontoauszugFaellig
+        name: Werktags 6 Uhr
+        timer: { cycle: "0 0 6 ? * MON-FRI" }
+      - { type: serviceTask, id: Task_KontoauszugAbrufen, name: Kontoauszug abrufen (camt.053) }
+      - type: serviceTask
+        id: Task_ZahlungenZuordnen
+        name: Zahlungen automatisch zuordnen
+        reads: [DataStore_OpListe]
+      - type: exclusiveGateway
+        id: Gateway_AlleZugeordnet
+        name: Alle Zahlungen zugeordnet?
+        next:
+          - { to: Gateway_Geklaert, name: ja, condition: "${offeneZahlungen == 0}" }
+          - { to: Task_ZahlungenManuellKlaeren, name: nein, default: true }
+      - type: userTask
+        id: Task_ZahlungenManuellKlaeren
+        name: Zahlungen manuell klären
+        candidateGroups: debitorenbuchhaltung
+      - { type: exclusiveGateway, id: Gateway_Geklaert }
+      - type: serviceTask
+        id: Task_ZahlungenVerbuchen
+        name: Zahlungen verbuchen
+        writes: [DataStore_OpListe]
+      - type: sendTask
+        id: Task_ZuordnungMelden
+        name: Zahlungszuordnung melden
+        message: ZahlungZugeordnet
+        documentation: Der Worker veröffentlicht je zugeordneter Zahlung eine Nachricht ZahlungZugeordnet, korreliert über Auftrags- bzw. Rechnungsnummer.
+      - type: exclusiveGateway
+        id: Gateway_GesperrteKunden
+        name: Gesperrte Kunden ausgeglichen?
+        next:
+          - { to: Task_KundensperreAufheben, name: ja, condition: "${entsperren}" }
+          - { to: Gateway_Abschluss, name: nein, default: true }
+      - type: sendTask
+        id: Task_KundensperreAufheben
+        name: Kundensperre aufheben
+        message: KundeEntsperrt
+      - { type: exclusiveGateway, id: Gateway_Abschluss }
+      - { type: endEvent, id: End_KontoauszugVerarbeitet, name: Kontoauszug verarbeitet }

@@ -1,0 +1,51 @@
+key: finanzen/monatsabschluss
+engine: c7
+name: Monatsabschluss
+notes: >-
+  Broadcasts the signal BuchungsperiodeGesperrt to invoicing, credit notes and
+  supplier invoices (signal-broadcast). Its none end "Monatsabschluss erstellt"
+  is handed over by people to controlling/management-reporting (trigger).
+
+processes:
+  - id: Process_Monatsabschluss
+    name: Monatsabschluss
+    documentation: Bucht Abgrenzungen, stimmt Neben- und Hauptbuch ab, sperrt die Buchungsperiode und gibt den Abschluss frei.
+    dataStores:
+      - { id: DataStore_Hauptbuch, name: Hauptbuch }
+    elements:
+      - type: startEvent
+        id: Start_Monatswechsel
+        name: Monatswechsel
+        timer: { cycle: "0 0 6 1 * ?" }
+      - type: serviceTask
+        id: Task_AbgrenzungenBuchen
+        name: Abgrenzungen und Rückstellungen buchen
+        writes: [DataStore_Hauptbuch]
+      - type: userTask
+        id: Task_NebenbuecherAbstimmen
+        name: Nebenbücher mit Hauptbuch abstimmen
+        candidateGroups: hauptbuchhaltung
+      - type: exclusiveGateway
+        id: Gateway_Differenzen
+        name: Differenzen offen?
+        next:
+          - { to: Task_DifferenzenKlaeren, name: ja, condition: "${differenzen}" }
+          - { to: Gateway_Abgestimmt, name: nein, default: true }
+      - type: userTask
+        id: Task_DifferenzenKlaeren
+        name: Differenzen klären
+        candidateGroups: hauptbuchhaltung
+      - { type: exclusiveGateway, id: Gateway_Abgestimmt }
+      - type: intermediateThrowEvent
+        id: Event_BuchungsperiodeGesperrt
+        name: Buchungsperiode gesperrt
+        signal: BuchungsperiodeGesperrt
+      - type: serviceTask
+        id: Task_AbschlussberichtErzeugen
+        name: Abschlussbericht erzeugen
+        reads: [DataStore_Hauptbuch]
+      - type: userTask
+        id: Task_AbschlussFreigeben
+        name: Monatsabschluss prüfen und freigeben
+        candidateGroups: controlling
+      - { type: endEvent, id: End_MonatsabschlussErstellt, name: Monatsabschluss erstellt }

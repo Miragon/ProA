@@ -1,0 +1,80 @@
+key: netz/pv-einspeisung
+engine: c8
+name: PV-Einspeisung anmelden
+notes: >-
+  Started by the installer portal (not modelled: unmatched-catch). Calls the
+  grid check through a FEEL expression (call-dynamic, may_link to
+  netz/netzanschlusspruefung). Orders a bidirectional meter from
+  messwesen/zaehlerwechsel and waits for the generic "Rueckmeldung" message,
+  which netz/entstoerung also throws with another meaning (generic-name).
+  Confirms the grid operator check in the Marktstammdatenregister (external:
+  dangling-throw). The throw "Inbetriebnahme an Abrechnung gemeldet" starts
+  the C7 feed-in billing (cross-engine-message); the none end "Einspeiseanlage
+  in Betrieb genommen" has exactly the label of that C7 message start but
+  throws nothing (event-def-mismatch). The none end "Anmeldung abgelehnt" has
+  the label of a GPKE catch in marktkommunikation/lieferbeginn that means a
+  different registration (generic-name).
+
+processes:
+  - id: Process_PvEinspeisung
+    name: PV-Einspeisung anmelden
+    documentation: >-
+      Anmeldung einer PV-Anlage (oder anderer Erzeugungsanlage) zur Einspeisung:
+      Unterlagen prüfen, Netzverträglichkeit, Zweirichtungszähler, Erfassung im
+      Anlagenstamm und Meldung an die Abrechnung der Einspeisevergütung.
+    dataStores:
+      - { id: DataStore_Nis, name: NIS }
+      - { id: DataStore_EegAnlagen, name: EEG-Anlagenstamm }
+    elements:
+      - type: startEvent
+        id: Start_AnmeldungEingegangen
+        name: Anmeldung Erzeugungsanlage eingegangen
+        message: AnmeldungErzeugungsanlage
+      - type: userTask
+        id: Task_AnmeldeunterlagenPruefen
+        name: Anmeldeunterlagen prüfen
+        candidateGroups: netzanschluss-erzeugung
+        reads: [DataStore_Nis]
+      - type: callActivity
+        id: Call_NetzvertraeglichkeitPruefen
+        name: Netzverträglichkeit prüfen
+        calledElement: "=pruefprozess"
+      - type: exclusiveGateway
+        id: Gateway_EinspeisungZulaessig
+        name: Einspeisung zulässig?
+        next:
+          - { to: Task_ZweirichtungszaehlerBeauftragen, name: ja, condition: "=einspeisungZulaessig" }
+          - { to: Task_AblehnungMitteilen, name: nein, default: true }
+      - type: sendTask
+        id: Task_ZweirichtungszaehlerBeauftragen
+        name: Zweirichtungszähler beauftragen
+        message: { name: ZaehlerwechselBeauftragt, correlationKey: "=anlagennummer" }
+      - type: receiveTask
+        id: Task_RueckmeldungErhalten
+        name: Rückmeldung erhalten
+        message: { name: Rueckmeldung, correlationKey: "=anlagennummer" }
+        boundary:
+          - id: Boundary_ZaehlerwechselUeberfaellig
+            name: 30 Tage ohne Rückmeldung
+            timer: { duration: P30D }
+            interrupting: false
+            next: Task_MessstellenbetriebErinnern
+      - type: serviceTask
+        id: Task_AnlageErfassen
+        name: Erzeugungsanlage im Anlagenstamm erfassen
+        writes: [DataStore_EegAnlagen]
+      - type: sendTask
+        id: Task_MastrBestaetigen
+        name: Netzbetreiberprüfung im Marktstammdatenregister bestätigen
+        message: { name: MastrNetzbetreiberpruefung, correlationKey: "=mastrNummer" }
+      - type: intermediateThrowEvent
+        id: Event_InbetriebnahmeGemeldet
+        name: Inbetriebnahme an Abrechnung gemeldet
+        message: { name: EinspeiseanlageInBetrieb, correlationKey: "=anlagennummer" }
+      - { type: endEvent, id: End_EinspeiseanlageInBetrieb, name: Einspeiseanlage in Betrieb genommen }
+
+      - { type: serviceTask, id: Task_AblehnungMitteilen, name: Ablehnung mitteilen }
+      - { type: endEvent, id: End_AnmeldungAbgelehnt, name: Anmeldung abgelehnt }
+
+      - { type: serviceTask, id: Task_MessstellenbetriebErinnern, name: Messstellenbetrieb erinnern }
+      - { type: endEvent, id: End_ErinnerungVersendet, name: Erinnerung versendet }

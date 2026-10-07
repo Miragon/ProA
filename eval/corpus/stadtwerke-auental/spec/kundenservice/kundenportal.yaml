@@ -1,0 +1,61 @@
+key: kundenservice/kundenportal
+engine: c8
+name: Kundenportal-Anliegen verarbeiten
+notes: >-
+  Integration process of the customer portal. Tasks are German, the events are
+  named after the portal's English integration topics. The three English
+  throws reach German catches under other message names (de-en): meter
+  reading -> messwesen/zaehlerablesung, tariff change -> vertrieb/tarifwechsel,
+  instalment change -> abrechnung/abschlagsanpassung (C7). The start is fed by
+  the portal frontend, which is not modelled (unmatched-catch).
+
+processes:
+  - id: Process_Kundenportal
+    name: Kundenportal-Anliegen verarbeiten
+    documentation: >-
+      Nimmt Self-Service-Anliegen aus dem Kundenportal entgegen, identifiziert
+      den Kunden und leitet Zählerstände, Tarifwechsel- und Abschlagswünsche an
+      die Fachprozesse weiter. Alles andere bearbeitet der Kundenservice.
+    dataStores:
+      - { id: DataStore_Crm, name: CRM Kundenakte }
+    elements:
+      - type: startEvent
+        id: Start_PortalRequestReceived
+        name: Portal request received
+        message: PortalRequestReceived
+      - type: serviceTask
+        id: Task_KundeIdentifizieren
+        name: Kunde identifizieren
+        reads: [DataStore_Crm]
+      - { type: businessRuleTask, id: Task_AnliegenKlassifizieren, name: Anliegen klassifizieren }
+      - type: exclusiveGateway
+        id: Gateway_Anliegen
+        name: Art des Anliegens?
+        next:
+          - { to: Event_MeterReadingSubmitted, name: Zählerstand, condition: '=requestType = "METER_READING"' }
+          - { to: Event_TariffChangeRequested, name: Tarifwechsel, condition: '=requestType = "TARIFF_CHANGE"' }
+          - { to: Event_InstalmentChangeRequested, name: Abschlag, condition: '=requestType = "INSTALMENT_CHANGE"' }
+          - { to: Task_AnliegenManuellBearbeiten, name: sonstiges, default: true }
+      - type: intermediateThrowEvent
+        id: Event_MeterReadingSubmitted
+        name: Meter reading submitted
+        message: { name: MeterReadingSubmitted, correlationKey: "=meteringPointId" }
+        next: Gateway_AnliegenJoin
+      - type: intermediateThrowEvent
+        id: Event_TariffChangeRequested
+        name: Tariff change requested
+        message: { name: TariffChangeRequested, correlationKey: "=contractAccountId" }
+        next: Gateway_AnliegenJoin
+      - type: intermediateThrowEvent
+        id: Event_InstalmentChangeRequested
+        name: Instalment change requested
+        message: { name: InstalmentChangeRequested, correlationKey: "=contractAccountId" }
+        next: Gateway_AnliegenJoin
+      - type: userTask
+        id: Task_AnliegenManuellBearbeiten
+        name: Anliegen manuell bearbeiten
+        candidateGroups: kundenservice
+        writes: [DataStore_Crm]
+      - { type: exclusiveGateway, id: Gateway_AnliegenJoin }
+      - { type: serviceTask, id: Task_EingangBestaetigen, name: Eingang im Portal bestätigen }
+      - { type: endEvent, id: End_AnliegenWeitergeleitet, name: Anliegen weitergeleitet }

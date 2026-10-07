@@ -1,0 +1,88 @@
+key: marktkommunikation/lieferantenwechsel
+engine: c8
+name: Lieferantenwechsel (Altlieferant)
+notes: >-
+  GPKE supplier switch as before LFW24 (2025), from the losing supplier's view:
+  the grid operator still sends an Abmeldungsanfrage, and the supplier requests
+  the switch reading itself (since LFW24 the metering operator sends it
+  unasked). Collaboration with
+  two black-box market partners; all UTILMD exchanges are internal message
+  flows. The participant process also talks to other files: interim reading
+  (exact key; the request carries anlass "schlussablesung" and ablesetermin,
+  the day after the last day of supply) and "Lieferende gemeldet" to the C7
+  final invoice
+  (cross-engine-message). The final invoice also waits on a timer "Lieferende
+  erreicht", which is no message target (event-def-mismatch). "Abmeldung
+  bestätigt" is Levenshtein 1 from "Anmeldung bestätigt" in
+  marktkommunikation/lieferbeginn (near-miss); "Lieferende gemeldet" is the
+  antonym of "Lieferbeginn gemeldet" there (distractor). The win-back is a CRM
+  activity and writes the CRM Kundenakte, not the IS-U customer master.
+
+collaboration:
+  participants:
+    - { id: Participant_Netzbetreiber, name: Netzbetreiber }
+    - { id: Participant_Wechselmanagement, name: Stadtwerke Auental - Wechselmanagement, process: Process_Lieferantenwechsel }
+    - { id: Participant_Neulieferant, name: Neuer Lieferant }
+  messageFlows:
+    - { from: Participant_Neulieferant, to: Start_KuendigungEingegangen, name: Kündigung (UTILMD) }
+    - { from: Task_KuendigungBestaetigen, to: Participant_Neulieferant, name: Kündigungsbestätigung (UTILMD) }
+    - { from: Task_KuendigungAblehnen, to: Participant_Neulieferant, name: Ablehnung (UTILMD) }
+    - { from: Participant_Netzbetreiber, to: Task_AbmeldungsanfrageErhalten, name: Abmeldungsanfrage (UTILMD) }
+    - { from: Event_AbmeldungBestaetigt, to: Participant_Netzbetreiber, name: Antwort auf Abmeldungsanfrage (UTILMD) }
+
+processes:
+  - id: Process_Lieferantenwechsel
+    name: Lieferantenwechsel (Altlieferant)
+    documentation: >-
+      Ein neuer Lieferant kündigt im Auftrag des Kunden. Wechselmanagement prüft
+      Fristen und Vertragsbindung, bestätigt oder lehnt ab, beantwortet die
+      Abmeldungsanfrage des Netzbetreibers und meldet das Lieferende an die
+      Abrechnung.
+    dataStores:
+      - { id: DataStore_Kunden, name: Kunden-Stammdaten }
+      - { id: DataStore_Marktpartner, name: Marktpartnerstamm }
+      - { id: DataStore_Crm, name: CRM Kundenakte }
+    elements:
+      - type: startEvent
+        id: Start_KuendigungEingegangen
+        name: Kündigung durch neuen Lieferanten eingegangen
+        message: KuendigungNeulieferant
+      - type: serviceTask
+        id: Task_AbsenderPruefen
+        name: Absender gegen Marktpartnerstamm prüfen
+        reads: [DataStore_Marktpartner]
+      - type: businessRuleTask
+        id: Task_KuendigungPruefen
+        name: Kündigungsfrist und Vertragsbindung prüfen
+        reads: [DataStore_Kunden]
+      - type: exclusiveGateway
+        id: Gateway_KuendigungWirksam
+        name: Kündigung wirksam?
+        next:
+          - { to: Task_KuendigungBestaetigen, name: ja, condition: "=kuendigungWirksam" }
+          - { to: Task_KuendigungAblehnen, name: nein, default: true }
+      - { type: sendTask, id: Task_KuendigungBestaetigen, name: Kündigung bestätigen }
+      - type: receiveTask
+        id: Task_AbmeldungsanfrageErhalten
+        name: Abmeldungsanfrage erhalten
+        message: { name: Abmeldungsanfrage, correlationKey: "=marktlokation" }
+      - type: intermediateThrowEvent
+        id: Event_AbmeldungBestaetigt
+        name: Abmeldung bestätigt
+        message: { name: AbmeldungBestaetigt, correlationKey: "=marktlokation" }
+      - type: sendTask
+        id: Task_ZwischenablesungAnfordern
+        name: Zwischenablesung anfordern
+        message: { name: Zwischenablesung, correlationKey: "=zaehlpunkt" }
+      - type: intermediateThrowEvent
+        id: Event_LieferendeGemeldet
+        name: Lieferende gemeldet
+        message: { name: LieferendeGemeldet, correlationKey: "=vertragskonto" }
+      - type: serviceTask
+        id: Task_RueckgewinnungAnstossen
+        name: Rückgewinnung anstoßen
+        writes: [DataStore_Crm]
+      - { type: endEvent, id: End_KundeAbgemeldet, name: Kunde abgemeldet }
+
+      - { type: sendTask, id: Task_KuendigungAblehnen, name: Kündigung ablehnen }
+      - { type: endEvent, id: End_KuendigungAbgelehnt, name: Kündigung abgelehnt }

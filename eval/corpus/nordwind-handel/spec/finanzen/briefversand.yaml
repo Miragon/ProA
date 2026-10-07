@@ -1,0 +1,17 @@
+key: finanzen/briefversand
+engine: c7
+name: Briefversand
+notes: >-
+  Letter output, reused by dunning and credit notes (call-unique) and one of
+  the two candidates of the dynamic output channel call in invoicing.
+
+processes:
+  - id: Process_Briefversand
+    name: Briefversand über Druckdienstleister
+    documentation: Erzeugt ein PDF und übergibt es dem Druck- und Kuvertierdienstleister.
+    elements:
+      - { type: startEvent, id: Start_DruckauftragErhalten, name: Druckauftrag erhalten }
+      - { type: serviceTask, id: Task_PdfErzeugen, name: PDF-Dokument erzeugen }
+      - { type: serviceTask, id: Task_AnDruckdienstleisterUebergeben, name: An Druckdienstleister übergeben }
+      - { type: serviceTask, id: Task_VersandnachweisArchivieren, name: Versandnachweis archivieren }
+      - { type: endEvent, id: End_BriefVersendet, name: Brief versendet }

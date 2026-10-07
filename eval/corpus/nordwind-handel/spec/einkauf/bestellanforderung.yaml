@@ -1,0 +1,88 @@
+key: einkauf/bestellanforderung
+engine: c7
+name: Bestellanforderung
+notes: >-
+  Collaboration with a black-box supplier, two lanes, two start events. The
+  C8 stock monitor starts it with MindestbestandUnterschritten
+  (cross-engine). Calls Process_Bestellfreigabe, which exists twice: the
+  current model and an outdated 2019 copy (call-ambiguous). Announces the
+  order to the C8 goods receipt (BestellungAusgeloest, cross-engine) only
+  after the supplier's confirmation; the send task "Bestellung an Lieferanten
+  übermitteln" talks to the supplier pool only (collaboration distractor).
+  The supplier's order confirmation arrives under the generic message name
+  Antwort. "Neuer Lieferant benötigt" hands over to einkauf/lieferantenanlage,
+  whose start is spelled "benoetigt" (trigger, transliteration).
+
+collaboration:
+  participants:
+    - { id: Participant_Einkauf, name: Nordwind Handel – Einkauf, process: Process_Bestellanforderung }
+    - { id: Participant_Lieferant, name: Lieferant }
+  messageFlows:
+    - { from: Task_BestellungUebermitteln, to: Participant_Lieferant, name: Bestellung }
+    - { from: Participant_Lieferant, to: Event_AntwortErhalten, name: Auftragsbestätigung, message: Antwort }
+
+processes:
+  - id: Process_Bestellanforderung
+    name: Bestellanforderung
+    documentation: Von der Bedarfsmeldung oder Mindestbestandsunterschreitung bis zur bestätigten Bestellung beim Lieferanten.
+    lanes:
+      - { id: Lane_Bedarfstraeger, name: Bedarfsträger }
+      - { id: Lane_Einkauf, name: Einkauf }
+    dataStores:
+      - { id: DataStore_Lieferantenstamm, name: Lieferantenstamm }
+    elements:
+      - type: startEvent
+        id: Start_MindestbestandUnterschritten
+        name: Mindestbestand unterschritten
+        lane: Lane_Einkauf
+        message: MindestbestandUnterschritten
+        next: Gateway_Bedarf
+      - type: startEvent
+        id: Start_BedarfGemeldet
+        name: Bedarf gemeldet
+        lane: Lane_Bedarfstraeger
+        next: Task_BestellanforderungErfassen
+      - type: userTask
+        id: Task_BestellanforderungErfassen
+        name: Bestellanforderung erfassen
+        candidateGroups: bedarfstraeger
+        next: Gateway_Bedarf
+      - { type: exclusiveGateway, id: Gateway_Bedarf, lane: Lane_Einkauf }
+      - type: userTask
+        id: Task_LieferantAuswaehlen
+        name: Lieferant auswählen
+        candidateGroups: einkauf
+        reads: [DataStore_Lieferantenstamm]
+      - type: exclusiveGateway
+        id: Gateway_LieferantVorhanden
+        name: Lieferant im Stamm vorhanden?
+        next:
+          - { to: Call_Bestellfreigabe, name: ja, condition: "${lieferantVorhanden}" }
+          - { to: End_NeuerLieferantBenoetigt, name: nein, default: true }
+      - type: callActivity
+        id: Call_Bestellfreigabe
+        name: Bestellung freigeben lassen
+        calledElement: Process_Bestellfreigabe
+      - type: exclusiveGateway
+        id: Gateway_Freigegeben
+        name: Freigegeben?
+        next:
+          - { to: Task_BestellungAnlegen, name: ja, condition: "${freigegeben}" }
+          - { to: End_BestellanforderungAbgelehnt, name: nein, default: true }
+      - { type: serviceTask, id: Task_BestellungAnlegen, name: Bestellung im ERP anlegen }
+      - type: sendTask
+        id: Task_BestellungUebermitteln
+        name: Bestellung an Lieferanten übermitteln
+        message: Bestellung
+      - type: intermediateCatchEvent
+        id: Event_AntwortErhalten
+        name: Antwort erhalten
+        message: Antwort
+      - type: intermediateThrowEvent
+        id: Event_BestellungAusgeloest
+        name: Bestellung ausgelöst
+        message: BestellungAusgeloest
+      - { type: endEvent, id: End_BestellungAbgeschlossen, name: Bestellung abgeschlossen }
+
+      - { type: endEvent, id: End_BestellanforderungAbgelehnt, name: Bestellanforderung abgelehnt }
+      - { type: endEvent, id: End_NeuerLieferantBenoetigt, name: Neuer Lieferant benötigt }

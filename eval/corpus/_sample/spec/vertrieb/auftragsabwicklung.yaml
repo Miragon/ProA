@@ -1,0 +1,101 @@
+key: vertrieb/auftragsabwicklung
+engine: c7
+name: Auftragsabwicklung
+notes: >-
+  Collaboration with a black-box customer pool. The participant process also
+  talks to other files: it calls finance/payment-collection, throws the
+  WareVersandbereit message that starts finanzen/rechnungsstellung, and
+  catches the invoicing signal. The none end "Ware versandbereit" inside the
+  embedded subprocess is a subprocess-scope trap.
+
+collaboration:
+  participants:
+    - { id: Participant_Kunde, name: Kunde }
+    - { id: Participant_Vertrieb, name: Vertrieb, process: Process_Auftragsabwicklung }
+  messageFlows:
+    - { from: Participant_Kunde, to: Start_AuftragEingegangen, name: Bestellung }
+    - { from: Task_AbsageSenden, to: Participant_Kunde, name: Absage }
+    - { from: Participant_Kunde, to: Start_AuftragStorniert, name: Stornierung }
+
+processes:
+  - id: Process_Auftragsabwicklung
+    name: Auftragsabwicklung
+    documentation: Prüft eingehende Aufträge, kommissioniert die Ware und stößt Rechnung und Zahlung an.
+    lanes:
+      - { id: Lane_Innendienst, name: Innendienst }
+      - { id: Lane_Lager, name: Lager }
+    dataStores:
+      - { id: DataStore_Kundenstamm, name: Kundenstamm }
+    elements:
+      - type: startEvent
+        id: Start_AuftragEingegangen
+        name: Auftrag eingegangen
+        lane: Lane_Innendienst
+        message: AuftragEingegangen
+      - type: userTask
+        id: Task_AuftragPruefen
+        name: Auftrag prüfen
+        candidateGroups: innendienst
+        reads: [DataStore_Kundenstamm]
+        boundary:
+          - id: Boundary_PruefungUeberfaellig
+            name: 2 Tage vergangen
+            timer: { duration: P2D }
+            interrupting: false
+            next: Task_ErinnerungSenden
+      - type: exclusiveGateway
+        id: Gateway_AuftragOk
+        name: Auftrag ok?
+        next:
+          - { to: Sub_WareKommissionieren, name: ja, condition: "${auftragOk}" }
+          - { to: Task_AbsageSenden, name: nein, default: true }
+      - type: subProcess
+        id: Sub_WareKommissionieren
+        name: Ware kommissionieren
+        lane: Lane_Lager
+        elements:
+          - { type: startEvent, id: Start_KommissionierungGestartet, name: Kommissionierung gestartet }
+          - { type: manualTask, id: Task_WareVerpacken, name: Ware verpacken }
+          - { type: endEvent, id: End_WareVersandbereit, name: Ware versandbereit }
+      - type: intermediateThrowEvent
+        id: Event_WareVersandbereit
+        name: Ware versandbereit
+        message: WareVersandbereit
+        topic: ware-versandbereit-melden
+      - type: callActivity
+        id: Call_ZahlungAbwickeln
+        name: Zahlung abwickeln
+        lane: Lane_Innendienst
+        calledElement: Process_PaymentCollection
+      - { type: endEvent, id: End_AuftragAbgeschlossen, name: Auftrag abgeschlossen }
+
+      - type: sendTask
+        id: Task_AbsageSenden
+        name: Absage senden
+        message: Absage
+      - { type: endEvent, id: End_AuftragAbgelehnt, name: Auftrag abgelehnt }
+
+      - { type: serviceTask, id: Task_ErinnerungSenden, name: Erinnerung senden }
+      - { type: endEvent, id: End_ErinnerungGesendet, name: Erinnerung gesendet }
+
+      - type: eventSubProcess
+        id: EventSub_Storno
+        name: Storno
+        elements:
+          - type: startEvent
+            id: Start_AuftragStorniert
+            name: Auftrag storniert
+            message: AuftragStorniert
+          - { type: serviceTask, id: Task_StornoBuchen, name: Storno buchen }
+          - { type: endEvent, id: End_StornoGebucht, name: Storno gebucht }
+      - type: eventSubProcess
+        id: EventSub_Fakturiert
+        name: Fakturierung gemeldet
+        elements:
+          - type: startEvent
+            id: Start_RechnungsstellungAbgeschlossen
+            name: Rechnungsstellung abgeschlossen
+            signal: RechnungsstellungAbgeschlossen
+            interrupting: false
+          - { type: serviceTask, id: Task_AuftragFakturiert, name: Auftrag als fakturiert markieren }
+          - { type: endEvent, id: End_AuftragFakturiert, name: Auftrag fakturiert }

@@ -1,0 +1,79 @@
+key: kundenservice/kundeninformation
+engine: c8
+name: Kundeninformation
+notes: >-
+  One file, two participant processes and a black-box customer pool. The
+  notification process has four message starts fed from other files: "Abschlag
+  geändert" (message AbschlagGeändert) from the C7 instalment process, which
+  spells label and message without umlauts, "Abschlag geaendert" /
+  AbschlagGeaendert (transliteration), "Anlage gesperrt" and
+  "Anlage entsperrt" from forderung/sperrung (each the near-miss of the other)
+  and "Rechnung bereitgestellt", thrown in English as "Invoice published" by the
+  C7 e-invoice process (de-en). The outage process is started by the broadcast
+  signal "Großstörung" and waits for "Großstörung beendet" (signal-broadcast);
+  the two signal names share a prefix, so the crossed pairs are distractors.
+
+collaboration:
+  participants:
+    - { id: Participant_Benachrichtigungsdienst, name: Benachrichtigungsdienst, process: Process_Kundenbenachrichtigung }
+    - { id: Participant_Kunde, name: Kunde }
+    - { id: Participant_Stoerungsinformation, name: Störungsinformation, process: Process_Stoerungsinformation }
+  messageFlows:
+    - { from: Task_BenachrichtigungVersenden, to: Participant_Kunde, name: "E-Mail, SMS oder Brief" }
+    - { from: Task_StoerungsinfoVeroeffentlichen, to: Participant_Kunde, name: Störungsinfo }
+    - { from: Task_EntwarnungVeroeffentlichen, to: Participant_Kunde, name: Entwarnung }
+
+processes:
+  - id: Process_Kundenbenachrichtigung
+    name: Kundenbenachrichtigung
+    documentation: >-
+      Informiert Kunden über Ereignisse aus Abrechnung, Forderungsmanagement und
+      Sperrung im bevorzugten Kanal (E-Mail, SMS, Brief).
+    dataStores:
+      - { id: DataStore_Crm, name: CRM Kundenakte }
+    elements:
+      - type: startEvent
+        id: Start_AbschlagGeaendert
+        name: Abschlag geändert
+        message: AbschlagGeändert
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_RechnungBereitgestellt
+        name: Rechnung bereitgestellt
+        message: RechnungBereitgestellt
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_AnlageGesperrt
+        name: Anlage gesperrt
+        message: AnlageGesperrt
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_AnlageEntsperrt
+        name: Anlage entsperrt
+        message: AnlageEntsperrt
+      - { type: exclusiveGateway, id: Gateway_AnlassJoin }
+      - type: businessRuleTask
+        id: Task_VorlageUndKanalBestimmen
+        name: Vorlage und Kanal bestimmen
+        reads: [DataStore_Crm]
+      - { type: sendTask, id: Task_BenachrichtigungVersenden, name: Benachrichtigung versenden }
+      - { type: endEvent, id: End_KundeBenachrichtigt, name: Kunde benachrichtigt }
+
+  - id: Process_Stoerungsinformation
+    name: Störungsinformation
+    documentation: >-
+      Veröffentlicht bei einer Großstörung Informationen auf Website, App und
+      Störungshotline und gibt Entwarnung, sobald die Störung beendet ist.
+    elements:
+      - type: startEvent
+        id: Start_GrossstoerungAusgerufen
+        name: Großstörung ausgerufen
+        signal: Großstörung
+      - { type: serviceTask, id: Task_StoerungsinfoVeroeffentlichen, name: Störungsinfo auf Website und App veröffentlichen }
+      - { type: serviceTask, id: Task_HotlineansageAktualisieren, name: Ansage der Störungshotline aktualisieren }
+      - type: intermediateCatchEvent
+        id: Event_GrossstoerungBeendet
+        name: Großstörung beendet
+        signal: Großstörung beendet
+      - { type: serviceTask, id: Task_EntwarnungVeroeffentlichen, name: Entwarnung veröffentlichen }
+      - { type: endEvent, id: End_StoerungsinformationBeendet, name: Störungsinformation beendet }

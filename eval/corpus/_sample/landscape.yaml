@@ -1,0 +1,17 @@
+name: _sample
+description: >-
+  Tiny three-model landscape (order handling, invoicing, payment collection)
+  that exercises the spec format and the validator. It doubles as the
+  regression test of eval/tools (pnpm test) and is not part of the scored
+  corpus.
+lang: mixed
+split: dev
+closed_world: true
+engines:
+  c7: 7.24.0
+  c8: 8.9.0
+traps_not_applicable:
+  transliteration: the sample keeps three models; umlaut variants are covered by the real landscapes
+  call-ambiguous: needs a duplicated process in a fourth model
+  generic-name: needs at least three processes reusing one generic label
+  trigger: no labelled none end meets a labelled none start in three models

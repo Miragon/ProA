@@ -1,0 +1,73 @@
+key: forderung/mahnverfahren
+engine: c7
+name: Mahnverfahren
+notes: >-
+  C7, receivables team (labels with umlauts, unlike the billing team). Started
+  by forderung/zahlungseingang (same engine, exact key); stopped by its payment
+  message in an interrupting event subprocess. Orders the disconnection from
+  the C8 process forderung/sperrung (cross-engine-message). Hands bad debts to
+  an external collection agency with a send task that nobody in the landscape
+  receives (dangling-throw).
+
+processes:
+  - id: Process_Mahnverfahren
+    name: Mahnverfahren
+    documentation: >-
+      Zweistufiges Mahnverfahren für Strom- und Gaskunden: Zahlungserinnerung,
+      Mahnung mit Sperrandrohung, danach Sperrauftrag (ab 100 Euro Rückstand)
+      oder Abgabe der Forderung an einen Inkassodienstleister.
+    dataStores:
+      - { id: DataStore_Geschaeftspartner, name: Geschäftspartner (IS-U) }
+    elements:
+      - type: startEvent
+        id: Start_ZahlungsverzugFestgestellt
+        name: Zahlungsverzug festgestellt
+        message: ZahlungsverzugFestgestellt
+      - type: serviceTask
+        id: Task_ZahlungserinnerungVersenden
+        name: Zahlungserinnerung versenden
+        reads: [DataStore_Geschaeftspartner]
+      - type: intermediateCatchEvent
+        id: Event_ErinnerungsfristAbgelaufen
+        name: Erinnerungsfrist abgelaufen
+        timer: { duration: P14D }
+      - { type: serviceTask, id: Task_MahnungVersenden, name: Mahnung mit Sperrandrohung versenden }
+      - type: intermediateCatchEvent
+        id: Event_SperrandrohungsfristAbgelaufen
+        name: Sperrandrohungsfrist abgelaufen
+        timer: { duration: P28D }
+      - { type: businessRuleTask, id: Task_SperrvoraussetzungenPruefen, name: Sperrvoraussetzungen prüfen }
+      - type: exclusiveGateway
+        id: Gateway_SperrungZulaessig
+        name: Sperrung zulässig?
+        next:
+          - { to: End_SperrauftragErteilt, name: ja, condition: "${sperrungZulaessig}" }
+          - { to: Task_ForderungBewerten, name: nein, default: true }
+      - type: endEvent
+        id: End_SperrauftragErteilt
+        name: Sperrauftrag erteilt
+        message: SperrauftragErteilt
+
+      - type: userTask
+        id: Task_ForderungBewerten
+        name: Forderung bewerten
+        candidateGroups: forderungsmanagement
+      - type: sendTask
+        id: Task_ForderungAbgeben
+        name: Forderung an Inkassodienstleister abgeben
+        message: Inkassoauftrag
+      - { type: endEvent, id: End_ForderungAbgegeben, name: Forderung abgegeben }
+
+      - type: eventSubProcess
+        id: EventSub_ZahlungEingegangen
+        name: Zahlung eingegangen
+        elements:
+          - type: startEvent
+            id: Start_ZahlungEingegangen
+            name: Zahlung eingegangen
+            message: ZahlungEingegangen
+          - type: serviceTask
+            id: Task_MahnverfahrenEinstellen
+            name: Mahnverfahren einstellen
+            writes: [DataStore_Geschaeftspartner]
+          - { type: endEvent, id: End_MahnverfahrenEingestellt, name: Mahnverfahren eingestellt }

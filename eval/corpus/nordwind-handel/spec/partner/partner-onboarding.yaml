@@ -1,0 +1,50 @@
+key: partner/partner-onboarding
+engine: c8
+name: Dealer onboarding
+notes: >-
+  English partner team. Requests the C7 credit check with the message name
+  KreditprüfungAngefordert, typed with an umlaut, while C7 listens to
+  KreditpruefungAngefordert (transliteration). The answer
+  KreditpruefungAbgeschlossen matches exactly (cross-engine). Its own none
+  end "Dealer application rejected" is Levenshtein 3 from its own none start
+  "Dealer application received" (self-link, near-miss).
+
+processes:
+  - id: Process_PartnerOnboarding
+    name: Dealer onboarding
+    documentation: Onboards new B2B dealers, from application through register, document and credit checks to an active customer account.
+    dataStores:
+      - { id: DataStore_CustomerMaster, name: Customer master }
+    elements:
+      - { type: startEvent, id: Start_DealerApplicationReceived, name: Dealer application received }
+      - { type: serviceTask, id: Task_VerifyCommercialRegister, name: Verify commercial register entry }
+      - type: userTask
+        id: Task_CheckDocuments
+        name: Check trade licence and documents
+        candidateGroups: partner-management
+      - type: sendTask
+        id: Task_RequestCreditCheck
+        name: Request credit check
+        message: { name: KreditprüfungAngefordert, correlationKey: "=partnerId" }
+      - type: receiveTask
+        id: Task_AwaitCreditDecision
+        name: Await credit decision
+        message: { name: KreditpruefungAbgeschlossen, correlationKey: "=partnerId" }
+      - type: exclusiveGateway
+        id: Gateway_DealerApproved
+        name: Dealer approved?
+        next:
+          - { to: Task_CreateCustomerAccount, name: yes, condition: "=approved" }
+          - { to: Task_NotifyRejection, name: no, default: true }
+      - type: serviceTask
+        id: Task_CreateCustomerAccount
+        name: Create customer account
+        writes: [DataStore_CustomerMaster]
+      - { type: serviceTask, id: Task_SetUpDealerPrices, name: Set up dealer price list }
+      - type: userTask
+        id: Task_WelcomeCall
+        name: Welcome call by key account manager
+        candidateGroups: key-account
+      - { type: endEvent, id: End_PartnerActivated, name: Partner activated }
+      - { type: serviceTask, id: Task_NotifyRejection, name: Notify applicant of rejection }
+      - { type: endEvent, id: End_ApplicationRejected, name: Dealer application rejected }

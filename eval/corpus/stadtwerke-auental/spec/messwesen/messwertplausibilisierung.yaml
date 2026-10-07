@@ -1,0 +1,68 @@
+key: messwesen/messwertplausibilisierung
+engine: c8
+name: Messwertplausibilisierung
+notes: >-
+  Called by messwesen/zaehlerablesung (call-unique). Its none start "Zählerstände
+  erfasst" has the same label as the end event inside the caller's embedded
+  subprocess, which is never an endpoint (subprocess-scope). The none end
+  "Turnuswechsel fällig" has exactly the label of the timer start of
+  messwesen/zaehlerwechsel; the flagged meter is picked up by that monthly
+  rotation run through the Gerätestamm, so a trigger to the timer start is
+  wrong (event-def-mismatch that a kind-level filter on evt_start lets through).
+
+processes:
+  - id: Process_Messwertplausibilisierung
+    name: Messwertplausibilisierung
+    documentation: >-
+      Prüft erfasste Zählerstände gegen Vorjahresverbrauch und Grenzwerte,
+      klärt Auffälligkeiten und bildet bei Bedarf Ersatzwerte, bevor die
+      Messwerte für die Abrechnung freigegeben werden. Zähler mit
+      überschrittener Eichfrist werden im Gerätestamm für den Turnuswechsel
+      vorgemerkt.
+    dataStores:
+      - { id: DataStore_Messwerte, name: Messwertdatenbank }
+      - { id: DataStore_Geraetestamm, name: Gerätestamm }
+    elements:
+      - { type: startEvent, id: Start_ZaehlerstaendeErfasst, name: Zählerstände erfasst }
+      - type: businessRuleTask
+        id: Task_RegelnAnwenden
+        name: Plausibilitätsregeln anwenden
+        reads: [DataStore_Messwerte, DataStore_Geraetestamm]
+      - type: exclusiveGateway
+        id: Gateway_Plausibel
+        name: Messwerte plausibel?
+        next:
+          - { to: Gateway_FreigabeJoin, name: ja, condition: "=plausibel" }
+          - { to: Task_MesswertKlaeren, name: nein, default: true }
+      - type: userTask
+        id: Task_MesswertKlaeren
+        name: Auffälligen Messwert klären
+        candidateGroups: messwesen
+      - type: exclusiveGateway
+        id: Gateway_Ersatzwert
+        name: Ersatzwert erforderlich?
+        next:
+          - { to: Task_ErsatzwertBilden, name: ja, condition: "=ersatzwertNoetig" }
+          - { to: Gateway_FreigabeJoin, name: nein, default: true }
+      - type: serviceTask
+        id: Task_ErsatzwertBilden
+        name: Ersatzwert bilden
+        reads: [DataStore_Messwerte]
+      - { type: exclusiveGateway, id: Gateway_FreigabeJoin }
+      - type: serviceTask
+        id: Task_MesswerteFreigeben
+        name: Messwerte freigeben
+        writes: [DataStore_Messwerte]
+      - type: exclusiveGateway
+        id: Gateway_Eichfrist
+        name: Eichfrist überschritten?
+        next:
+          - { to: Task_TurnuswechselVormerken, name: ja, condition: "=eichfristUeberschritten = true" }
+          - { to: End_MesswertePlausibilisiert, name: nein, default: true }
+      - { type: endEvent, id: End_MesswertePlausibilisiert, name: Messwerte plausibilisiert }
+
+      - type: serviceTask
+        id: Task_TurnuswechselVormerken
+        name: Turnuswechsel im Gerätestamm vormerken
+        writes: [DataStore_Geraetestamm]
+      - { type: endEvent, id: End_TurnuswechselFaellig, name: Turnuswechsel fällig }

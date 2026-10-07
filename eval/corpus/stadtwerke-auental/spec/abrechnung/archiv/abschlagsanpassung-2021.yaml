@@ -1,0 +1,22 @@
+key: abrechnung/archiv/abschlagsanpassung-2021
+engine: c7
+name: Abschlagsanpassung (Stand 2021)
+notes: >-
+  Outdated copy kept in the repository. It defines Process_Abschlagsanpassung
+  like abrechnung/abschlagsanpassung, so the static call in the annual billing
+  matches two models (call-ambiguous, duplicate-process-id). The 2021 version
+  did not notify customers yet: its none end "Abschlag angepasst" is no
+  message throw.
+
+processes:
+  - id: Process_Abschlagsanpassung
+    name: Abschlagsanpassung (Stand 2021)
+    documentation: >-
+      Alte Fassung vor der Einführung der Kundenbenachrichtigung und der
+      Abschlagsänderung über das Kundenportal.
+    elements:
+      - { type: startEvent, id: Start_AbschlagsberechnungAngefordert, name: Abschlagsberechnung angefordert }
+      - { type: serviceTask, id: Task_AbschlagBerechnen, name: Abschlag berechnen }
+      - { type: userTask, id: Task_AbschlagFreigeben, name: Abschlag freigeben, candidateGroups: abrechnung }
+      - { type: serviceTask, id: Task_AbschlagsplanSchreiben, name: Abschlagsplan schreiben }
+      - { type: endEvent, id: End_AbschlagAngepasst, name: Abschlag angepasst }

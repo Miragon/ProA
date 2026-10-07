@@ -1,0 +1,36 @@
+key: vertrieb/marketplace-order-import
+engine: c8
+name: Marketplace order import
+notes: >-
+  Started by a marketplace webhook that is not modelled (unmatched-catch).
+  Forwards valid orders to vertrieb/order-handling as OrderReceived (exact
+  key). Rejections go back to the marketplace API (dangling-throw); "Order
+  rejected" vs "Order received" is a near-miss.
+
+processes:
+  - id: Process_MarketplaceOrderImport
+    name: Marketplace order import
+    documentation: Imports orders from online marketplaces, maps them to the Nordwind order format and forwards them to the shop.
+    elements:
+      - type: startEvent
+        id: Start_MarketplaceOrderNotified
+        name: Marketplace order notified
+        message: MarketplaceOrderNotified
+      - { type: serviceTask, id: Task_FetchOrderDetails, name: Fetch order details from marketplace }
+      - { type: serviceTask, id: Task_MapOrder, name: Map to Nordwind order format }
+      - { type: businessRuleTask, id: Task_CheckMarketplaceRules, name: Check marketplace rules }
+      - type: exclusiveGateway
+        id: Gateway_OrderValid
+        name: Order valid?
+        next:
+          - { to: Event_ForwardOrder, name: yes, condition: "=valid" }
+          - { to: End_OrderRejected, name: no, default: true }
+      - type: intermediateThrowEvent
+        id: Event_ForwardOrder
+        name: Order forwarded to shop
+        message: { name: OrderReceived, correlationKey: "=orderId" }
+      - { type: endEvent, id: End_OrderImported, name: Order imported }
+      - type: endEvent
+        id: End_OrderRejected
+        name: Order rejected
+        message: { name: OrderRejected, correlationKey: "=marketplaceOrderId" }

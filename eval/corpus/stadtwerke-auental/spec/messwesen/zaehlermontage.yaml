@@ -1,0 +1,55 @@
+key: messwesen/zaehlermontage
+engine: c8
+name: Zählersetzung Neuanlage
+notes: >-
+  Started by a handover, not by a message: the none start "Hausanschluss
+  fertiggestellt" is the target of the trigger from netz/hausanschluss
+  (End_ZaehlersetzungBeauftragt). The subprocess end in netz/hausanschluss with
+  the identical label is a subprocess-scope trap. The message end "Zähler
+  eingebaut" reaches the C7 billing intake under the identical message name
+  ZaehlerEingebaut (cross-engine-message); only the C7 label is written without
+  umlauts. The message end "Zähler ausgebaut" in messwesen/zaehlerwechsel and
+  the C7 start "Zaehler ausgebaut" are near-misses in both directions.
+
+processes:
+  - id: Process_Zaehlermontage
+    name: Zählersetzung Neuanlage
+    documentation: >-
+      Messstellenbetrieb setzt nach Fertigstellung eines Hausanschlusses den
+      ersten Zähler: Termin, Wahl der Messeinrichtung (moderne Messeinrichtung
+      oder intelligentes Messsystem), Einbau und Erfassung im Gerätestamm.
+    dataStores:
+      - { id: DataStore_Geraetestamm, name: Gerätestamm }
+    elements:
+      - { type: startEvent, id: Start_HausanschlussFertiggestellt, name: Hausanschluss fertiggestellt }
+      - type: userTask
+        id: Task_MontageterminVereinbaren
+        name: Montagetermin vereinbaren
+        candidateGroups: messstellenbetrieb
+        boundary:
+          - id: Boundary_KeinTermin
+            name: 14 Tage ohne Termin
+            timer: { duration: P14D }
+            interrupting: false
+            next: Task_AnschlussnehmerErinnern
+      - { type: businessRuleTask, id: Task_MesseinrichtungBestimmen, name: Messeinrichtung bestimmen }
+      - type: exclusiveGateway
+        id: Gateway_Imsys
+        name: Intelligentes Messsystem erforderlich?
+        next:
+          - { to: Task_GatewayBereitstellen, name: ja, condition: "=imsysPflicht" }
+          - { to: Gateway_ImsysJoin, name: nein, default: true }
+      - { type: serviceTask, id: Task_GatewayBereitstellen, name: Smart-Meter-Gateway bereitstellen }
+      - { type: exclusiveGateway, id: Gateway_ImsysJoin }
+      - { type: manualTask, id: Task_ZaehlerEinbauen, name: Zähler einbauen und verplomben }
+      - type: serviceTask
+        id: Task_GeraetedatenErfassen
+        name: Gerätedaten erfassen
+        writes: [DataStore_Geraetestamm]
+      - type: endEvent
+        id: End_ZaehlerEingebaut
+        name: Zähler eingebaut
+        message: { name: ZaehlerEingebaut, correlationKey: "=zaehlpunkt" }
+
+      - { type: serviceTask, id: Task_AnschlussnehmerErinnern, name: Anschlussnehmer erinnern }
+      - { type: endEvent, id: End_ErinnerungVersendet, name: Erinnerung versendet }

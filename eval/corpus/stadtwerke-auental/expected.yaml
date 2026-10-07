@@ -1,0 +1,678 @@
+# Ground truth for stadtwerke-auental (closed world: every unlisted
+# cross-process endpoint pair counts as must_not_link).
+#
+# Sections: calls, grid and metering, sales and market communication,
+# customer portal and notifications, receivables, signals, triggers.
+# must_not_link entries name the relation an agent would most plausibly
+# propose by mistake. Data store grouping is closed world as well: a label
+# that is in no group is a store of its own.
+
+relations:
+  # ------------------------------------------------------------------ calls
+
+  - type: call
+    from: netz/hausanschluss#Call_NetzanschlussPruefen
+    to: netz/netzanschlusspruefung#Process_Netzanschlusspruefung
+    expect: must_link
+    tags: [call-unique, collaboration]
+    rationale: Static zeebe:calledElement Process_Netzanschlusspruefung matches exactly one process; the caller is the participant process of a collaboration.
+
+  - type: call
+    from: messwesen/zaehlerablesung#Call_MesswertePlausibilisieren
+    to: messwesen/messwertplausibilisierung#Process_Messwertplausibilisierung
+    expect: must_link
+    tags: [call-unique]
+    rationale: Static calledElement equals exactly one process id.
+
+  - type: call
+    from: abrechnung/schlussrechnung#Call_SchlussrechnungDrucken
+    to: abrechnung/rechnungsausgabe-druck#Process_RechnungsausgabeDruck
+    expect: must_link
+    tags: [call-unique]
+    rationale: C7 calledElement="Process_RechnungsausgabeDruck" matches exactly one process; final invoices always go out on paper.
+
+  - type: call
+    from: abrechnung/schlussrechnung#Call_SchlussrechnungDrucken
+    to: abrechnung/rechnungsausgabe-digital#Process_RechnungsausgabeDigital
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The sibling output process looks interchangeable, but the static calledElement names the print process only.
+
+  - type: call
+    from: abrechnung/jahresverbrauchsabrechnung#Call_RechnungAusgeben
+    to: abrechnung/rechnungsausgabe-druck#Process_RechnungsausgabeDruck
+    expect: may_link
+    tags: [call-dynamic]
+    rationale: calledElement is ${ausgabeprozess}; print output is one of the two invoice output processes the expression can resolve to.
+
+  - type: call
+    from: abrechnung/jahresverbrauchsabrechnung#Call_RechnungAusgeben
+    to: abrechnung/rechnungsausgabe-digital#Process_RechnungsausgabeDigital
+    expect: may_link
+    tags: [call-dynamic]
+    rationale: calledElement is ${ausgabeprozess}; digital output is the other plausible target.
+
+  - type: call
+    from: netz/pv-einspeisung#Call_NetzvertraeglichkeitPruefen
+    to: netz/netzanschlusspruefung#Process_Netzanschlusspruefung
+    expect: may_link
+    tags: [call-dynamic]
+    rationale: calledElement is the FEEL expression =pruefprozess; the grid connection check is the only process in the landscape that fits "Netzverträglichkeit prüfen".
+
+  - type: call
+    from: abrechnung/jahresverbrauchsabrechnung#Call_AbschlagNeuFestsetzen
+    to: abrechnung/abschlagsanpassung#Process_Abschlagsanpassung
+    expect: may_link
+    tags: [call-ambiguous]
+    rationale: Process_Abschlagsanpassung is defined in two models; this is the current version and the likely target, but the rule cannot decide.
+
+  - type: call
+    from: abrechnung/jahresverbrauchsabrechnung#Call_AbschlagNeuFestsetzen
+    to: abrechnung/archiv/abschlagsanpassung-2021#Process_Abschlagsanpassung
+    expect: may_link
+    tags: [call-ambiguous]
+    rationale: The archived 2021 copy defines the same process id; with binding latest the deployed version decides, so a human has to choose.
+
+  # ----------------------------------------------------- grid and metering
+
+  - type: message
+    from: netz/stoerungsannahme#Task_EntstoerauftragUebermitteln
+    to: netz/entstoerung#Start_EntstoerauftragEingegangen
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Send task and message start share the message name Entstoerauftrag; the sender is the participant process of the fault desk collaboration.
+
+  - type: message
+    from: netz/entstoerung#Event_RueckmeldungGesendet
+    to: netz/stoerungsannahme#Task_RueckmeldungErhalten
+    expect: must_link
+    tags: [generic-name, collaboration]
+    rationale: The repair crew reports back to the fault desk that issued the order; same message name Rueckmeldung, same correlation key stoerungsnummer.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#Task_RueckmeldungSenden
+    to: netz/pv-einspeisung#Task_RueckmeldungErhalten
+    expect: must_link
+    tags: [generic-name]
+    rationale: The meter change ordered by the PV registration reports back to it; same message name Rueckmeldung, correlation key anlagennummer.
+
+  - type: message
+    from: netz/entstoerung#Event_RueckmeldungGesendet
+    to: netz/pv-einspeisung#Task_RueckmeldungErhalten
+    expect: must_not_link
+    tags: [generic-name]
+    rationale: Same generic message name Rueckmeldung, but a repair report has nothing to do with a PV registration waiting for its bidirectional meter.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#Task_RueckmeldungSenden
+    to: netz/stoerungsannahme#Task_RueckmeldungErhalten
+    expect: must_not_link
+    tags: [generic-name, collaboration]
+    rationale: Same generic message name Rueckmeldung, but a meter change confirmation never closes a fault report.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#Event_ZaehlerwechselDurchgefuehrt
+    to: netz/pv-einspeisung#Task_RueckmeldungErhalten
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The PV registration does wait for the meter change, but the confirmation is the separate send task Task_RueckmeldungSenden; this throw goes to billing.
+
+  - type: message
+    from: netz/pv-einspeisung#Task_ZweirichtungszaehlerBeauftragen
+    to: messwesen/zaehlerwechsel#Start_ZaehlerwechselBeauftragt
+    expect: must_link
+    tags: [exact-key]
+    rationale: The PV registration orders the bidirectional meter; send task and message start share ZaehlerwechselBeauftragt.
+
+  - type: message
+    from: netz/pv-einspeisung#Event_InbetriebnahmeGemeldet
+    to: abrechnung/einspeiseverguetung#Start_EinspeiseanlageInBetrieb
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: The C8 throw and the C7 message start share the message name EinspeiseanlageInBetrieb (message bus between the engines).
+
+  - type: message
+    from: netz/pv-einspeisung#End_EinspeiseanlageInBetrieb
+    to: abrechnung/einspeiseverguetung#Start_EinspeiseanlageInBetrieb
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: Identical label "Einspeiseanlage in Betrieb genommen", but the none end throws nothing; the message comes from Event_InbetriebnahmeGemeldet.
+
+  - type: message
+    from: messwesen/zaehlermontage#End_ZaehlerEingebaut
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerEingebaut
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: Identical message name ZaehlerEingebaut between C8 and C7. The C7 label "Zaehler eingebaut" is only the umlaut-free spelling of "Zähler eingebaut", so the key tier finds it without any transliteration.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#Event_ZaehlerwechselDurchgefuehrt
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerwechselDurchgefuehrt
+    expect: must_link
+    tags: [transliteration]
+    rationale: Message name ZählerwechselDurchgeführt (C8) and ZaehlerwechselDurchgefuehrt (C7) differ only by umlaut transliteration, as do the labels.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#End_ZaehlerAusgebaut
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerAusgebaut
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: Decommissioning without replacement; the C8 message end and the C7 start share the message name ZaehlerAusgebaut, and billing shuts down the installation.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#End_ZaehlerAusgebaut
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerEingebaut
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: '"Zähler ausgebaut" is Levenshtein 3 from "Zaehler eingebaut" after transliteration (message names ZaehlerAusgebaut / ZaehlerEingebaut, also 3) and both are message endpoints, but removal is the opposite of installation; billing has its own start "Zaehler ausgebaut".'
+
+  - type: message
+    from: messwesen/zaehlermontage#End_ZaehlerEingebaut
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerAusgebaut
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: The reverse confusion; "Zähler eingebaut" vs "Zaehler ausgebaut" is Levenshtein 3, a first installation must not shut down an installation in billing.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#Event_ZaehlerwechselDurchgefuehrt
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerAusgebaut
+    expect: must_not_link
+    tags: [distractor]
+    rationale: A meter change removes the old meter, but billing books the swap as a whole at Start_ZaehlerwechselDurchgefuehrt; "Zaehler ausgebaut" is only for removal without replacement.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#End_ZaehlerwechselAbgeschlossen
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerwechselDurchgefuehrt
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: Same meaning as the real link, but the none end throws nothing; billing is informed by Event_ZaehlerwechselDurchgefuehrt earlier in the process.
+
+  - type: message
+    from: messwesen/zaehlerwechsel#Event_ZaehlerwechselDurchgefuehrt
+    to: abrechnung/stammdatenuebernahme#Start_ZaehlerEingebaut
+    expect: must_not_link
+    tags: [distractor]
+    rationale: A meter change includes installing a meter, but billing books changes through its own start with the replacement and removal readings.
+
+  - type: message
+    from: messwesen/zaehlerablesung#Event_AblesedatenBereitgestellt
+    to: abrechnung/jahresverbrauchsabrechnung#Start_AblesedatenBereitgestellt
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: Annual readings start the C7 annual billing under the shared message name AblesedatenBereitgestellt.
+
+  - type: message
+    from: messwesen/zaehlerablesung#Event_ZwischenstandBereitgestellt
+    to: abrechnung/schlussrechnung#Task_SchlusszaehlerstandErhalten
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: The C7 final invoice waits in a receive task for the interim reading; shared message name ZwischenstandBereitgestellt.
+
+  - type: message
+    from: messwesen/zaehlerablesung#Event_ZwischenstandBereitgestellt
+    to: abrechnung/jahresverbrauchsabrechnung#Start_AblesedatenBereitgestellt
+    expect: must_not_link
+    tags: [distractor]
+    rationale: Both are "... bereitgestellt" reading events, but an interim reading must not start an annual bill.
+
+  - type: message
+    from: messwesen/zaehlerablesung#Event_AblesedatenBereitgestellt
+    to: abrechnung/schlussrechnung#Task_SchlusszaehlerstandErhalten
+    expect: must_not_link
+    tags: [distractor]
+    rationale: Annual rotation readings are no final readings; the final invoice waits for ZwischenstandBereitgestellt.
+
+  - type: message
+    from: kundenservice/kundenportal#Event_MeterReadingSubmitted
+    to: messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt
+    expect: must_link
+    tags: [de-en, subprocess-scope]
+    rationale: '"Meter reading submitted" is the portal''s English name for the customer self-reading that the reading process waits for as "Zählerstand übermittelt"; the message names differ, so only the semantic tier finds it. The catch lies inside an embedded subprocess, which is fine: only start and end events there are excluded.'
+
+  - type: message
+    from: kundenservice/kundenportal#Event_MeterReadingSubmitted
+    to: abrechnung/jahresverbrauchsabrechnung#Start_AblesedatenBereitgestellt
+    expect: must_not_link
+    tags: [distractor]
+    rationale: Portal readings go to the reading process for plausibility checks; they never start billing directly.
+
+  - type: message
+    from: kundenservice/kundenportal#Event_MeterReadingSubmitted
+    to: abrechnung/schlussrechnung#Task_SchlusszaehlerstandErhalten
+    expect: must_not_link
+    tags: [distractor]
+    rationale: A self-reading at move-out looks like the final reading, but it goes through messwesen/zaehlerablesung and its plausibility check first; the final invoice receives ZwischenstandBereitgestellt from there.
+
+  # -------------------------------------- sales and market communication
+
+  - type: message
+    from: kundenservice/kundenportal#Event_TariffChangeRequested
+    to: vertrieb/tarifwechsel#Start_TarifwechselBeantragt
+    expect: must_link
+    tags: [de-en]
+    rationale: '"Tariff change requested" and "Tarifwechsel beantragt" are the same request, English in the portal and German in sales; different message names.'
+
+  - type: message
+    from: kundenservice/kundenportal#Event_TariffChangeRequested
+    to: abrechnung/abschlagsanpassung#Start_TarifUmgestellt
+    expect: must_not_link
+    tags: [distractor]
+    rationale: A tariff change request is not a completed tariff switch; the instalment process reacts to "Tarif umgestellt" from vertrieb/tarifwechsel.
+
+  - type: message
+    from: vertrieb/tarifwechsel#Task_ZwischenablesungAnfordern
+    to: messwesen/zaehlerablesung#Start_ZwischenablesungAngefordert
+    expect: must_link
+    tags: [exact-key]
+    rationale: Shared message name Zwischenablesung; the tariff change needs a reading at the switch date.
+
+  - type: message
+    from: vertrieb/tarifwechsel#Event_TarifUmgestellt
+    to: abrechnung/abschlagsanpassung#Start_TarifUmgestellt
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: Identical message name TarifUmgestellt between the C8 sales process and the C7 instalment process.
+
+  - type: message
+    from: vertrieb/tarifwechsel#End_TarifwechselAbgeschlossen
+    to: abrechnung/abschlagsanpassung#Start_TarifUmgestellt
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: The none end throws nothing; billing hears about the switch from Event_TarifUmgestellt just before it.
+
+  - type: message
+    from: vertrieb/umzug#Task_ZwischenablesungAnfordern
+    to: messwesen/zaehlerablesung#Start_ZwischenablesungAngefordert
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Shared message name Zwischenablesung; sent by the participant process of the move collaboration.
+
+  - type: message
+    from: vertrieb/umzug#Event_AuszugGemeldet
+    to: abrechnung/schlussrechnung#Start_AuszugGemeldet
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: Identical message name AuszugGemeldet between the C8 move collaboration and the C7 final invoice.
+
+  - type: message
+    from: vertrieb/umzug#Event_AuszugGemeldet
+    to: abrechnung/schlussrechnung#Start_LieferendeGemeldet
+    expect: must_not_link
+    tags: [distractor]
+    rationale: Move-out and supplier switch both end supply, but each enters the final invoice through its own message start.
+
+  - type: message
+    from: vertrieb/umzug#Event_AuszugGemeldet
+    to: vertrieb/umzug#Start_UmzugGemeldet
+    expect: must_not_link
+    tags: [self-link, near-miss]
+    rationale: '"Auszug gemeldet" is Levenshtein 2 from "Umzug gemeldet", but both lie in the same process and the move-out is a consequence of the move, not its trigger.'
+
+  - type: message
+    from: vertrieb/umzug#Task_BelieferungBeauftragen
+    to: marktkommunikation/lieferbeginn#Start_BelieferungBeauftragt
+    expect: must_link
+    tags: [exact-key, collaboration, subprocess-scope]
+    rationale: The send task inside the embedded subprocess is a valid endpoint (only start and end events inside a subprocess are excluded); shared message name BelieferungBeauftragt.
+
+  - type: message
+    from: marktkommunikation/lieferantenwechsel#Task_ZwischenablesungAnfordern
+    to: messwesen/zaehlerablesung#Start_ZwischenablesungAngefordert
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Shared message name Zwischenablesung; the supplier switch needs a reading at the end of supply.
+
+  - type: message
+    from: marktkommunikation/lieferantenwechsel#Event_LieferendeGemeldet
+    to: abrechnung/schlussrechnung#Start_LieferendeGemeldet
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: Identical message name LieferendeGemeldet between the C8 supplier switch collaboration and the C7 final invoice.
+
+  - type: message
+    from: marktkommunikation/lieferantenwechsel#Event_LieferendeGemeldet
+    to: abrechnung/schlussrechnung#Event_LieferendeErreicht
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: '"Lieferende erreicht" is a timer catch on the supply end date, not a message target; the message starts the process at Start_LieferendeGemeldet.'
+
+  - type: message
+    from: marktkommunikation/lieferantenwechsel#Event_LieferendeGemeldet
+    to: abrechnung/stammdatenuebernahme#Start_LieferbeginnGemeldet
+    expect: must_not_link
+    tags: [distractor]
+    rationale: '"Lieferende gemeldet" vs "Lieferbeginn gemeldet" (Levenshtein 5) is end vs start of supply; the end of supply enters billing through the final invoice, the start through the billing intake.'
+
+  - type: message
+    from: marktkommunikation/lieferbeginn#Event_LieferbeginnGemeldet
+    to: abrechnung/schlussrechnung#Start_LieferendeGemeldet
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The reverse antonym pair; a new supply point must not trigger a final invoice, it goes to the billing intake at Start_LieferbeginnGemeldet.
+
+  - type: message
+    from: marktkommunikation/lieferantenwechsel#End_KundeAbgemeldet
+    to: abrechnung/schlussrechnung#Start_LieferendeGemeldet
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: Same business moment, but the none end throws nothing; Event_LieferendeGemeldet carries the message.
+
+  - type: message
+    from: marktkommunikation/lieferantenwechsel#Event_AbmeldungBestaetigt
+    to: marktkommunikation/lieferbeginn#Event_AnmeldungBestaetigt
+    expect: must_not_link
+    tags: [near-miss, collaboration]
+    rationale: '"Abmeldung bestätigt" vs "Anmeldung bestätigt" is Levenshtein 1 but opposite GPKE steps; both are internal message flows with the grid operator pool.'
+
+  - type: message
+    from: netz/pv-einspeisung#End_AnmeldungAbgelehnt
+    to: marktkommunikation/lieferbeginn#Event_AnmeldungAbgelehnt
+    expect: must_not_link
+    tags: [generic-name, event-def-mismatch]
+    rationale: Same generic label "Anmeldung abgelehnt" for two different registrations (a PV plant at the grid operator vs a supply point under GPKE); the none end throws nothing and the catch is fed by the internal message flow from Participant_Netzbetreiber.
+
+  - type: message
+    from: marktkommunikation/lieferbeginn#Event_LieferbeginnGemeldet
+    to: abrechnung/stammdatenuebernahme#Start_LieferbeginnGemeldet
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: Identical message name LieferbeginnGemeldet between the C8 registration and the C7 billing intake.
+
+  - type: message
+    from: marktkommunikation/lieferbeginn#End_LieferbeginnAngemeldet
+    to: abrechnung/stammdatenuebernahme#Start_LieferbeginnGemeldet
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: '"Lieferbeginn angemeldet" is Levenshtein 2 from the C7 start label, but the none end throws nothing; Event_LieferbeginnGemeldet carries the message.'
+
+  # --------------------------------- customer portal and notifications
+
+  - type: message
+    from: kundenservice/kundenportal#Event_InstalmentChangeRequested
+    to: abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht
+    expect: must_link
+    tags: [de-en]
+    rationale: '"Instalment change requested" is the English portal event for "Abschlagsaenderung gewuenscht" in the C7 instalment process; different message names.'
+
+  - type: message
+    from: kundenservice/kundenportal#Event_InstalmentChangeRequested
+    to: kundenservice/kundeninformation#Start_AbschlagGeaendert
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The customer's wish is not the completed change; the notification is triggered by the C7 instalment process after recalculation.
+
+  - type: message
+    from: abrechnung/abschlagsanpassung#End_AbschlagGeaendert
+    to: kundenservice/kundeninformation#Start_AbschlagGeaendert
+    expect: must_link
+    tags: [transliteration, collaboration]
+    rationale: Message names AbschlagGeaendert (C7) and AbschlagGeändert (C8) differ only by umlaut transliteration, as do the labels ("Abschlag geaendert" / "Abschlag geändert"); the bus adapter matches names after transliteration.
+
+  - type: message
+    from: abrechnung/archiv/abschlagsanpassung-2021#End_AbschlagAngepasst
+    to: kundenservice/kundeninformation#Start_AbschlagGeaendert
+    expect: must_not_link
+    tags: [event-def-mismatch, distractor]
+    rationale: '"Abschlag angepasst" means the same, but it is the none end of the archived copy, which predates customer notifications and throws nothing.'
+
+  - type: message
+    from: abrechnung/rechnungsausgabe-digital#Event_InvoicePublished
+    to: kundenservice/kundeninformation#Start_RechnungBereitgestellt
+    expect: must_link
+    tags: [de-en, collaboration]
+    rationale: '"Invoice published" (e-invoice platform, English) and "Rechnung bereitgestellt" are the same event; different message names, so only the semantic tier finds it.'
+
+  # -------------------------------------------------------- receivables
+
+  - type: message
+    from: forderung/zahlungseingang#Event_ZahlungsverzugGemeldet
+    to: forderung/mahnverfahren#Start_ZahlungsverzugFestgestellt
+    expect: must_link
+    tags: [exact-key]
+    rationale: Shared message name ZahlungsverzugFestgestellt within the C7 receivables team.
+
+  - type: message
+    from: forderung/zahlungseingang#Event_ZahlungsverzugGemeldet
+    to: forderung/sperrung#Start_SperrauftragEingegangen
+    expect: must_not_link
+    tags: [distractor]
+    rationale: Overdue payment does not lead to disconnection directly; the dunning process decides and issues SperrauftragErteilt.
+
+  - type: message
+    from: forderung/zahlungseingang#Event_ZahlungEingegangen
+    to: forderung/mahnverfahren#Start_ZahlungEingegangen
+    expect: must_link
+    tags: [exact-key, subprocess-scope]
+    rationale: The interrupting event subprocess of the dunning process catches ZahlungEingegangen; the typed start of an event subprocess is an endpoint.
+
+  - type: message
+    from: forderung/zahlungseingang#Event_ZahlungEingegangen
+    to: forderung/sperrung#Event_ZahlungVorSperrung
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: Identical message name ZahlungEingegangen from C7 to C8; a payment before the deadline averts the disconnection.
+
+  - type: message
+    from: forderung/zahlungseingang#Event_ZahlungEingegangen
+    to: forderung/sperrung#Task_ZahlungAbwarten
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The same message is caught a second time after the disconnection to trigger reconnection.
+
+  - type: message
+    from: forderung/mahnverfahren#End_SperrauftragErteilt
+    to: forderung/sperrung#Start_SperrauftragEingegangen
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: Identical message name SperrauftragErteilt from the C7 dunning process to the C8 disconnection collaboration.
+
+  - type: message
+    from: forderung/sperrung#Event_AnlageGesperrt
+    to: kundenservice/kundeninformation#Start_AnlageGesperrt
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Shared message name AnlageGesperrt between two collaboration files.
+
+  - type: message
+    from: forderung/sperrung#End_AnlageEntsperrt
+    to: kundenservice/kundeninformation#Start_AnlageEntsperrt
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Shared message name AnlageEntsperrt between two collaboration files.
+
+  - type: message
+    from: forderung/sperrung#Event_AnlageGesperrt
+    to: kundenservice/kundeninformation#Start_AnlageEntsperrt
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: '"Anlage gesperrt" vs "Anlage entsperrt" is Levenshtein 3 but the opposite event.'
+
+  - type: message
+    from: forderung/sperrung#End_AnlageEntsperrt
+    to: kundenservice/kundeninformation#Start_AnlageGesperrt
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: '"Anlage entsperrt" vs "Anlage gesperrt" is Levenshtein 3 but the opposite event.'
+
+  # ------------------------------------------------------------- signals
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungAusgerufen
+    to: netz/stoerungsannahme#Start_GrossstoerungAusgerufen
+    expect: must_link
+    tags: [signal-broadcast, collaboration, subprocess-scope]
+    rationale: Signal Großstörung switches on the outage announcement at the fault desk (non-interrupting event subprocess).
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungAusgerufen
+    to: forderung/sperrung#Start_GrossstoerungAusgerufen
+    expect: must_link
+    tags: [signal-broadcast, collaboration, subprocess-scope]
+    rationale: The same signal pauses disconnections in the outage area; the typed start of an event subprocess is an endpoint.
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungAusgerufen
+    to: messwesen/zaehlerwechsel#Start_GrossstoerungAusgerufen
+    expect: must_link
+    tags: [signal-broadcast, subprocess-scope]
+    rationale: The same signal postpones meter change appointments in the outage area; the typed start of an event subprocess is an endpoint.
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungAusgerufen
+    to: kundenservice/kundeninformation#Start_GrossstoerungAusgerufen
+    expect: must_link
+    tags: [signal-broadcast, collaboration]
+    rationale: The same signal starts the public outage information process.
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungBeendet
+    to: forderung/sperrung#Event_GrossstoerungBeendet
+    expect: must_link
+    tags: [signal-broadcast, collaboration, subprocess-scope]
+    rationale: Signal "Großstörung beendet" resumes disconnection planning; an intermediate catch inside an event subprocess is an endpoint.
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungBeendet
+    to: kundenservice/kundeninformation#Event_GrossstoerungBeendet
+    expect: must_link
+    tags: [signal-broadcast, collaboration]
+    rationale: The same signal releases the all-clear in the outage information process.
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungBeendet
+    to: kundenservice/kundeninformation#Start_GrossstoerungAusgerufen
+    expect: must_not_link
+    tags: [distractor]
+    rationale: 'Signal names "Großstörung beendet" and "Großstörung" share their first token and one is a prefix of the other, but the all-clear must not start the outage information; it releases Event_GrossstoerungBeendet.'
+
+  - type: signal
+    from: netz/entstoerung#Event_GrossstoerungAusgerufen
+    to: kundenservice/kundeninformation#Event_GrossstoerungBeendet
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The crossed pair; announcing the outage must not release the all-clear that the outage information waits for.
+
+  - type: signal
+    from: netz/entstoerung#End_VersorgungWiederhergestellt
+    to: kundenservice/kundeninformation#Event_GrossstoerungBeendet
+    expect: must_not_link
+    tags: [subprocess-scope]
+    rationale: '"Versorgung wiederhergestellt" reads like the end of the outage, but it is the end of the embedded repair subprocess and throws nothing; the signal comes from Event_GrossstoerungBeendet.'
+
+  # ------------------------------------------------------------ triggers
+
+  - type: trigger
+    from: netz/hausanschluss#End_ZaehlersetzungBeauftragt
+    to: messwesen/zaehlermontage#Start_HausanschlussFertiggestellt
+    expect: must_link
+    tags: [trigger, semantic, collaboration]
+    rationale: Handover from grid service to metering - after the installer's completion notice the grid side orders the first meter, and the meter setting process starts at "Hausanschluss fertiggestellt". Labels differ; agents only.
+
+  - type: trigger
+    from: netz/hausanschluss#End_HausanschlussFertiggestellt
+    to: messwesen/zaehlermontage#Start_HausanschlussFertiggestellt
+    expect: must_not_link
+    tags: [subprocess-scope]
+    rationale: Identical label, but the end lies inside the embedded construction subprocess, which is never an endpoint; the handover happens at End_ZaehlersetzungBeauftragt.
+
+  - type: message
+    from: netz/hausanschluss#End_ZaehlersetzungBeauftragt
+    to: messwesen/zaehlerwechsel#Start_ZaehlerwechselBeauftragt
+    expect: must_not_link
+    tags: [event-def-mismatch, distractor]
+    rationale: '"Zählersetzung beauftragt" sounds like "Zählerwechsel beauftragt", but a first installation is not a meter change and the none end throws no message.'
+
+  - type: trigger
+    from: messwesen/zaehlerablesung#End_ZaehlerstaendeErfasst
+    to: messwesen/messwertplausibilisierung#Start_ZaehlerstaendeErfasst
+    expect: must_not_link
+    tags: [subprocess-scope]
+    rationale: Identical label "Zählerstände erfasst", but the end lies inside the embedded subprocess; the plausibility process is reached by Call_MesswertePlausibilisieren.
+
+  - type: trigger
+    from: messwesen/messwertplausibilisierung#End_TurnuswechselFaellig
+    to: messwesen/zaehlerwechsel#Start_TurnuswechselFaellig
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: 'Identical label "Turnuswechsel fällig" and both are evt_start/evt_end facts, but the target is the timer start of the monthly rotation run, which fires on its own schedule and picks the flagged meter up from the Gerätestamm; a trigger needs a none start.'
+
+  - type: trigger
+    from: abrechnung/jahresverbrauchsabrechnung#End_JahresabrechnungAbgeschlossen
+    to: abrechnung/abschlagsanpassung#Start_AbschlagsberechnungAngefordert
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The only other type-valid trigger with a business story (annual bill done, instalment recalculation requested), but the annual bill already calls the instalment process through Call_AbschlagNeuFestsetzen before it ends.
+
+  - type: trigger
+    from: abrechnung/jahresverbrauchsabrechnung#End_JahresabrechnungAbgeschlossen
+    to: abrechnung/archiv/abschlagsanpassung-2021#Start_AbschlagsberechnungAngefordert
+    expect: must_not_link
+    tags: [distractor]
+    rationale: As above, and the archived 2021 copy is not even a current process; the call covers the instalment recalculation.
+
+expected_findings:
+  - kind: unresolved-call
+    refs: [messwesen/zaehlerwechsel#Call_BefundpruefungBeauftragen]
+    tags: [call-unresolved]
+    rationale: Process_Befundpruefung is defined nowhere; the Befundprüfung of a removed meter at a state-approved test lab is coordinated outside the landscape.
+
+  - kind: dynamic-call
+    refs: [abrechnung/jahresverbrauchsabrechnung#Call_RechnungAusgeben]
+    tags: [call-dynamic]
+    rationale: calledElement ${ausgabeprozess}; candidates are the print and the digital invoice output.
+
+  - kind: dynamic-call
+    refs: [netz/pv-einspeisung#Call_NetzvertraeglichkeitPruefen]
+    tags: [call-dynamic]
+    rationale: calledElement =pruefprozess (FEEL); the only plausible candidate is netz/netzanschlusspruefung.
+
+  - kind: duplicate-process-id
+    refs:
+      - abrechnung/abschlagsanpassung#Process_Abschlagsanpassung
+      - abrechnung/archiv/abschlagsanpassung-2021#Process_Abschlagsanpassung
+    tags: [call-ambiguous]
+    rationale: The archived 2021 copy still carries the process id of the current instalment process.
+
+  - kind: dangling-throw
+    refs: [netz/pv-einspeisung#Task_MastrBestaetigen]
+    tags: [dangling-throw]
+    rationale: The confirmation goes to the Marktstammdatenregister of the Bundesnetzagentur, which is not modelled.
+
+  - kind: dangling-throw
+    refs: [forderung/mahnverfahren#Task_ForderungAbgeben]
+    tags: [dangling-throw]
+    rationale: The collection order (message Inkassoauftrag) goes to an external collection agency, which is not modelled.
+
+  - kind: unmatched-catch
+    refs:
+      - kundenservice/kundenportal#Start_PortalRequestReceived
+      - netz/pv-einspeisung#Start_AnmeldungEingegangen
+      - abrechnung/rechnungsausgabe-druck#Task_VersandbestaetigungErhalten
+    tags: [unmatched-catch]
+    rationale: Senders outside the landscape - the portal frontend, the installer portal and the print service provider.
+
+data_store_groups:
+  - name: Kundenstamm IS-U
+    labels: [Kundenstamm IS-U, Geschäftspartner (IS-U), Kunden-Stammdaten]
+    tags: [data-store-variants]
+    rationale: Business partner, contract and installation master data in SAP IS-U, named differently by billing, receivables and sales. "CRM Kundenakte" (contact history, channels, win-back) and "Marktpartnerstamm" (other market participants) are different stores.
+
+  - name: Gerätestamm
+    labels: [Gerätestamm, Zaehlerstammdaten]
+    tags: [data-store-variants]
+    rationale: IS-U device management, called Gerätestamm by metering and Zaehlerstammdaten by the billing team. Only metering writes it; the billing intake reads it and writes installations to Kundenstamm IS-U.
+
+  - name: Messwerte
+    labels: [Messwertdatenbank, MDM-Messwerte]
+    tags: [data-store-variants]
+    rationale: The meter data management system; metering writes it, billing reads it.
+
+  - name: Netzinformationssystem
+    labels: [Netzinformationssystem, GIS Netzdaten, NIS]
+    tags: [data-store-variants]
+    rationale: The GIS-based grid information system under three names.
+
+  - name: EEG-Anlagen
+    labels: [EEG-Anlagenstamm, Einspeiseanlagen EEG]
+    tags: [data-store-variants]
+    rationale: Register of feed-in plants; the grid side writes it, feed-in billing reads it.

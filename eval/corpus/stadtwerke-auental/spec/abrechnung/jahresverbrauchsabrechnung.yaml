@@ -1,0 +1,69 @@
+key: abrechnung/jahresverbrauchsabrechnung
+engine: c7
+name: Jahresverbrauchsabrechnung
+notes: >-
+  C7 billing core; labels without umlauts (legacy migration). Started by the
+  C8 meter reading (AblesedatenBereitgestellt, cross-engine-message). The
+  invoice output is called through ${ausgabeprozess} (call-dynamic: print or
+  digital). Process_Abschlagsanpassung exists twice, current and an archived
+  copy from 2021 (call-ambiguous).
+
+processes:
+  - id: Process_Jahresverbrauchsabrechnung
+    name: Jahresverbrauchsabrechnung
+    documentation: >-
+      Jährliche Verbrauchsabrechnung je Vertragskonto: Verbrauch abgrenzen,
+      Preise und Steuern ermitteln, Rechnung ausgeben, Abschlag neu festsetzen
+      und Guthaben erstatten oder Nachforderung buchen.
+    dataStores:
+      - { id: DataStore_KundenstammIsu, name: Kundenstamm IS-U }
+      - { id: DataStore_MdmMesswerte, name: MDM-Messwerte }
+    elements:
+      - type: startEvent
+        id: Start_AblesedatenBereitgestellt
+        name: Ablesedaten bereitgestellt
+        message: AblesedatenBereitgestellt
+      - type: serviceTask
+        id: Task_VerbrauchAbgrenzen
+        name: Verbrauch abgrenzen
+        reads: [DataStore_MdmMesswerte]
+      - type: businessRuleTask
+        id: Task_PreiseErmitteln
+        name: Preise und Steuern ermitteln
+        reads: [DataStore_KundenstammIsu]
+      - { type: serviceTask, id: Task_RechnungBerechnen, name: Jahresrechnung berechnen }
+      - type: exclusiveGateway
+        id: Gateway_Auffaellig
+        name: Rechnung auffaellig?
+        next:
+          - { to: Task_RechnungPruefen, name: ja, condition: "${rechnungAuffaellig}" }
+          - { to: Gateway_PruefungJoin, name: nein, default: true }
+      - type: userTask
+        id: Task_RechnungPruefen
+        name: Rechnung manuell pruefen
+        candidateGroups: abrechnung
+      - { type: exclusiveGateway, id: Gateway_PruefungJoin }
+      - type: callActivity
+        id: Call_RechnungAusgeben
+        name: Rechnung ausgeben
+        calledElement: "${ausgabeprozess}"
+      - type: callActivity
+        id: Call_AbschlagNeuFestsetzen
+        name: Abschlag neu festsetzen
+        calledElement: Process_Abschlagsanpassung
+      - type: exclusiveGateway
+        id: Gateway_Saldo
+        name: Guthaben oder Nachzahlung?
+        next:
+          - { to: Task_GuthabenErstatten, name: Guthaben, condition: "${saldo < 0}" }
+          - { to: Task_NachforderungBuchen, name: Nachzahlung, default: true }
+      - type: serviceTask
+        id: Task_GuthabenErstatten
+        name: Guthaben erstatten
+        next: Gateway_SaldoJoin
+      - type: serviceTask
+        id: Task_NachforderungBuchen
+        name: Nachforderung als offenen Posten buchen
+        writes: [DataStore_KundenstammIsu]
+      - { type: exclusiveGateway, id: Gateway_SaldoJoin }
+      - { type: endEvent, id: End_JahresabrechnungAbgeschlossen, name: Jahresverbrauchsabrechnung abgeschlossen }

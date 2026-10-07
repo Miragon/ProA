@@ -1,0 +1,60 @@
+key: abrechnung/abschlagsanpassung
+engine: c7
+name: Abschlagsanpassung
+notes: >-
+  Current version of Process_Abschlagsanpassung; the archived copy
+  abrechnung/archiv/abschlagsanpassung-2021 defines the same process id
+  (call-ambiguous). Three starts: none (called by the annual billing),
+  "Tarif umgestellt" from the C8 tariff change (cross-engine-message) and
+  "Abschlagsaenderung gewuenscht", which the portal throws in English as
+  "Instalment change requested" (de-en). The message end "Abschlag geaendert"
+  (message AbschlagGeaendert) reaches the C8 notification start "Abschlag
+  geändert", whose message name is AbschlagGeändert (transliteration; the bus
+  adapter matches names after umlaut transliteration).
+
+processes:
+  - id: Process_Abschlagsanpassung
+    name: Abschlagsanpassung
+    documentation: >-
+      Berechnet den monatlichen Abschlag neu, nach der Jahresabrechnung, nach
+      einem Tarifwechsel oder auf Kundenwunsch, und informiert den Kunden.
+    dataStores:
+      - { id: DataStore_KundenstammIsu, name: Kundenstamm IS-U }
+    elements:
+      - type: startEvent
+        id: Start_AbschlagsberechnungAngefordert
+        name: Abschlagsberechnung angefordert
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_TarifUmgestellt
+        name: Tarif umgestellt
+        message: TarifUmgestellt
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_AbschlagsaenderungGewuenscht
+        name: Abschlagsaenderung gewuenscht
+        message: AbschlagsaenderungGewuenscht
+      - { type: exclusiveGateway, id: Gateway_AnlassJoin }
+      - type: businessRuleTask
+        id: Task_AbschlagBerechnen
+        name: Neuen Abschlag berechnen
+        reads: [DataStore_KundenstammIsu]
+      - type: exclusiveGateway
+        id: Gateway_Abweichung
+        name: Abweichung ueber 10 Prozent?
+        next:
+          - { to: Task_AbschlagPruefen, name: ja, condition: "${abweichung > 0.1}" }
+          - { to: Gateway_PruefungJoin, name: nein, default: true }
+      - type: userTask
+        id: Task_AbschlagPruefen
+        name: Abschlagshoehe pruefen
+        candidateGroups: abrechnung
+      - { type: exclusiveGateway, id: Gateway_PruefungJoin }
+      - type: serviceTask
+        id: Task_AbschlagsplanAktualisieren
+        name: Abschlagsplan aktualisieren
+        writes: [DataStore_KundenstammIsu]
+      - type: endEvent
+        id: End_AbschlagGeaendert
+        name: Abschlag geaendert
+        message: AbschlagGeaendert

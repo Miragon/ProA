@@ -1,0 +1,78 @@
+key: service/returns
+engine: c8
+name: Returns
+notes: >-
+  English returns team. Started by ReturnRequested from service/reklamation
+  (exact key). Requests the credit note as CreditNoteRequested, which the C7
+  credit note process listens to as GutschriftAngefordert (de-en), and waits
+  for GutschriftErstellt (cross-engine). Exchanges are called through the
+  expression =exchangeProcess (call-dynamic): the replacement delivery is
+  plausible, plain parcel shipping is not (it skips the replacement order and
+  picking). Catches the product recall signal.
+
+processes:
+  - id: Process_Returns
+    name: Returns
+    documentation: Issues return labels, inspects returned goods, restocks them and settles the return by refund or exchange.
+    dataStores:
+      - { id: DataStore_Inventory, name: Inventory }
+    elements:
+      - type: startEvent
+        id: Start_ReturnRequested
+        name: Return requested
+        message: ReturnRequested
+      - { type: serviceTask, id: Task_CreateReturnLabel, name: Create return label }
+      - type: userTask
+        id: Task_InspectReturnedGoods
+        name: Receive and inspect returned goods
+        candidateGroups: returns-desk
+        boundary:
+          - { id: Boundary_NoParcel, name: No parcel after 14 days, timer: { duration: P14D }, next: End_ReturnExpired }
+      - type: exclusiveGateway
+        id: Gateway_Resellable
+        name: Goods resellable?
+        next:
+          - { to: Task_RestockGoods, name: yes, condition: "=resellable" }
+          - { to: Gateway_Restocked, name: no, default: true }
+      - type: serviceTask
+        id: Task_RestockGoods
+        name: Restock goods
+        writes: [DataStore_Inventory]
+      - { type: exclusiveGateway, id: Gateway_Restocked }
+      - type: exclusiveGateway
+        id: Gateway_Resolution
+        name: Refund or exchange?
+        next:
+          - { to: Task_RequestCreditNote, name: refund, default: true }
+          - { to: Call_ShipExchangeItem, name: exchange, condition: '=resolution = "exchange"' }
+      - type: sendTask
+        id: Task_RequestCreditNote
+        name: Request credit note
+        message: { name: CreditNoteRequested, correlationKey: "=returnId" }
+      - type: receiveTask
+        id: Task_AwaitCreditNote
+        name: Await credit note
+        message: { name: GutschriftErstellt, correlationKey: "=returnId" }
+        next: Gateway_Settled
+      - type: callActivity
+        id: Call_ShipExchangeItem
+        name: Ship exchange item
+        calledElement: "=exchangeProcess"
+        documentation: >-
+          exchangeProcess is set per sales channel at runtime; shop orders get a
+          free-of-charge replacement order that is picked and shipped as a parcel.
+      - { type: exclusiveGateway, id: Gateway_Settled }
+      - { type: endEvent, id: End_ReturnCompleted, name: Return completed }
+      - { type: endEvent, id: End_ReturnExpired, name: Return expired }
+
+      - type: eventSubProcess
+        id: EventSub_ProductRecall
+        name: Product recall
+        elements:
+          - type: startEvent
+            id: Start_ProductRecall
+            name: Product recall
+            signal: Produktrueckruf
+            interrupting: false
+          - { type: serviceTask, id: Task_FlagRecallCase, name: Flag return as recall case }
+          - { type: endEvent, id: End_RecallCaseFlagged, name: Return flagged as recall case }

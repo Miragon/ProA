@@ -1,0 +1,63 @@
+key: logistik/shipping
+engine: c8
+name: Parcel shipping
+notes: >-
+  Collaboration with a black-box parcel carrier. Called by order handling and
+  replacement delivery (call-unique). The process-level throw "Shipment
+  dispatched" sends the legacy message LieferungVersendet to the C7 invoicing
+  (cross-engine); the none end of the same name inside the handover
+  subprocess does not (none end vs message start, and nested:
+  event-def-mismatch, subprocess-scope). "Delivery delayed" sends
+  LieferungVerspaetet to service/kundenbenachrichtigung (exact key), a
+  near-miss of LieferungVersendet.
+
+collaboration:
+  participants:
+    - { id: Participant_Shipping, name: Nordwind Logistics – Parcel shipping, process: Process_Shipping }
+    - { id: Participant_Carrier, name: Parcel carrier }
+  messageFlows:
+    - { from: Task_TransmitShippingOrder, to: Participant_Carrier, name: Shipping order }
+    - { from: Participant_Carrier, to: Task_AwaitPickupScan, name: Pickup scan }
+    - { from: Participant_Carrier, to: Task_AwaitProofOfDelivery, name: Proof of delivery }
+
+processes:
+  - id: Process_Shipping
+    name: Parcel shipping
+    documentation: Books a parcel carrier, hands the parcels over and tracks delivery.
+    elements:
+      - { type: startEvent, id: Start_ShipmentRequested, name: Shipment requested }
+      - { type: businessRuleTask, id: Task_DetermineCarrier, name: Determine carrier and service level }
+      - { type: serviceTask, id: Task_BookShipment, name: Book shipment and create label }
+      - { type: sendTask, id: Task_TransmitShippingOrder, name: Transmit shipping order to carrier }
+      - type: subProcess
+        id: Sub_CarrierHandover
+        name: Carrier handover
+        elements:
+          - { type: startEvent, id: Start_HandoverStarted, name: Handover started }
+          - { type: manualTask, id: Task_LoadParcels, name: Load parcels onto carrier truck }
+          - type: receiveTask
+            id: Task_AwaitPickupScan
+            name: Await pickup scan
+            message: { name: PickupScanned, correlationKey: "=shipmentId" }
+          - { type: endEvent, id: End_ShipmentDispatched, name: Shipment dispatched }
+      - type: intermediateThrowEvent
+        id: Event_ShipmentDispatched
+        name: Shipment dispatched
+        message: { name: LieferungVersendet, correlationKey: "=orderId" }
+      - type: receiveTask
+        id: Task_AwaitProofOfDelivery
+        name: Await proof of delivery
+        message: { name: ProofOfDelivery, correlationKey: "=shipmentId" }
+        boundary:
+          - id: Boundary_DeliveryOverdue
+            name: Delivery overdue by 3 days
+            timer: { duration: P3D }
+            interrupting: false
+            next: Event_DeliveryDelayed
+      - { type: endEvent, id: End_ShipmentDelivered, name: Shipment delivered }
+
+      - type: intermediateThrowEvent
+        id: Event_DeliveryDelayed
+        name: Delivery delayed
+        message: { name: LieferungVerspaetet, correlationKey: "=orderId" }
+      - { type: endEvent, id: End_DelayReported, name: Delay reported }

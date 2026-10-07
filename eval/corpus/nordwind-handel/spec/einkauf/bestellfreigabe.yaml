@@ -1,0 +1,59 @@
+key: einkauf/bestellfreigabe
+engine: c7
+name: Bestellfreigabe
+notes: >-
+  Current approval process with three lanes (single pool). Its process id
+  Process_Bestellfreigabe is also defined by the outdated copy
+  einkauf/archiv/bestellfreigabe-2019 (call-ambiguous,
+  duplicate-process-id).
+
+collaboration:
+  participants:
+    - { id: Participant_Bestellfreigabe, name: Nordwind Handel – Bestellfreigabe, process: Process_Bestellfreigabe }
+
+processes:
+  - id: Process_Bestellfreigabe
+    name: Bestellfreigabe
+    documentation: Mehrstufige Freigabe nach Wertgrenzen gemäß Beschaffungsrichtlinie 2023. Ergebnisvariable freigegeben (Boolean) für die aufrufende Bestellanforderung.
+    lanes:
+      - { id: Lane_Einkauf, name: Einkauf }
+      - { id: Lane_Abteilungsleitung, name: Abteilungsleitung }
+      - { id: Lane_Geschaeftsfuehrung, name: Geschäftsführung }
+    elements:
+      - { type: startEvent, id: Start_FreigabeAngefordert, name: Freigabe angefordert, lane: Lane_Einkauf }
+      - { type: businessRuleTask, id: Task_FreigabestufeErmitteln, name: Freigabestufe ermitteln, documentation: Bestellungen bis 5.000 EUR sind ohne Prüfung freigegeben (freigegeben = true). }
+      - type: exclusiveGateway
+        id: Gateway_UeberKleinbetrag
+        name: Bestellwert über 5.000 EUR?
+        next:
+          - { to: Gateway_Freigabe, name: nein, default: true }
+          - { to: Gateway_UeberGfGrenze, name: ja, condition: "${bestellwert > 5000}" }
+      - type: exclusiveGateway
+        id: Gateway_UeberGfGrenze
+        name: Bestellwert über 50.000 EUR?
+        lane: Lane_Abteilungsleitung
+        next:
+          - { to: Task_PruefungGeschaeftsfuehrung, name: ja, condition: "${bestellwert > 50000}" }
+          - { to: Task_PruefungAbteilungsleitung, name: nein, default: true }
+      - type: userTask
+        id: Task_PruefungAbteilungsleitung
+        name: Bestellung prüfen (Abteilungsleitung)
+        candidateGroups: abteilungsleitung
+        next: Gateway_Entscheidung
+      - type: userTask
+        id: Task_PruefungGeschaeftsfuehrung
+        name: Bestellung prüfen (Geschäftsführung)
+        lane: Lane_Geschaeftsfuehrung
+        candidateGroups: geschaeftsfuehrung
+        next: Gateway_Entscheidung
+      - { type: exclusiveGateway, id: Gateway_Entscheidung, lane: Lane_Abteilungsleitung }
+      - type: exclusiveGateway
+        id: Gateway_Genehmigt
+        name: Genehmigt?
+        next:
+          - { to: End_BestellungAbgelehnt, name: nein, condition: "${!freigegeben}" }
+          - { to: Gateway_Freigabe, default: true }
+      - { type: exclusiveGateway, id: Gateway_Freigabe, lane: Lane_Einkauf }
+      - { type: serviceTask, id: Task_FreigabeDokumentieren, name: Freigabe dokumentieren }
+      - { type: endEvent, id: End_BestellungFreigegeben, name: Bestellung freigegeben }
+      - { type: endEvent, id: End_BestellungAbgelehnt, name: Bestellung abgelehnt, lane: Lane_Abteilungsleitung }

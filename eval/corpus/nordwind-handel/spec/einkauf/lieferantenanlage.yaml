@@ -1,0 +1,39 @@
+key: einkauf/lieferantenanlage
+engine: c7
+name: Lieferantenanlage
+notes: >-
+  Older model whose labels are written without umlauts. Its none start "Neuer
+  Lieferant benoetigt" is the handover target of the none end "Neuer
+  Lieferant benötigt" in einkauf/bestellanforderung (trigger,
+  transliteration).
+
+processes:
+  - id: Process_Lieferantenanlage
+    name: Lieferantenanlage
+    documentation: Legt einen neuen Lieferanten nach USt-IdNr.-, Sanktionslisten- und Bankverbindungspruefung an.
+    dataStores:
+      - { id: DataStore_Lieferantenstamm, name: Lieferantenstamm }
+    elements:
+      - { type: startEvent, id: Start_NeuerLieferantBenoetigt, name: Neuer Lieferant benoetigt }
+      - type: userTask
+        id: Task_LieferantendatenErfassen
+        name: Lieferantendaten erfassen
+        candidateGroups: einkauf
+      - { type: serviceTask, id: Task_UstIdPruefen, name: USt-IdNr. beim BZSt pruefen }
+      - { type: serviceTask, id: Task_SanktionslistenPruefen, name: Sanktionslisten pruefen }
+      - type: exclusiveGateway
+        id: Gateway_Unauffaellig
+        name: Pruefungen unauffaellig?
+        next:
+          - { to: Task_BankverbindungVerifizieren, name: ja, condition: "${unauffaellig}" }
+          - { to: End_LieferantAbgelehnt, name: nein, default: true }
+      - type: userTask
+        id: Task_BankverbindungVerifizieren
+        name: Bankverbindung per Rueckruf verifizieren
+        candidateGroups: kreditorenbuchhaltung
+      - type: serviceTask
+        id: Task_LieferantAnlegen
+        name: Lieferant im ERP anlegen
+        writes: [DataStore_Lieferantenstamm]
+      - { type: endEvent, id: End_LieferantAngelegt, name: Lieferant angelegt }
+      - { type: endEvent, id: End_LieferantAbgelehnt, name: Lieferant abgelehnt }
