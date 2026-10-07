@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // @proa/client's generated fetch code uses DOM fetch types (BodyInit).
+    "lib": ["es2024", "dom", "dom.iterable"]
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

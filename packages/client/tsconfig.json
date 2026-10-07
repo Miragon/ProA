@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The generated fetch client uses DOM fetch types (BodyInit); consumers
+    // that type-check this source (cli, web) need the same libs.
+    "lib": ["es2024", "dom", "dom.iterable"]
+  },
+  "include": ["src", "test", "scripts", "*.ts"]
+}

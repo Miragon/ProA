@@ -1,0 +1,79 @@
+# ProA 2.0 local stack (CONCEPT §6, local mode). Compose project "proa2".
+#
+#   docker compose -p proa2 -f docker/compose.yaml up -d --build --wait   # PostgreSQL + ProA
+#   docker compose -p proa2 -f docker/compose.yaml up -d --wait db        # database only (pnpm db:up)
+#   docker compose -p proa2 -f docker/compose.yaml exec proa proa seed    # load the eval landscapes
+#   docker compose -p proa2 -f docker/compose.yaml down                   # stop; add -v to drop the data
+#
+# Everything binds to 127.0.0.1 only. ProA listens on 0.0.0.0 inside its
+# container; the host port is published on 127.0.0.1, and the server still
+# rejects non-localhost Host/Origin headers. ProA runs pending migrations at
+# start and creates its owner key (the CLI's credential) in the volume
+# proa-state on first start.
+#
+# Host ports: PROA_HOST_PORT (default 7400) and PROA_DB_PORT (default 55432),
+# e.g. `PROA_HOST_PORT=7500 docker compose -p proa2 -f docker/compose.yaml up -d`
+# when 7400 is taken; the Origin check follows PROA_HOST_PORT.
+name: proa2
+
+services:
+  db:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: proa
+      POSTGRES_PASSWORD: proa
+      POSTGRES_DB: proa
+    ports:
+      - '127.0.0.1:${PROA_DB_PORT:-55432}:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U proa -d proa']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  proa:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: proa:local
+    environment:
+      DATABASE_URL: postgres://proa:proa@db:5432/proa
+      # Listen on all interfaces inside the container; local mode allows that
+      # only with this opt-in, because the port below is published on 127.0.0.1.
+      PROA_HOST: 0.0.0.0
+      PROA_ALLOW_NON_LOOPBACK: '1'
+      PROA_PORT: '7400'
+      PROA_MIGRATE: auto
+      PROA_OWNER_KEY_FILE: /var/lib/proa/owner-key
+      # Browsers send the published port in Origin; 7401 is the Vite dev server.
+      PROA_ORIGIN_PORTS: '${PROA_HOST_PORT:-7400},7401'
+      # Lets `proa token create` in the container print a Claude Desktop entry
+      # that starts the bridge with `docker exec -i proa2-proa-1 proa mcp`.
+      PROA_CONTAINER: proa2-proa-1
+    ports:
+      - '127.0.0.1:${PROA_HOST_PORT:-7400}:7400'
+    volumes:
+      - proa-state:/var/lib/proa
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:7400/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      start_period: 20s
+      retries: 6
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  proa-state:

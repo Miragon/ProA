@@ -50,3 +50,15 @@ src/main/resources/META-INF/resources/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# ProA 2.0 workspace (pnpm, Node)
+node_modules/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+.vite/
+
+# Playwright runs (apps/web e2e)
+test-results/
+playwright-report/

@@ -1,0 +1,42 @@
+{
+  "name": "@proa/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ProA 2.0 server: REST /api/v1, MCP /mcp and the web UI in one Node process",
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "node --watch src/main.ts",
+    "start": "node src/main.ts",
+    "typecheck": "tsc",
+    "lint": "eslint . && pnpm run depcruise",
+    "depcruise": "depcruise src --config .dependency-cruiser.cjs",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node src/db/migrate-cli.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.3",
+    "@hono/zod-openapi": "1.6.3",
+    "@modelcontextprotocol/server": "2.3.1",
+    "@proa/bpmn-facts": "workspace:0.0.0",
+    "@proa/contracts": "workspace:0.0.0",
+    "@proa/procedures": "workspace:0.0.0",
+    "@proa/relations": "workspace:0.0.0",
+    "drizzle-orm": "0.45.3",
+    "hono": "4.13.13",
+    "pg": "8.23.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@testcontainers/postgresql": "12.2.0",
+    "@types/pg": "8.23.1",
+    "dependency-cruiser": "18.5.0",
+    "drizzle-kit": "0.31.11"
+  }
+}

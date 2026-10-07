@@ -1,0 +1,27 @@
+# Build context is the repository root; only the 2.0 workspace goes in.
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+.git
+.github
+.claude
+.playwright-mcp
+.idea
+.vscode
+**/.env
+**/.env.*
+
+# 1.x tree
+backend
+frontend
+scripts
+.mvn
+mvnw
+mvnw.cmd
+pom.xml
+Dockerfile
+docker-compose.yml
+eclipse-formatter.xml
+Makefile
+docs

@@ -1,0 +1,3361 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ProA API",
+    "version": "0.0.0",
+    "description": "ProA 2.0: a headless store for process landscapes. Problems are RFC 9457 `application/problem+json`."
+  },
+  "security": [
+    {
+      "agentToken": []
+    },
+    {}
+  ],
+  "components": {
+    "securitySchemes": {
+      "agentToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Agent token (`proa_at_…`). In local mode the web UI and the CLI act as the owner through the session cookie from `POST /api/v1/session` instead."
+      }
+    },
+    "schemas": {
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/CandidateBasis"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "signals": {
+            "$ref": "#/components/schemas/CandidateSignals"
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "basis",
+          "score",
+          "signals"
+        ],
+        "description": "A candidate relation for agents to judge."
+      },
+      "Ref": {
+        "type": "string",
+        "maxLength": 456,
+        "pattern": "^([a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*)#([A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*)$",
+        "description": "Reference to a BPMN element: `<model_key>#<element_id>`, or `<model_key>#<process_id>` for a process.",
+        "example": "vertrieb/auftragsabwicklung#Event_WareVersandbereit"
+      },
+      "CandidateBasis": {
+        "type": "string",
+        "enum": [
+          "rule",
+          "key",
+          "lexical",
+          "compatible"
+        ],
+        "description": "Why a pair of endpoints is a candidate."
+      },
+      "CandidateSignals": {
+        "type": "object",
+        "properties": {
+          "keyEqual": {
+            "type": "boolean"
+          },
+          "jaccard": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "levenshtein": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "eventDefCompatible": {
+            "type": "boolean"
+          }
+        },
+        "description": "Similarity signals behind a candidate score."
+      },
+      "DerivedRelation": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "proposed"
+            ]
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "attrs": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "status",
+          "tier",
+          "confidence",
+          "attrs"
+        ],
+        "description": "A relation computed by code (rules or baseline)."
+      },
+      "Tier": {
+        "type": "string",
+        "enum": [
+          "key",
+          "lexical",
+          "semantic",
+          "manual",
+          "rule"
+        ],
+        "description": "Evidence tier of a relation."
+      },
+      "ProjectFacts": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelFacts"
+            }
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "description": "Head facts of all of a project's models."
+      },
+      "ModelFacts": {
+        "type": "object",
+        "properties": {
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "factsVersion": {
+            "type": "string"
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessInfo"
+            }
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            }
+          },
+          "messageFlows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageFlowInfo"
+            }
+          }
+        },
+        "required": [
+          "modelKey",
+          "factsVersion",
+          "processes",
+          "facts",
+          "messageFlows"
+        ],
+        "description": "Facts of one model revision."
+      },
+      "ModelKey": {
+        "type": "string",
+        "maxLength": 200,
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*$",
+        "description": "Immutable model key: lowercase slug segments separated by `/`.",
+        "example": "finanzen/rechnungsstellung"
+      },
+      "ProcessInfo": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "processId": {
+            "$ref": "#/components/schemas/ElementId"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "participantName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isExecutable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ref",
+          "processId",
+          "name",
+          "participantName",
+          "isExecutable"
+        ],
+        "description": "A BPMN process defined in a model."
+      },
+      "ElementId": {
+        "type": "string",
+        "maxLength": 255,
+        "pattern": "^[A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$",
+        "description": "BPMN element or process id (XML NCName).",
+        "example": "Event_WareVersandbereit"
+      },
+      "Fact": {
+        "type": "object",
+        "properties": {
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FactKind"
+          },
+          "elementId": {
+            "$ref": "#/components/schemas/ElementId"
+          },
+          "processId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElementId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/FactScope"
+          },
+          "eventDef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventDef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "keyRaw": {
+            "type": "string"
+          },
+          "keyNorm": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{12}$"
+          },
+          "attrs": {
+            "$ref": "#/components/schemas/FactAttrs"
+          }
+        },
+        "required": [
+          "modelKey",
+          "ref",
+          "kind",
+          "elementId",
+          "processId",
+          "scope",
+          "eventDef",
+          "label",
+          "keyRaw",
+          "keyNorm",
+          "fingerprint",
+          "attrs"
+        ],
+        "description": "A fact extracted from one BPMN model revision."
+      },
+      "FactKind": {
+        "type": "string",
+        "enum": [
+          "process",
+          "call",
+          "msg_throw",
+          "msg_catch",
+          "sig_throw",
+          "sig_catch",
+          "evt_start",
+          "evt_end",
+          "data_store",
+          "message_flow",
+          "lane",
+          "task"
+        ],
+        "description": "Kind of a fact extracted from a BPMN model."
+      },
+      "FactScope": {
+        "type": "string",
+        "enum": [
+          "process",
+          "subprocess",
+          "event_subprocess"
+        ],
+        "description": "Scope of the element within its process."
+      },
+      "EventDef": {
+        "type": "string",
+        "enum": [
+          "none",
+          "message",
+          "signal",
+          "timer",
+          "conditional",
+          "error",
+          "escalation",
+          "terminate",
+          "link",
+          "compensate",
+          "multiple"
+        ],
+        "description": "Event definition of an event; `none` for a plain event."
+      },
+      "FactAttrs": {
+        "type": "object",
+        "properties": {
+          "elementType": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "participantName": {
+            "type": "string"
+          },
+          "participantId": {
+            "type": "string"
+          },
+          "isExecutable": {
+            "type": "boolean"
+          },
+          "dynamic": {
+            "type": "boolean"
+          },
+          "messageName": {
+            "type": "string"
+          },
+          "signalName": {
+            "type": "string"
+          },
+          "correlationKey": {
+            "type": "string"
+          },
+          "subprocessId": {
+            "type": "string"
+          },
+          "readBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "writtenBy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "flowNodeRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "binding": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "versionTag": {
+            "type": "string"
+          },
+          "tenantId": {
+            "type": "string"
+          },
+          "attachedTo": {
+            "type": "string"
+          },
+          "interrupting": {
+            "type": "boolean"
+          },
+          "sourceRef": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "targetRef": {
+            "$ref": "#/components/schemas/Ref"
+          }
+        },
+        "additionalProperties": {},
+        "description": "Kind-specific attributes of a fact (open object)."
+      },
+      "MessageFlowInfo": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "elementId": {
+            "$ref": "#/components/schemas/ElementId"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "messageName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ref",
+          "elementId",
+          "name",
+          "from",
+          "to",
+          "messageName"
+        ],
+        "description": "A message flow within one collaboration file."
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "db": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "down"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "db"
+        ],
+        "description": "Server health."
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "service"
+            ]
+          },
+          "handle": {
+            "type": "string"
+          },
+          "authMode": {
+            "$ref": "#/components/schemas/AuthMode"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "principalId",
+          "kind",
+          "handle",
+          "authMode",
+          "clientId"
+        ],
+        "description": "The authenticated caller."
+      },
+      "PrincipalId": {
+        "type": "string",
+        "pattern": "^prn_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Principal id (`prn_` + ULID).",
+        "example": "prn_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "AuthMode": {
+        "type": "string",
+        "enum": [
+          "local",
+          "oidc"
+        ],
+        "description": "Authentication mode."
+      },
+      "ApiProblem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemFieldError"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "additionalProperties": {},
+        "description": "RFC 9457 problem details."
+      },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "validation-failed",
+          "bpmn-invalid",
+          "unauthorized",
+          "insufficient-scope",
+          "forbidden",
+          "human-decision-required",
+          "not-found",
+          "method-not-allowed",
+          "conflict",
+          "precondition-failed",
+          "lease-lost",
+          "task-cancelled",
+          "already-submitted",
+          "payload-too-large",
+          "unsupported-media-type",
+          "internal",
+          "not-implemented"
+        ],
+        "description": "Machine-readable problem code."
+      },
+      "ProblemFieldError": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "message"
+        ],
+        "description": "One validation error."
+      },
+      "CreateSessionBody": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "$ref": "#/components/schemas/InteractiveClient"
+          }
+        },
+        "description": "Request body to open a local-mode owner session."
+      },
+      "InteractiveClient": {
+        "type": "string",
+        "enum": [
+          "proa-web",
+          "proa-cli"
+        ],
+        "default": "proa-web",
+        "description": "Interactive client of a human user."
+      },
+      "ProjectPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of Project items."
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "key": {
+            "$ref": "#/components/schemas/ProjectKey"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "lastSeq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "role",
+          "lastSeq",
+          "createdAt"
+        ],
+        "description": "A project: one process landscape."
+      },
+      "ProjectId": {
+        "type": "string",
+        "pattern": "^prj_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Project id (`prj_` + ULID).",
+        "example": "prj_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "ProjectKey": {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "description": "Unique project key (lowercase slug).",
+        "example": "nordwind-handel"
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "viewer",
+          "editor",
+          "owner"
+        ],
+        "description": "Project role."
+      },
+      "Timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "RFC 3339 timestamp (UTC).",
+        "example": "2026-10-06T12:00:00.000Z"
+      },
+      "Cursor": {
+        "type": "string",
+        "maxLength": 512,
+        "description": "Opaque pagination cursor."
+      },
+      "CreateProjectBody": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ProjectKey"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "description": "Request body to create a project."
+      },
+      "ModelPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of Model items."
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "projectId": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "headRevisionId": {
+            "$ref": "#/components/schemas/RevisionId"
+          },
+          "headRev": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ModelStage"
+          },
+          "openItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "key",
+          "name",
+          "headRevisionId",
+          "headRev",
+          "stage",
+          "openItems",
+          "updatedAt"
+        ],
+        "description": "A BPMN model (one file) with a stable key."
+      },
+      "ModelId": {
+        "type": "string",
+        "pattern": "^mdl_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Model id (`mdl_` + ULID).",
+        "example": "mdl_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "RevisionId": {
+        "type": "string",
+        "pattern": "^rev_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Model revision id (`rev_` + ULID).",
+        "example": "rev_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "ModelStage": {
+        "type": "string",
+        "enum": [
+          "waiting_for_agent",
+          "agent_working",
+          "agent_failed",
+          "waiting_for_review",
+          "waiting_for_clarification",
+          "incorporated"
+        ],
+        "description": "Pipeline stage of a model."
+      },
+      "PutModelResult": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "created",
+              "revised",
+              "unchanged"
+            ]
+          },
+          "model": {
+            "$ref": "#/components/schemas/Model"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Revision"
+          }
+        },
+        "required": [
+          "outcome",
+          "model",
+          "revision"
+        ],
+        "description": "Result of uploading one BPMN file."
+      },
+      "Revision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RevisionId"
+          },
+          "modelId": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "rev": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "factsHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "factsVersion": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RevisionSource"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "modelId",
+          "rev",
+          "contentHash",
+          "factsHash",
+          "factsVersion",
+          "source",
+          "seq",
+          "createdAt"
+        ],
+        "description": "An immutable revision of a model."
+      },
+      "Sha256Hex": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$",
+        "description": "Lowercase hex SHA-256 digest."
+      },
+      "RevisionSource": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "import",
+              "seed"
+            ]
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": {},
+        "description": "Origin of a revision."
+      },
+      "BpmnXml": {
+        "type": "string",
+        "description": "BPMN 2.0 XML document (UTF-8)."
+      },
+      "RevisionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Revision"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of Revision items."
+      },
+      "RevisionFacts": {
+        "type": "object",
+        "properties": {
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/RevisionId"
+          },
+          "factsVersion": {
+            "type": "string"
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessInfo"
+            }
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            }
+          },
+          "messageFlows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageFlowInfo"
+            }
+          }
+        },
+        "required": [
+          "modelKey",
+          "revisionId",
+          "factsVersion",
+          "processes",
+          "facts",
+          "messageFlows"
+        ],
+        "description": "Facts extracted from one revision."
+      },
+      "ImportResult": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportFileOutcome"
+            }
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "description": "Outcome per file of an import."
+      },
+      "ImportFileOutcome": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "modelKey": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "created",
+              "revised",
+              "unchanged",
+              "failed"
+            ]
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApiProblem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "modelKey",
+          "outcome",
+          "problem"
+        ],
+        "description": "Outcome of one file of an import."
+      },
+      "ImportModelsBody": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "minItems": 1,
+            "description": "BPMN files; each part’s filename is its path below the import root."
+          }
+        },
+        "required": [
+          "files"
+        ]
+      },
+      "Landscape": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LandscapeModel"
+            }
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
+          }
+        },
+        "required": [
+          "projectId",
+          "seq",
+          "models",
+          "relations",
+          "findings"
+        ],
+        "description": "The current process landscape of a project."
+      },
+      "LandscapeModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "key": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/ModelStage"
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessInfo"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "stage",
+          "processes"
+        ],
+        "description": "A model as part of the landscape."
+      },
+      "Relation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RelationId"
+          },
+          "type": {
+            "$ref": "#/components/schemas/RelationType"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "attrs": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "from",
+          "to",
+          "status",
+          "endpointState",
+          "tier",
+          "confidence",
+          "version",
+          "attrs",
+          "updatedAt"
+        ],
+        "description": "A relation between two processes."
+      },
+      "RelationId": {
+        "type": "string",
+        "pattern": "^rel_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Relation id (`rel_` + ULID).",
+        "example": "rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "RelationType": {
+        "type": "string",
+        "enum": [
+          "call",
+          "message",
+          "signal",
+          "trigger",
+          "manual"
+        ],
+        "description": "Type of a relation between two processes."
+      },
+      "RelationStatus": {
+        "type": "string",
+        "enum": [
+          "proposed",
+          "accepted",
+          "rejected",
+          "held",
+          "obsolete"
+        ],
+        "description": "Review status of a relation."
+      },
+      "EndpointState": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "changed",
+          "missing"
+        ],
+        "description": "State of the relation endpoints in the head revisions."
+      },
+      "Finding": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FindingKind"
+          },
+          "refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Ref"
+            },
+            "minItems": 1
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "refs",
+          "detail"
+        ],
+        "description": "A deterministic finding about the landscape."
+      },
+      "FindingKind": {
+        "type": "string",
+        "enum": [
+          "unresolved-call",
+          "dynamic-call",
+          "duplicate-process-id",
+          "dangling-throw",
+          "unmatched-catch"
+        ],
+        "description": "Kind of a deterministic finding."
+      },
+      "RelationPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of Relation items."
+      },
+      "FindingList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Deterministic findings of the project head."
+      },
+      "AgentTokenList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentToken"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "A project's agent tokens."
+      },
+      "AgentToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AgentTokenId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "prefix": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 8
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentScope"
+            },
+            "minItems": 1
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "expiresAt",
+          "revokedAt",
+          "lastUsedAt",
+          "createdAt"
+        ],
+        "description": "An API key for one project, used by MCP clients and scripts."
+      },
+      "AgentTokenId": {
+        "type": "string",
+        "pattern": "^agt_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Agent token id (`agt_` + ULID).",
+        "example": "agt_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "AgentScope": {
+        "type": "string",
+        "enum": [
+          "proa:read",
+          "proa:propose",
+          "proa:write"
+        ],
+        "description": "Scope of an agent token (never `proa:review`)."
+      },
+      "CreatedAgentToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AgentTokenId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "prefix": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 8
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentScope"
+            },
+            "minItems": 1
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastUsedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "expiresAt",
+          "revokedAt",
+          "lastUsedAt",
+          "createdAt",
+          "secret"
+        ],
+        "description": "A new agent token including its secret (shown once)."
+      },
+      "CreateAgentTokenBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentScope"
+            },
+            "minItems": 1,
+            "default": [
+              "proa:read",
+              "proa:propose"
+            ]
+          },
+          "expiresInDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "default": 90
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "Request body to create an agent token."
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "system"
+        ],
+        "summary": "Liveness and database ping",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/session": {
+      "post": {
+        "operationId": "createSession",
+        "tags": [
+          "system"
+        ],
+        "summary": "Local mode: open an owner session (HttpOnly cookie) for the web UI or the CLI",
+        "description": "Local mode only (`PROA_AUTH=local`). Sets the `proa_session` cookie (HttpOnly, SameSite=Strict); requests carrying it act as the single owner on an interactive client. The server accepts it only from localhost (Host and Origin checks).",
+        "security": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The owner",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string",
+                  "description": "`proa_session=…`"
+                },
+                "required": true,
+                "description": "`proa_session=…`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Problem: `unsupported-media-type`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSession",
+        "tags": [
+          "system"
+        ],
+        "summary": "Local mode: end the owner session (clears the cookie)",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Session cookie cleared"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "system"
+        ],
+        "summary": "The authenticated caller",
+        "responses": {
+          "200": {
+            "description": "The caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "tags": [
+          "projects"
+        ],
+        "summary": "Projects the caller is a member of",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProject",
+        "tags": [
+          "projects"
+        ],
+        "summary": "Create a project; the caller becomes its owner",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}": {
+      "get": {
+        "operationId": "getProject",
+        "tags": [
+          "projects"
+        ],
+        "summary": "One project",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/models": {
+      "get": {
+        "operationId": "listModels",
+        "tags": [
+          "models"
+        ],
+        "summary": "Models of a project, optionally filtered by pipeline stage",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelStage"
+            },
+            "required": false,
+            "description": "Pipeline stage of a model.",
+            "name": "stage",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/models/{model}": {
+      "get": {
+        "operationId": "getModel",
+        "tags": [
+          "models"
+        ],
+        "summary": "One model",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelId"
+            },
+            "required": true,
+            "description": "Model id (`mdl_` + ULID).",
+            "name": "model",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteModel",
+        "tags": [
+          "models"
+        ],
+        "summary": "Delete a model; partner relations become `missing`",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelId"
+            },
+            "required": true,
+            "description": "Model id (`mdl_` + ULID).",
+            "name": "model",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/models/by-key/{key}": {
+      "put": {
+        "operationId": "putModelByKey",
+        "tags": [
+          "models"
+        ],
+        "summary": "Upload raw BPMN: 201 new model, 200 new revision or unchanged",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelKey"
+            },
+            "required": true,
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/BpmnXml"
+              }
+            },
+            "text/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/BpmnXml"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New revision, or `unchanged` for identical content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PutModelResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "New model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PutModelResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Problem: `payload-too-large`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Problem: `unsupported-media-type`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`, `bpmn-invalid`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/models/{model}/revisions": {
+      "get": {
+        "operationId": "listRevisions",
+        "tags": [
+          "models"
+        ],
+        "summary": "Revisions of a model, newest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelId"
+            },
+            "required": true,
+            "description": "Model id (`mdl_` + ULID).",
+            "name": "model",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of revisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/models/{model}/revisions/{revision}/content": {
+      "get": {
+        "operationId": "getRevisionContent",
+        "tags": [
+          "models"
+        ],
+        "summary": "The verbatim BPMN bytes of a revision",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelId"
+            },
+            "required": true,
+            "description": "Model id (`mdl_` + ULID).",
+            "name": "model",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RevisionId"
+            },
+            "required": true,
+            "description": "Model revision id (`rev_` + ULID).",
+            "name": "revision",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "BPMN XML",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnXml"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/models/{model}/revisions/{revision}/facts": {
+      "get": {
+        "operationId": "getRevisionFacts",
+        "tags": [
+          "models"
+        ],
+        "summary": "Facts extracted from a revision",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelId"
+            },
+            "required": true,
+            "description": "Model id (`mdl_` + ULID).",
+            "name": "model",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RevisionId"
+            },
+            "required": true,
+            "description": "Model revision id (`rev_` + ULID).",
+            "name": "revision",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Facts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevisionFacts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/imports": {
+      "post": {
+        "operationId": "importModels",
+        "tags": [
+          "models"
+        ],
+        "summary": "Import up to 50 BPMN files; the model key is the slugified path",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportModelsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Outcome per file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Problem: `payload-too-large`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Problem: `unsupported-media-type`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/landscape": {
+      "get": {
+        "operationId": "getLandscape",
+        "tags": [
+          "relations"
+        ],
+        "summary": "The project head: models, processes, relations, findings (ETag `\"s<seq>\"`)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The landscape",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"s<seq>\"`"
+                },
+                "required": true,
+                "description": "`\"s<seq>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Landscape"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified (`If-None-Match` matched)"
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/relations": {
+      "get": {
+        "operationId": "listRelations",
+        "tags": [
+          "relations"
+        ],
+        "summary": "Relations, filtered by type, status, tier or model",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationType"
+            },
+            "required": false,
+            "description": "Type of a relation between two processes.",
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationStatus"
+            },
+            "required": false,
+            "description": "Review status of a relation.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Tier"
+            },
+            "required": false,
+            "description": "Evidence tier of a relation.",
+            "name": "tier",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelKey"
+            },
+            "required": false,
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "name": "modelKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of relations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/relations/{relation}": {
+      "get": {
+        "operationId": "getRelation",
+        "tags": [
+          "relations"
+        ],
+        "summary": "One relation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationId"
+            },
+            "required": true,
+            "description": "Relation id (`rel_` + ULID).",
+            "name": "relation",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The relation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Relation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/findings": {
+      "get": {
+        "operationId": "listFindings",
+        "tags": [
+          "relations"
+        ],
+        "summary": "Deterministic findings of the project head",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/agent-tokens": {
+      "get": {
+        "operationId": "listAgentTokens",
+        "tags": [
+          "agent-tokens"
+        ],
+        "summary": "A project's agent tokens (owner only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTokenList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAgentToken",
+        "tags": [
+          "agent-tokens"
+        ],
+        "summary": "Create an agent token; the secret is shown once (owner, interactive client)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentTokenBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new token with its secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedAgentToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/agent-tokens/{token}": {
+      "delete": {
+        "operationId": "revokeAgentToken",
+        "tags": [
+          "agent-tokens"
+        ],
+        "summary": "Revoke an agent token (owner, interactive client)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AgentTokenId"
+            },
+            "required": true,
+            "description": "Agent token id (`agt_` + ULID).",
+            "name": "token",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}
