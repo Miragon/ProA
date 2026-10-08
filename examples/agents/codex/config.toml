@@ -1,0 +1,7 @@
+# ProA for the OpenAI Codex CLI: add to ~/.codex/config.toml (or to
+# .codex/config.toml of a trusted project). Codex sends the value of the
+# environment variable PROA_TOKEN (the agent token) as
+# `Authorization: Bearer …`, so the file holds no secret.
+[mcp_servers.proa]
+url = "http://127.0.0.1:7400/mcp"
+bearer_token_env_var = "PROA_TOKEN"

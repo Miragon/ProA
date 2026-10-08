@@ -1,10 +1,22 @@
 ---
-id: proa-relations
-version: 0.0.1
-title: Find relations between processes
-description: Find relations (call, message, signal, trigger) between BPMN processes in a ProA project: claim analysis tasks over the proa MCP server, judge the candidate pairs and submit proposals that humans review.
-status: placeholder
+# Generated from packages/procedures/relations.md by `pnpm --filter @proa/procedures generate`.
+# Do not edit: change the procedure and generate again (a test compares this file).
+name: relations
+description: "Find relations (call, message, signal, trigger) between BPMN processes in a ProA project: claim analysis tasks over the proa MCP server, judge the candidate pairs and submit proposals that humans review."
+argument-hint: "[project] [max-tasks]"
 ---
+
+Work the ProA analysis pipeline, following the procedure below.
+
+Arguments (`[project] [max-tasks]`, both optional): $ARGUMENTS
+- project: the first argument, a project id (prj_…) or key. Claim one task at a time with claim_analysis({projectId: "<project>", max: 1}); without a project, with claim_analysis({max: 1}) (an agent token is valid for one project).
+- max-tasks: the second argument, a whole number from 1 to 100. Stop after that many tasks (submitted or released) or when claim_analysis returns no items, whichever comes first; without it, stop when it returns no items. Then report what you did.
+- If an argument is not valid, stop before claiming and say why.
+- Declare your exact model id as llmModel in every submit_analysis call: the API model id you run as (as your system prompt or the user names it), never a product name, an alias or a guess. Declare the procedure id and version the claim names.
+- If you cannot finish a task, hand it back with release_analysis instead of letting the lease expire.
+- After your context was summarized or compacted, call get_procedure({id: "proa-relations"}) again before the next task and follow the reloaded text: a summary is not the procedure.
+
+Procedure proa-relations@0.0.1:
 
 # proa-relations (placeholder)
 

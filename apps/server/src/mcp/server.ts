@@ -27,7 +27,12 @@ import {
   createProblem,
   type DecisionBody,
 } from '@proa/contracts';
-import { getProcedure, listProcedures } from '@proa/procedures';
+import {
+  MAX_PIPELINE_TASKS,
+  getProcedure,
+  listProcedures,
+  renderPipelineWrapper,
+} from '@proa/procedures';
 import { z } from 'zod';
 
 import type { Actor } from '../domain/actor.ts';
@@ -515,41 +520,36 @@ export function createMcpServer(ctx: McpContext): McpServer {
 
   // -------------------------------------------------------------- prompts
 
+  // The same wrapper text as the Claude Code skill /proa:relations (@proa/procedures).
   server.registerPrompt(
     'work_pipeline',
     {
       title: 'Work the analysis pipeline',
       description:
-        'Claim → analyse → submit in a loop until no task is left, following the proa-relations procedure.',
+        'Claim → analyse → submit in a loop until no task is left (or maxTasks are done), following the proa-relations procedure.',
       argsSchema: z.object({
         projectId: ProjectRef.optional().describe('Only this project (id or key).'),
+        // Prompt arguments are strings (MCP).
+        maxTasks: z
+          .string()
+          .refine((v) => /^[1-9]\d{0,2}$/.test(v) && Number(v) <= MAX_PIPELINE_TASKS, {
+            message: `must be a whole number from 1 to ${MAX_PIPELINE_TASKS}`,
+          })
+          .optional()
+          .describe(
+            `Stop after this many tasks (1–${MAX_PIPELINE_TASKS}); without it, until no task is left.`,
+          ),
       }),
     },
     (args) => {
       const procedure = getProcedure('proa-relations');
-      const scope = args.projectId ? ` in project ${args.projectId}` : '';
-      return {
-        messages: [
-          {
-            role: 'user' as const,
-            content: {
-              type: 'text' as const,
-              text: [
-                `Work the ProA analysis pipeline${scope}:`,
-                `1. Claim one task: claim_analysis({${args.projectId ? `projectId: "${args.projectId}", ` : ''}max: 1}). If it returns no items, stop and report what you did.`,
-                '2. Analyse the claim input as the procedure below says. Read BPMN with get_model_xml only when the facts are not enough.',
-                '3. Submit once with submit_analysis: taskId and leaseToken from the claim, a new UUID as submissionId, the procedure id and version from the claim, your model as llmModel. If you cannot finish within the 15-minute lease, call release_analysis instead.',
-                '4. Report the per-item results briefly, then go back to step 1.',
-                'You only propose; humans decide in the ProA review screen.',
-                '',
-                `Procedure ${procedure ? `${procedure.id}@${procedure.version}` : 'proa-relations'}:`,
-                '',
-                procedure?.text ?? 'Load it with get_procedure({id: "proa-relations"}).',
-              ].join('\n'),
-            },
-          },
-        ],
-      };
+      if (!procedure) throw new Error('the proa-relations procedure is missing');
+      const text = renderPipelineWrapper(procedure, {
+        kind: 'fixed',
+        projectId: args.projectId,
+        maxTasks: args.maxTasks === undefined ? undefined : Number(args.maxTasks),
+      });
+      return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text } }] };
     },
   );
 

@@ -40,6 +40,15 @@ describe('procedures', () => {
       name: 'x',
       text: '# Body',
     });
+    expect(p).not.toHaveProperty('description');
+    expect(
+      parseProcedure(
+        'x',
+        '---\nid: proa-x\nversion: 1.2.3\ntitle: X\ndescription: Does x: well\nstatus: s\n---\nbody',
+      ).description,
+    ).toBe('Does x: well');
+    // The Claude Code skill's description (renderSkill falls back to the title).
+    expect(getProcedure('proa-relations')?.description).toMatch(/\S/);
   });
 
   it.each([

@@ -1,0 +1,16 @@
+{
+  "name": "proa",
+  "owner": {
+    "name": "Miragon"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for ProA, the headless store for BPMN process landscapes."
+  },
+  "plugins": [
+    {
+      "name": "proa",
+      "source": "./plugins/proa",
+      "description": "The ProA relations procedure as a skill (/proa:relations). Connect the proa MCP server separately."
+    }
+  ]
+}

@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "generate": "node scripts/generate.ts",
     "typecheck": "tsc",
     "lint": "eslint .",
     "test": "vitest run"

@@ -1,4 +1,4 @@
-# ProA 2.0 workspace CI (apps/, packages/, eval/, docker/). The 1.x workflows
+# ProA 2.0 workspace CI (apps/, packages/, eval/, docker/, plugins/, examples/). The 1.x workflows
 # stay untouched until the cut-over PR replaces them (CONCEPT §9).
 name: CI 2.0
 
@@ -9,6 +9,9 @@ on:
       - 'packages/**'
       - 'eval/**'
       - 'docker/**'
+      - 'plugins/**'
+      - 'examples/**'
+      - '.claude-plugin/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -25,6 +28,9 @@ on:
       - 'packages/**'
       - 'eval/**'
       - 'docker/**'
+      - 'plugins/**'
+      - 'examples/**'
+      - '.claude-plugin/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -77,7 +83,9 @@ jobs:
 
       # Server integration tests and the CLI e2e tests (a real server plus
       # `proa mcp` over stdio) start PostgreSQL 17 with Testcontainers (Docker
-      # is available on ubuntu runners); eval/tools tests run here too.
+      # is available on ubuntu runners); eval/tools tests run here too, and
+      # @proa/procedures checks that the Claude Code plugin (plugins/proa) is
+      # generated from the current procedure.
       - name: Test
         run: pnpm test
 

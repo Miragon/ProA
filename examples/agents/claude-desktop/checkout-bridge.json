@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "proa": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/Users/<you>/Code/ai-plattform/ProA/apps/cli/src/main.ts", "mcp"],
+      "env": { "PROA_URL": "http://127.0.0.1:7400", "PROA_TOKEN": "proa_at_…" }
+    }
+  }
+}

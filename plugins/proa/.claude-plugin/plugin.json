@@ -1,0 +1,10 @@
+{
+  "name": "proa",
+  "version": "0.0.1",
+  "description": "The ProA relations procedure as a skill: /proa:relations [project] [max-tasks] works the ProA analysis pipeline (claim a task, judge the candidate relations between BPMN processes, submit proposals that humans review). Connect the proa MCP server separately.",
+  "author": {
+    "name": "Miragon"
+  },
+  "homepage": "https://github.com/Miragon/ProA",
+  "repository": "https://github.com/Miragon/ProA"
+}
