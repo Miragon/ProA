@@ -154,9 +154,8 @@ requires no diff, so new recordings are committed together with the report.
 A live run is one LLM agent working one fresh ProA project, seeded from a
 corpus landscape, with its own agent token. The owner runs them with Claude
 Desktop or Claude Code on the owner's subscription (owner decision 13 in
-`docs/proa-2/HANDOFF.md`); the setups, including Codex and the optional Agent
-SDK worker (which needs an API key), are in
-[`examples/agents/`](../examples/agents/README.md). One run, against the Docker
+`docs/proa-2/HANDOFF.md`); the setups, including Codex as the non-Claude
+client, are in [`examples/agents/`](../examples/agents/README.md). One run, against the Docker
 stack, from the repository root:
 
 ```sh

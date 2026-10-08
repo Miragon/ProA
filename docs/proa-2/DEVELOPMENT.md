@@ -32,7 +32,7 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | `apps/server`: full CONCEPT §2 schema, domain use cases with `policy.require`, ingest/import/delete as one transaction (facts, rule tier, assertions, endpoint state, analysis tasks, events) with the real `@proa/bpmn-facts` and `@proa/relations`, every REST route of the contracts, local mode (Host/Origin guard, owner session cookie, owner key for the CLI, agent tokens), MCP `/mcp` with the eight read tools, the built web UI at `/` | working; importing `nordwind-handel` and `stadtwerke-auental` reproduces the rule relations and findings of `eval:candidates` exactly (integration test); MCP contract test with the SDK client |
 | `packages/procedures`: the procedure `proa-relations@0.1.0` (`relations.md`, status `released`, M3), the loader for MCP `get_procedure`, and the wrappers for the MCP prompt `work_pipeline` and the Claude Code skill (`renderPipelineWrapper`, `renderSkill`, `pnpm --filter @proa/procedures generate`) ([below](#the-relations-procedure-m3)) | working; unit tests (frontmatter, wrappers, the guard against skill expansion), the drift test of the generated skill and plugin version, a sha256 guard that keeps a released version's skill from changing, and a server test that keeps the procedure's limits, invalid reasons, tool names and tool arguments in line with the contracts and the MCP tools; three LLM dev runs on `nordwind-handel` (Sonnet 5.5: precision 100 %, recall 78.6 %, 0 must_not_link; [M3](#m3-2026-10-08)) |
 | `plugins/proa`: Claude Code plugin `proa` (version = procedure version) with the generated skill `/proa:relations [project] [max-tasks]` and no MCP server; `.claude-plugin/marketplace.json`: the repository as marketplace `proa` (`claude plugin install proa@proa`) | working; `claude plugin validate --strict` passes for both manifests (Claude Code 2.1.294); drift and version tests in `@proa/procedures`; not yet run with a model |
-| `examples/agents` (M3): reference setups for Claude Code (interactive, headless `run-headless.sh`), Claude Desktop (both bridge entries, German start prompt), an Agent SDK worker and Codex; documentation, not workspace packages, not in the image | checked without a model ([M3](#m3-2026-10-08)): shellcheck and dry runs of `run-headless.sh` against fakes (incl. failed batches, a reused log directory and a trailing slash in `PROA_URL`), `tsc` and `docker build` of the SDK worker and its token and error-result handling against a fake Claude Code executable, the Codex TOML parses; no setup has run a model yet |
+| `examples/agents` (M3): reference setups for Claude Code (interactive, headless `run-headless.sh`), Claude Desktop (both bridge entries, German start prompt) and Codex; documentation, not workspace packages, not in the image; no Agent SDK setup for now (owner decision 16, [HANDOFF.md](HANDOFF.md) §4) | checked without a model ([M3](#m3-2026-10-08)): shellcheck and dry runs of `run-headless.sh` against fakes (incl. failed batches, a reused log directory and a trailing slash in `PROA_URL`), the Codex TOML parses; no setup has run a model yet |
 | M2 backend: analysis pipeline (claim/submit/release, lease, long-poll), claim input (with the M3 additions: message-flow ends, partner and process documentation, findings), submissions, ad-hoc proposals, review (accept/reject/hold/correct, bulk, notes, timeline), model engine, relation provenance, answered findings hidden ([below](#analysis-pipeline-and-review-m2)) | working over REST and MCP; real-Postgres integration tests incl. concurrent claims, lease expiry, cancellation, decision memory across re-uploads, the claim-input size and additions on both corpus landscapes; MCP contract test with the SDK client; reviewed in the web UI ([Review in the web UI](#review-in-the-web-ui-m2)); end to end against the Docker stack with the simulation agent (HTTP and the bridge in the container) and in the browser (`e2e/pipeline.spec.ts`: review, re-upload, `suppressed` vs. `reopened`) |
 | `apps/cli`: `proa seed` (M3: `--project`, `--token-name`), `import`, `token create/list/revoke`, `status`, `health`, and `proa mcp` (stdio bridge for Claude Desktop) | working; unit tests, an e2e test against a real server, and a live check against the running Docker stack |
 | `apps/agent-sim`: `proa-agent-sim`, the LLM-free simulation agent (M2 item 8): works the pipeline over MCP (HTTP or the `proa mcp` bridge) with the deterministic policy `sim-policy-1` and records claim inputs and submissions in `eval/recordings` ([below](#simulation-agent-and-evalreplay-m2)) | working; unit tests (policy, recorder, CLI, the loop against an in-memory MCP server) and an end-to-end server test on both corpus landscapes (every task done, provenance, nothing decided, the committed recordings reproduced byte for byte) |
@@ -367,7 +367,7 @@ packages/procedures/ agent procedures as Markdown with frontmatter (relations.md
                      src/wrappers.ts (MCP prompt and skill text), scripts/generate.ts (writes the plugin's skill)
 plugins/proa/     Claude Code plugin: .claude-plugin/plugin.json, skills/relations/SKILL.md (generated, do not edit)
 .claude-plugin/   marketplace.json: this repository as the plugin marketplace `proa`
-examples/agents/  reference setups: claude-code/, claude-desktop/, agent-sdk/ (own package.json), codex/; not workspace packages
+examples/agents/  reference setups: claude-code/, claude-desktop/, codex/; not workspace packages
 eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates, eval:replay, eval:live (src/*.ts)
 eval/recordings/  agent recordings <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl (eval:replay input)
 docker/           compose.yaml (project proa2), Dockerfile
@@ -1513,10 +1513,8 @@ gate itself fails nothing), and the web build. Job `docker`: builds the image an
 Compose stack (`up -d --build --wait`), checks `/health` and `/`, runs `proa seed` and
 `proa status` in the container, then the live check (`test:live`) against it. Actions are pinned
 to commit SHAs. The Playwright tests are not in CI. `examples/agents` is outside the workspace:
-CI only runs Prettier over its TypeScript and JSON files; the Agent SDK worker (its own
-`package.json`, never installed in CI) is neither typechecked nor linted, `run-headless.sh` is
-not shellchecked, and no setup runs against a model. `eval:live` needs a live project and is not
-in CI either.
+CI only runs Prettier over its JSON files; `run-headless.sh` is not shellchecked, and no setup
+runs against a model. `eval:live` needs a live project and is not in CI either.
 
 ## Verified end to end
 
@@ -1744,7 +1742,8 @@ machine, Claude Code 2.1.294. Verified without a model:
    directory removed and the `claude -p` flags as documented; a pending count that did not go
    down stopped with "no progress" (exit 1); a rejected token, bad arguments, a missing
    `PROA_TOKEN` and a set `ANTHROPIC_API_KEY` without `--allow-api-billing` exit 2.
-3. **Agent SDK worker.** In an isolated `npm install` of a scratch copy, `tsc --noEmit` against
+3. **Agent SDK worker** (removed on 2026-10-08: the owner decided against the Agent SDK for
+   now). In an isolated `npm install` of a scratch copy, `tsc --noEmit` against
    `@anthropic-ai/claude-agent-sdk` 0.3.293 passes; `--help`, a missing key, an alias as model and
    `--once` (nothing pending, and a 401) behave as documented without starting a `query()`.
    `docker build` of its Dockerfile succeeds; the image prints `--help` and refuses to start
@@ -1780,7 +1779,8 @@ machine, Claude Code 2.1.294. Verified without a model:
      exits 2 with its files untouched and no cost line, an empty one works; `PROA_URL=…///`
      reaches `claude` without the slashes; a temporary directory removed mid-run exits 2 before
      the next batch; ProA unreachable exits 2.
-   - Agent SDK worker, with a fake Claude Code executable in a scratch copy: the child's
+   - Agent SDK worker (removed on 2026-10-08: the owner decided against the Agent SDK for now),
+     with a fake Claude Code executable in a scratch copy: the child's
      `--mcp-config` carries `Bearer ${PROA_TOKEN}` and its environment the token; a task ending in
      `error_max_budget_usd` prints its JSON line and its cost counts; three in a row stop the
      worker with exit 1; a failed MCP server is still an error. That Claude Code expands
@@ -1814,7 +1814,7 @@ Not verified: any run with a model besides the dev run above: `/proa:relations` 
 `claude -p "/proa:relations …"` expands the skill and that `--tools ""` with `alwaysLoad` leaves
 the agent ProA's tools follows Claude Code's documentation, not a test, as does that Claude Code
 honours `anthropic/maxResultSizeChars`), the Claude Desktop start
-prompt, the Agent SDK worker with an API key, Codex; whether Claude Desktop offers the
+prompt, Codex; whether Claude Desktop offers the
 `work_pipeline` prompt; installing the plugin from the marketplace (`claude plugin install
 proa@proa`); the image with the M3 code (`up --build`, `proa seed --project` in the container)
 and `ci-2.yml` on GitHub.

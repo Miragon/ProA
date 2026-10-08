@@ -100,11 +100,11 @@ clients behave as documented, only the owner's runs show.
    batch); `claude-desktop/` (bridge entries for the container and the checkout, the German start
    prompt `start-prompt.de.md`); `codex/` (`config.toml` with `bearer_token_env_var`; Codex keeps
    its shell and its sandbox does not restrict reads, so an empty directory does not isolate it
-   from the checkout);
-   `agent-sdk/` (a TypeScript worker on `@anthropic-ai/claude-agent-sdk` 0.3.293, one fresh
-   `query()` per task, a Dockerfile; it needs an Anthropic API key). They are not workspace
-   packages, nothing imports them, and the image does not contain them. *Written and checked
-   without a model (below); model runs are the owner's.*
+   from the checkout). They are not workspace packages, nothing imports them, and the image does
+   not contain them. An Agent SDK worker written in M3 was removed on 2026-10-08: for now, models
+   are evaluated through MCP with local agents only (owner decision 16, [HANDOFF.md](HANDOFF.md)
+   §4; git history keeps the worker). *Written and checked without a model (below); model runs are
+   the owner's.*
 6. **`proa seed` for live runs** (`apps/cli/src/commands/seed.ts`; commit `5340ee2`).
    `-p, --project <key>` seeds exactly one landscape into a project of that key, named
    "<landscape name> (<key>)", and refuses an existing project with exit 1 before any import or
@@ -134,9 +134,9 @@ clients behave as documented, only the owner's runs show.
    it says. Details: [eval/README.md](../../eval/README.md#the-live-gate). *Done; no live run
    recorded yet.*
 9. **CI** (`.github/workflows/ci-2.yml`; commit `81f96e4`). `plugins/**`, `examples/**` and
-   `.claude-plugin/**` are in both path filters; the plugin drift check runs in `pnpm test`. The
-   Agent SDK worker lies outside the workspace: CI checks it with Prettier but does not
-   type-check it. *Done.*
+   `.claude-plugin/**` are in both path filters; the plugin drift check runs in `pnpm test`.
+   `examples/agents` lies outside the workspace: CI checks only the formatting of its JSON files.
+   *Done.*
 10. **Docs.** CONCEPT §3 (claim input) and §7 (delivery, reference setups, live gate),
     [`eval/README.md`](../../eval/README.md) (live runs, live gate, holdout hygiene), the READMEs
     in `examples/agents/`, [DEVELOPMENT.md](DEVELOPMENT.md), the owner's guide
@@ -183,7 +183,8 @@ By hand, on 2026-10-08:
   failed batch (non-zero exit, `is_error`, no JSON) stops with exit 1, a `PROA_LOG_DIR` with
   earlier `batch-*.json` and a vanished temporary directory exit 2, and a trailing slash in
   `PROA_URL` is stripped.
-- Agent SDK worker: `tsc` against the pinned SDK in a copy outside the repository, `docker build`,
+- Agent SDK worker (removed on 2026-10-08: the owner decided against the Agent SDK for now):
+  `tsc` against the pinned SDK in a copy outside the repository, `docker build`,
   `--help`, the refusal without `ANTHROPIC_API_KEY`, and `--once` against a fake endpoint; no
   `query()` was started. With a fake Claude Code executable: the token stays off the child's
   command line (`Bearer ${PROA_TOKEN}`, expanded by Claude Code from the environment, as checked
@@ -216,8 +217,6 @@ By hand, on 2026-10-08:
 - **Codex.** The `config.toml` entry and a run with the start prompt; on the holdout only in an
   environment without read access to the checkout (a container or VM without it, another OS user,
   another machine).
-- **Agent SDK worker.** Only with an Anthropic API key, which decision 13 does not provide; it is
-  optional.
 
 ## Dev-run numbers
 
@@ -266,10 +265,10 @@ and the corpus-based size test cover those additions.
 3. **`eval:live` exit code for usage errors.** Resolved on 2026-10-08: usage errors exit 2, like
    `agent-sim` and `run-headless.sh`, so scripts can tell a wrong call from a failed gate; 1
    stays for a failing gate and runtime errors.
-4. **Agent SDK worker in CI.** It is outside the workspace, so CI only checks its formatting.
-   Type-check it in CI (`npm install` and `tsc` in a temporary directory, with network access and
-   no lockfile, so transitive versions float), move it into the workspace (its dependencies in the
-   lockfile), or keep it as documentation?
+4. **Agent SDK worker in CI.** Resolved on 2026-10-08: removed by the owner's decision. For now
+   there is no Agent SDK setup; models are evaluated through MCP with local agents (Claude Code,
+   Claude Desktop, Codex; owner decision 16, [HANDOFF.md](HANDOFF.md) §4), and git history keeps
+   the worker.
 5. **Size headroom for documentation.** The additions raised the largest claim input from 68.7 to
    80.1 KB of the 100 KB limit, which only the corpus test checks; the server renders larger
    inputs as they come. Real landscapes with long documentation could cross it. If they do: cut

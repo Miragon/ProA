@@ -26,8 +26,8 @@ and code are in English.
   `eval:live` and the live gate; dev-landscape validation with Sonnet: 3 runs, precision 100 %,
   no must_not_link).
 - **Next:** the **owner's live runs** (`docs/proa-2/M3-LIVE-RUNS.md`: 3 runs per landscape incl.
-  the holdout), then **M4** (value chain / Wertschöpfungskette with `@miragon/value-chain-*`,
-  decided 0.2.0, 0.3.0 now exists – see §8).
+  the holdout), then **M4** (value chain / Wertschöpfungskette with `@miragon/value-chain-*`
+  0.3.0).
 
 ## 2. Read in this order
 
@@ -81,12 +81,14 @@ and code are in English.
     owner's subscription; no API key is provided. Prepare everything so the owner only has to
     follow a guide.
 14. **Value chain** (the owner's meaning of "Prozesslandkarte") via the npm packages
-    `@miragon/value-chain-schema-model` and `@miragon/value-chain-renderer` **0.2.0** (released
-    2026-10-08 from `Miragon/value-chain-modeler`, MIT; deps zod 4.6.5 and diagram-js 15.28.0 match
-    ProA exactly). Do not copy the modeler into ProA. **Note:** 0.3.0 of both packages followed
-    the same day (12:51 UTC), a pure version sync: neither package's source changed between 0.1.0
-    and 0.3.0, the dependencies are the same. Which version to pin is open (§8).
+    `@miragon/value-chain-schema-model` and `@miragon/value-chain-renderer`, pinned at **0.3.0**
+    (released 2026-10-08 from `Miragon/value-chain-modeler`, MIT; deps zod 4.6.5 and diagram-js
+    15.28.0 match ProA exactly). Do not copy the modeler into ProA. 0.2.0 was decided first; 0.3.0
+    followed the same day as a pure version sync (neither package's source changed between 0.1.0
+    and 0.3.0), so the owner left the choice to the agent, which pinned the newest (2026-10-08).
 15. **Order:** M2 → **M3** → **M4** (value chain). The process network map follows later (R1).
+16. **No Agent SDK for now** (2026-10-08): models are evaluated through MCP with local agents
+    (Claude Code, Claude Desktop, Codex); the reference worker was removed (git history keeps it).
 
 **Taken during M3 by the implementing agent (the owner may overrule; details in
 `M3-RELATIONS-PROCEDURE.md`):** agents write rationales, questions, no-link reasons and summaries
@@ -96,8 +98,7 @@ fields within `proa-claim/1`); every live run uses a **fresh project and its own
 name = recording agent); the live gate is evaluated **per procedure version, landscape and
 declared model** (3 runs each), against the previous version's live runs on that model or else
 the simulation agent; every MCP tool declares `anthropic/maxResultSizeChars` so Claude Code
-passes large claim inputs inline; the plugin carries no MCP server; the Agent SDK worker stays
-outside the pnpm workspace (it needs an API key, so it is never run by ProA's CI).
+passes large claim inputs inline; the plugin carries no MCP server.
 
 ## 5. What exists (2.0 workspace)
 
@@ -109,7 +110,7 @@ outside the pnpm workspace (it needs an API key, so it is never run by ProA's CI
 | `packages/relations` | rule tier (unambiguous calls, key-tier proposals, findings), candidates for agents, 1.x baseline, pair assessor |
 | `packages/procedures` | the released procedure `proa-relations@0.1.0` (`relations.md`), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
 | `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
-| `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Agent SDK worker (API key), Codex; documentation, not in the image |
+| `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
 | `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review |
 | `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name] / token create\|list\|revoke / mcp` (stdio bridge) |
 | `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen |
@@ -177,7 +178,7 @@ What remains needs the owner's Claude subscription:
    `stadtwerke-auental`. Never tune the procedure on holdout results.
 2. Things only such a run can confirm (listed as "not verified" in the docs): `/proa:relations`
    in `claude -p` with `--tools ""`, Claude Code honouring `anthropic/maxResultSizeChars`, MCP
-   prompts in Claude Desktop, the Desktop start prompt, Codex, the Agent SDK worker (API key).
+   prompts in Claude Desktop, the Desktop start prompt, Codex.
 3. Afterwards: decide the M3 open questions (§8), mark the procedure's live gate in
    `M3-RELATIONS-PROCEDURE.md`, and only then change the procedure as `0.1.1`/`0.2.0` (a released
    version's skill never changes; regenerate it with `pnpm --filter @proa/procedures generate` and
@@ -216,13 +217,10 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | Shared-name flag | The bulk dialog flags 20–22 of 33 key-tier pairs (names used by >2 processes), incl. legitimate broadcasts. Keep, or flag only names with several senders? | M2 web stage |
 | Supersession scope | A submission withdraws the live pipeline proposals of **any** agent touching the task's model that it does not repeat (decisions stay, versions move; rule-tier and ad-hoc proposals stay). The procedure tells agents to repeat what they support. Keep, or limit to the submitting principal? | M2 backend, M3 |
 | No-links in review | Agents record rejected pairs as `noLinks` (with coded German reasons), but reviewers never see them; a rule-tier key proposal the agent rejects (e.g. a generic name) stays bulk-acceptable at 1.0. Show agent no-links on the relation / in the bulk dialog? | M3 |
-| Language | Rationales, questions, reasons and summaries are German. Add a per-project language later? | M3 |
-| "Done when" | CONCEPT §10 still lists the Agent SDK worker among the four agents, but it needs an API key (decision 13 provides none). Drop it, or provide a key once? | M3 |
 | `correct` on a typed pair | Correcting towards a pair that already has a key-tier proposal creates a second, manual relation. Offer "accept the existing proposal instead"? | M2 e2e |
 | Revoking a token | Revoking now withdraws that token's open proposals (CONCEPT §6). Confirm. | M2 fix |
 | Message-name matching | Names match ignoring separators (`Zahlung_Eingegangen` = `ZahlungEingegangen`). Confirm. | M1 relations |
 | Local session | `POST /api/v1/session` is open to any local process (fine single-user, not on shared machines). Add a one-time login link later? | M1 integrate |
-| Value chain version | Pin `@miragon/value-chain-*` at 0.2.0 (decision 14) or at 0.3.0 (same code, released later the same day)? | npm, 2026-10-08 |
 | Value chain | Six questions with defaults: archived copies (`@outside` vs. superseded flag), one home step per process, step renames send placements to re-confirm, org units as owners vs. performers, one vs. several chains per project, kinds by colour until a step category exists. | M4-VALUE-CHAIN.md §11 |
 
 ## 9. Working agreements and pitfalls
