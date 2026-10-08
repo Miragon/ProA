@@ -180,7 +180,8 @@ What remains needs the owner's Claude subscription:
    prompts in Claude Desktop, the Desktop start prompt, Codex, the Agent SDK worker (API key).
 3. Afterwards: decide the M3 open questions (§8), mark the procedure's live gate in
    `M3-RELATIONS-PROCEDURE.md`, and only then change the procedure as `0.1.1`/`0.2.0` (a released
-   version's text never changes; regenerate the skill with `pnpm --filter @proa/procedures generate`).
+   version's skill never changes; regenerate it with `pnpm --filter @proa/procedures generate` and
+   add its hash to `RELEASED`, §9).
 
 ### M4 – value chain (after M3)
 
@@ -240,14 +241,24 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
   (dependency-cruiser, part of lint). Contracts first for every route. Authorization via
   `policy.require(actor, permission, projectId)` in every use case; foreign ids → 404.
 - **Agents never decide** – keep that invariant in policy, DB check and MCP.
-- **Holdout hygiene:** whoever writes or tunes a procedure never reads
-  `eval/corpus/stadtwerke-auental/expected.yaml`, its `spec/`, or the stadtwerke sections of
-  `eval/reports/*` (they list missed and wrong pairs). Live agents start outside the checkout with
-  MCP tools only; the Docker image ships no `expected.yaml`/`spec/` (`Dockerfile.dockerignore`).
-- **Procedure releases are immutable:** recordings are keyed by `<id>@<version>`; change the text
-  only with a new version, then `pnpm --filter @proa/procedures generate` (skill + plugin version)
+- **Holdout hygiene:** `stadtwerke-auental` is the holdout. Whoever writes or tunes a procedure
+  never reads `eval/corpus/stadtwerke-auental/{expected.yaml,README.md,spec/}` (ground truth and
+  traps), `eval/recordings/**/stadtwerke-auental.jsonl`, `eval/value-chains/stadtwerke-auental/`,
+  or the stadtwerke sections of `eval/reports/*` (they list missed and wrong pairs). Live agents
+  start outside the checkout with MCP tools only (Claude Code `--tools ""`; Codex keeps its shell
+  and its sandbox allows reads, so a working directory alone does not isolate it: on the holdout
+  it runs only in an environment without read access to the checkout); the Docker image ships
+  none of these files (`docker/Dockerfile.dockerignore`).
+- **Procedure releases are immutable:** recordings are keyed by `<id>@<version>`, and Git-hosted
+  plugin installs stay at their version. A change to `relations.md`, to the wrapper
+  (`packages/procedures/src/wrappers.ts`) or to the skill frontmatter needs a new version: bump it,
+  run `pnpm --filter @proa/procedures generate` (skill + plugin version), add the new version's
+  sha256 to `RELEASED` in `packages/procedures/test/plugin.test.ts` (its failing test prints it)
   and regenerate the sim recordings (`vitest … agent-sim.test.ts -u` writes the new folder but
-  never deletes the old one: remove it by hand).
+  never deletes the old one: remove it by hand). The `0.1.0` hash is the skill after the review
+  fixes (version rule, `disable-model-invocation`), which changed it before any live run without
+  a new version; a Git-hosted install made before them keeps the older 0.1.0 skill (the owner's
+  runs use `--plugin-dir`, which loads the current files).
 - **Large MCP results:** Claude Code saves tool results above 50,000 characters to a file unless
   the tool declares `anthropic/maxResultSizeChars` (ProA's tools do); with `--tools ""` an agent
   could not read that file. Keep the declaration on new tools.

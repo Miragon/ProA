@@ -30,9 +30,9 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | `packages/bpmn-facts`: `extractFacts` (C7 and C8, CONCEPT §2), `assertSafeXml` (DOCTYPE/ENTITY, UTF-8, 5 MB), 50k-element limit, `factFingerprint`, `factsHash`, `normalizeKey` | working; tested per construct, against hostile XML and on every eval/corpus model |
 | `packages/relations`: `runRules` (rule tier + findings), `generateCandidates` (key, lexical, compatible; both directions), `baselineProa1` (the 1.x algorithm), endpoint semantics, DE/EN text similarity | working; unit-tested, gated by `eval:candidates` |
 | `apps/server`: full CONCEPT §2 schema, domain use cases with `policy.require`, ingest/import/delete as one transaction (facts, rule tier, assertions, endpoint state, analysis tasks, events) with the real `@proa/bpmn-facts` and `@proa/relations`, every REST route of the contracts, local mode (Host/Origin guard, owner session cookie, owner key for the CLI, agent tokens), MCP `/mcp` with the eight read tools, the built web UI at `/` | working; importing `nordwind-handel` and `stadtwerke-auental` reproduces the rule relations and findings of `eval:candidates` exactly (integration test); MCP contract test with the SDK client |
-| `packages/procedures`: the procedure `proa-relations@0.1.0` (`relations.md`, status `released`, M3), the loader for MCP `get_procedure`, and the wrappers for the MCP prompt `work_pipeline` and the Claude Code skill (`renderPipelineWrapper`, `renderSkill`, `pnpm --filter @proa/procedures generate`) ([below](#the-relations-procedure-m3)) | working; unit tests (frontmatter, wrappers, the guard against skill expansion), the drift test of the generated skill and plugin version, and a server test that keeps the procedure's limits, invalid reasons and tool names in line with the contracts and the MCP tools; three LLM dev runs on `nordwind-handel` (Sonnet 5.5: precision 100 %, recall 78.6 %, 0 must_not_link; [M3](#m3-2026-10-08)) |
+| `packages/procedures`: the procedure `proa-relations@0.1.0` (`relations.md`, status `released`, M3), the loader for MCP `get_procedure`, and the wrappers for the MCP prompt `work_pipeline` and the Claude Code skill (`renderPipelineWrapper`, `renderSkill`, `pnpm --filter @proa/procedures generate`) ([below](#the-relations-procedure-m3)) | working; unit tests (frontmatter, wrappers, the guard against skill expansion), the drift test of the generated skill and plugin version, a sha256 guard that keeps a released version's skill from changing, and a server test that keeps the procedure's limits, invalid reasons, tool names and tool arguments in line with the contracts and the MCP tools; three LLM dev runs on `nordwind-handel` (Sonnet 5.5: precision 100 %, recall 78.6 %, 0 must_not_link; [M3](#m3-2026-10-08)) |
 | `plugins/proa`: Claude Code plugin `proa` (version = procedure version) with the generated skill `/proa:relations [project] [max-tasks]` and no MCP server; `.claude-plugin/marketplace.json`: the repository as marketplace `proa` (`claude plugin install proa@proa`) | working; `claude plugin validate --strict` passes for both manifests (Claude Code 2.1.294); drift and version tests in `@proa/procedures`; not yet run with a model |
-| `examples/agents` (M3): reference setups for Claude Code (interactive, headless `run-headless.sh`), Claude Desktop (both bridge entries, German start prompt), an Agent SDK worker and Codex; documentation, not workspace packages, not in the image | checked without a model ([M3](#m3-2026-10-08)): shellcheck and dry runs of `run-headless.sh` against fakes, `tsc` and `docker build` of the SDK worker, the Codex TOML parses; no setup has run a model yet |
+| `examples/agents` (M3): reference setups for Claude Code (interactive, headless `run-headless.sh`), Claude Desktop (both bridge entries, German start prompt), an Agent SDK worker and Codex; documentation, not workspace packages, not in the image | checked without a model ([M3](#m3-2026-10-08)): shellcheck and dry runs of `run-headless.sh` against fakes (incl. failed batches, a reused log directory and a trailing slash in `PROA_URL`), `tsc` and `docker build` of the SDK worker and its token and error-result handling against a fake Claude Code executable, the Codex TOML parses; no setup has run a model yet |
 | M2 backend: analysis pipeline (claim/submit/release, lease, long-poll), claim input (with the M3 additions: message-flow ends, partner and process documentation, findings), submissions, ad-hoc proposals, review (accept/reject/hold/correct, bulk, notes, timeline), model engine, relation provenance, answered findings hidden ([below](#analysis-pipeline-and-review-m2)) | working over REST and MCP; real-Postgres integration tests incl. concurrent claims, lease expiry, cancellation, decision memory across re-uploads, the claim-input size and additions on both corpus landscapes; MCP contract test with the SDK client; reviewed in the web UI ([Review in the web UI](#review-in-the-web-ui-m2)); end to end against the Docker stack with the simulation agent (HTTP and the bridge in the container) and in the browser (`e2e/pipeline.spec.ts`: review, re-upload, `suppressed` vs. `reopened`) |
 | `apps/cli`: `proa seed` (M3: `--project`, `--token-name`), `import`, `token create/list/revoke`, `status`, `health`, and `proa mcp` (stdio bridge for Claude Desktop) | working; unit tests, an e2e test against a real server, and a live check against the running Docker stack |
 | `apps/agent-sim`: `proa-agent-sim`, the LLM-free simulation agent (M2 item 8): works the pipeline over MCP (HTTP or the `proa mcp` bridge) with the deterministic policy `sim-policy-1` and records claim inputs and submissions in `eval/recordings` ([below](#simulation-agent-and-evalreplay-m2)) | working; unit tests (policy, recorder, CLI, the loop against an in-memory MCP server) and an end-to-end server test on both corpus landscapes (every task done, provenance, nothing decided, the committed recordings reproduced byte for byte) |
@@ -218,9 +218,15 @@ claude plugin marketplace add ~/Code/ai-plattform/ProA   # your checkout
 claude plugin install proa@proa
 ```
 
+`--plugin-dir` and a marketplace added from a local checkout load the plugin's current files at
+every session start. An install from a Git-hosted marketplace (`claude plugin marketplace add
+Miragon/ProA#claude/proa-2`) is a cached copy that stays at its version until a new procedure
+version is released; then `claude plugin marketplace update proa && claude plugin update
+proa@proa` (and a new session).
+
 Then, in a session, `/proa:relations nordwind-handel 5` claims one task at a time and stops
-after five tasks or when none is left. The plugin carries no MCP server: the connection above
-stays separate, so the tools keep the names `mcp__proa__*`. Without the plugin, the server's MCP
+after five tasks or when none is left; only a user starts the skill, the model cannot invoke
+it. The plugin carries no MCP server: the connection above stays separate, so the tools keep the names `mcp__proa__*`. Without the plugin, the server's MCP
 prompt `work_pipeline` gives the same instructions: `/proa:work_pipeline` in the `/` menu
 (marked "(MCP)"), or `/mcp__proa__work_pipeline <projectId> <maxTasks>` (positional arguments,
 so `maxTasks` needs a project before it). For a run with `--tools ""` (no built-in tools), add
@@ -320,7 +326,9 @@ scopes; the entry in `claude_desktop_config.json`).
 | The server exits at start: `PROA_HOST=… is not a loopback address` | Local mode has no login, so it listens on 127.0.0.1 only. Unset `PROA_HOST`. In a container (which must listen on 0.0.0.0) publish the port on 127.0.0.1 only and set `PROA_ALLOW_NON_LOOPBACK=1`, as `docker/compose.yaml` does: `docker run -p 127.0.0.1:7400:7400 -e PROA_ALLOW_NON_LOOPBACK=1 -e DATABASE_URL=… proa:local`. |
 | UI: "Server nicht erreichbar" or "Datenbank nicht erreichbar" | ProA or PostgreSQL is down or restarting: `docker compose -p proa2 -f docker/compose.yaml ps`, `… logs proa`. |
 | `eval:live: project … is not named after a corpus landscape` | A live run's project has a key of its own (`--project` of `proa seed`): name the landscape it was seeded from, e.g. `--landscape nordwind-handel`. |
-| `eval:live: warning: project … gives … recording files, …` | The run's submissions declared more than one `llmModel` or procedure version, or the project was worked under more than one token; the live gate would count every file as a run. Do not commit it: start the run again in a fresh project ([M3-LIVE-RUNS.md](M3-LIVE-RUNS.md#3b-claude-desktop)). |
+| `eval:live: project … has analyses of N models not in landscape …` (exit 2) | `--landscape` names another landscape than the one the project was seeded from; nothing was written. Name the right one and record again. |
+| `eval:live: warning: project … was worked under N tokens (…)` | More than one agent token submitted in the project (also two tokens of one name, and also with `--agent`, which would file them as one run): that is no run. Do not commit it; start the run again in a fresh project. |
+| `eval:live: warning: project … gives … recording files, …` | The run's submissions declared more than one `llmModel` or procedure version; the live gate would count every file as a run. Do not commit it: start the run again in a fresh project ([M3-LIVE-RUNS.md](M3-LIVE-RUNS.md#3b-claude-desktop)). |
 | `eval:live: GET /projects/…/analyses?…: 401 …` | The token is missing, revoked or expired, or belongs to another ProA. Use the run's agent token or the owner key (`PROA_TOKEN`); with ProA in Docker, the checkout needs the container's key (see [Local mode](#local-mode-who-is-calling-concept-6)). |
 | Integration or e2e tests cannot start PostgreSQL | Testcontainers needs a running Docker; or set `PROA_TEST_DATABASE_URL` to a PostgreSQL whose user may `CREATEDB`. |
 
@@ -386,7 +394,7 @@ and the recordings loader, not the corpus toolchain). Workspace dependencies use
 | `pnpm format` / `pnpm format:check` | Prettier over the 2.0 workspace (`.prettierignore` keeps 1.x, eval, Markdown, snapshots and generated files out) |
 | `pnpm build` | builds the web UI (`apps/web/dist`) |
 | `pnpm eval:candidates` | the LLM-free eval gate; writes `eval/reports/candidates.{md,json}`, exit 1 if a gate fails |
-| `pnpm eval:replay` | scores the recordings in `eval/recordings` against `expected.yaml` and evaluates the live gate; writes `eval/reports/replay.{md,json}`, exit 1 only for an unreadable recording, whatever the gate says ([below](#simulation-agent-and-evalreplay-m2)) |
+| `pnpm eval:replay` | scores the recordings in `eval/recordings` against `expected.yaml` and evaluates the live gate; writes `eval/reports/replay.{md,json}`, exit 1 only for an unreadable recording, whatever the gate says, 2 on a usage error (an unknown option, a named `--recordings` directory that does not exist) ([below](#simulation-agent-and-evalreplay-m2)) |
 | `pnpm eval:live --project <key> [--landscape <name>] [--url] [--token] [--agent] [--out] [--corpus] [--no-write] [--json]` | records a live run from the project's stored submissions in `eval/recordings/<procedure>@<version>/<token name>/<llmModel>/<landscape>.jsonl`, scores it and checks the live gate; token: the run's agent token or the owner key (`PROA_TOKEN`); exit 1 when a gate fails or on a runtime error, 2 on a usage error ([below](#live-runs-evallive-and-the-live-gate-m3)) |
 | `pnpm agent-sim [options]` | the simulation agent `proa-agent-sim` from the checkout (`PROA_URL`, `PROA_TOKEN`; `--help`) |
 | `pnpm --filter @proa/eval-tools check` / `validate:all` / `test` | the corpus: models in sync with their specs, full validation of every landscape, the toolchain tests |
@@ -740,18 +748,23 @@ no-link the agent proposals they drop.
 |---|---|---|
 | MCP tool `get_procedure` | every client; the server instructions say to load it first | nothing |
 | MCP prompt `work_pipeline` (`projectId?`, `maxTasks?`) | clients that offer prompts; Claude Code: `/proa:work_pipeline`, `/mcp__proa__work_pipeline <projectId> <maxTasks>` | the wrapper with the given scope |
-| Skill `/proa:relations [project] [max-tasks]` (`plugins/proa/skills/relations/SKILL.md`) | Claude Code with the plugin `plugins/proa` | frontmatter (`name`, `description` from the procedure, `argument-hint`), then the wrapper with the scope from `$ARGUMENTS` |
+| Skill `/proa:relations [project] [max-tasks]` (`plugins/proa/skills/relations/SKILL.md`) | Claude Code with the plugin `plugins/proa` | frontmatter (`name`, `description` from the procedure, `argument-hint`, `disable-model-invocation: true`: only users start it, a typed `/proa:relations` or one in a `claude -p` prompt), then the wrapper with the scope from `$ARGUMENTS` |
 
 The wrapper (`renderPipelineWrapper`, `packages/procedures/src/wrappers.ts`) adds only the
 scope (project, at most n tasks, `claim_analysis({…, max: 1})`, when to stop; in the skill, how
 to read its two optional arguments and to stop before claiming if one is invalid), the exact
 model id as `llmModel` (never a product name, an alias or a guess) and the procedure the claim
-names, `release_analysis` instead of an expiring lease, and
+names, the version rule (the embedded procedure is `<id>@<version>`; if a claim names another
+procedure or version, call `get_procedure` with the claim's procedure id before that task and
+follow the returned text, the one the server expects, while still declaring what the claim names:
+an installed skill is a copy of one release), `release_analysis` instead of an expiring lease, and
 `get_procedure` again after the context was summarized or compacted; then `Procedure
 <id>@<version>:` and the text verbatim. Prompt and skill share it, so they cannot drift apart.
 The plugin carries no MCP server (the connection is configured separately, so the tools keep the
-names `mcp__proa__*`), and its version is the procedure version. `renderSkill` refuses text that
-Claude Code would expand in a skill; authoring rules are under [Conventions](#conventions).
+names `mcp__proa__*`), and its version is the procedure version; a Git-hosted install stays at
+that version until it changes ([Connect Claude Code](#connect-claude-code)). `renderSkill`
+refuses text that Claude Code would expand in a skill; authoring rules are under
+[Conventions](#conventions).
 
 ### Simulation agent and `eval:replay` (M2)
 
@@ -833,6 +846,10 @@ proposals; missed must_link; questions and no-links by class. The report
 ends with the section "Live gate" (`liveGate` in `replay.json`; "_No live runs yet._" while only
 `agent-sim` recordings exist), and the console prints one line per gate, but `eval:replay` exits
 0 whatever the gate says; `eval:live` enforces it ([below](#live-runs-evallive-and-the-live-gate-m3)).
+`--recordings`, `--corpus` and `--out` name other directories; relative ones resolve against
+`INIT_CWD`, the repository root for `pnpm eval:replay` wherever in the checkout it is started, as
+eval:live's do, and a named `--recordings` directory that does not exist is a usage error (exit
+2), while an absent `eval/recordings` just has no recordings.
 
 Current numbers (`eval/reports/replay.md`):
 
@@ -869,9 +886,10 @@ pnpm eval:replay                        # reports with the run; commit them with
 ```
 
 `proa seed <landscape> --project <key>` seeds exactly one landscape into a project of that key,
-named `<landscape name> (<key>)`, and warns on stderr when the project already existed;
-`--token-name` names the read+propose token of `--issue-tokens` (default `seed`, 90 days), whose
-handle is `agent:<name>`. Keep the token until the run is recorded: a revoked token gets 401
+named `<landscape name> (<key>)`, and refuses an existing project with exit 1 before any import
+or token request (`project … already exists; a live run needs a fresh project: pick another
+key`); `--token-name` names the read+propose token of `--issue-tokens` (default `seed`, 90
+days), whose handle is `agent:<name>`. Keep the token until the run is recorded: a revoked token gets 401
 (the owner key still reads the project), and revoking withdraws its proposals from the review.
 
 **`eval:live`** (`eval/tools/src/live.ts`, `live-recordings.ts`) reads the project over REST with
@@ -885,15 +903,20 @@ ids and no claim input. Lines are sorted by model key, then submission time, and
 `<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl` below `--out` (default
 `eval/recordings`), each written afresh; the agent is the token name from the handle (`--agent`
 overrides it), procedure and model are what the submissions declared, so a run whose tasks
-declare different models or versions, or a project worked under several tokens, gives several
-files, each of which the gate counts as a run; eval:live then warns and names them
-(`warning: project … gives 2 recording files, …`). The path names no project: a second run
-under the same token name, model and landscape overwrites the first one's file, so give every
-run a new token name. When a file exists with other content, eval:live prints
+declare different models or versions gives several files, each of which the gate counts as a run; eval:live then warns and names them
+(`warning: project … gives 2 recording files, …`). A project worked under more than one token
+(principal) is no run: eval:live warns (`warning: project … was worked under 2 tokens (…)`),
+also for two tokens of one name and with `--agent`, which would file them as one run. The path
+names no project: a second run under the same token name, model and landscape overwrites the
+first one's file, so give every run a new token name. To re-record a run whose token was named
+wrongly with `--agent <name>`, first delete the file already written under the token name: the
+gate would count it as another run. When a file exists with other content, eval:live prints
 `replacing <file> (n lines before, m now)` on stderr and writes it all the same: recording a run
 again after it went on is legitimate. `--landscape` names the corpus landscape the project was
-seeded from (default: the project key, if it is one; otherwise a usage error). Relative `--out` and `--corpus` resolve against `INIT_CWD`, the directory pnpm was
-started in, never `eval/tools`. A declared procedure version other than the checkout's draws a
+seeded from (default: the project key, if it is one; otherwise a usage error). Relative `--out`
+and `--corpus` resolve against `INIT_CWD`, which pnpm sets to the repository root for
+`pnpm eval:live` wherever in the checkout it is started (not to the shell's directory), never
+`eval/tools`. A declared procedure version other than the checkout's draws a
 warning. The new files are scored with the `eval:replay` scorer together with every recording of
 the same procedure id and landscape already in `--out`; the command prints one line per run and
 the live gates the new files count in, as a run or as the baseline (a new `agent-sim` recording
@@ -901,9 +924,10 @@ is the baseline of every model's gate of its version). `--no-write` scores witho
 `--json` prints numbers only, never pair lists, so a holdout run shows no ground truth. Exit 0
 when every gate shown passes or is incomplete; 1 when one fails or on a runtime error (server
 unreachable, 401, 404, no done analyses, invalid data); 2 on a usage error (unknown option, no
-`--project` or token, a landscape not in the corpus), as `proa-agent-sim` and `run-headless.sh`
-have it. Then run `pnpm eval:replay` and commit the recording with the regenerated reports: CI
-requires them to match.
+`--project` or token, a landscape not in the corpus, analyses of models the landscape does not
+have; nothing is written), as `proa-agent-sim` and `run-headless.sh` have it. Then run
+`pnpm eval:replay` and commit the recording with the regenerated reports: CI requires them to
+match.
 
 **Live gate** (`eval/tools/src/live-gate.ts`, a pure function; CONCEPT §7). The live runs are the
 recordings of every agent but `agent-sim`, one file per run. They are grouped by procedure
@@ -936,7 +960,7 @@ token), `--owner-key-file` (`PROA_OWNER_KEY_FILE`).
 
 | Command | Credential | |
 |---|---|---|
-| `proa seed [landscape…] [--corpus dir] [-p\|--project <key>] [--issue-tokens [--token-name <name>]] [--verbose] [--json]` | owner key | one project per landscape of `eval/corpus` (default: every scored one, i.e. not starting with `_`; `_sample` seeds into `sample`), named after `landscape.yaml`; imports `models/`; safe to repeat (unchanged models stay unchanged). `--project` seeds exactly one named landscape into a project of that key, named `<landscape name> (<key>)` (a fresh project per live run; a warning if it already existed); `--issue-tokens` creates a read+propose token per project (90 days), named `--token-name` (default `seed`; the name is the agent segment of `eval:live` recordings). Misuse (`--project` without exactly one landscape or with an invalid key, `--token-name` without `--issue-tokens`) is refused before any request. The JSON result names the `landscape` of each project |
+| `proa seed [landscape…] [--corpus dir] [-p\|--project <key>] [--issue-tokens [--token-name <name>]] [--verbose] [--json]` | owner key | one project per landscape of `eval/corpus` (default: every scored one, i.e. not starting with `_`; `_sample` seeds into `sample`), named after `landscape.yaml`; imports `models/`; safe to repeat (unchanged models stay unchanged). `--project` seeds exactly one named landscape into a project of that key, named `<landscape name> (<key>)` (a fresh project per live run; an existing project is refused with exit 1 before any import or token request); `--issue-tokens` creates a read+propose token per project (90 days), named `--token-name` (default `seed`; the name is the agent segment of `eval:live` recordings). Misuse (`--project` without exactly one landscape or with an invalid key, `--token-name` without `--issue-tokens`) is refused before any request. The JSON result names the `landscape` of each project |
 | `proa import <dir> --project <key> [--create [--name n]] [--json]` | agent token (`proa:write`) or owner key | every `.bpmn`/`.bpmn2`/`.bpmn20.xml` below `<dir>`, in requests of ≤ 50 files and ≤ 25 MB; the model key is the path below `<dir>`; per-file outcome; exit 1 if a file failed |
 | `proa token create --project <key> [--name] [--scopes …] [--expires 90d] [--json]` | owner key | scopes `proa:read`, `proa:propose`, `proa:write` (also `read,propose`); expiry `Nd` or `Nw`, ≤ 365 days |
 | `proa token list` / `proa token revoke <id>` (`--project <key>`) | owner key | |
@@ -1181,12 +1205,27 @@ after whitespace, and ```` ```! ````; `renderSkill` throws on them, so `generate
 every change of the procedure run `pnpm --filter @proa/procedures generate` and commit
 `plugins/proa/skills/relations/SKILL.md` and `plugins/proa/.claude-plugin/plugin.json` (its
 `version` is the procedure version); `test/plugin.test.ts` fails until both match. Never edit the
-skill by hand. `apps/server/test/unit/procedure-text.test.ts` keeps the prose in line with the
-code: the procedure is `released`, states the contract limits (lease minutes, the third attempt,
-relations and no-links per submission, evidence entries, rationale, question, summary and no-link
-reason lengths, the documentation cut, the 1 MiB body), names every `invalid:<reason>` of the contracts,
-and names only MCP tools that the tools snapshot lists. A new version also moves the simulation
-agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
+skill by hand. **A released version's skill never changes:** Git-hosted plugin installs stay at
+their version until it changes, and runs are recorded under `<id>@<version>`. So a change to
+`relations.md`, to the wrapper (`src/wrappers.ts`) or to the skill frontmatter (`renderSkill`)
+needs a new procedure version, and that version's sha256 of the rendered skill goes into `RELEASED`
+in `test/plugin.test.ts`, whose test "never changes the skill of a released version" fails
+otherwise and prints the new hash. The `0.1.0` entry is the skill with the version rule and
+`disable-model-invocation`, which were added before any live run under the unchanged version.
+`apps/server/test/unit/procedure-text.test.ts` keeps the prose in line with the code: the
+procedure is `released`; every checked limit appears as a whole number in its own phrase (the
+helper `phrase` does not let "15 minutes" pass for 5 or "12,000" for 2,000): lease minutes, the
+third attempt, relations and no-links per submission, evidence entries, rationale, question,
+summary and no-link reason lengths, the documentation cut, the 1 MiB body, the documentation
+length (`MAX_DOCUMENTATION_LENGTH`) and the lexical (5) and compatible (30) candidate caps; the
+`invalid:<reason>` list of its Limits section equals the contracts' (as sets, since the text
+orders them for agents); it names only MCP tools that the tools snapshot lists, and only
+arguments their input schemas have. Not checked yet, because the contracts keep them inline: the
+`llmModel` limit (100), the procedure id and version limits (100, 50) and the evidence entry
+limit (1,000); checking them needs `MAX_LLM_MODEL_CHARS`, `MAX_PROCEDURE_ID_CHARS`,
+`MAX_PROCEDURE_VERSION_CHARS` and `MAX_EVIDENCE_ENTRY_CHARS` exported from `@proa/contracts`. A
+new version also moves the simulation agent's recordings
+([Recordings](#simulation-agent-and-evalreplay-m2)).
 
 **Errors** are RFC 9457 `application/problem+json` with `type` `urn:proa:problem:<code>` and a
 `code` member; codes and statuses are in `PROBLEMS` (`@proa/contracts`).
@@ -1277,17 +1316,23 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   of `_sample` with every case (server-invalid and locally invalid items, a pair proposed twice,
   must_not_link at high confidence, unlisted, no-links incl. one on a must_link, questions) scored
   to exact numbers; the report is deterministic and the committed `replay.md` up to date (with
-  its "Live gate" section); unreadable recordings are refused with file and line.
+  its "Live gate" section); unreadable recordings are refused with file and line; the command
+  resolves relative `--recordings`, `--corpus` and `--out` against its base directory (the same
+  bytes), a named `--recordings` that does not exist or is a file and an unknown option exit 2
+  with nothing written, and an unknown landscape exits 1 without the usage text.
 - M3 procedure and plugin: `packages/procedures/test` (`pnpm --filter @proa/procedures test`, no
   Docker): `procedures.test.ts` (the released procedure, its `description`, no version and no
   `---` in the text, frontmatter parsing), `wrappers.test.ts` (the wrapper for a fixed scope, no
-  scope and the skill's arguments; the skill's frontmatter, the title fallback, the expansion
-  guard and a `$` it lets through) and `plugin.test.ts` (the committed `SKILL.md` equals
-  `renderSkill`, `plugin.json` has the name `proa` and the procedure version, the marketplace
-  lists `./plugins/proa`, the plugin declares no `mcpServers` and has no `.mcp.json`).
-  `apps/server/test/unit/procedure-text.test.ts`: the procedure text against the contracts and
-  the MCP tools snapshot ([Conventions](#conventions)). `mcp-contract.test.ts`: the
-  `work_pipeline` text equals `renderPipelineWrapper` and ends with the procedure; `maxTasks`
+  scope and the skill's arguments, the version rule in both scopes; the skill's frontmatter with
+  `disable-model-invocation: true`, the title fallback, the expansion guard and a `$` it lets
+  through) and `plugin.test.ts` (the committed `SKILL.md` equals `renderSkill`, the skill of a
+  released version has the sha256 in `RELEASED`, `plugin.json` has the name `proa` and the
+  procedure version, the marketplace lists `./plugins/proa`, the plugin declares no `mcpServers`
+  and has no `.mcp.json`). `apps/server/test/unit/procedure-text.test.ts`: the procedure text
+  against the contracts, the candidate caps and the MCP tools snapshot, with tool arguments, and
+  the whole-number helper itself ([Conventions](#conventions)). `mcp-contract.test.ts`: the
+  `work_pipeline` text equals `renderPipelineWrapper`, ends with the procedure and carries the
+  version rule with the server's id and version; `maxTasks`
   `7` and `100` (also without a project) limit the loop, and `0`, `101`, `07`, `1.5`, `-3`, `abc`
   and the empty string are refused. `mcp.test.ts`: no input schema has a root `$ref`, and the
   instructions name exactly the tools without a required `projectId` (`test/unit/mcp.test.ts`
@@ -1307,13 +1352,16 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   landscapes, the REST reader against a fake server: pages, revision numbers, 401, 404, an
   unreachable server; the command on `_sample`: incomplete, a pass with three runs and the
   `agent-sim` baseline, a second model as a gate of its own, a fail at exactly 0.8 with
-  `--no-write`, the warnings for several files and for a replaced file, the procedure warning,
-  usage errors with exit 2 before any request, runtime errors with exit 1). The server's `agent-sim.test.ts` runs `eval:live`'s
+  `--no-write`, the warning for several tokens (two names, `--agent`, two tokens of one name),
+  the warnings for several files and for a replaced file, the procedure warning, usage errors
+  with exit 2 before any request, analyses of models another `--landscape` does not have with
+  exit 2 and nothing written, runtime errors with exit 1). The server's `agent-sim.test.ts` runs `eval:live`'s
   reader with each project's agent token after the simulation agent and requires the recorder's
   lines, input aside, byte for byte. `apps/cli`: unit tests for `seed --project`/`--token-name`
-  (the warning for an existing project, misuse refused before any request, `--help`) and an e2e
-  test that seeds `_sample` into `sample-run-1` with the token `claude-code-1`, whose handle is
-  `agent:claude-code-1`.
+  (an existing `--project` refused before any import or token request, misuse refused before any
+  request, `--help`) and an e2e test that seeds `_sample` into `sample-run-1` with the token
+  `claude-code-1`, whose handle is `agent:claude-code-1`; a second seed into that key exits 1 and
+  changes nothing (same `seq`, 3 models, 1 token).
 - `apps/cli`: `pnpm --filter @proa/cli test:unit` (commands against a fake REST API, owner key
   file checks, the MCP bridge against the SDK's in-memory `createMcpHandler`) and `test:e2e`:
   starts `node apps/server/src/main.ts` as a child process on a free port with its own database
@@ -1721,6 +1769,32 @@ machine, Claude Code 2.1.294. Verified without a model:
    55 plus 7 live tests skipped, agent-sim 36, relations 61, bpmn-facts 134, contracts 36,
    procedures 21, client 4, eval/tools 49), `pnpm eval:candidates` (pass, report unchanged) and
    `pnpm eval:replay` (reports and recordings unchanged).
+8. **Review fixes** on top of `f50e550` (version `0.1.0` kept; its skill gained the version rule
+   and `disable-model-invocation`, and `RELEASED` holds the new hash):
+   - `run-headless.sh`: `bash -n`, shellcheck 0.10.0 and 0.11.0 without findings; dry runs (bash
+     3.2, fake pending endpoint, fake `claude`): a run to the end (7 pending, batches of 3, exit
+     0, cost 1.5000, temporary directory removed); `claude` exiting 1 with
+     `error_max_budget_usd`, exiting 0 with `is_error` or without JSON, and a good batch followed
+     by a failing one each stop with `stopped: batch N failed`, exit 1 and no `done`; no progress
+     exits 1 with the MCP hint; `max-batches` exits 0; a `PROA_LOG_DIR` holding `batch-*.json`
+     exits 2 with its files untouched and no cost line, an empty one works; `PROA_URL=…///`
+     reaches `claude` without the slashes; a temporary directory removed mid-run exits 2 before
+     the next batch; ProA unreachable exits 2.
+   - Agent SDK worker, with a fake Claude Code executable in a scratch copy: the child's
+     `--mcp-config` carries `Bearer ${PROA_TOKEN}` and its environment the token; a task ending in
+     `error_max_budget_usd` prints its JSON line and its cost counts; three in a row stop the
+     worker with exit 1; a failed MCP server is still an error. That Claude Code expands
+     `${PROA_TOKEN}` in `--mcp-config` JSON was checked with Claude Code 2.1.293 and 2.1.294
+     against a local server that logs the header.
+   - Codex: with codex-cli 0.159.3, `codex sandbox` in `read-only` and `workspace-write`, started
+     from an empty directory, read the checkout's files and listed `eval/` by absolute path, so a
+     working directory does not isolate Codex ([its README](../../examples/agents/codex/README.md#not-isolated-from-the-checkout)).
+   - `claude plugin validate --strict` passes with the new frontmatter; `pnpm eval:replay
+     --recordings nope --no-write` started in `docs/` names `<root>/nope` and exits 2.
+   - Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint`; tests of procedures (22),
+     eval/tools (55), cli (55 plus 7 live tests skipped, e2e included) and the server's
+     `procedure-text.test.ts` and `mcp-contract.test.ts` (48, snapshots unchanged);
+     `pnpm eval:candidates` (pass) and `pnpm eval:replay` twice (reports unchanged).
 
 LLM dev runs: three dev runs on 2026-10-08, each on a fresh `nordwind-handel` project of a scratch stack, every task worked by its own Claude Sonnet 5.5 subagent of the implementing Claude Code session through the real MCP tools (called with a command-line MCP client instead of a native connection). Projects `nordwind-dev-1` to `-3` on a server started from the
 checkout (port 7410, its own compose database `proa2-m3`), seeded with `proa seed nordwind-handel

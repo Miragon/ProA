@@ -139,8 +139,14 @@ proposals ∪ the rule tier's accepted calls, which agents leave alone) and F1,
 overall, per relation type and per tag; the must_not_link hits with confidence
 and question; unlisted proposals; missed must_link pairs; questions and no-links
 per class; and the [live gate](#the-live-gate) per procedure version,
-landscape and declared model. It is deterministic and enforces nothing: it exits 1 only for an
-unreadable recording or an unknown landscape. CI regenerates the report and
+landscape and declared model. `--recordings <dir>`, `--corpus <dir>` and
+`--out <dir>` (default `eval/recordings`, `eval/corpus`, `eval/reports`) take
+other directories, `--no-write` writes nothing; relative paths resolve against
+`INIT_CWD`, the repository root for `pnpm eval:replay` wherever in the checkout
+it is started, as eval:live's do (below). A `--recordings` directory that does
+not exist is a usage error, while an absent `eval/recordings` just has no
+recordings. It is deterministic and enforces nothing: it exits 1 only for an
+unreadable recording or an unknown landscape, 2 on a usage error. CI regenerates the report and
 requires no diff, so new recordings are committed together with the report.
 
 ## Live runs and eval:live
@@ -170,13 +176,17 @@ Against a server started from the checkout, step 1 is
 - **One fresh project per run.** A submission withdraws the pipeline proposals
   of other principals that it does not repeat, and earlier proposals appear in
   the next claim input, so a reused project mixes runs and biases them.
-  `proa seed --project` warns when the project already exists.
+  `proa seed --project` refuses a project that already exists (exit 1, before
+  any import or token request).
 - **One token name per run.** The token name becomes the agent segment of the
   recording (`claude-desktop-1`, `claude-code-2`, …). eval:live writes every
   file afresh, so a second run under the same name, procedure version, model and
   landscape replaces the first; when the file held other content, eval:live
   prints `replacing <file> (n lines before, m now)` on stderr (recording a run
-  again after it went on is legitimate).
+  again after it went on is legitimate). A project worked under more than one
+  token is no run: eval:live warns
+  (`warning: project … was worked under 2 tokens (…)`), also when `--agent`
+  would record it as one file.
 - **The exact model id.** The agent declares it as `llmModel` (the wrappers and
   the start prompt tell it to); it becomes the `<llmModel>` segment, and the
   live gate is per model. A run whose submissions declare several models or
@@ -208,14 +218,16 @@ run or as the baseline (procedure version, landscape and model).
 | `--landscape <name>` | the corpus landscape the project was seeded from; default: the project key, if it names one |
 | `--url <url>`, `--token <token>` | server and token; default `PROA_URL` (else `http://127.0.0.1:7400`) and `PROA_TOKEN` |
 | `--agent <name>` | agent segment instead of the token name |
-| `--out <dir>`, `--corpus <dir>` | default `eval/recordings` and `eval/corpus`; relative paths resolve against the directory pnpm was started in (`INIT_CWD`), not `eval/tools` |
+| `--out <dir>`, `--corpus <dir>` | default `eval/recordings` and `eval/corpus`; relative paths resolve against `INIT_CWD`, which pnpm sets to the repository root for `pnpm eval:live` wherever in the checkout it is started (not to the shell's directory), never `eval/tools` |
 | `--no-write` | score and check without writing |
 | `--json` | per run the counts and metrics, per gate the means, baseline and reasons |
 
 Exit 0 when every gate shown passes or is incomplete; 1 when one fails or on a
 runtime error (server unreachable, 401, 404, no done analyses, invalid data);
 2 on a usage error (unknown option, no `--project` or token, a landscape not
-in the corpus), like `proa-agent-sim` and `run-headless.sh`. The REST reader, the mapping and the gate are
+in the corpus, analyses of models the landscape does not have: name the
+landscape the project was seeded from), like `proa-agent-sim` and
+`run-headless.sh`; nothing is written then. The REST reader, the mapping and the gate are
 exported from `@proa/eval-tools` (`tools/src/index.ts`, without the corpus
 toolchain) for the server's `agent-sim.test.ts`.
 
@@ -254,10 +266,16 @@ and a miss only the holdout shows is documented, not special-cased.
 
 - **Start agents outside the checkout.** `eval/` holds the ground truth
   (`expected.yaml`, the landscape READMEs with their traps, the reports). Start
-  Claude Code and Codex in an empty directory outside the checkout, Claude Code
-  with `--strict-mcp-config` and `--tools ""`, and use Claude Desktop without
-  other connectors (file system, web), so the agent works from ProA's MCP tools
-  only ([`examples/agents/README.md`](../examples/agents/README.md)).
+  Claude Code in an empty directory outside the checkout with
+  `--strict-mcp-config` and `--tools ""`, and use Claude Desktop without other
+  connectors (file system, web), so the agent works from ProA's MCP tools only
+  ([`examples/agents/README.md`](../examples/agents/README.md)).
+- **Codex is not isolated by a directory.** It keeps its own shell and file
+  tools, and its sandbox does not restrict reads, so from an empty directory it
+  can still read the checkout by absolute path. On the holdout, run it only in
+  an environment without read access to the checkout: a container or VM that
+  does not mount it, another OS user that cannot read it, or another machine
+  ([`examples/agents/codex`](../examples/agents/codex/README.md#not-isolated-from-the-checkout)).
 - **Read numbers, not pairs.** eval:live prints numbers only: per run the
   counts and metrics, per gate the means, the baseline and the reasons; with
   `--json` likewise, never pair lists, so a holdout run shows no ground truth on

@@ -1,6 +1,7 @@
 # ProA 2.0 – M3 live runs
 
-Status: prepared, not yet run against a model · Branch: `claude/proa-2` (`23873a8` or later) ·
+Status: prepared; validated with LLM subagents on the dev landscape, not yet run by the owner ·
+Branch: `claude/proa-2` (up to date with `origin/claude/proa-2`) ·
 Spec: [CONCEPT.md](CONCEPT.md) §7 · Setups: [examples/agents](../../examples/agents/README.md) ·
 Reference: [DEVELOPMENT.md](DEVELOPMENT.md)
 
@@ -21,10 +22,10 @@ http://127.0.0.1:7400 ([Quickstart](DEVELOPMENT.md#quickstart-docker)).
 | Part | Verified | Not verified |
 |---|---|---|
 | Stack rebuild (step 1) | CI builds the image, seeds the stack and runs the live check (`ci-2.yml`), so far on the M2 commits | the image with the M3 commits (CI has not run on them yet); your `proa2` stack with them (agents do not touch it) |
-| `proa seed --project --token-name` (step 2) | CLI unit tests; an e2e test against a real server (`_sample` into `sample-run-1` with token `claude-code-1`, handle `agent:claude-code-1`); `nordwind-handel` seeded into a fresh project (`nordwind-live-1`) on a server started from the checkout (2026-10-08) | inside the container |
-| Claude Code, headless and interactive (step 3a) | plugin and marketplace pass `claude plugin validate --strict` (Claude Code 2.1.294); a test compares the committed skill with the procedure; `run-headless.sh`: `bash -n`, shellcheck, dry runs against a fake server and a fake `claude` | a run with a model, including that `claude -p "/proa:relations …"` expands the skill and that the agent has ProA's tools with `--tools ""` |
+| `proa seed --project --token-name` (step 2) | CLI unit tests; an e2e test against a real server (`_sample` into `sample-run-1` with token `claude-code-1`, handle `agent:claude-code-1`), and a second seed into that key refused with exit 1 and nothing changed; `nordwind-handel` seeded into a fresh project (`nordwind-live-1`) on a server started from the checkout (2026-10-08) | inside the container |
+| Claude Code, headless and interactive (step 3a) | plugin and marketplace pass `claude plugin validate --strict` (Claude Code 2.1.294); a test compares the committed skill with the procedure; `run-headless.sh`: `bash -n`, shellcheck, dry runs against a fake server and a fake `claude` (a run to the end, failed batches, no progress, a reused `PROA_LOG_DIR`, a vanished temporary directory, `PROA_URL` with a trailing slash) | a run with a model, including that `claude -p "/proa:relations …"` expands the skill and that the agent has ProA's tools with `--tools ""` |
 | Claude Desktop (step 3b) | CI's live check starts the Docker entry the way Claude Desktop does (absolute command, launchd-like environment) | the app, the start prompt, a run with a model |
-| `eval:live` and the live gate (step 5) | unit tests (REST and MCP payloads, one gate per declared model, the 0.8 rule, the 5-point boundary, the baseline choice, the warnings for several files and a replaced file, the exit codes); the server test `agent-sim.test.ts` rebuilds the simulation agent's recording byte for byte (input aside) from the stored submissions; a seeded `nordwind-handel` project worked by the simulation agent and read by `eval:live` gave the committed recording again (input aside, agent renamed) and `FAIL` (3 must_not_link at ≥ 0.8, as the simulation agent has; 2026-10-08) | a recording of an LLM run |
+| `eval:live` and the live gate (step 5) | unit tests (REST and MCP payloads, one gate per declared model, the 0.8 rule, the 5-point boundary, the baseline choice, the warnings for several tokens, several files and a replaced file, the refusal of analyses of models outside the landscape, the exit codes); the server test `agent-sim.test.ts` rebuilds the simulation agent's recording byte for byte (input aside) from the stored submissions; a seeded `nordwind-handel` project worked by the simulation agent and read by `eval:live` gave the committed recording again (input aside, agent renamed) and `FAIL` (3 must_not_link at ≥ 0.8, as the simulation agent has; 2026-10-08) | a recording of an LLM run |
 | The procedure against a model (dev run) | three dev runs on `nordwind-handel` with Claude Sonnet 5.5 subagents of the implementing session, through the real MCP tools: precision 100 %, recall 78.6 % (∪ rule tier 100 %), 0 must_not_link, 0 invalid items in every run ([M3-RELATIONS-PROCEDURE](M3-RELATIONS-PROCEDURE.md#dev-run-numbers)) | Claude Desktop and Claude Code as clients, other models, the holdout |
 
 ## 0. Before you start
@@ -66,9 +67,9 @@ characters.
 ### Prerequisites
 
 - The Docker stack `proa2` ([Quickstart](DEVELOPMENT.md#quickstart-docker)); step 1 rebuilds it.
-- The checkout on `claude/proa-2` at `23873a8` ("Release the relations procedure
-  proa-relations@0.1.0") or later, with `pnpm install` done (Node 24, pnpm 11.1.3): `eval:live`,
-  `eval:replay`, the plugin and the headless script come from it.
+- The checkout on `claude/proa-2`, up to date with `origin/claude/proa-2` and with
+  `pnpm install` done (Node 24, pnpm 11.1.3): `eval:live`, `eval:replay`, the plugin and the
+  headless script come from it, and step 1 builds the image from it.
 - Claude Code logged in with your Claude subscription (step 3a) and/or Claude Desktop (step 3b).
 - `ANTHROPIC_API_KEY` unset in the shells you start agents from: `claude -p` uses it ahead of the
   subscription login whenever it is set.
@@ -76,7 +77,8 @@ characters.
 
 ```sh
 cd ~/Code/ai-plattform/ProA
-git log -1 --oneline                                     # 23873a8 or later
+git switch claude/proa-2 && git pull --ff-only && pnpm install
+grep -c maxResultSizeChars apps/server/src/mcp/server.ts # 1 or more: the M3 server
 echo "${ANTHROPIC_API_KEY:+ANTHROPIC_API_KEY is set}"    # prints an empty line
 ```
 
@@ -88,6 +90,8 @@ curl -s http://127.0.0.1:7400/health
 # {"status":"ok","version":"2.0.0-alpha.0","db":"ok"}
 docker compose -p proa2 -f docker/compose.yaml exec proa grep -m1 '^version:' /app/packages/procedures/relations.md
 # version: 0.1.0
+docker compose -p proa2 -f docker/compose.yaml exec proa grep -c maxResultSizeChars /app/apps/server/src/mcp/server.ts
+# 1 or more: the image has the M3 server
 ```
 
 The image carries the procedure: `get_procedure` serves it, the claim names it as the expected
@@ -119,8 +123,9 @@ you can read:
 
 ```sh
 mkdir -p "$HOME/.local/state/proa/runs" && chmod 700 "$HOME/.local/state/proa/runs"
-(umask 077; docker compose -p proa2 -f docker/compose.yaml exec -T proa proa seed "$LANDSCAPE" \
-  --project "$RUN_PROJECT" --issue-tokens --token-name "$RUN_AGENT" --json > "$RUN_FILE")
+if [ -s "$RUN_FILE" ]; then echo "$RUN_FILE exists: RUN_PROJECT was used before; pick another key"
+else (umask 077; docker compose -p proa2 -f docker/compose.yaml exec -T proa proa seed "$LANDSCAPE" \
+  --project "$RUN_PROJECT" --issue-tokens --token-name "$RUN_AGENT" --json > "$RUN_FILE"); fi
 node -p 'const [r] = require(process.argv[1]); `${r.project} (${r.landscape}, created ${r.created}): ${r.models} models; token ${r.token.name} ${r.token.id}`' "$RUN_FILE"
 # nordwind-handel-cc-1 (nordwind-handel, created true): 31 models; token claude-code-1 agt_…
 export PROA_TOKEN=$(node -p 'require(process.argv[1])[0].token.secret' "$RUN_FILE")
@@ -133,15 +138,22 @@ every model starts at "waiting for agent". `--issue-tokens --token-name` creates
 token for that project, valid for 90 days. Without `--json` the command prints the secret and
 ready-made Claude Code and Claude Desktop entries instead.
 
-If stderr says `proa: project … already existed; use a fresh project per live run`, the key was
-used before: revoke the token the command just created ([step 8](#8-clean-up)) and pick another key.
+The `if` keeps an earlier run's file: the redirect would empty it before `proa` runs, and its
+token secret exists nowhere else (a seed that failed leaves an empty file, which the next try
+overwrites). If it prints `… exists`, or stderr says `proa: project … already exists; a live run
+needs a fresh project: pick another key (nothing was imported, no token was issued)` (exit 1), the
+key was used before and nothing changed: set another `RUN_PROJECT` (and `RUN_FILE` after it) and
+seed again; do not go on with the lines after the seed, which read the old or an empty file.
 
 ## 3a. Claude Code (recommended first)
 
 Both ways below start Claude Code in an empty directory outside the checkout, with ProA's MCP
 server as its only tools (`--strict-mcp-config --mcp-config examples/agents/claude-code/mcp.json
 --tools "" --allowedTools "mcp__proa__*"`) and the plugin from the checkout (`--plugin-dir
-plugins/proa`: the skill `/proa:relations [project] [max-tasks]`, generated from the procedure).
+plugins/proa`: the skill `/proa:relations [project] [max-tasks]`, generated from the procedure;
+`--plugin-dir` loads the checkout's current files at every start). The skill runs only when you
+type it (`disable-model-invocation: true`; a `/proa:relations` in the `claude -p` prompt counts),
+never on the model's own initiative.
 Details: [examples/agents/claude-code](../../examples/agents/claude-code/README.md).
 
 **Model.** `claude-sonnet-5-5`, the Sonnet class CONCEPT §7 suggests for `relations`;
@@ -186,12 +198,17 @@ done: no task pending in nordwind-handel-cc-1 after 7 batches
 estimated cost of all batches: … USD; results in …
 ```
 
-Exit 0 when nothing is pending, or after `max-batches` with tasks still pending (run it again);
-exit 1 when a batch made no progress (`stopped: batch … made no progress`); exit 2 for usage
-errors, the API-key guard, or when the pending count cannot be read with the token. The JSON
+Exit 0 when nothing is pending, or after `max-batches` with tasks still pending (run it again).
+Exit 1 when a batch failed (`stopped: batch … failed`: `claude` exited non-zero, or its JSON
+result is missing, not a `success`, or has `is_error`; a task it claimed stays leased for up to
+15 minutes and that attempt counts, so check the run before you start the script again) or made
+no progress (`stopped: batch … made no progress`). Exit 2 for usage errors, the API-key guard, a
+pending count that cannot be read with the token, a `PROA_LOG_DIR` that already holds
+`batch-*.json` from an earlier run, or a temporary directory that disappeared mid-run. The JSON
 result of every batch (`result`, `num_turns`, `total_cost_usd`, an estimate) stays in the log
-directory (`PROA_LOG_DIR`, default a new directory under `$TMPDIR`). Tasks under a live lease do
-not count as pending: check [step 4](#4-watch-progress) before you record.
+directory: `PROA_LOG_DIR`, which must be new or empty, by default a new
+`proa-headless-<project>-<time>-XXXXXX` directory under `$TMPDIR` (`mktemp`). Tasks under a live
+lease do not count as pending: check [step 4](#4-watch-progress) before you record.
 
 Time and estimated cost per batch: the dev runs needed 1–3 minutes and about 75,000 tokens per
 task with a fresh context each; a batch of 5 in one context needs somewhat more, so expect about
@@ -248,7 +265,8 @@ Use `claude-desktop-<n>` and `<landscape>-cd-<n>` in [step 2](#2-seed-a-run-proj
 
    `command` must be an absolute path, since Claude Desktop does not get your shell's `PATH`:
    `which docker` prints it (Docker Desktop: `/usr/local/bin/docker`). Copy the token to the
-   clipboard with `node -p 'require(process.argv[1])[0].token.secret' "$RUN_FILE" | pbcopy`.
+   clipboard with `node -e 'process.stdout.write(require(process.argv[1])[0].token.secret)' "$RUN_FILE" | pbcopy`
+   (no trailing newline, so the JSON string stays on one line).
    Every run has its own token: replace it for each run.
 2. **Restart.** Quit Claude Desktop (Cmd+Q) and start it again. `proa` appears under the
    connectors of a new chat. Leave other connectors (file system, web) off in these chats, so the
@@ -382,7 +400,8 @@ model is the simulation agent's 78.6 % on `nordwind-handel`: the mean recall of 
 runs must stay at 73.6 % or above. Recall and precision are those of the proposals, without the
 rule tier. Exit 1 also for a runtime error (ProA unreachable, 401, 404, no done analyses, invalid
 data); exit 2 for a usage error (unknown option, no `--project` or token, a landscape not in the
-corpus), which prints the usage.
+corpus, analyses of models the landscape does not have), which prints the usage and writes
+nothing.
 
 A warning `eval:live: warning: the run declared proa-relations@…; the current procedure is
 proa-relations@0.1.0` means the container served another procedure than the checkout: rebuild
@@ -433,7 +452,10 @@ Holdout rules:
 - **Agents start outside the checkout**, so they cannot read `eval/` (the ground truth, the
   holdout's included): the headless script runs `claude` in a temporary directory outside the
   checkout, the interactive way starts in `/tmp/proa-run` with `--tools ""`, and Claude Desktop
-  runs without file-system connectors.
+  runs without file-system connectors. Codex (not part of this guide) is not isolated that way: it
+  keeps its shell, and its sandbox does not restrict reads, so it runs on the holdout only in an
+  environment without read access to the checkout (a container or VM that does not mount it,
+  another OS user, another machine; [Codex](../../examples/agents/codex/README.md#not-isolated-from-the-checkout)).
 - **Keep holdout details out of procedure work.** Model and element names, pairs, rationales and
   per-pair results of `stadtwerke-auental` never go into a conversation used for procedure work.
   The holdout runs' own chats and sessions are full of them: do not continue procedure work there.
@@ -492,10 +514,14 @@ PROA_TOKEN=$(docker compose -p proa2 -f docker/compose.yaml exec -T proa cat /va
 | Claude Code: the agent says a tool result was saved to a file, or works without the claim input | Claude Code moved a large result (claim input, model XML) to a file, which an agent with `--tools ""` cannot read. Rebuild the stack ([step 1](#1-rebuild-the-stack)): its tools declare `anthropic/maxResultSizeChars`; and start Claude Code with `MAX_MCP_OUTPUT_TOKENS=100000` as in step 3a. A run with such tasks measures the setup, not the procedure: stop it and start over in a fresh project; do not commit it. |
 | Claude Desktop lists `proa` as failed | Usually `command` is not absolute, or the container `proa2-proa-1` is not running (`docker ps`); also check that the config file is valid JSON. Try the entry by hand: `PROA_TOKEN=… /usr/local/bin/docker exec -i -e PROA_TOKEN proa2-proa-1 proa mcp` must wait for input instead of exiting. See [Connect Claude Desktop](DEVELOPMENT.md#connect-claude-desktop). |
 | Context limit: a Claude Desktop chat ends at its length limit; Claude Code compacts | A claim input is up to 80.1 KB (`nordwind-handel`) or 74.8 KB (`stadtwerke-auental`), the procedure about 27 KB. Lower the batch size (`{{ANZAHL}}`, the script's batch size, `/proa:relations <project> <n>`). After a compaction the skill and the start prompt make the agent reload the procedure with `get_procedure`. A task claimed in a cut-off chat comes back after its lease ([step 4](#4-watch-progress)). |
-| Usage limit of your subscription reached | The client stops mid-batch; the claimed task cannot be released and comes back when its lease expires (the attempt counts; after 3 lost leases: Agent gescheitert → Erneut einplanen). Headless: `claude exited with status …`, then usually `stopped: batch … made no progress`, exit 1. When the limit resets, run the same command again or open a new chat; the run continues where it stopped. Do not switch the model to go on. |
+| Usage limit of your subscription reached | The client stops mid-batch; the claimed task cannot be released and comes back when its lease expires (the attempt counts; after 3 lost leases: Agent gescheitert → Erneut einplanen). Headless: `claude exited with status …`, then `stopped: batch … failed`, exit 1. When the limit resets, run the same command again or open a new chat; the run continues where it stopped. Do not switch the model to go on. |
 | The agent reports items `invalid:<reason>` | The server refused those items (`message-flow`, `same-process`, `unknown-ref`, `outside-task-model`, `type-mismatch`, …; [Submissions](DEVELOPMENT.md#analysis-pipeline-and-review-m2)) and stored the rest. Invalid items are no proposals for the eval. Let the run go on: correcting the agent mid-run changes what is measured. Note the reasons for procedure work on the dev landscape (`eval:live --json` gives `invalid` per run). A refused submission as a whole (`Input validation error: …`, 422, 413) stored nothing; the procedure has the agent fix and resubmit, or release the task. |
-| `stopped: batch … made no progress (pending … -> …)` | Read the batch's JSON in the log directory (`result`, `is_error`). A batch that died after claiming keeps its task out of the pending count until the lease expires. |
+| `stopped: batch … failed; see <log>` | `claude` exited non-zero, or its JSON result is missing, not a `success` (`error_max_turns`, `error_max_budget_usd`, …) or has `is_error`: read `subtype` and `result` in that log. A task the batch claimed stays leased for up to 15 minutes, and that attempt counts (3 expired leases fail a task, [step 4](#4-watch-progress)). Fix the cause (usage limit, budget, connection), check the run, then start the script again; with `PROA_LOG_DIR` set, name a new directory. |
+| `stopped: batch … made no progress (pending … -> …)` | The batch succeeded, but the pending count did not go down: read its `result` in the log directory. Usually the agent had no ProA tools (did the proa MCP server connect? `PROA_URL`, `PROA_TOKEN`; see the row on missing tools above) or handed its tasks back. |
 | `eval:live: project … is not named after a corpus landscape; …` | Add `--landscape nordwind-handel` (or `stadtwerke-auental`). |
 | `eval:live: project … has no done analyses yet` | No task of the project was submitted yet. |
-| `eval:live: warning: project … gives 2 recording files, …` (several files for one run) | The tasks declared different `llmModel`s or procedure versions, or the project was worked under more than one token; the gate would count each file as a run: do not commit ([step 3b](#3b-claude-desktop)). A token named wrongly: `--agent <name>` sets the agent segment. |
+| `eval:live: project … has analyses of N models not in landscape …; name the landscape the project was seeded from with --landscape` (exit 2) | `--landscape` (`$LANDSCAPE`) names another landscape than the one the project was seeded from. Nothing was written: set it right and record again. |
+| `eval:live: warning: project … was worked under N tokens (…)` | More than one agent token submitted in the project (also two tokens of one name): that is no run, whatever the files. Do not commit it; `--agent` does not fix it. Start the run again in a fresh project ([step 2](#2-seed-a-run-project)). |
+| `eval:live: warning: project … gives 2 recording files, …` (several files for one run) | The tasks declared different `llmModel`s or procedure versions; the gate would count each file as a run: do not commit ([step 3b](#3b-claude-desktop)). (Several tokens give several files too, with the warning above.) |
+| The run's token has the wrong name (the recording's agent segment) | Record again with `--agent <name>`, but first delete the file `eval:live` already wrote under the token name (`eval/recordings/proa-relations@0.1.0/<token name>/<llmModel>/<landscape>.jsonl`; if it replaced a committed run's file, `git checkout -- <file>` instead): the gate counts it as another run. |
 | `eval:live: replacing <file> (n lines before, m now)` | The recording file existed with other content and was overwritten: fine when you record the same run again after it went on; if another run used the same token name, model and landscape, restore its file (`git checkout -- <file>`, if committed) and record this run again with `--agent <new name>`. |
