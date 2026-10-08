@@ -1,0 +1,1236 @@
+{
+  "connections": [
+    {
+      "connectionType": "assignment",
+      "id": "assign-controlling-unternehmenssteuerung",
+      "source": "org-controlling",
+      "target": "step-unternehmenssteuerung",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 100
+        },
+        {
+          "x": 710,
+          "y": 140
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-debitorenbuchhaltung-fakturierung",
+      "source": "org-debitorenbuchhaltung",
+      "target": "step-fakturierung",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 360
+        },
+        {
+          "x": 1250,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-einkauf-beschaffung",
+      "source": "org-einkauf",
+      "target": "step-beschaffung",
+      "waypoints": [
+        {
+          "x": 170,
+          "y": 360
+        },
+        {
+          "x": 170,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-finanzbuchhaltung-rechnungswesen",
+      "source": "org-finanzbuchhaltung",
+      "target": "step-rechnungswesen",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 1000
+        },
+        {
+          "x": 440,
+          "y": 1040
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-it-it-services",
+      "source": "org-it",
+      "target": "step-it-services",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 1000
+        },
+        {
+          "x": 980,
+          "y": 1040
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-lager-billbrook-lagerhaltung",
+      "source": "org-lager-billbrook",
+      "target": "step-lagerhaltung",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 360
+        },
+        {
+          "x": 440,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-logistik-versand",
+      "source": "org-logistik",
+      "target": "step-versand",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 360
+        },
+        {
+          "x": 980,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-personalabteilung-personal",
+      "source": "org-personalabteilung",
+      "target": "step-personal",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 1000
+        },
+        {
+          "x": 1250,
+          "y": 1040
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-qualitaetssicherung-qualitaetsmanagement",
+      "source": "org-qualitaetssicherung",
+      "target": "step-qualitaetsmanagement",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 100
+        },
+        {
+          "x": 980,
+          "y": 140
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-service-center-kundenservice",
+      "source": "org-service-center",
+      "target": "step-kundenservice",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 360
+        },
+        {
+          "x": 1520,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-vertrieb-vertrieb",
+      "source": "org-vertrieb",
+      "target": "step-vertrieb",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 360
+        },
+        {
+          "x": 710,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-zentrale-dienste-zentrale-dienste",
+      "source": "org-zentrale-dienste",
+      "target": "step-zentrale-dienste",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 1000
+        },
+        {
+          "x": 710,
+          "y": 1040
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-beschaffung-bestellwesen",
+      "source": "step-beschaffung",
+      "target": "step-bestellwesen",
+      "waypoints": [
+        {
+          "x": 170,
+          "y": 464
+        },
+        {
+          "x": 170,
+          "y": 630
+        },
+        {
+          "x": 210,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-beschaffung-disposition",
+      "source": "step-beschaffung",
+      "target": "step-disposition",
+      "waypoints": [
+        {
+          "x": 170,
+          "y": 464
+        },
+        {
+          "x": 170,
+          "y": 540
+        },
+        {
+          "x": 210,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-beschaffung-lieferantenmanagement",
+      "source": "step-beschaffung",
+      "target": "step-lieferantenmanagement",
+      "waypoints": [
+        {
+          "x": 170,
+          "y": 464
+        },
+        {
+          "x": 170,
+          "y": 720
+        },
+        {
+          "x": 210,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-fakturierung-mahnwesen",
+      "source": "step-fakturierung",
+      "target": "step-mahnwesen",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 810
+        },
+        {
+          "x": 1290,
+          "y": 810
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-fakturierung-offene-posten",
+      "source": "step-fakturierung",
+      "target": "step-offene-posten",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 720
+        },
+        {
+          "x": 1290,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-fakturierung-rechnungsstellung",
+      "source": "step-fakturierung",
+      "target": "step-rechnungsstellung",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 540
+        },
+        {
+          "x": 1290,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-fakturierung-zahlungseingang",
+      "source": "step-fakturierung",
+      "target": "step-zahlungseingang",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 630
+        },
+        {
+          "x": 1290,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-kundenservice-kundeninformation",
+      "source": "step-kundenservice",
+      "target": "step-kundeninformation",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 720
+        },
+        {
+          "x": 1560,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-kundenservice-reklamationen",
+      "source": "step-kundenservice",
+      "target": "step-reklamationen",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 540
+        },
+        {
+          "x": 1560,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-kundenservice-retouren",
+      "source": "step-kundenservice",
+      "target": "step-retouren",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 630
+        },
+        {
+          "x": 1560,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-lagerhaltung-bestandsfuehrung",
+      "source": "step-lagerhaltung",
+      "target": "step-bestandsfuehrung",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 464
+        },
+        {
+          "x": 440,
+          "y": 720
+        },
+        {
+          "x": 480,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-lagerhaltung-qualitaetspruefung",
+      "source": "step-lagerhaltung",
+      "target": "step-qualitaetspruefung",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 464
+        },
+        {
+          "x": 440,
+          "y": 630
+        },
+        {
+          "x": 480,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-lagerhaltung-wareneingang",
+      "source": "step-lagerhaltung",
+      "target": "step-wareneingang",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 464
+        },
+        {
+          "x": 440,
+          "y": 540
+        },
+        {
+          "x": 480,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-rechnungswesen-hauptbuch-abschluss",
+      "source": "step-rechnungswesen",
+      "target": "step-hauptbuch-abschluss",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 1104
+        },
+        {
+          "x": 440,
+          "y": 1270
+        },
+        {
+          "x": 480,
+          "y": 1270
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-rechnungswesen-kreditorenbuchhaltung",
+      "source": "step-rechnungswesen",
+      "target": "step-kreditorenbuchhaltung",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 1104
+        },
+        {
+          "x": 440,
+          "y": 1180
+        },
+        {
+          "x": 480,
+          "y": 1180
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-versand-kommissionierung",
+      "source": "step-versand",
+      "target": "step-kommissionierung",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 540
+        },
+        {
+          "x": 1020,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-versand-paketversand",
+      "source": "step-versand",
+      "target": "step-paketversand",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 630
+        },
+        {
+          "x": 1020,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-versand-speditionsversand",
+      "source": "step-versand",
+      "target": "step-speditionsversand",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 720
+        },
+        {
+          "x": 1020,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-auftragsabwicklung",
+      "source": "step-vertrieb",
+      "target": "step-auftragsabwicklung",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 630
+        },
+        {
+          "x": 750,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-auftragseingang",
+      "source": "step-vertrieb",
+      "target": "step-auftragseingang",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 540
+        },
+        {
+          "x": 750,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-bonitaetspruefung",
+      "source": "step-vertrieb",
+      "target": "step-bonitaetspruefung",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 720
+        },
+        {
+          "x": 750,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-partnermanagement",
+      "source": "step-vertrieb",
+      "target": "step-partnermanagement",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 810
+        },
+        {
+          "x": 750,
+          "y": 810
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-beschaffung-lagerhaltung",
+      "source": "step-beschaffung",
+      "target": "step-lagerhaltung",
+      "waypoints": [
+        {
+          "x": 280,
+          "y": 432
+        },
+        {
+          "x": 362,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-fakturierung-kundenservice",
+      "source": "step-fakturierung",
+      "target": "step-kundenservice",
+      "waypoints": [
+        {
+          "x": 1360,
+          "y": 432
+        },
+        {
+          "x": 1442,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-lagerhaltung-vertrieb",
+      "source": "step-lagerhaltung",
+      "target": "step-vertrieb",
+      "waypoints": [
+        {
+          "x": 550,
+          "y": 432
+        },
+        {
+          "x": 632,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-versand-fakturierung",
+      "source": "step-versand",
+      "target": "step-fakturierung",
+      "waypoints": [
+        {
+          "x": 1090,
+          "y": 432
+        },
+        {
+          "x": 1172,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-vertrieb-versand",
+      "source": "step-vertrieb",
+      "target": "step-versand",
+      "waypoints": [
+        {
+          "x": 820,
+          "y": 432
+        },
+        {
+          "x": 902,
+          "y": 432
+        }
+      ]
+    }
+  ],
+  "elements": [
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 630,
+        "y": 40
+      },
+      "elementType": "orgUnit",
+      "id": "org-controlling",
+      "name": "Controlling"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1170,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-debitorenbuchhaltung",
+      "name": "Debitorenbuchhaltung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 90,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-einkauf",
+      "name": "Einkauf"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 360,
+        "y": 940
+      },
+      "elementType": "orgUnit",
+      "id": "org-finanzbuchhaltung",
+      "name": "Finanzbuchhaltung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 900,
+        "y": 940
+      },
+      "elementType": "orgUnit",
+      "id": "org-it",
+      "name": "IT"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 360,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-lager-billbrook",
+      "name": "Lager Billbrook"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 900,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-logistik",
+      "name": "Logistik"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1170,
+        "y": 940
+      },
+      "elementType": "orgUnit",
+      "id": "org-personalabteilung",
+      "name": "Personalabteilung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 900,
+        "y": 40
+      },
+      "elementType": "orgUnit",
+      "id": "org-qualitaetssicherung",
+      "name": "Qualitätssicherung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1440,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-service-center",
+      "name": "Service-Center"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 630,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-vertrieb",
+      "name": "Online-Shop & Vertrieb"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 630,
+        "y": 940
+      },
+      "elementType": "orgUnit",
+      "id": "org-zentrale-dienste",
+      "name": "Zentrale Dienste"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-auftragsabwicklung",
+      "name": "Auftragsabwicklung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-auftragseingang",
+      "name": "Auftragseingang"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 60,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-beschaffung",
+      "name": "Beschaffung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-bestandsfuehrung",
+      "name": "Bestandsführung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 180,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-bestellwesen",
+      "name": "Bestellwesen"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-bonitaetspruefung",
+      "name": "Bonitätsprüfung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 180,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-disposition",
+      "name": "Disposition"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1140,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-fakturierung",
+      "name": "Fakturierung & Zahlung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 1240
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-hauptbuch-abschluss",
+      "name": "Hauptbuch & Abschluss"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 870,
+        "y": 1040
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-it-services",
+      "name": "IT-Services"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-kommissionierung",
+      "name": "Kommissionierung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 1150
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-kreditorenbuchhaltung",
+      "name": "Kreditorenbuchhaltung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-kundeninformation",
+      "name": "Kundeninformation"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1410,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-kundenservice",
+      "name": "Kundenservice"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 330,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-lagerhaltung",
+      "name": "Lagerhaltung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 180,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-lieferantenmanagement",
+      "name": "Lieferantenmanagement"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 780
+      },
+      "elementType": "step",
+      "id": "step-mahnwesen",
+      "name": "Mahnwesen"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-offene-posten",
+      "name": "Offene Posten"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-paketversand",
+      "name": "Paketversand"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 780
+      },
+      "elementType": "step",
+      "id": "step-partnermanagement",
+      "name": "Partnermanagement"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1140,
+        "y": 1040
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-personal",
+      "name": "Personal"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 870,
+        "y": 140
+      },
+      "color": "hsl(287, 65%, 44%)",
+      "elementType": "step",
+      "id": "step-qualitaetsmanagement",
+      "name": "Qualitätsmanagement"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-qualitaetspruefung",
+      "name": "Qualitätsprüfung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-rechnungsstellung",
+      "name": "Rechnungsstellung"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 330,
+        "y": 1040
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-rechnungswesen",
+      "name": "Rechnungswesen"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-reklamationen",
+      "name": "Reklamationen"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-retouren",
+      "name": "Retouren"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-speditionsversand",
+      "name": "Speditionsversand"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 600,
+        "y": 140
+      },
+      "color": "hsl(287, 65%, 44%)",
+      "elementType": "step",
+      "id": "step-unternehmenssteuerung",
+      "name": "Unternehmenssteuerung"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 870,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-versand",
+      "name": "Versand"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 600,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-vertrieb",
+      "name": "Vertrieb"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-wareneingang",
+      "name": "Wareneingang"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-zahlungseingang",
+      "name": "Zahlungseingang"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 600,
+        "y": 1040
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-zentrale-dienste",
+      "name": "Zentrale Dienste"
+    }
+  ],
+  "meta": {
+    "name": "Nordwind Handel – Wertschöpfungskette"
+  },
+  "schemaVersion": 1
+}

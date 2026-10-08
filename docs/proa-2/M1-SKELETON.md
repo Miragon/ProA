@@ -49,8 +49,9 @@ next to it until the cut-over PR (CONCEPT §9).
 
 M2: analysis pipeline (claim/submit/release), agent proposals, review verdicts
 (accept/reject/hold/correct), decision memory UI. M3: `relations` procedure, reference
-agents, live eval runs with several agents, `eval:replay`. M4: full v1 UI (inbox, review
-screen, landscape map). Server mode (OIDC) in R1.
+agents, live eval runs with several agents, `eval:replay`. M4: value chain
+(Wertschöpfungskette, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md)). The inbox and review screen moved
+into M2; the process network map and server mode (OIDC) follow in R1.
 
 ## Defaults assumed (owner may override)
 
