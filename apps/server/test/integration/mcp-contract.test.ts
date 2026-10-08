@@ -22,7 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { libraryAnalysis } from '../../src/analysis.ts';
 import { generateOwnerKey } from '../../src/auth/owner-key.ts';
 import { INSUFFICIENT_SCOPE_CHALLENGE, MAX_MCP_REQUEST_BYTES } from '../../src/mcp/http.ts';
-import { MCP_INSTRUCTIONS } from '../../src/mcp/server.ts';
+import { MAX_RESULT_SIZE_CHARS, MCP_INSTRUCTIONS } from '../../src/mcp/server.ts';
 import { startTestApp, testClock, type TestApp } from '../support/app.ts';
 import { corpusFiles, importAll } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
@@ -168,6 +168,8 @@ describe('tools/list', () => {
         destructiveHint: false,
         openWorldHint: false,
       });
+      // Claude Code would otherwise save results above 50,000 characters to a file.
+      expect(tool._meta?.['anthropic/maxResultSizeChars'], tool.name).toBe(MAX_RESULT_SIZE_CHARS);
       // decide_relation never succeeds for agents, so it declares no output.
       if (tool.name !== 'decide_relation')
         expect(tool.outputSchema?.type, tool.name).toBe('object');

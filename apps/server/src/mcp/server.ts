@@ -70,6 +70,16 @@ const READ_ONLY = {
   openWorldHint: false,
 } as const;
 
+/**
+ * Claude Code saves a tool result above 50,000 characters (or 25,000 tokens) to a file and
+ * shows the model only its path; an agent run with `--tools ""` cannot read it. Claim inputs
+ * reach about 80 KB and XML pages 100,000 characters, so every tool raises that threshold to
+ * Claude Code's ceiling (`anthropic/maxResultSizeChars`, documented in its MCP guide). Other
+ * clients ignore the key.
+ */
+export const MAX_RESULT_SIZE_CHARS = 500_000;
+const RESULT_META = { 'anthropic/maxResultSizeChars': MAX_RESULT_SIZE_CHARS } as const;
+
 /** Pipeline and proposal tools write, but never destroy anything (CONCEPT §5). */
 const WRITES = (idempotent: boolean) =>
   ({
@@ -165,6 +175,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       inputSchema: z.object({}),
       outputSchema: z.object({ items: z.array(Project) }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     () =>
       run(async () => {
@@ -185,6 +196,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         nextCursor: z.string().nullable(),
       }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) =>
       run(() =>
@@ -212,6 +224,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         relations: z.array(RelationOut),
       }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) => run(() => uc.getProcess(actor, args.projectId, args.ref)),
   );
@@ -238,6 +251,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         xml: z.string(),
       }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) =>
       run(async () => {
@@ -274,6 +288,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       // which the SDK wraps as `{ result: … }`.
       outputSchema: z.object({ items: z.array(RelationOut), nextCursor: z.string().nullable() }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) =>
       run(() =>
@@ -322,6 +337,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         ),
       }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) => run(() => uc.whichProcessesUse(actor, args.projectId, args)),
   );
@@ -352,6 +368,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         ),
       }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) =>
       run(() =>
@@ -380,6 +397,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         text: z.string(),
       }),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) =>
       run(() => {
@@ -412,6 +430,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       inputSchema: z.object(ClaimAnalysisBody.shape),
       outputSchema: z.object({ items: z.array(ClaimedAnalysis) }),
       annotations: WRITES(false),
+      _meta: RESULT_META,
     },
     (args) => run(() => uc.claimAnalyses(actor, args)),
   );
@@ -430,6 +449,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       inputSchema: SubmitAnalysisBody.extend({ taskId: AnalysisTaskId }),
       outputSchema: z.object(SubmissionResult.shape),
       annotations: WRITES(true),
+      _meta: RESULT_META,
     },
     ({ taskId, ...body }) => run(() => uc.submitAnalysis(actor, taskId, body)),
   );
@@ -443,6 +463,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       inputSchema: ReleaseAnalysisBody.extend({ taskId: AnalysisTaskId }),
       outputSchema: z.object(ReleaseResult.shape),
       annotations: WRITES(false),
+      _meta: RESULT_META,
     },
     ({ taskId, ...body }) => run(() => uc.releaseAnalysis(actor, taskId, body)),
   );
@@ -458,6 +479,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       inputSchema: z.object({ projectId }),
       outputSchema: z.object(Landscape.shape),
       annotations: READ_ONLY,
+      _meta: RESULT_META,
     },
     (args) => run(() => uc.getLandscape(actor, args.projectId)),
   );
@@ -474,6 +496,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       }),
       outputSchema: z.object(ProposeRelationResult.shape),
       annotations: WRITES(true),
+      _meta: RESULT_META,
     },
     ({ projectId: project, ...body }) => run(() => uc.proposeRelation(actor, project, body)),
   );
@@ -488,6 +511,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
       // A plain object root (a named schema would become a `$ref` root).
       outputSchema: z.object(RelationOut.shape),
       annotations: WRITES(true),
+      _meta: RESULT_META,
     },
     (args) => run(() => uc.withdrawProposal(actor, args.projectId, args.relationId)),
   );
@@ -504,6 +528,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         verdict: z.enum(['accept', 'reject', 'hold']),
       }),
       annotations: WRITES(true),
+      _meta: RESULT_META,
     },
     (args) =>
       run(() => {

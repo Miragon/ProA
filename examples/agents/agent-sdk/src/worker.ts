@@ -155,6 +155,12 @@ async function runTask(): Promise<SDKResultMessage | null> {
     allowedTools: ['mcp__proa__*'],
     permissionMode: 'dontAsk',
     persistSession: false,
+    // ProA's tools declare anthropic/maxResultSizeChars, so claim inputs (up to about 80 KB)
+    // reach the model inline; the token limit is raised as well for builds that predate it.
+    env: {
+      ...process.env,
+      MAX_MCP_OUTPUT_TOKENS: process.env['MAX_MCP_OUTPUT_TOKENS'] ?? '100000',
+    },
     systemPrompt: {
       type: 'preset',
       preset: 'claude_code',

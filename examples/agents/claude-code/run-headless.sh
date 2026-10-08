@@ -145,6 +145,9 @@ while ((before > 0)); do
   status=0
   (
     cd "$workdir"
+    # ProA's tools declare anthropic/maxResultSizeChars, so claim inputs (up to about 80 KB)
+    # reach the model inline; the token limit is raised as well for builds that predate it.
+    export MAX_MCP_OUTPUT_TOKENS=${MAX_MCP_OUTPUT_TOKENS:-100000}
     claude -p "/proa:relations $project $batch_size" \
       --output-format json \
       --model "$model" \

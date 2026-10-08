@@ -726,6 +726,9 @@
         "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -775,6 +778,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -891,6 +897,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -1432,6 +1441,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -1547,6 +1559,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -1599,6 +1614,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -2146,6 +2164,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -2593,6 +2614,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -2755,6 +2779,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -2855,6 +2882,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -3354,6 +3384,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -3429,6 +3462,9 @@
         "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -3787,6 +3823,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -3913,6 +3952,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     },
     {
@@ -4282,6 +4324,9 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      },
+      "_meta": {
+        "anthropic/maxResultSizeChars": 500000
       }
     }
   ]

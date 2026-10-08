@@ -25,3 +25,16 @@ docker-compose.yml
 eclipse-formatter.xml
 Makefile
 docs
+
+# Eval answers, results and agent setups: the image needs the corpus models
+# only (`proa seed`), and an agent with shell access to the container must not
+# find the expected relations there.
+eval/corpus/*/expected.yaml
+eval/corpus/*/README.md
+eval/corpus/*/spec
+eval/recordings
+eval/reports
+eval/value-chains
+examples
+plugins
+.claude-plugin
