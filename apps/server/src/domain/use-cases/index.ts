@@ -23,6 +23,7 @@ export function createUseCases(deps: UseCaseDeps) {
     store: deps.store,
     analysis: deps.analysis,
     rulesPrincipal: identity.rulesPrincipal,
+    expectedProcedure: deps.expectedProcedure,
   };
   return {
     ...identity,

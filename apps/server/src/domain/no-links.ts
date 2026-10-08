@@ -1,12 +1,14 @@
 /**
  * No-links (judge each pair once, CONCEPT §3): the per-item checks of a
- * submission's `noLinks`, and their withdrawal. A stored no-link is an agent
- * judgement that a typed pair is unrelated, with the basis the claim showed.
+ * submission's `noLinks`, their withdrawal, and the version moves of the
+ * relations on their pairs. A stored no-link is an agent judgement that a
+ * typed pair is unrelated, with the basis the claim showed.
  */
 import {
   hasControlCharacters,
   isRef,
   parseRef,
+  type DeclaredProcedure,
   type NoLinkId,
   type NoLinkInvalidReason,
   type PrincipalId,
@@ -16,6 +18,7 @@ import {
 
 import { pairKey, type LinkType } from './judgements.ts';
 import type { PairAssessment, PairQuery, RelationRecord, Tx } from './ports.ts';
+import { naturalKey } from './relation-state.ts';
 
 const LINK_TYPES: readonly LinkType[] = ['call', 'message', 'signal', 'trigger'];
 
@@ -106,8 +109,8 @@ export async function withdrawNoLinks(
 
 /**
  * Moves the version of the relations with these natural keys once each
- * (their no-links changed): `Relation.noLinks` is part of what a reviewer
- * decides on.
+ * (their no-links were stored or withdrawn, or their currency may have
+ * flipped): `Relation.noLinks` is part of what a reviewer decides on.
  */
 export async function touchRelations(
   tx: Tx,
@@ -119,4 +122,37 @@ export async function touchRelations(
     const relation = relations.get(key);
     if (relation) relations.set(key, await tx.relations.update(projectId, relation.id, {}));
   }
+}
+
+/**
+ * Moves the version of the relations on the pairs of the live no-links
+ * touching `modelKeys`, once each: a new head `facts_hash` of such a model
+ * (or its deletion) can flip their currency either way, a revert included,
+ * and `Relation.noLinks` lists only current ones, so a bulk decision prepared
+ * before fails (409). A procedure release only ends currency (it shows no new
+ * objection) and moves nothing.
+ *
+ * @param procedure the procedure claims name (the listing computes currency; unused here)
+ */
+export async function touchNoLinkRelations(
+  tx: Tx,
+  projectId: ProjectId,
+  modelKeys: Iterable<string>,
+  procedure: DeclaredProcedure,
+): Promise<void> {
+  const keys: string[] = [];
+  for (const modelKey of new Set(modelKeys)) {
+    for (const n of await tx.noLinks.listLive(
+      projectId,
+      { touchingModelKey: modelKey },
+      procedure,
+    )) {
+      keys.push(pairKey({ type: n.type, from: n.fromRef, to: n.toRef }));
+    }
+  }
+  if (keys.length === 0) return;
+  const relations = new Map(
+    (await tx.relations.all(projectId)).map((r) => [naturalKey(r.type, r.fromRef, r.toRef), r]),
+  );
+  await touchRelations(tx, projectId, keys, relations);
 }

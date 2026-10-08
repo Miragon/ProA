@@ -18,7 +18,9 @@
  *   judged and found unrelated, recorded in `noLinks`;
  * - **not judged** for `compatible` candidates below `askAt` (type-compatible
  *   endpoints without lexical evidence; semantic judgement is what an LLM
- *   agent adds). The claim assigns no `compatible` pair, so these never
+ *   agent adds). The claim assigns a `compatible` pair only when it is a
+ *   relation without a current judgement (in the simulation's runs only
+ *   its own proposals, already judged, make such relations), so these never
  *   count as `uncovered`.
  *
  * The verdict depends on the score, never on the basis, so a pair would be

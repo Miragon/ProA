@@ -376,7 +376,7 @@ function RevokeButton({ project, token }: { project: string; token: AgentToken }
     onSuccess: () => {
       toast({ tone: 'success', title: `Token „${token.name}“ widerrufen` });
       void queryClient.invalidateQueries({ queryKey: keys.agentTokens(project) });
-      // Its proposals are withdrawn and its tasks queued again.
+      // Its proposals and no-links are withdrawn; its tasks and the models it judged are queued again.
       void queryClient.invalidateQueries({ queryKey: keys.project(project) });
     },
     onError: (error) =>
@@ -393,10 +393,12 @@ function RevokeButton({ project, token }: { project: string; token: AgentToken }
         <AlertDialogHeader>
           <AlertDialogTitle>Token „{token.name}“ widerrufen?</AlertDialogTitle>
           <AlertDialogDescription>
-            Clients mit diesem Token verlieren sofort den Zugriff. Seine offenen Vorschläge werden
-            zurückgezogen, und Analysen, die er gerade bearbeitet, warten wieder auf einen Agenten;
-            Entscheidungen bleiben. Das lässt sich nicht rückgängig machen; erstelle bei Bedarf
-            einen neuen Token.
+            Clients mit diesem Token verlieren sofort den Zugriff. Seine offenen Vorschläge und
+            Einwände („Kein Zusammenhang laut Agent“) werden zurückgezogen. Analysen, die er gerade
+            bearbeitet, und alle Modelle, deren Paare er beurteilt hat, warten wieder auf einen
+            Agenten. Entscheidungen bleiben. Das lässt sich nicht rückgängig machen; erstelle bei
+            Bedarf einen neuen Token. Sollen seine Vorschläge zur Prüfung bleiben, lass den Token
+            stattdessen ablaufen.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

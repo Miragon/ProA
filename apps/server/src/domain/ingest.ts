@@ -3,13 +3,15 @@
  * `{path, bytes, source}` for `ingest(project, files, actor)`. Facts are
  * extracted before the transaction (CPU only); everything else is ONE
  * transaction: store revisions and facts → run the rule tier over the head
- * facts → record relation assertions → recompute endpoint state → queue
- * analysis tasks → append events.
+ * facts → record relation assertions → recompute endpoint state → move the
+ * version of relations whose no-links may change currency → queue analysis
+ * tasks → append events.
  */
 import { createHash } from 'node:crypto';
 
 import {
   newId,
+  type DeclaredProcedure,
   type ModelId,
   type PrincipalId,
   type ProjectId,
@@ -18,6 +20,7 @@ import {
 
 import type { Actor } from './actor.ts';
 import { DomainError } from './errors.ts';
+import { touchNoLinkRelations } from './no-links.ts';
 import { policy } from './policy.ts';
 import type {
   AnalysisPort,
@@ -51,6 +54,8 @@ export interface IngestDeps {
   analysis: AnalysisPort;
   /** Id of the system principal `proa-rules` (created on first use). */
   rulesPrincipal(): Promise<PrincipalId>;
+  /** The procedure claims name (listing live no-links needs it). */
+  expectedProcedure: () => DeclaredProcedure;
 }
 
 /** sha256 (hex) of the raw bytes: identical uploads are no-ops. */
@@ -138,6 +143,13 @@ export async function ingest(
         rulesPrincipalId,
         analysis: deps.analysis,
       });
+      // A new facts_hash can flip the currency of the model's no-links (a revert too).
+      await touchNoLinkRelations(
+        tx,
+        project.id,
+        changed.filter((c) => c.previousFactsHash !== c.revision.factsHash).map((c) => c.model.key),
+        deps.expectedProcedure(),
+      );
       for (const c of changed) {
         await queueAnalysis(tx, actor, project.id, c.model, c.revision, c.previousFactsHash);
       }
@@ -359,7 +371,8 @@ export async function cancelTask(
 /**
  * Deletes a model (CONCEPT §3): marks it deleted, cancels its open task,
  * and recomputes rules and endpoint states, so partner relations turn
- * `missing`. Revisions and facts stay (append-only history); uploading the
+ * `missing`; the relations on the pairs of its live no-links move their
+ * version. Revisions and facts stay (append-only history); uploading the
  * key again revives the model with a new revision.
  *
  * @throws {DomainError} `not-found` for unknown, deleted or foreign models
@@ -393,5 +406,7 @@ export async function deleteModel(
       rulesPrincipalId,
       analysis: deps.analysis,
     });
+    // Its no-links are no longer current (the relations also turn `missing`).
+    await touchNoLinkRelations(tx, project.id, [model.key], deps.expectedProcedure());
   });
 }

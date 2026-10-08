@@ -41,6 +41,7 @@ import { headFingerprints } from '../fingerprints.ts';
 import { cancelTask, queueTask } from '../ingest.ts';
 import {
   isAssigned,
+  isAssignedRelation,
   isCurrent,
   linkJudgements,
   livePipelineProposals,
@@ -48,6 +49,7 @@ import {
   noLinkJudgement,
   pairKey,
   planClaim,
+  relationPair,
   settles,
   staleFor,
   type PartnerTask,
@@ -177,6 +179,10 @@ async function renderClaims(
     const settled = new Set(
       relations.filter(settles).map((r) => naturalKey(r.type, r.fromRef, r.toRef)),
     );
+    // Relations are assigned like systematic candidates, whatever their pair's basis.
+    const assignedRelations = relations.filter(isAssignedRelation);
+    const relationPairsOf = (modelKey: string) =>
+      assignedRelations.filter((r) => touches(r, modelKey)).map(relationPair);
     // Open tasks by model key; this call's tasks are claimed already, without assignment.
     const open = new Map<string, TaskDetail>();
     for (const state of ['queued', 'claimed'] as const) {
@@ -184,13 +190,15 @@ async function renderClaims(
         open.set(t.modelKey, t);
       }
     }
+    // What a partner's claim would assign (rule 2 stays symmetric).
     const partnerCandidates = new Map<string, ReadonlySet<string>>();
     const candidatesOf = (modelKey: string) => {
       let keys = partnerCandidates.get(modelKey);
       if (!keys) {
-        keys = new Set(
-          deps.analysis.candidates(projectFacts, modelKey).filter(isAssigned).map(pairKey),
-        );
+        keys = new Set([
+          ...deps.analysis.candidates(projectFacts, modelKey).filter(isAssigned).map(pairKey),
+          ...relationPairsOf(modelKey).map(pairKey),
+        ]);
         partnerCandidates.set(modelKey, keys);
       }
       return keys;
@@ -230,6 +238,7 @@ async function renderClaims(
       const plan = planClaim({
         modelKey: task.modelKey,
         candidates,
+        relations: relationPairsOf(task.modelKey),
         judgements: [
           ...links.filter((j) => touchesPair(j, task.modelKey)),
           ...noLinks.map(noLinkJudgement),
@@ -680,8 +689,9 @@ export function analysisUseCases(deps: UseCaseDeps) {
 
         // 3. Supersession: live judgements on pairs touching the model that are stale on
         //    its side, any origin and principal; current ones stay. Replacement: the
-        //    caller's own judgement from an analysis of this model that a new one of the
-        //    other kind (or a new no-link) replaces.
+        //    caller's own judgement from an analysis of this model that a judgement of
+        //    this submission replaces: its proposal by a valid no-link item (stored or
+        //    duplicate), its no-link by a valid proposal item or a stored no-link.
         const origins = await tx.submissions.originModels(project.id);
         const stale = (j: Parameters<typeof staleFor>[3]) =>
           staleFor(task.modelKey, task.factsHash, procedure, j);
@@ -703,7 +713,7 @@ export function analysisUseCases(deps: UseCaseDeps) {
               stance.principalId === actor.principalId &&
               stance.submissionId !== null &&
               origins.get(stance.submissionId) === task.modelKey &&
-              freshKeys.has(key);
+              judgedNoLinks.has(key);
             if (!superseded && !replaced) continue;
             current = await withdrawStance(
               ctx,

@@ -190,6 +190,53 @@ describe('classifyProposal', () => {
     }
   });
 
+  it('records a pipeline proposal under a hold as the agent’s judgement; the hold stays', () => {
+    const v1 = { id: 'proa-relations', version: '0.2.0' };
+    const basis = { basis: { fromHash: 'hx2', toHash: 'hy1', procedure: v1 } };
+    const held = h(
+      a(AGENT, 'proposal', { tier: 'semantic', confidence: 0.8 }),
+      a(HUMAN, 'decision', { verdict: 'hold' }),
+    ).map((x) =>
+      x.kind === 'proposal'
+        ? {
+            ...x,
+            submissionId: 'sbm_1',
+            fromHash: 'hx1',
+            toHash: 'hy1',
+            declared: { procedure: v1 },
+          }
+        : x,
+    );
+    expect(classifyProposal(held, proposal(basis))).toEqual({ effect: 'applied', record: true });
+    const after = [
+      ...held,
+      {
+        ...a(AGENT, 'proposal', { tier: 'semantic', confidence: 0.8 }),
+        rationale: 'r',
+        question: null,
+        submissionId: 'sbm_2',
+        fromHash: 'hx2',
+        toHash: 'hy1',
+        declared: { procedure: v1 },
+      },
+    ];
+    expect(recomputeStatus(after).status).toBe('held');
+    // The same judgement on the same basis again is a duplicate.
+    expect(classifyProposal(after, proposal(basis))).toEqual({
+      effect: 'duplicate',
+      record: false,
+    });
+    // An ad-hoc proposal stays suppressed, and so does any proposal under an acceptance or rejection.
+    expect(classifyProposal(held, proposal()).effect).toBe('suppressed');
+    for (const verdict of ['accept', 'reject'] as const) {
+      const history = h(a(OTHER, 'proposal'), a(HUMAN, 'decision', { verdict }));
+      expect(classifyProposal(history, proposal(basis)), verdict).toEqual({
+        effect: 'suppressed',
+        record: false,
+      });
+    }
+  });
+
   it('reopens a rejection when an endpoint changed', () => {
     const history = h(a(OTHER, 'proposal'), a(HUMAN, 'decision', { verdict: 'reject' }));
     expect(classifyProposal(history, proposal({ toFp: 't2' }))).toEqual({

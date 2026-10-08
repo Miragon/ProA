@@ -425,13 +425,31 @@ describe('decision memory across re-uploads', () => {
     expect((await find(O('Event_Shipped'), B('Event_Paid'))).status).toBe('rejected');
   });
 
-  it('suppresses a re-proposal of a held item while the endpoints are unchanged', async () => {
-    await post(owner, '/api/v1/projects/review/analyses/requeue', { modelKeys: [PAYMENT] });
-    const { result } = await analyse(PAYMENT, [
-      item('message', P('Event_Received'), B('Event_Paid'), { confidence: 0.95 }),
+  it('records an agent’s confirmation of a held item with unchanged endpoints; the hold stays', async () => {
+    const confirm = async () => {
+      await post(owner, '/api/v1/projects/review/analyses/requeue', { modelKeys: [PAYMENT] });
+      return (
+        await analyse(PAYMENT, [
+          item('message', P('Event_Received'), B('Event_Paid'), { confidence: 0.95 }),
+        ])
+      ).result;
+    };
+    // The agent's judgement on the held pair (procedure §10): recorded, so partner
+    // analyses skip the pair; only a human ends a hold.
+    const first = await confirm();
+    expect(first.items.map((i) => [i.result, i.status])).toEqual([['applied', 'held']]);
+    expect(first.withdrawn).toBe(0);
+    // The same confirmation on the same model versions again: nothing new.
+    const again = await confirm();
+    expect(again.items.map((i) => [i.result, i.status])).toEqual([['duplicate', 'held']]);
+    const held = await find(P('Event_Received'), B('Event_Paid'));
+    expect(held).toMatchObject({ status: 'held', source: 'human' });
+    expect((await timeline(held)).map((a) => [a.kind, a.sourceKind])).toEqual([
+      ['proposal', 'agent'],
+      ['decision', 'human'],
+      ['note', 'human'],
+      ['proposal', 'agent'],
     ]);
-    expect(result.items.map((i) => [i.result, i.status])).toEqual([['suppressed', 'held']]);
-    expect(result.withdrawn).toBe(0);
   });
 
   it('marks the rejection changed when an endpoint changes, and reopens it on a re-proposal', async () => {
@@ -457,17 +475,18 @@ describe('decision memory across re-uploads', () => {
     ]);
     // New information for the reviewer, but only a human ends a hold.
     expect(result.items.map((i) => [i.result, i.status])).toEqual([['applied', 'held']]);
-    // The billing re-analysis did not repeat this proposal, which touches the billing
-    // model, so it withdrew it (CONCEPT §2 supersession); the hold kept the status.
+    // The billing re-analysis judged on another version of the billing model than the
+    // confirmation above, so it withdrew that (CONCEPT §2 supersession); the hold kept the status.
     const history = await timeline(held);
     expect(history.map((a) => [a.kind, a.sourceKind])).toEqual([
       ['proposal', 'agent'],
       ['decision', 'human'],
       ['note', 'human'],
+      ['proposal', 'agent'],
       ['withdrawal', 'agent'],
       ['proposal', 'agent'],
     ]);
-    expect(history[3]?.rationale).toMatch(/^superseded by submission /);
+    expect(history[4]?.rationale).toMatch(/^superseded by submission /);
   });
 });
 

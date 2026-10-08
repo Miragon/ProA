@@ -170,6 +170,12 @@ describe('ConnectAgent', () => {
 
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('Token „Claude Desktop“ widerrufen?')).toBeTruthy();
+    // The 0.2.0 consequences: no-links withdrawn, judged models queued again, decisions stay.
+    const consequences = within(dialog).getByText(/Einwände/).textContent;
+    expect(consequences).toContain('Vorschläge und Einwände');
+    expect(consequences).toContain('alle Modelle, deren Paare er beurteilt hat');
+    expect(consequences).toContain('Entscheidungen bleiben');
+    expect(consequences).toContain('lass den Token stattdessen ablaufen');
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
     await user.click(within(dialog).getByRole('button', { name: 'Widerrufen' }));
 

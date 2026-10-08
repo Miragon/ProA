@@ -6,7 +6,8 @@
  * stores no-links, withdraws only what is stale on the model's side or what
  * the caller replaces, and reports `uncovered`; ingest queues on every facts
  * change and revive; losses (token revocation, `withdraw_proposal`) queue the
- * pairs again; reviewers see live, current no-links on the relation.
+ * pairs again; reviewers see live, current no-links on the relation, and the
+ * relation's version moves whenever they may change.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -378,6 +379,93 @@ describe('the assignment at the claim', () => {
     expect(candidatesOf(y.input)).toEqual([]);
   });
 
+  it('assigns a relation on a compatible pair to exactly one of two concurrent claims', async () => {
+    // A catch without lexical evidence: the sender's throw and it are a `compatible` pair.
+    const PAID = { type: 'message', from: S('Event_Sent'), to: R('Catch_Paid') } as const;
+    const paid: FakeElement = {
+      kind: 'msg_catch',
+      id: 'Catch_Paid',
+      name: 'Zahlung eingegangen',
+      ref: 'ZahlungEingegangen',
+    };
+    const extra: FakeElement = { kind: 'task', id: 'Task_New', name: 'Neu' };
+    const all = [MESSAGE, TRIGGER, PAID].map(keyOf).sort();
+    const assignmentOf = async (taskId: string) => {
+      const [stored] = await rows<{ assignment: { type: string; from: string; to: string }[] }>(
+        `SELECT assignment FROM analysis_task WHERE id = '${taskId}'`,
+      );
+      return (stored?.assignment ?? []).map(keyOf).sort();
+    };
+    for (const project of ['relation-two', 'relation-one-call']) {
+      await t.createProject(project);
+      expect((await t.putModel(project, SENDER, fakeBpmn(sender()))).status).toBe(201);
+      expect((await t.putModel(project, RECEIVER, fakeBpmn(receiver([paid])))).status).toBe(201);
+      // The sender's partner search proposes the compatible pair: a semantic relation.
+      const a = await agentOf(project);
+      const x = await claimOf(a, project, SENDER);
+      const r = await submit(
+        a,
+        x.taskId,
+        body(
+          x,
+          [item(MESSAGE.type, MESSAGE.from, MESSAGE.to), item(PAID.type, PAID.from, PAID.to)],
+          [noLink(TRIGGER)],
+        ),
+      );
+      expect(r.items.map((i) => i.result)).toEqual(['applied', 'applied']);
+      const y = await claimOf(a, project, RECEIVER);
+      await submit(a, y.taskId, body(y, []));
+      expect(await relationOf(project, PAID)).toMatchObject({
+        status: 'proposed',
+        tier: 'semantic',
+      });
+      // Both models change: no judgement is current any more.
+      const revised = fakeBpmn(sender({ elements: [extra] }));
+      expect((await t.putModel(project, SENDER, revised)).status).toBe(200);
+      expect((await t.putModel(project, RECEIVER, fakeBpmn(receiver([paid, extra])))).status).toBe(
+        200,
+      );
+    }
+
+    // Two agents claim both models at once.
+    const a = await agentOf('relation-two');
+    const b = await agentOf('relation-two');
+    const x = await claimOf(a, 'relation-two', SENDER);
+    // Still a compatible candidate here, but a relation: assigned like a systematic pair.
+    expect(x.input.candidates).toContainEqual([
+      PAID.type,
+      PAID.from,
+      PAID.to,
+      'compatible',
+      expect.any(Number),
+    ]);
+    expect(await assignmentOf(x.taskId)).toEqual(all);
+    const y = await claimOf(b, 'relation-two', RECEIVER);
+    expect(y.input.skip?.map(keyOf).sort()).toEqual(all);
+    expect(y.input.skip?.every((p) => p.model === SENDER && p.reason === 'claimed')).toBe(true);
+    expect(candidatesOf(y.input)).toEqual([]);
+    expect(await assignmentOf(y.taskId)).toEqual([]);
+    // Leaving the relation out shows as uncovered; the receiver owes nothing.
+    const rx = await submit(
+      a,
+      x.taskId,
+      body(x, [item(MESSAGE.type, MESSAGE.from, MESSAGE.to)], [noLink(TRIGGER)]),
+    );
+    expect(rx.uncovered).toEqual({ count: 1, pairs: [PAID] });
+    const ry = await submit(b, y.taskId, body(y, []));
+    expect(ry.uncovered).toEqual({ count: 0, pairs: [] });
+
+    // One claim call for both: the later task sees the earlier one's assignment.
+    const c = await agentOf('relation-one-call');
+    const both = await claim(c, { projectId: 'relation-one-call', max: 2 });
+    const xs = both.find((i) => i.modelKey === SENDER);
+    const ys = both.find((i) => i.modelKey === RECEIVER);
+    if (!xs || !ys) throw new Error('expected both tasks');
+    expect(await assignmentOf(xs.taskId)).toEqual(all);
+    expect(ys.input.skip?.map(keyOf).sort()).toEqual(all);
+    expect(await assignmentOf(ys.taskId)).toEqual([]);
+  });
+
   it('skips what a claimed partner holds; releasing and claiming either side again loses nothing', async () => {
     await seed('claimed');
     const a = await agentOf('claimed');
@@ -563,6 +651,34 @@ describe('disagreements stay visible', () => {
     expect(r3).toMatchObject({ withdrawn: 0, withdrawnNoLinks: 1 });
     expect(await relationOf('mind', MESSAGE)).toMatchObject({ source: 'agent', noLinks: [] });
   });
+
+  it('a no-link answered duplicate also replaces the caller’s own proposal from this model’s analysis', async () => {
+    await seed('mind-duplicate');
+    const a = await agentOf('mind-duplicate');
+    const x = await claimOf(a, 'mind-duplicate', SENDER);
+    await submit(
+      a,
+      x.taskId,
+      body(x, [item(MESSAGE.type, MESSAGE.from, MESSAGE.to)], [noLink(TRIGGER)]),
+    );
+    // The same token contradicts itself from the receiver's analysis: both stay.
+    const y = await claimOf(a, 'mind-duplicate', RECEIVER);
+    const ry = await submit(a, y.taskId, body(y, [], [noLink(MESSAGE)]));
+    expect(ry.noLinks?.items).toEqual([{ index: 0, result: 'stored' }]);
+    expect(ry).toMatchObject({ withdrawn: 0, withdrawnNoLinks: 0 });
+    // Re-analysing the sender, it no-links the pair: a duplicate of its receiver no-link,
+    // which still replaces its own sender proposal.
+    await requeue('mind-duplicate', [SENDER]);
+    const x2 = await claimOf(a, 'mind-duplicate', SENDER);
+    const r2 = await submit(a, x2.taskId, body(x2, [], [noLink(MESSAGE)]));
+    expect(r2.noLinks?.items).toEqual([{ index: 0, result: 'duplicate' }]);
+    expect(r2).toMatchObject({ withdrawn: 1, withdrawnNoLinks: 0 });
+    expect(await relationOf('mind-duplicate', MESSAGE)).toMatchObject({
+      status: 'proposed',
+      source: 'rule',
+      noLinks: [{ origin: RECEIVER }],
+    });
+  });
 });
 
 describe('a new version of a model', () => {
@@ -707,6 +823,71 @@ describe('a new version of a model', () => {
       [keyOf(MESSAGE), keyOf(TRIGGER)].sort(),
     );
     expect(candidatesOf(y2?.input as ClaimInput)).toEqual([]);
+  });
+});
+
+describe('held pairs', () => {
+  it('a held pair the sender confirms is its judgement: the receiver skips it, the hold stays', async () => {
+    await seed('held');
+    const token = await t.createToken('held', ['proa:read', 'proa:propose']);
+    const a = asAgent(t, token.secret);
+    const x = await claimOf(a, 'held', SENDER);
+    await submit(
+      a,
+      x.taskId,
+      body(x, [item(MESSAGE.type, MESSAGE.from, MESSAGE.to)], [noLink(TRIGGER)]),
+    );
+    const y = await claimOf(a, 'held', RECEIVER);
+    await submit(a, y.taskId, body(y, []));
+    const message = (await relationOf('held', MESSAGE)) as Relation;
+    const hold = await post(owner, `/api/v1/projects/held/relations/${message.id}/decision`, {
+      verdict: 'hold',
+      note: 'Fachbereich fragen',
+    });
+    expect(hold.status).toBe(200);
+
+    // A procedure release and a requeue of both models: no judgement is current.
+    const next: DeclaredProcedure = { id: RELATIONS_PROCEDURE.id, version: '9.9.9' };
+    const released = startTestApp(database, { clock, expectedProcedure: () => next });
+    const a2 = asAgent(released, token.secret);
+    const res = await released.asOwner('/api/v1/projects/held/analyses/requeue', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    expect(res.status).toBe(200);
+    const [x2] = await claim(a2, { projectId: 'held', modelKey: SENDER });
+    if (!x2) throw new Error('no sender task');
+    expect(candidatesOf(x2.input)).toContain(keyOf(MESSAGE));
+    // The sender confirms the held pair (procedure §10): recorded, the hold stays in force.
+    const r = await submit(
+      a2,
+      x2.taskId,
+      body(
+        x2,
+        [item(MESSAGE.type, MESSAGE.from, MESSAGE.to, { rationale: 'bestätigt' })],
+        [noLink(TRIGGER)],
+        next,
+      ),
+    );
+    expect(r.items.map((i) => [i.result, i.status])).toEqual([['applied', 'held']]);
+    expect(r).toMatchObject({ withdrawn: 0, withdrawnNoLinks: 1, uncovered: { count: 0 } });
+    expect(await relationOf('held', MESSAGE)).toMatchObject({ status: 'held', source: 'human' });
+    expect(await proposalBases('held', MESSAGE)).toEqual([
+      { from_hash: await headHash('held', SENDER), to_hash: await headHash('held', RECEIVER) },
+    ]);
+    // The receiver finds both pairs judged and owes nothing.
+    const [y2] = await claim(a2, { projectId: 'held', modelKey: RECEIVER });
+    if (!y2) throw new Error('no receiver task');
+    expect(judgedOf(y2.input).sort()).toEqual([keyOf(MESSAGE), keyOf(TRIGGER)].sort());
+    expect(candidatesOf(y2.input)).toEqual([]);
+    const [stored] = await rows<{ assignment: unknown[] }>(
+      `SELECT assignment FROM analysis_task WHERE id = '${y2.taskId}'`,
+    );
+    expect(stored?.assignment).toEqual([]);
+    const ry = await submit(a2, y2.taskId, body(y2, [], [], next));
+    expect(ry.uncovered).toEqual({ count: 0, pairs: [] });
+    expect(await relationOf('held', MESSAGE)).toMatchObject({ status: 'held' });
   });
 });
 
@@ -921,6 +1102,31 @@ describe('submissions', () => {
     expect(candidatesOf(y.input)).toEqual([keyOf(TRIGGER)]);
   });
 
+  it('report uncovered pairs on a late submit after the task failed: the assignment stays', async () => {
+    await seed('late-failed');
+    const a = await agentOf('late-failed');
+    let x: ClaimedAnalysis | undefined;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      x = await claimOf(a, 'late-failed', SENDER);
+      expect(x.attempt).toBe(attempt);
+      clock.advance(16 * MINUTE);
+    }
+    if (!x) throw new Error('no claim');
+    // Asking what is pending fails the task; its assignment stays.
+    expect((await a('/api/v1/analyses/pending')).status).toBe(200);
+    const [task] = await rows<{ state: string; assignment: unknown[] }>(
+      `SELECT state, assignment FROM analysis_task WHERE id = '${x.taskId}'`,
+    );
+    expect(task).toEqual({ state: 'failed', assignment: [MESSAGE, TRIGGER] });
+    const r = await submit(a, x.taskId, body(x, [item(MESSAGE.type, MESSAGE.from, MESSAGE.to)]));
+    expect(r.uncovered).toEqual({ count: 1, pairs: [TRIGGER] });
+    const [done] = await rows<{ payload: { late: boolean; uncovered: number } }>(
+      `SELECT e.payload FROM event e JOIN project p ON p.id = e.project_id
+       WHERE p.key = 'late-failed' AND e.type = 'analysis.done'`,
+    );
+    expect(done?.payload).toMatchObject({ late: true, uncovered: 1 });
+  });
+
   it('replay a result stored before no-links were validated as it was stored', async () => {
     await seed('replay');
     const a = await agentOf('replay');
@@ -982,6 +1188,36 @@ describe('the review', () => {
     expect(((await ok.json()) as BulkDecisionResult).items[0]).toMatchObject({
       status: 'accepted',
       noLinks: [{ origin: RECEIVER }],
+    });
+  });
+
+  it('a revert that makes a no-link current again moves the version: a bulk decision prepared before fails (409)', async () => {
+    await seed('revert-nl');
+    const a = await agentOf('revert-nl');
+    const x = await claimOf(a, 'revert-nl', SENDER);
+    await submit(a, x.taskId, body(x, [], [noLink(MESSAGE), noLink(TRIGGER)]));
+    const judged = (await relationOf('revert-nl', MESSAGE)) as Relation;
+    expect(judged.noLinks).toHaveLength(1);
+    // A documentation change of the sender: the no-link is no longer current.
+    const doc = fakeBpmn(sender({ doc: 'Versendet die Ware.' }));
+    expect((await t.putModel('revert-nl', SENDER, doc)).status).toBe(200);
+    const prepared = (await relationOf('revert-nl', MESSAGE)) as Relation;
+    expect(prepared).toMatchObject({ endpointState: 'ok', noLinks: [] });
+    expect(prepared.version).toBeGreaterThan(judged.version);
+    // Back to the first version before the re-analysis: the objection is current again.
+    expect((await t.putModel('revert-nl', SENDER, fakeBpmn(sender()))).status).toBe(200);
+    const now = (await relationOf('revert-nl', MESSAGE)) as Relation;
+    expect(now.noLinks).toHaveLength(1);
+    expect(now.version).toBeGreaterThan(prepared.version);
+    const res = await post(owner, '/api/v1/projects/revert-nl/decisions', {
+      verdict: 'accept',
+      items: [{ id: prepared.id, version: prepared.version }],
+      expectedCount: 1,
+    });
+    expect(res.status).toBe(409);
+    expect(await problemOf(res)).toMatchObject({
+      code: 'conflict',
+      mismatches: [{ id: prepared.id, reason: 'version', version: now.version }],
     });
   });
 });

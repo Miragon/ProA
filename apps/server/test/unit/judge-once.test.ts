@@ -1,6 +1,6 @@
 /**
  * Judge each pair once, the pure parts (CONCEPT §3): currency and staleness
- * of a judgement's basis, who judges a candidate pair at a claim, the
+ * of a judgement's basis, who judges a candidate or relation pair at a claim, the
  * no-link item checks, and how `judged` and `skip` render in the claim input.
  */
 import {
@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import { renderClaimInput } from '../../src/domain/claim-input.ts';
 import {
+  isAssignedRelation,
   isCurrent,
   pairKey,
   planClaim,
@@ -24,7 +25,7 @@ import {
   type PartnerTask,
 } from '../../src/domain/judgements.ts';
 import { validateNoLink } from '../../src/domain/no-links.ts';
-import type { PairAssessment, PairQuery } from '../../src/domain/ports.ts';
+import type { PairAssessment, PairQuery, RelationRecord } from '../../src/domain/ports.ts';
 
 const V1: DeclaredProcedure = { id: 'proa-relations', version: '0.2.0' };
 const V2: DeclaredProcedure = { id: 'proa-relations', version: '0.3.0' };
@@ -116,6 +117,7 @@ describe('planClaim: who judges a candidate pair', () => {
     planClaim({
       modelKey: 'b/y',
       candidates: [P, Q, P],
+      relations: [],
       judgements: extra.judgements ?? [],
       settled: new Set(extra.settled ?? []),
       partners: new Map(partners),
@@ -135,6 +137,7 @@ describe('planClaim: who judges a candidate pair', () => {
       planClaim({
         modelKey: 'b/y',
         candidates: [K, U, C, P, D],
+        relations: [],
         judgements,
         settled: new Set(),
         partners: new Map(partners),
@@ -198,12 +201,74 @@ describe('planClaim: who judges a candidate pair', () => {
     const out = planClaim({
       modelKey: 'b/y',
       candidates: [intra],
+      relations: [],
       judgements: [],
       settled: new Set(),
       partners: new Map([['b/y', claimed([pairKey(intra)])]]),
       partnerCandidates: () => new Set([pairKey(intra)]),
     });
     expect(out.assignment).toEqual([typed(intra)]);
+  });
+
+  it('assigns relations in neither list like systematic candidates, whatever their basis', () => {
+    // C: a relation on a compatible pair; R: a relation that is no candidate (beyond the caps).
+    const C = candidate('b/y#E', 'c/z#C2', 'message', 'compatible');
+    const D = candidate('b/y#E', 'a/x#C2', 'message', 'compatible');
+    const R = { type: 'message' as const, from: 'a/x#R' as Ref, to: 'b/y#R' as Ref };
+    const run = (
+      partners: [string, PartnerTask][],
+      extra: { judgements?: Judgement[]; settled?: string[] } = {},
+    ) =>
+      planClaim({
+        modelKey: 'b/y',
+        candidates: [C, D, P],
+        relations: [R, typed(C)],
+        judgements: extra.judgements ?? [],
+        settled: new Set(extra.settled ?? []),
+        partners: new Map(partners),
+        partnerCandidates: () => new Set([P, C].map(pairKey).concat(pairKey(R))),
+      });
+    // Candidates first (C counts as assigned, D stays the search space), then the other relations.
+    expect(run([])).toEqual({ judged: [], skip: [], assignment: [typed(C), typed(P), R] });
+    // Rule 1: a live claimed partner holds the relation pair.
+    expect(run([['a/x', claimed([pairKey(R)])]])).toEqual({
+      judged: [],
+      skip: [{ ...R, model: 'a/x', reason: 'claimed' }],
+      assignment: [typed(C), typed(P)],
+    });
+    // Rule 2: a queued partner that sorts first judges it at its own claim.
+    expect(run([['a/x', queued]]).skip).toEqual([{ ...R, model: 'a/x', reason: 'queued' }]);
+    // A current judgement or a settling decision: nobody's pair.
+    const verdict = judgement({ from: R.from, to: R.to });
+    expect(run([], { judgements: [verdict] }).assignment).toEqual([typed(C), typed(P)]);
+    expect(run([], { settled: [pairKey(C)] }).assignment).toEqual([typed(P), R]);
+  });
+
+  it('assigns a relation unless it is manual, obsolete, settled or has a missing end', () => {
+    const relation = (extra: Partial<RelationRecord>) =>
+      ({
+        type: 'message',
+        status: 'proposed',
+        endpointState: 'ok',
+        ...extra,
+      }) as RelationRecord;
+    for (const r of [
+      relation({}),
+      relation({ status: 'held' }),
+      relation({ status: 'rejected', endpointState: 'changed' }),
+      relation({ status: 'proposed', endpointState: 'changed' }),
+    ]) {
+      expect(isAssignedRelation(r), JSON.stringify(r)).toBe(true);
+    }
+    for (const r of [
+      relation({ type: 'manual' }),
+      relation({ status: 'obsolete' }),
+      relation({ status: 'accepted' }),
+      relation({ status: 'rejected' }),
+      relation({ endpointState: 'missing' }),
+    ]) {
+      expect(isAssignedRelation(r), JSON.stringify(r)).toBe(false);
+    }
   });
 
   function typed(c: Candidate) {

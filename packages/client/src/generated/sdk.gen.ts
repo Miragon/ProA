@@ -485,7 +485,7 @@ export const addRelationNote = <ThrowOnError extends boolean = false>(
 /**
  * Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)
  *
- * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction: the current agent judgements on pairs touching the model (`judged`) and the candidate pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates, accepted pairs and unchanged rejections aside, are the task’s assignment, and `compatible` candidates the search space for missing partners. Empty when nothing is claimable.
+ * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction: the current agent judgements on pairs touching the model (`judged`) and the pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates and the relations in neither list, accepted pairs, unchanged rejections and missing ends aside, are the task’s assignment, and the other `compatible` candidates the search space for missing partners. Empty when nothing is claimable.
  */
 export const claimAnalyses = <ThrowOnError extends boolean = false>(
   options: Options<ClaimAnalysesData, ThrowOnError>,

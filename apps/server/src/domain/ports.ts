@@ -223,7 +223,11 @@ export interface TaskDetail extends TaskRecord {
   submissionId: string | null;
   /** Seq of the latest `analysis.claimed` event: the state the claim input shows. */
   claimedSeq: number | null;
-  /** The typed pairs the latest claim must judge; `null` when not claimed. */
+  /**
+   * The typed pairs the latest claim must judge; `null` before the first
+   * claim and after a release or cancel; kept when the task fails, so a late
+   * submit reports `uncovered`.
+   */
   assignment: TypedPair[] | null;
   /** A judgement the claim relied on was withdrawn: the submit queues a follow-up. */
   requeueAfter: boolean;
@@ -521,7 +525,11 @@ export interface TaskRepo {
   ): Promise<TaskDetail[]>;
   /** Whether a claimed task's lease expired at the last attempt (see {@link failExpired}). */
   hasExpired(projectIds: readonly ProjectId[], now: Date, maxAttempts: number): Promise<boolean>;
-  /** Claimed tasks whose lease expired at the last attempt become `failed`. */
+  /**
+   * Claimed tasks whose lease expired at the last attempt become `failed`.
+   * The assignment stays: a late submit of the holder reports `uncovered`
+   * from it.
+   */
   failExpired(
     projectIds: readonly ProjectId[],
     now: Date,

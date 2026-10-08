@@ -882,7 +882,9 @@ function repos(db: Conn): Tx {
         if (projectIds.length === 0) return [];
         const rows = await db
           .update(s.analysisTask)
-          .set({ state: 'failed', lastError: reason, assignment: null, updatedAt: sql`now()` })
+          // The assignment stays: a late submit of the holder reports `uncovered` from it
+          // (claims read only queued and claimed tasks).
+          .set({ state: 'failed', lastError: reason, updatedAt: sql`now()` })
           .where(
             and(
               inArray(s.analysisTask.projectId, [...projectIds]),

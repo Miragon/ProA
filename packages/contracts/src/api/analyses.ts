@@ -301,9 +301,9 @@ export const ClaimJudged = z
 export type ClaimJudged = z.infer<typeof ClaimJudged>;
 
 /**
- * A candidate pair another model's analysis judges: `claimed` (its claimed
- * task was assigned the pair) or `queued` (its queued task judges it when
- * claimed).
+ * A candidate or relation pair another model's analysis judges: `claimed`
+ * (its claimed task was assigned the pair) or `queued` (its queued task
+ * judges it when claimed).
  */
 export const ClaimSkip = z
   .object({
@@ -346,12 +346,14 @@ export type ClaimSkip = z.infer<typeof ClaimSkip>;
  *   claimant's own included ({@link ClaimJudged}); sorted by pair, then
  *   link before no-link, then origin, handle and id; left out when there is
  *   none;
- * - `skip`: the candidate pairs without a current judgement that a partner
- *   model's analysis judges ({@link ClaimSkip}); left out when there is
- *   none. The remaining `rule`, `key` and `lexical` candidates are this
- *   task's assignment (judge each pair once), except accepted pairs and
- *   rejected ones with unchanged endpoints; `compatible` candidates are
- *   nobody's assignment but the search space for missing partners;
+ * - `skip`: the candidate and relation pairs without a current judgement
+ *   that a partner model's analysis judges ({@link ClaimSkip}); left out
+ *   when there is none. The remaining `rule`, `key` and `lexical`
+ *   candidates and the relations in neither list are this task's
+ *   assignment (judge each pair once), except accepted pairs, rejected ones
+ *   with unchanged endpoints and relations with a missing end; the other
+ *   `compatible` candidates are nobody's assignment but the search space
+ *   for missing partners;
  * - `findings`: the project's deterministic findings (as `GET …/findings`
  *   lists them) with at least one ref in the model, sorted by kind and
  *   refs; left out when there are none.
@@ -508,7 +510,9 @@ export type InvalidReason = (typeof INVALID_REASONS)[number];
  *   accepted relation with the same endpoints, or an earlier item of the
  *   same submission);
  * - `suppressed`: a human already decided and the endpoint fingerprints are
- *   unchanged, so nothing is recorded;
+ *   unchanged, so nothing is recorded (a submission's proposal on a held
+ *   pair is recorded as the agent's judgement instead: `applied` or
+ *   `duplicate`, and the hold stays);
  * - `reopened`: recorded, and it reopens a rejection because an endpoint
  *   changed since;
  * - `invalid:<reason>`: not recorded ({@link INVALID_REASONS}).
@@ -580,10 +584,12 @@ export type TypedPair = z.infer<typeof TypedPair>;
 
 /**
  * The pairs the claim assigned to the task (its `rule`, `key` and `lexical`
- * candidates minus `judged`, `skip`, accepted pairs and rejections with
- * unchanged endpoints; never `compatible` ones) that the submission neither
- * proposed nor no-linked and that have no current judgement: the count and
- * the first {@link MAX_UNCOVERED_PAIRS}. Nothing is queued for them.
+ * candidates and the relations touching the model, minus `judged`, `skip`,
+ * accepted pairs, rejections with unchanged endpoints and relations with a
+ * missing end; never a `compatible` candidate that is no relation) that the
+ * submission neither proposed nor no-linked and that have no current
+ * judgement: the count and the first {@link MAX_UNCOVERED_PAIRS}. Nothing is
+ * queued for them.
  */
 export const UncoveredPairs = z
   .object({

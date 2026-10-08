@@ -215,7 +215,11 @@ export interface ClassifiedAssertion extends AssertionView {
  * Classifies a proposal against a relation's history, as a pure function:
  * - `suppressed`: the current status rests on a human decision whose
  *   fingerprints equal the proposal's (a human already decided and nothing
- *   changed) — not recorded;
+ *   changed) — not recorded. A pipeline proposal (with a basis) under a
+ *   human hold is the exception: it is the agent's judgement on the held
+ *   pair (procedure §10, judge each pair once), so it goes on to the checks
+ *   below and is recorded unless it is a `duplicate`; the hold stays the
+ *   decision in force ({@link decisionsInForce}), so the status stays `held`;
  * - `duplicate`: the proposer's own live proposal says the same (for a
  *   pipeline proposal: its own live pipeline proposal with the same basis
  *   and procedure too, so a re-judgement on a newer version is recorded and
@@ -236,6 +240,7 @@ export function classifyProposal(
   if (
     basis?.kind === 'decision' &&
     basis.sourceKind === 'human' &&
+    !(basis.verdict === 'hold' && proposal.basis !== undefined) &&
     sameFingerprints(basis, proposal)
   ) {
     return { effect: 'suppressed', record: false };
