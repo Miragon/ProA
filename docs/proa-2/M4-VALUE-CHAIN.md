@@ -1,6 +1,6 @@
 # ProA 2.0 – Milestone M4 "Value chain"
 
-Status: proposed (2026-10-08, revised after review) · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
+Status: proposed (2026-10-08, revised after review); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
 
 M4 puts the classic process landscape map ("Prozesslandkarte") on top of the processes: one
 value chain per project (Wertschöpfungskette, ARIS value-added chain diagram), edited in the
@@ -309,37 +309,65 @@ covers both kinds (M4b).
 ## 5. Packaging
 
 - `apps/web` depends on `@miragon/value-chain-renderer` and `@miragon/value-chain-schema-model`,
-  `apps/server` on schema-model only (DOM-free by the modeler's rule P1), all at the exact
-  version of the **first published release** (the modeler's release-please PR currently
-  prepares 0.2.0 for both, as linked versions). The domain code lives in
-  `apps/server/src/domain/value-chain/`; the web uses schema-model directly and the server's
-  `dryRun` for impact. No sixth package (CONCEPT principle 7).
-- **diagram-js alignment by overrides.** The renderer pins `diagram-js` 15.18.1 and
-  `diagram-js-direct-editing` 3.4.0; `bpmn-js` 18.31.0 in `apps/web` resolves 15.28.0 and 3.6.0;
-  schema-model pins `zod` 4.4.3, ProA uses 4.6.5. Exact `overrides` in `pnpm-workspace.yaml`
-  (`@miragon/value-chain-renderer>diagram-js: 15.28.0`,
-  `@miragon/value-chain-renderer>diagram-js-direct-editing: 3.6.0`,
-  `@miragon/value-chain-schema-model>zod: 4.6.5`) work today without an upstream change and are
-  proven by the Playwright round trip. ProA does not ask for peer dependencies: the modeler's
-  pin rule (enforced in CI) requires exact versions in `peerDependencies` too, an exact peer
-  15.18.1 is not satisfied by 15.28.0, `apps/web` has no direct `diagram-js` dependency, so
-  pnpm's auto-install-peers would install the duplicate anyway; a range would need an
-  exception to that rule, not a release-day change.
-- **CSS.** `@miragon/value-chain-renderer/assets/value-chain.css` (19 KB) inlines diagram-js
-  15.18.1's `diagram-js.css` at build time; overrides do not change it. Imported in the lazy
-  chunk, its `.djs-parent` variables and `.djs-*` rules are injected after bpmn-js's
-  `diagram-js.css` (15.28.0, `--bio-*` tokens) at equal specificity and restyle the bpmn-js
-  review canvases for the rest of the session. Upstream ask: a stylesheet without
-  `diagram-js.css` (§12). Until it ships, a Playwright check of the review screen after the chain
-  page shows the leak; small differences are accepted, visible ones are scoped in ProA's CSS.
-- **CI.** Fails on `link:`, `file:`, `portal:` or tarball specifiers in any `package.json` or
-  the lockfile. It asserts on the built bundle, not on dependency resolution (`shadcn` 4.21.2
-  already resolves zod 3.25.76 for its CLI): one `diagram-js` copy and one zod v4 copy in the
-  web chunks, and the chain chunk ≤ 40 KB gzip beyond shared diagram-js code (the renderer's
-  `index.js` is 42 KB unminified). Dependabot groups bpmn-js with the renderer. Modeler needs go
+  `apps/server` on schema-model only (DOM-free by the modeler's rule P1), all at exactly
+  **0.3.0** (owner decision 2026-10-08, HANDOFF §4 item 14); `eval/tools` pins schema-model
+  0.3.0 for the validator (§6). 0.3.0 is a version sync: the published `dist` files of both
+  packages are identical in 0.1.0, 0.2.0 and 0.3.0, only the version fields differ (checked with
+  `npm pack`). The domain code lives in `apps/server/src/domain/value-chain/`; the web uses
+  schema-model directly and the server's `dryRun` for impact. No sixth package (CONCEPT
+  principle 7).
+- **No overrides needed.** The published renderer pins `diagram-js` 15.28.0,
+  `diagram-js-direct-editing` 3.6.0, `didi` 12.0.0, `tiny-svg` 4.1.4 and schema-model 0.3.0;
+  schema-model pins `zod` 4.6.5. These are the versions `bpmn-js` 18.31.0 and ProA already
+  resolve, so `pnpm-lock.yaml` holds one `diagram-js` (15.28.0), one
+  `diagram-js-direct-editing` (3.6.0, peer diagram-js 15.28.0) and one zod v4 (4.6.5); zod
+  3.25.76 is `shadcn`'s, as before. The overrides planned for the pre-release pins (15.18.1,
+  3.4.0, zod 4.4.3) are not needed. The one second copy is `didi`: diagram-js 15.28.0 depends
+  on `didi` ^11 (11.0.1 locked) and the renderer on 12.0.0, but the renderer's `dist/index.js`
+  never imports `didi` (only its `.d.ts` files reference `ModuleDeclaration`), so 12.0.0 is a
+  type-only dependency that never reaches a bundle; S3 decides on an exact override only if the
+  two `didi` type versions clash in ProA's `additionalModules`. ProA does not ask for peer
+  dependencies: the modeler's pin rule (enforced in CI) requires exact versions in
+  `peerDependencies` too, and with aligned pins there is nothing to gain. Neither package has an
+  install script (`allowBuilds` unchanged). pnpm 11 holds back releases younger than a day, so
+  `pnpm-workspace.yaml` lists the two exact 0.3.0 versions under `minimumReleaseAgeExclude`
+  (released the day they were pinned); the Docker build (`pnpm fetch`, then
+  `pnpm install --offline --frozen-lockfile`) works with them.
+- **CSS.** `@miragon/value-chain-renderer/assets/value-chain.css` (0.3.0: 23 KB) inlines a
+  minified `diagram-js.css` at build time. In the published packages it is diagram-js 15.28.0's
+  (the same selectors and the same 27 `--bio-*` tokens), whose file bpmn-js 18.31.0 ships byte
+  for byte as `bpmn-js/dist/assets/diagram-js.css`. Imported in the lazy chunk, it re-injects
+  those rules after `bpmn-js.css` for the rest of the session; the six tokens `bpmn-js.css`
+  redefines on `.bio-theme-parent` carry the same values there, and the renderer's own rules are
+  scoped to its `vc-*` classes except `.djs-popup .djs-popup-entry-icon svg { display: block }`.
+  So the version mismatch the leak came from is gone with the published packages. The Playwright
+  check of the review screen after the chain page stays in S3 as the proof; small differences
+  are accepted, visible ones are scoped in ProA's CSS. The upstream ask for a stylesheet without
+  `diagram-js.css` (§12) stays, with lower priority.
+- **CI.** `apps/server/test/unit/runtime-pins.test.ts` (S0, in `pnpm test`) fails on `link:`,
+  `file:`, `portal:`, tarball or Git specifiers and on any non-exact version in every workspace
+  `package.json`, in the `overrides` of `pnpm-workspace.yaml` and in `pnpm-lock.yaml` (importer
+  specifiers, a registry `integrity` as the only resolution of every package, exact snapshot
+  versions); `workspace:` stays allowed for the workspace's own packages. It also fails unless
+  `pnpm-lock.yaml` holds exactly one version each of schema-model, renderer, `diagram-js`,
+  `diagram-js-direct-editing` and zod 4.x, every `package.json` pin of a
+  `@miragon/value-chain-*` package names that version, the renderer depends on that
+  schema-model and the schema-model on the server's zod. So a bump of one pin alone (say the
+  server's to 0.4.0) fails `pnpm test`, and the validator's `VERIFIED_SCHEMA_MODEL` gate, which
+  reads the `eval/tools` pin, always covers the release the server stores with. The bundle
+  assertions come with S3, when the chain page imports the renderer (until then no web chunk
+  contains it): on the built bundle, one `diagram-js` copy and one zod v4 copy in the web chunks,
+  and the chain chunk ≤ 40 KB gzip beyond shared diagram-js code (the renderer's `index.js` is
+  42 KB unminified). Version bumps are manual until the cut-over (CONCEPT §9): today
+  `.github/dependabot.yml` covers only the 1.x tree; when it gets the pnpm workspace, it groups
+  bpmn-js with the renderer and both `@miragon/value-chain-*` packages. Modeler needs go
   upstream as issues; ProA never patches or forks it.
-- **Until the release is on npm**, work starts with the tables and the placement lifecycle,
-  which need no package (§9); there is no tarball path.
+- **Node.** schema-model runs in Node (server, validator): the server's unit test
+  `value-chain-schema-model.test.ts` parses both golden chains with the package and serializes
+  them back to the committed bytes. The renderer does not: its ESM entry needs a DOM, and Node's
+  ESM loader cannot even resolve it, because it imports diagram-js subpaths without extension
+  (`diagram-js/lib/Diagram`, as bpmn-js does) and diagram-js has no `exports` map; only a bundler
+  (Vite) or a browser loads it. Its checks therefore run in the browser (S3).
 
 ## 6. Eval
 
@@ -365,7 +393,8 @@ trap hit; any other step is a false positive (closed world). Recall runs over th
 
 **`eval:placements`** (every PR, no LLM, `eval/reports/placements.{md,json}`) fails unless the
 validator passes (importing the npm schema-model at the pinned version, the built-in copy as
-cross-check), the golden chains pass the ProA rules, and the key-tier rule proposals computed
+cross-check; both since S0, when `eval/tools/test/value-chains.test.mjs` also put the validator
+into `pnpm test`), the golden chains pass the ProA rules, and the key-tier rule proposals computed
 from them hit only `must` or `may`. It reports precision and recall@1/@3 of
 `baseline-prefix/1` (key folders and process name tokens against step and ancestor names with
 `@proa/relations` normalization, plus votes from neighbours' steps, leave-one-out) per tag, per
@@ -435,10 +464,33 @@ Agents never edit the chain; the DB checks back this up (`value_chain_revision.s
 | Slice | Scope | Effort |
 |---|---|---|
 | S1 | tables and migration (`value_chain`, revisions, step generations, `placement`, `placement_assertion`); placement lifecycle with generalised `recomputeStatus`; needs no package | 2.5 d |
-| S0 | consume the release once published: exact deps, overrides, CI guards (specifiers, bundle), schema-model round trip in Node, validator on the npm package, Playwright import check (zero warnings, stored waypoints equal `layouter.layoutConnection`) | 1 d |
+| S0 | **done** (2026-10-08): consume the release, see below | 1 d |
 | S2 | `domain/value-chain` (canonicalize, ProA rules, kinds, ranks, fingerprints, `structure_hash`, generations); REST with `If-Match` and `dryRun`; events; policy matrix; `proa value-chain push\|pull`; endpoint state on save and model ingest/delete; key-tier rule proposals; server tiers; decisions incl. bulk; read and propose MCP tools; findings; contract snapshots | 4 d |
-| S3 | UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check | 5 d |
+| S3 | UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check; from S0: the bundle guard (one `diagram-js` and one zod v4 copy in the web chunks, chain chunk budget) and the Playwright import check of both golden chains (zero import warnings, stored waypoints equal `layouter.layoutConnection`) | 5.5 d |
 | S4 | `eval:placements`, `baseline-prefix/1`, report, `proa seed --value-chains` | 1.5 d |
+
+**S0 as delivered.** `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and
+`eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`, exact; no overrides (§5);
+`minimumReleaseAgeExclude` for the two 0.3.0 versions; the Docker build unchanged and passing.
+`eval/value-chains/validate-value-chains.mjs` imports the npm package (ESM build) as `eval/tools`
+resolves it, exits 2 when the installed version differs from that pin or is not in
+`VERIFIED_SCHEMA_MODEL` (now `0.1.0`, `0.3.0`), and reports that the built-in re-implementation
+agrees on every document; the read-only import from a sibling `value-chain-modeler` checkout
+(`VALUE_CHAIN_MODELER`) is removed, `--builtin` stays. Tests in `pnpm test`: the specifier guard
+in `apps/server/test/unit/runtime-pins.test.ts`, the Node round trip in
+`apps/server/test/unit/value-chain-schema-model.test.ts` (both golden chains, `loadDocument`,
+`parseDocumentJSON` and `validateDocument` each serialize back to the committed bytes, no
+difference; a failure names the first differing line or the function and error class, never
+an error message, since one chain is the holdout's; the package rejects a newer
+`schemaVersion`, duplicate ids and unknown endpoints; its `zod` resolves, from the package's
+real path as Node loads it, to the same package directory as the server's; `instanceof` would
+not prove this, since zod v4 checks trait names), the lockfile check of one version each
+(§5 CI), and `eval/tools/test/value-chains.test.mjs` (the validator in both modes). Not in S0:
+Dependabot for the pnpm workspace (cut-over, §5 CI). **Moved to S3**, because no web code
+imports the renderer before the chain page: the bundle guard and the Playwright import check.
+Neither can run earlier without faking: the renderer's entry does not load in Node (§5), and
+jsdom 30 has no `getBBox`, `createSVGMatrix` or `createSVGTransform`, which diagram-js and
+tiny-svg call, so a component test would need stubbed geometry.
 
 **M4b "Pipeline and drafts"**
 
@@ -490,7 +542,8 @@ Filed as issues on `Miragon/value-chain-modeler` after the release; nothing here
 the release in flight.
 
 1. A stylesheet without `diagram-js.css` (e.g. `assets/value-chain-only.css`, the consumer
-   imports `diagram-js.css` itself): the only ask worth raising during the release.
+   imports `diagram-js.css` itself); lower priority since the published packages inline the
+   diagram-js version bpmn-js ships (§5).
 2. A step `category` (`core`, `management`, `support`) in schema v2 with a migration, replacing
    the colour convention.
 3. An optional step `description`, so agents see what reviewers see in the golden `scope`.

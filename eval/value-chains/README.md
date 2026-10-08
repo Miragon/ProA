@@ -242,32 +242,44 @@ the chain is neither. The validator derives the tags marked *derived*:
 5. Rendered both documents once with the real renderer (value-chain-modeler
    0.1.0, commit `9983f71`, headless Chromium): no import warnings, every stored
    waypoint equal to a fresh `layouter.layoutConnection`, no label shortened.
-   That one-off check is not reproducible from this repository; M4 S0 adds it as a
-   Playwright test against the published renderer. The validator encodes the same
-   rules.
+   That one-off check is not reproducible from this repository yet; M4 S3 adds it as
+   a Playwright test against the published renderer (moved from S0: the renderer
+   needs a browser). The validator encodes the same rules.
 
 ## Validation
 
 ```sh
-node eval/value-chains/validate-value-chains.mjs              # all landscapes
+node eval/value-chains/validate-value-chains.mjs                  # all landscapes
 node eval/value-chains/validate-value-chains.mjs nordwind-handel
-node eval/value-chains/validate-value-chains.mjs --builtin    # without the sibling repo
+node eval/value-chains/validate-value-chains.mjs --builtin        # the built-in schema copy only
+node eval/value-chains/validate-value-chains.mjs --help
 ```
 
-Node 24; `yaml` comes from `eval/tools` (`pnpm install` at the repository root).
-The script reads only. Exit code 1 means a finding in the data, 2 that the check
-could not run as configured. It checks:
+Node 24, after `pnpm install` at the repository root: this directory is no
+workspace package, so the script resolves its dependencies from `eval/tools`,
+whose `package.json` pins `@miragon/value-chain-schema-model` (0.3.0) and `yaml`
+exactly. The script reads only. Exit code 1 means a finding in the data, 2 that
+the check could not run as configured. `pnpm test` runs it in both modes
+(`eval/tools/test/value-chains.test.mjs`) and round-trips both chains through the
+package the way the server will store them
+(`apps/server/test/unit/value-chain-schema-model.test.ts`). It checks:
 
-- **Schema.** It imports the zod schema, `loadDocument` and `serializeDocument`
-  read-only from the sibling checkout's TypeScript source
-  (`../value-chain-modeler/packages/schema-model/src`, override with
-  `VALUE_CHAIN_MODELER`) through Node type stripping and a resolve hook that maps
-  the sources' `./x.js` imports to `./x.ts`; zod resolves from that repo's
-  `node_modules`. The output names the package version and commit. A version
-  outside `VERIFIED_SCHEMA_MODEL` (today `0.1.0`) or a failed import exits 2;
-  only `--builtin` switches to the built-in re-implementation of the same schema,
-  migration check, cross-field rules (unique ids, endpoints, type matrix) and
-  canonical serialization. With the import, both run and must agree.
+- **Schema.** It imports `loadDocument` (migration, zod schema, cross-field rules)
+  and `serializeDocument` from the npm package `@miragon/value-chain-schema-model`
+  (its ESM build), resolved as `eval/tools` resolves it, and prints the package
+  version next to the pin. A failed import, an installed version other than the
+  pin (a stale `node_modules`), or a version outside `VERIFIED_SCHEMA_MODEL`
+  (`0.1.0` and `0.3.0`; 0.2.0 and 0.3.0 publish the same files as 0.1.0) exits 2.
+  `pnpm test` keeps the `eval/tools` pin equal to the server's and the web's
+  (`apps/server/test/unit/runtime-pins.test.ts`), so this gate covers the release
+  the server stores with. The built-in re-implementation of the same schema, migration check, cross-field
+  rules (unique ids, endpoints, type matrix) and canonical serialization runs
+  alongside: both must accept or reject each document alike and serialize it to
+  the same bytes, and the output ends with `cross-check: the built-in
+  re-implementation agrees with … on N of N documents`. `--builtin` uses the
+  built-in copy alone, without the package (for diagnosis). Until M4 S0 the
+  script imported the TypeScript source of a sibling `value-chain-modeler`
+  checkout instead; that mode is gone.
 - **Notation.** One core chain of 5–8 top-level steps and at most one sequence
   chain per group of sibling steps, never across groups; hierarchy is a forest,
   at most two levels deep, every parent has two or more sub-steps; one org unit
@@ -287,10 +299,7 @@ could not run as configured. It checks:
   rules above; outdated copies point to the single current version, lie outside
   and tolerate its step; rationale is one line of at most 300 characters.
 
-When the packages are on npm, the validator imports
-`@miragon/value-chain-schema-model` at an exact version instead of the sibling
-checkout (M4 S0); the built-in re-implementation then stays as the cross-check,
-and `eval:placements` runs it in CI.
+`eval:placements` (M4 S4) will run the validator as part of its gate.
 
 ## Use in M4 (`eval:placements`)
 

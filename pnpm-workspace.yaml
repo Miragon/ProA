@@ -15,8 +15,16 @@ allowBuilds:
   protobufjs: false
   ssh2: false
 
+# pnpm 11 holds back releases younger than a day. Exact versions released less
+# than a day before they were pinned on purpose (M4 S0: the value chain packages,
+# released 2026-10-08); harmless once they are older, `pnpm add` adds entries.
+minimumReleaseAgeExclude:
+  - '@miragon/value-chain-schema-model@0.3.0'
+  - '@miragon/value-chain-renderer@0.3.0'
+
 # One vite for the whole workspace (vitest would otherwise pull its own).
-# pnpm 11 holds back releases younger than a day; bump deliberately.
+# The value chain packages need none (M4 §5): they pin the diagram-js,
+# diagram-js-direct-editing and zod versions the workspace already uses.
 overrides:
   vite: 8.3.2
 

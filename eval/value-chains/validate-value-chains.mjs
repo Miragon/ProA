@@ -3,13 +3,16 @@
 //
 //   node eval/value-chains/validate-value-chains.mjs [--builtin] [<landscape> ...]
 //
-// 1. value-chain.vc.json against the value-chain schema. By default the zod schema and
-//    validateDocument/serializeDocument are imported read-only from the sibling repo's
-//    TypeScript source (packages/schema-model/src, Node type stripping; zod resolves from
-//    that repo's node_modules). VALUE_CHAIN_MODELER overrides the repo path. The package
-//    version must be one of VERIFIED_SCHEMA_MODEL. A faithful re-implementation below runs
-//    alongside and must agree on every document; it replaces the import only with --builtin.
-//    Without --builtin, a failed import or an unverified version exits 2.
+// 1. value-chain.vc.json against the value-chain schema. By default loadDocument (migration,
+//    zod schema, cross-field rules) and serializeDocument come from the npm package
+//    @miragon/value-chain-schema-model (its ESM build), resolved the way eval/tools resolves
+//    it: eval/tools/package.json pins it at an exact version, like yaml (pnpm install at the
+//    repository root). The installed version must equal that pin and be one of
+//    VERIFIED_SCHEMA_MODEL; apps/server/test/unit/runtime-pins.test.ts keeps that pin equal to
+//    the server's and the web's, so the gate covers the release the server stores with. A
+//    faithful re-implementation below runs alongside and must agree on every document (the
+//    output says so); --builtin uses it alone, without the package.
+//    Without --builtin, a failed import, a stale install or an unverified version exits 2.
 // 2. Notation and layout rules of the renderer (@miragon/value-chain-renderer): one core
 //    sequence chain at the top level (at most one chain per group of sibling steps), a
 //    hierarchy forest with 2+ sub-steps per parent, one org unit per top-level step, no
@@ -24,7 +27,7 @@
 //
 // Exit code 1 on any error, 2 when the check cannot run as configured. Reads only.
 
-import { createRequire, registerHooks } from 'node:module';
+import { createRequire, findPackageJSON, registerHooks } from 'node:module';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -32,16 +35,26 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROA_ROOT = resolve(HERE, '../..');
 const CORPUS = join(PROA_ROOT, 'eval/corpus');
-const MODELER = resolve(process.env.VALUE_CHAIN_MODELER ?? join(PROA_ROOT, '../value-chain-modeler'));
-const SCHEMA_SRC = join(MODELER, 'packages/schema-model/src');
+// eval/value-chains is no workspace package; its dependencies (the schema-model, yaml) are
+// pinned in eval/tools/package.json and resolved from there.
+const TOOLS_PACKAGE = join(PROA_ROOT, 'eval/tools/package.json');
+const SCHEMA_MODEL = '@miragon/value-chain-schema-model';
+
+const USAGE = 'usage: node eval/value-chains/validate-value-chains.mjs [--builtin] [<landscape> ...]';
+const HELP = `${USAGE}
+
+Validates the golden value chains in eval/value-chains/<landscape>/ (all landscapes by default).
+  --builtin   use only the built-in re-implementation of the schema, not ${SCHEMA_MODEL}
+Exit code 1: a finding in the data; 2: the check could not run as configured.`;
 
 const VC_FILE = 'value-chain.vc.json';
 const EXPECTED_FILE = 'expected-placements.yaml';
 
 // Versions of @miragon/value-chain-schema-model whose schema this script was checked
 // against (the built-in re-implementation below). Add a version only after reading its
-// CHANGELOG for schema, migration or serialization changes.
-const VERIFIED_SCHEMA_MODEL = new Set(['0.1.0']);
+// CHANGELOG for schema, migration or serialization changes. 0.2.0 and 0.3.0 publish the
+// same dist files as 0.1.0 (only the version fields differ).
+const VERIFIED_SCHEMA_MODEL = new Set(['0.1.0', '0.3.0']);
 const VERIFIED_SCHEMA_VERSION = 1;
 
 // The pseudo-step for "deliberately outside this chain" (M4); never an element id.
@@ -85,7 +98,7 @@ const NOTCH_CLEARANCE = 8;
 const EPS = 0.5;
 
 // ---------------------------------------------------------------------------------------
-// Schema: upstream import or built-in re-implementation
+// Schema: the npm package or the built-in re-implementation
 
 const displayPath = (path) => {
   const rel = relative(PROA_ROOT, path);
@@ -98,27 +111,22 @@ const errorText = (error) =>
     ? error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')
     : String(error?.message ?? error);
 
-async function loadUpstream() {
-  const srcUrl = pathToFileURL(SCHEMA_SRC + sep).href;
+// Imports the package's ESM build as eval/tools resolves it (this directory has no
+// node_modules of its own) and reports its version next to the pin in eval/tools.
+async function loadPackage() {
+  const toolsUrl = pathToFileURL(TOOLS_PACKAGE).href;
   registerHooks({
-    resolve(specifier, context, nextResolve) {
-      // The sources import './schema.js' etc.; under type stripping those are .ts files.
-      if (context.parentURL?.startsWith(srcUrl) && specifier.startsWith('.') && specifier.endsWith('.js')) {
-        try {
-          return nextResolve(`${specifier.slice(0, -3)}.ts`, context);
-        } catch {
-          // fall through to the specifier as written
-        }
-      }
-      return nextResolve(specifier, context);
-    },
+    resolve: (specifier, context, nextResolve) =>
+      nextResolve(specifier, specifier === SCHEMA_MODEL ? { ...context, parentURL: toolsUrl } : context),
   });
-  const pkg = JSON.parse(readFileSync(join(SCHEMA_SRC, '../package.json'), 'utf8'));
-  const mod = await import(`${srcUrl}index.ts`);
+  const mod = await import(SCHEMA_MODEL);
+  const pkg = JSON.parse(readFileSync(findPackageJSON(SCHEMA_MODEL, toolsUrl), 'utf8'));
+  const pinned = JSON.parse(readFileSync(TOOLS_PACKAGE, 'utf8')).dependencies?.[SCHEMA_MODEL];
   return {
-    label: `upstream (${displayPath(SCHEMA_SRC)}, ${pkg.name} ${pkg.version}, commit ${gitCommit(MODELER)}, schemaVersion ${mod.CURRENT_SCHEMA_VERSION})`,
+    label: `npm package ${pkg.name} ${pkg.version} (ESM build, schemaVersion ${mod.CURRENT_SCHEMA_VERSION}; eval/tools pins ${pinned})`,
     name: pkg.name,
     version: pkg.version,
+    pinned,
     schemaVersion: mod.CURRENT_SCHEMA_VERSION,
     loadDocument: mod.loadDocument,
     serializeDocument: mod.serializeDocument,
@@ -126,21 +134,7 @@ async function loadUpstream() {
   };
 }
 
-// The checked-out commit, read from .git without running git (the repo is read-only here).
-function gitCommit(repo) {
-  try {
-    const head = readFileSync(join(repo, '.git/HEAD'), 'utf8').trim();
-    if (!head.startsWith('ref: ')) return head.slice(0, 7);
-    const ref = head.slice(5);
-    if (existsSync(join(repo, '.git', ref))) return readFileSync(join(repo, '.git', ref), 'utf8').trim().slice(0, 7);
-    const packed = readFileSync(join(repo, '.git/packed-refs'), 'utf8').split('\n').find((line) => line.endsWith(` ${ref}`));
-    return packed ? packed.slice(0, 7) : 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
-// Faithful re-implementation of packages/schema-model/src (schema.ts, migrations.ts,
+// Faithful re-implementation of the schema-model sources (schema.ts, migrations.ts,
 // serialize.ts): zod's object parsing strips unknown keys, so this does too.
 const builtin = (() => {
   const CURRENT_SCHEMA_VERSION = 1;
@@ -251,7 +245,7 @@ const builtin = (() => {
     return `${JSON.stringify(sortKeys(canonical), null, 2)}\n`;
   }
   return {
-    label: 'built-in re-implementation of packages/schema-model/src',
+    label: 'built-in re-implementation of the schema-model (schema, migration check, cross-field rules, serialization)',
     loadDocument,
     serializeDocument,
     minStepSize: { width: 80, height: 40 },
@@ -871,10 +865,14 @@ function checkExpected(landscape, expected, docInfo, corpus, relations, errors) 
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log(HELP);
+    process.exit(0);
+  }
   const forceBuiltin = args.includes('--builtin');
   const unknown = args.filter((a) => a.startsWith('-') && a !== '--builtin');
   if (unknown.length) {
-    console.error(`unknown option ${unknown.join(' ')}\nusage: node validate-value-chains.mjs [--builtin] [<landscape> ...]`);
+    console.error(`unknown option ${unknown.join(' ')}\n${USAGE}`);
     process.exit(2);
   }
   let landscapes = args.filter((a) => !a.startsWith('-'));
@@ -887,34 +885,40 @@ async function main() {
     process.exit(2);
   }
 
-  // The upstream schema is the reference; the built-in copy replaces it only on request, so a
-  // missing sibling checkout or an unverified release never passes silently.
-  let upstream = null;
+  // The npm package is the reference; the built-in copy replaces it only on request, so a
+  // missing install, a stale one or an unverified release never passes silently.
+  let npmSchema = null;
   if (!forceBuiltin) {
     try {
-      upstream = await loadUpstream();
+      npmSchema = await loadPackage();
     } catch (error) {
       console.error(
-        `cannot import the schema from ${displayPath(SCHEMA_SRC)} (${String(error?.message ?? error).split('\n')[0]})\n` +
-          'set VALUE_CHAIN_MODELER to a value-chain-modeler checkout, or run with --builtin to use the built-in re-implementation',
+        `cannot import ${SCHEMA_MODEL} as eval/tools resolves it (${String(error?.message ?? error).split('\n')[0]})\n` +
+          'run pnpm install at the repository root, or run with --builtin to use the built-in re-implementation only',
       );
       process.exit(2);
     }
-    if (!VERIFIED_SCHEMA_MODEL.has(upstream.version) || upstream.schemaVersion !== VERIFIED_SCHEMA_VERSION) {
+    if (npmSchema.version !== npmSchema.pinned) {
       console.error(
-        `${upstream.name} ${upstream.version} (schemaVersion ${upstream.schemaVersion}) is not verified for this script ` +
+        `${npmSchema.name} ${npmSchema.version} is installed, but eval/tools/package.json pins ${npmSchema.pinned}; run pnpm install at the repository root`,
+      );
+      process.exit(2);
+    }
+    if (!VERIFIED_SCHEMA_MODEL.has(npmSchema.version) || npmSchema.schemaVersion !== VERIFIED_SCHEMA_VERSION) {
+      console.error(
+        `${npmSchema.name} ${npmSchema.version} (schemaVersion ${npmSchema.schemaVersion}) is not verified for this script ` +
           `(verified: ${[...VERIFIED_SCHEMA_MODEL].join(', ')}, schemaVersion ${VERIFIED_SCHEMA_VERSION}); ` +
           'read its CHANGELOG, update the built-in re-implementation if needed, then add the version to VERIFIED_SCHEMA_MODEL',
       );
       process.exit(2);
     }
   }
-  const schema = upstream ?? builtin;
+  const schema = npmSchema ?? builtin;
   console.log(`schema: ${schema.label}`);
-  if (upstream) console.log(`  cross-check: ${builtin.label}`);
-  else console.log('  --builtin: the upstream schema is not consulted');
+  if (npmSchema) console.log(`  cross-check: ${builtin.label}`);
+  else console.log(`  --builtin: ${SCHEMA_MODEL} is not consulted`);
 
-  const require = createRequire(join(PROA_ROOT, 'eval/tools/package.json'));
+  const require = createRequire(TOOLS_PACKAGE);
   let YAML;
   try {
     YAML = require('yaml');
@@ -924,6 +928,7 @@ async function main() {
   }
 
   let failed = false;
+  let agreed = 0;
   for (const landscape of landscapes) {
     const errors = [];
     const dir = join(HERE, landscape);
@@ -935,17 +940,20 @@ async function main() {
     } catch (error) {
       errors.push(`${VC_FILE}: ${errorText(error)}`);
     }
-    if (upstream) {
+    // Cross-check: both accept the document and serialize it to the same bytes, or both reject it.
+    if (npmSchema) {
       let builtinResult;
       try {
         builtinResult = builtin.serializeDocument(builtin.loadDocument(JSON.parse(vcText)));
       } catch (error) {
         builtinResult = error;
       }
-      const upstreamOk = doc !== null;
+      const npmOk = doc !== null;
       const builtinOk = typeof builtinResult === 'string';
-      if (upstreamOk !== builtinOk || (upstreamOk && builtinResult !== upstream.serializeDocument(doc))) {
-        errors.push('the built-in re-implementation disagrees with the upstream schema; update it');
+      if (npmOk !== builtinOk || (npmOk && builtinResult !== npmSchema.serializeDocument(doc))) {
+        errors.push(`the built-in re-implementation disagrees with ${npmSchema.name} ${npmSchema.version}; update it`);
+      } else {
+        agreed += 1;
       }
     }
 
@@ -998,6 +1006,9 @@ async function main() {
       console.log(`  leaf steps without a must process: ${result.unused.join(', ') || 'none'}`);
     }
     if (errors.length) failed = true;
+  }
+  if (npmSchema) {
+    console.log(`\ncross-check: the built-in re-implementation agrees with ${npmSchema.name} ${npmSchema.version} on ${agreed} of ${landscapes.length} documents`);
   }
   process.exit(failed ? 1 : 0);
 }

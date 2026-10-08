@@ -28,6 +28,7 @@
     "live": "node src/live.ts"
   },
   "dependencies": {
+    "@miragon/value-chain-schema-model": "0.3.0",
     "@proa/bpmn-facts": "workspace:0.0.0",
     "@proa/contracts": "workspace:0.0.0",
     "@proa/procedures": "workspace:0.0.0",

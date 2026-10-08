@@ -26,10 +26,13 @@ and code are in English.
   the live gate; dev-landscape validation of `0.1.0` with Sonnet: 3 runs, precision 100 %, no
   must_not_link), and **judge each pair once** (procedure `proa-relations@0.2.0`, the owner's
   requirement that no work happens twice: each pair is judged in one task, no-links are stored and
-  shown to reviewers).
+  shown to reviewers), and **M4 S0** (the value chain packages `@miragon/value-chain-*` 0.3.0
+  consumed from npm: exact dependencies, the golden-chain validator on the npm schema-model,
+  the dependency specifier guard with one locked version of each value chain package,
+  `diagram-js` and zod v4, and the schema-model round trip in Node).
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
-  runs per landscape incl. the holdout), then **M4** (value chain / Wertschöpfungskette with
-  `@miragon/value-chain-*` 0.3.0).
+  runs per landscape incl. the holdout), then the rest of **M4** (value chain /
+  Wertschöpfungskette, slices S1–S6, on `@miragon/value-chain-*` 0.3.0).
 
 ## 2. Read in this order
 
@@ -133,7 +136,7 @@ This answers the former open questions "Supersession scope" and "No-links in rev
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
 | `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate |
 | `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.2.0`; the owner's live runs go here too) and generated reports incl. the live gate, pairs judged twice and uncovered pairs |
-| `eval/value-chains` | golden value chains + expected placements for both landscapes (M4) |
+| `eval/value-chains` | golden value chains + expected placements for both landscapes (M4); `validate-value-chains.mjs` checks them with `@miragon/value-chain-schema-model` 0.3.0 from npm (pinned in `eval/tools`) and its built-in cross-check, run by `pnpm test` |
 | `docker/` | `compose.yaml` (project `proa2`: PostgreSQL 17 on 127.0.0.1:55432, ProA on 127.0.0.1:7400) and `Dockerfile` |
 | `.github/workflows/ci-2.yml` | 2.0 CI (path-filtered; 1.x workflows untouched) |
 
@@ -209,13 +212,22 @@ tooling are done (`M3-RELATIONS-PROCEDURE.md`). What remains needs the owner's C
 
 ### M4 – value chain (after M3)
 
-Follow `docs/proa-2/M4-VALUE-CHAIN.md` (slices S0–S6, ~4 weeks): S0 switches
-`eval/value-chains/validate-value-chains.mjs` from the local sibling checkout to the npm package
-(add the pinned version to `VERIFIED_SCHEMA_MODEL`, today only `0.1.0`; the schema-model source is
-identical in 0.1.0, 0.2.0 and 0.3.0), then storage, **placements** (ProA's term for a process in a
-step; `assignment` is the modeler's org-unit connection), the `placement` pipeline kind, MCP
-tools, UI with the embedded modeler, `eval:placements`. Ask the owner the open questions of that
-document (§11) first.
+Follow `docs/proa-2/M4-VALUE-CHAIN.md` (slices S0–S6, ~4 weeks). **S0 is done** (2026-10-08,
+§9 "S0 as delivered"): schema-model 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, the
+renderer 0.3.0 in `apps/web`, exact and without overrides (the published packages pin the
+diagram-js, diagram-js-direct-editing and zod versions ProA already uses; only a type-only `didi`
+12.0.0 is a second copy); `minimumReleaseAgeExclude` lists both 0.3.0 versions (pnpm 11 holds
+back releases younger than a day); the validator imports the npm package (the sibling-checkout
+mode is gone, `VERIFIED_SCHEMA_MODEL` = `0.1.0`, `0.3.0`); `runtime-pins.test.ts` rejects
+`link:`, `file:`, `portal:`, tarball, Git and non-exact specifiers in every `package.json` and the
+lockfile, and requires one locked version of each value chain package, `diagram-js`,
+`diagram-js-direct-editing` and zod v4 that every `@miragon/value-chain-*` pin names (bump the
+pins in `apps/server`, `apps/web` and `eval/tools` together). The bundle guard and the Playwright
+import check moved to S3, the first slice that imports the renderer; Dependabot for the pnpm
+workspace comes with the cut-over, until then bumps are manual. Next: S1 (tables, placement lifecycle), then S2–S4 and M4b: storage,
+**placements** (ProA's term for a process in a step; `assignment` is the modeler's org-unit
+connection), the `placement` pipeline kind, MCP tools, UI with the embedded modeler,
+`eval:placements`. Ask the owner the open questions of that document (§11) first.
 
 ### Later (R1 and beyond)
 

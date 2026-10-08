@@ -10,8 +10,10 @@ see [M2 end to end](#m2-end-to-end-2026-10-08), and again after the
 released procedure `proa-relations@0.2.0`, which judges each pair once
 ([below](#judge-each-pair-once)), the Claude Code plugin, the agent reference setups in
 `examples/agents`, `eval:live` and the live gate; the owner's guide to live runs is
-[M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)). The 1.x tree (`backend/`, `frontend/`, Maven) lives next to
-it, untouched, until the cut-over PR.
+[M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)). Of [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md), slice S0 is in:
+the `@miragon/value-chain-*` 0.3.0 packages are dependencies, not yet used by app code, and the
+golden value chains are validated with the npm schema-model ([M4 S0](#m4-s0-2026-10-08)). The 1.x
+tree (`backend/`, `frontend/`, Maven) lives next to it, untouched, until the cut-over PR.
 
 The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) were run end to end on
 2026-10-07 (macOS, Docker Desktop with Compose v5.5, Node 24.15, pnpm 11.1.3, Claude Code
@@ -42,6 +44,7 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | `eval:replay` | working; scores the recordings in `eval/recordings` against `expected.yaml` (precision, recall and F1 per type and tag, must_not_link hits, questions, no-links, pairs judged twice, uncovered pairs); report in `eval/reports/replay.md`, ending with the live gate (it reports the gate, `eval:live` enforces it) |
 | `eval:live` (M3): records a live run from its project's stored submissions in `eval/recordings`, scores it and checks the live gate ([below](#live-runs-evallive-and-the-live-gate-m3)) | working; unit tests with fixtures, the server test that rebuilds the simulation agent's recordings from the stored submissions byte for byte (input aside), a smoke test against a seeded server; three LLM dev runs recorded into a scratch directory (not committed); no live run of the owner recorded yet |
 | `docker/compose.yaml`, `docker/Dockerfile` | working; `up -d --build --wait` starts PostgreSQL and ProA (migrations at start, owner key in the `proa-state` volume); CI builds it, seeds it and runs the live check against it; an M1 stack upgrades in place (migrations 0002/0003 on its data, the engine backfill equal to `@proa/bpmn-facts` on all 57 corpus models) |
+| Value chain packages (M4 S0, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §5, §9): `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`; `eval/value-chains/validate-value-chains.mjs` on the npm schema-model | consumed, not used by app code yet (S1–S3); the server's Node round trip of both golden chains, the validator in `pnpm test` (both modes), the dependency specifier guard; no web chunk contains the renderer before the chain page (S3: bundle guard, Playwright import check) |
 
 ## Quickstart (Docker)
 
@@ -373,6 +376,7 @@ plugins/proa/     Claude Code plugin: .claude-plugin/plugin.json, skills/relatio
 examples/agents/  reference setups: claude-code/, claude-desktop/, codex/; not workspace packages
 eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates, eval:replay, eval:live (src/*.ts)
 eval/recordings/  agent recordings <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl (eval:replay input)
+eval/value-chains/  golden value chains + expected placements (M4); validate-value-chains.mjs (deps from eval/tools)
 docker/           compose.yaml (project proa2), Dockerfile
 docs/proa-2/      CONCEPT.md, HANDOFF.md, M1-SKELETON.md, M2-PIPELINE-REVIEW.md, M3-RELATIONS-PROCEDURE.md, M3-LIVE-RUNS.md,
                   M4-VALUE-CHAIN.md, this file, screenshots/
@@ -385,7 +389,11 @@ only; the server's integration test uses it as a dev dependency); `procedures` (
 a dev dependency of the server, whose integration test reads a project the way `eval:live` does
 (`eval/tools/src/index.ts` exports only the light modules: the REST reader, the mapping, the gate
 and the recordings loader, not the corpus toolchain). Workspace dependencies use
-`workspace:0.0.0`.
+`workspace:0.0.0`. The value chain packages (M4) come from npm at exactly 0.3.0:
+`@miragon/value-chain-schema-model` in `server` (DOM-free), `web` and `eval-tools` (for
+`eval/value-chains/validate-value-chains.mjs`, which lives outside any package and resolves its
+dependencies from `eval/tools`), `@miragon/value-chain-renderer` in `web` only (it needs a DOM;
+Node cannot load it).
 
 ### Commands (repository root)
 
@@ -401,6 +409,7 @@ and the recordings loader, not the corpus toolchain). Workspace dependencies use
 | `pnpm eval:live --project <key> [--landscape <name>] [--url] [--token] [--agent] [--out] [--corpus] [--no-write] [--json]` | records a live run from the project's stored submissions in `eval/recordings/<procedure>@<version>/<token name>/<llmModel>/<landscape>.jsonl`, scores it and checks the live gate; token: the run's agent token or the owner key (`PROA_TOKEN`); exit 1 when a gate fails or on a runtime error, 2 on a usage error ([below](#live-runs-evallive-and-the-live-gate-m3)) |
 | `pnpm agent-sim [options]` | the simulation agent `proa-agent-sim` from the checkout (`PROA_URL`, `PROA_TOKEN`; `--help`) |
 | `pnpm --filter @proa/eval-tools check` / `validate:all` / `test` | the corpus: models in sync with their specs, full validation of every landscape, the toolchain tests |
+| `node eval/value-chains/validate-value-chains.mjs [--builtin] [<landscape> ...]` | validates the golden value chains (M4) with `@miragon/value-chain-schema-model` from npm, as `eval/tools` pins it, plus the built-in cross-check; `--builtin` uses the built-in copy alone, `--help` prints the usage; exit 1 on a finding, 2 when it cannot run as configured (failed import, stale install, unverified version) ([eval/value-chains/README.md](../../eval/value-chains/README.md#validation)) |
 | `pnpm docker:up` | the whole Compose stack (PostgreSQL + ProA on 127.0.0.1:7400), built fresh |
 | `pnpm db:up` / `pnpm db:down` | only PostgreSQL up (for `pnpm dev`) / the whole stack down (volumes stay) |
 | `pnpm db:migrate` | applies migrations to `DATABASE_URL` |
@@ -1247,8 +1256,20 @@ TypeScript is 6.0.3: TypeScript 7 is published, but typescript-eslint 8.71 suppo
 **Dependencies.** Exact versions only; `pnpm add` saves exact versions (`saveExact` in
 `pnpm-workspace.yaml`, which is where pnpm 11 reads its settings). pnpm 11 refuses releases younger
 than a day, runs no install scripts unless listed under `allowBuilds`, and pins one `vite` via
-`overrides`. After editing `pnpm-workspace.yaml` alone, `pnpm install` may report "Already up to
-date"; touching `package.json` makes it re-resolve.
+`overrides`. A version pinned on purpose before it is a day old goes under
+`minimumReleaseAgeExclude` as `<name>@<exact version>` (`pnpm add <name>@<version>` adds the entry
+itself; today the two `@miragon/value-chain-*` 0.3.0 releases); the entry is harmless once the
+release is older. After editing `pnpm-workspace.yaml` alone, `pnpm install` may report "Already up
+to date"; touching `package.json` makes it re-resolve. `apps/server/test/unit/runtime-pins.test.ts`
+enforces the rule in `pnpm test`: every dependency in every workspace `package.json` and every
+override is an exact version or, for the workspace's own packages, `workspace:`; `link:`, `file:`,
+`portal:`, tarball and Git specifiers fail, and so does a `pnpm-lock.yaml` entry that is not an
+exact registry release (an `integrity` as the only resolution, the importer version equal to its
+pin, workspace packages as `link:` to their directory). The same test requires one locked version
+each of the `@miragon/value-chain-*` packages, `diagram-js`, `diagram-js-direct-editing` and zod
+4.x, with every `@miragon/value-chain-*` pin naming it (M4 §5): bump those pins in `apps/server`,
+`apps/web` and `eval/tools` together, and add the new schema-model version to the validator's
+`VERIFIED_SCHEMA_MODEL` after reading its CHANGELOG.
 
 **Contracts first.** REST routes are declared once in `packages/contracts/src/api/routes.ts`
 (zod-to-openapi route configs). The server implements them with
@@ -1707,6 +1728,19 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   blanks every full secret in the page before each screenshot, and revokes the token afterwards.
   `review.spec.ts` writes `m2-01` … `m2-07`, `pipeline.spec.ts` `m2-08` … `m2-12` into the same
   directory when `PROA_SCREENSHOTS_DIR` is set.
+- M4 S0 (value chain packages, no Docker): `apps/server/test/unit/value-chain-schema-model.test.ts`
+  parses both golden chains in `eval/value-chains` with `@miragon/value-chain-schema-model`
+  (`loadDocument`, `parseDocumentJSON`, `validateDocument`) and requires `serializeDocument` to
+  reproduce the committed bytes (since one chain is the holdout's, a failure names the first
+  differing line, or the function and error class, never an error message), checks that the
+  package rejects a newer `schemaVersion`, duplicate ids and unknown endpoints, and that its
+  `zod`, resolved from the package's real path as Node loads it, is the server's zod package
+  (not `instanceof`, which zod v4 answers by trait name for any copy). `runtime-pins.test.ts`
+  holds the dependency specifier guard and the one-version lockfile check
+  ([Conventions](#conventions)), with a self-test of the forbidden forms.
+  `eval/tools/test/value-chains.test.mjs` runs `validate-value-chains.mjs` in both modes and
+  requires every landscape ok and the built-in copy's agreement with the pinned package version
+  (a failure shows the summary lines only, not the holdout's findings).
 
 ## CI
 
@@ -1714,8 +1748,9 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
 `claude/proa-2` that touch the workspace: `apps/`, `packages/`, `eval/`, `docker/`, and since M3
 `plugins/`, `examples/` and `.claude-plugin/`, plus the root configuration files and the workflow
 itself (the same path filter for both triggers). Job `verify`: install with the frozen lockfile,
-format check, typecheck, lint, tests (incl. Testcontainers, the MCP contract test, and the plugin
-drift check of `@proa/procedures`), client drift check, `eval/tools` check and validate,
+format check, typecheck, lint, tests (incl. Testcontainers, the MCP contract test, the plugin
+drift check of `@proa/procedures`, and since M4 S0 the dependency specifier guard and the golden
+value chain validator), client drift check, `eval/tools` check and validate,
 `eval:candidates` (fails on a gate; `eval/reports` must be up to date), `eval:replay`
 (`eval/reports` and `eval/recordings` must be up to date, the live gate section included; the
 gate itself fails nothing), and the web build. Job `docker`: builds the image and starts the
@@ -2110,3 +2145,44 @@ the client were regenerated. Gates on the final tree: `pnpm format:check`, `pnpm
 37, contracts 42, procedures 22, eval/tools 57), `pnpm eval:candidates` (pass, report unchanged)
 and `pnpm eval:replay` twice (reports unchanged: the simulation agent's recordings are reproduced
 byte for byte, 0 pairs judged twice, 0 uncovered).
+
+### M4 S0 (2026-10-08)
+
+Consuming the value chain release ([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §9 "S0 as
+delivered"), on macOS with Node 24.15.0 and pnpm 11.1.3:
+
+1. `npm view` and `npm pack` of `@miragon/value-chain-schema-model` and
+   `@miragon/value-chain-renderer` 0.1.0, 0.2.0 and 0.3.0: the dependencies of 0.3.0 are zod 4.6.5
+   (schema-model) and diagram-js 15.28.0, diagram-js-direct-editing 3.6.0, didi 12.0.0, tiny-svg
+   4.1.4 and schema-model 0.3.0 (renderer); the `dist` files are identical in all three versions;
+   neither package has an install script.
+2. `pnpm add` of the exact versions (pnpm wrote the `minimumReleaseAgeExclude` entries, since 0.3.0
+   was nine hours old), then `pnpm install --frozen-lockfile`: one `diagram-js` 15.28.0, one
+   `diagram-js-direct-editing` 3.6.0 and zod 4.6.5 for the packages; a second `didi` (12.0.0, the
+   renderer's, referenced only by its type declarations); no overrides.
+3. The validator: all landscapes, `nordwind-handel` alone, `--builtin`, `--help` (exit 0); an
+   unknown option and an unknown landscape (exit 2); with scratch copies of the script, an
+   unverified version and an install that differs from the pin (exit 2) and a built-in copy that
+   serializes differently (exit 1, "disagrees").
+4. The specifier guard against a scratch edit (`link:` for the renderer in `apps/web/package.json`,
+   a `file:` importer specifier and a tarball resolution in `pnpm-lock.yaml`): both guard tests
+   failed naming exactly these three entries; the files were restored.
+5. Review fixes, each against a scratch edit that was restored afterwards: the one-version check
+   (schema-model 0.4.0 in `apps/web/package.json`; a second `diagram-js` and a second zod 4.x in
+   `pnpm-lock.yaml`, the schema-model's zod moved to it) failed naming exactly these four
+   problems; a dangling connection in the dev chain made the round trip fail with
+   `loadDocument threw Error (message withheld …)`, no id in the output. The zod check resolves
+   the schema-model's zod from its real path: from the pnpm link it would find the server's zod
+   whatever the package pins, while the same lookup from `shadcn` finds zod 3.25.76, so the
+   check can fail.
+6. `docker build -f docker/Dockerfile -t proa:s0-check .`: `pnpm fetch`, then
+   `pnpm install --offline --frozen-lockfile`, the web build and the production install passed; in
+   the image `apps/server` imports the schema-model; the image was removed again (`proa:local` and
+   the running stack untouched).
+7. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser clean),
+   `CI=1 pnpm -r test` (server 812, web 116, cli 55 plus 7 live tests skipped, agent-sim 37,
+   relations 61, bpmn-facts 134, contracts 42, procedures 22, client 4, eval/tools 61),
+   `pnpm eval:candidates` (pass, report unchanged), `pnpm eval:replay` (reports unchanged) and
+   `pnpm build` (no chunk contains the renderer).
+
+Not run: anything with the renderer in a browser (S3), the CI workflow itself.

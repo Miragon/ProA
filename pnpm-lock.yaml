@@ -100,6 +100,9 @@ importers:
       '@hono/zod-openapi':
         specifier: 1.6.3
         version: 1.6.3(hono@4.13.13)(zod@4.6.5)
+      '@miragon/value-chain-schema-model':
+        specifier: 0.3.0
+        version: 0.3.0
       '@modelcontextprotocol/server':
         specifier: 2.3.1
         version: 2.3.1
@@ -149,6 +152,9 @@ importers:
       drizzle-kit:
         specifier: 0.31.11
         version: 0.31.11
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
 
   apps/web:
     dependencies:
@@ -158,6 +164,12 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: 5.3.0
         version: 5.3.0
+      '@miragon/value-chain-renderer':
+        specifier: 0.3.0
+        version: 0.3.0
+      '@miragon/value-chain-schema-model':
+        specifier: 0.3.0
+        version: 0.3.0
       '@proa/client':
         specifier: workspace:0.0.0
         version: link:../../packages/client
@@ -234,6 +246,9 @@ importers:
 
   eval/tools:
     dependencies:
+      '@miragon/value-chain-schema-model':
+        specifier: 0.3.0
+        version: 0.3.0
       '@proa/bpmn-facts':
         specifier: workspace:0.0.0
         version: link:../../packages/bpmn-facts
@@ -1196,6 +1211,12 @@ packages:
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
+
+  '@miragon/value-chain-renderer@0.3.0':
+    resolution: {integrity: sha512-UGa1SkXQEby3tOfeEK/u5hNMfeePwhJnG17nJMfwijZFJXipgp+Uhercazy1iwTLDV7/rlRQxCcwPlWS5SUKwA==}
+
+  '@miragon/value-chain-schema-model@0.3.0':
+    resolution: {integrity: sha512-aSo7xhRLCdRI3RFM9/iu4Fe7kMkFr4OvlPExdmsF7W6CGH7ctREnlyEbdEOowrE/ODdSafpcevAmk18+0LuMwg==}
 
   '@modelcontextprotocol/client@2.3.1':
     resolution: {integrity: sha512-mIGZXpHsjnZ6lD+gD/WCMpR5k8yVQQ8nNFH1N0Srf7AvnwTUMYD6pvTY8ng2+He5FfV7YMZLmrjL7cLa/cc3dQ==}
@@ -2896,6 +2917,10 @@ packages:
 
   didi@11.0.1:
     resolution: {integrity: sha512-eEBvv5SHBhoCyDX/kOR8UozNfqEkjEXjNCTsE2vWWoxoJ5QC8KXYRTE78mrpdpvXNtSEriLhbgQdD0OkHvLFWQ==}
+    engines: {node: '>= 20.12'}
+
+  didi@12.0.0:
+    resolution: {integrity: sha512-zn4AVarmnjgEHyBb3j5yc3KSMPkfkoj+D6nt8qisyvxG/NkmQuHsgQB54Wdc4tITUkJRqU1EvGuNe8RuHWIh6g==}
     engines: {node: '>= 20.12'}
 
   diff@8.0.4:
@@ -5811,6 +5836,20 @@ snapshots:
 
   '@lukeed/ms@2.0.2': {}
 
+  '@miragon/value-chain-renderer@0.3.0':
+    dependencies:
+      '@miragon/value-chain-schema-model': 0.3.0
+      diagram-js: 15.28.0
+      diagram-js-direct-editing: 3.6.0(diagram-js@15.28.0)
+      didi: 12.0.0
+      tiny-svg: 4.1.4
+    transitivePeerDependencies:
+      - preact-render-to-string
+
+  '@miragon/value-chain-schema-model@0.3.0':
+    dependencies:
+      zod: 4.6.5
+
   '@modelcontextprotocol/client@2.3.1':
     dependencies:
       '@modelcontextprotocol/core': 2.3.1
@@ -7567,6 +7606,8 @@ snapshots:
       - preact-render-to-string
 
   didi@11.0.1: {}
+
+  didi@12.0.0: {}
 
   diff@8.0.4: {}
 
