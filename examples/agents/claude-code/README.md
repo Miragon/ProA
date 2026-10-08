@@ -21,8 +21,10 @@ tools (files, shell, web), so the agent has ProA's MCP tools only.
 
 Each run gets a **fresh project** and its **own agent token** (read + propose), whose name
 becomes the agent segment of the run's recording (`claude-code-1`, `claude-code-2`, …); never
-reuse a project across runs. Create both as in
-[DEVELOPMENT.md](../../../docs/proa-2/DEVELOPMENT.md#create-an-agent-token).
+reuse a project across runs. Create both with `proa seed <landscape> --project <key>
+--issue-tokens --token-name <name>` (in the container: `docker compose -p proa2 -f
+docker/compose.yaml exec proa proa seed …`); step by step in
+[M3-LIVE-RUNS.md](../../../docs/proa-2/M3-LIVE-RUNS.md).
 
 ## Interactive
 
@@ -32,7 +34,8 @@ export PROA_URL=http://127.0.0.1:7400      # optional, this is the default
 PROA_CHECKOUT=~/Code/ai-plattform/ProA      # your checkout
 
 mkdir -p /tmp/proa-run && cd /tmp/proa-run
-claude --strict-mcp-config --mcp-config "$PROA_CHECKOUT/examples/agents/claude-code/mcp.json" \
+MAX_MCP_OUTPUT_TOKENS=100000 claude \
+  --strict-mcp-config --mcp-config "$PROA_CHECKOUT/examples/agents/claude-code/mcp.json" \
   --plugin-dir "$PROA_CHECKOUT/plugins/proa" \
   --tools "" --allowedTools "mcp__proa__*" \
   --model claude-opus-5-5
@@ -45,7 +48,9 @@ Then, in the session:
 ```
 
 `--allowedTools "mcp__proa__*"` approves ProA's tools for this session (otherwise Claude Code
-asks before every call). Claude Code's system prompt names the exact model id, which the agent
+asks before every call). `MAX_MCP_OUTPUT_TOKENS` raises Claude Code's MCP output limit for builds
+that do not read the `anthropic/maxResultSizeChars` ProA's tools declare: claim inputs reach
+about 80 KB, and a result moved to a file is out of reach with `--tools ""`. Claude Code's system prompt names the exact model id, which the agent
 declares as `llmModel`. When the conversation gets long, Claude Code compacts it; the skill tells
 the agent to load the procedure again with `get_procedure` afterwards. For a clean context per
 task, use `/clear` between batches or the headless script.
@@ -69,10 +74,11 @@ examples/agents/claude-code/run-headless.sh nordwind-handel claude-opus-5-5 5 20
 #                                            project         model           batch max-batches
 ```
 
-Each batch is one `claude -p "/proa:relations <project> <batch>"` in a new temporary directory
+Each batch is one `claude -p "/proa:relations <project> <batch>"` in the run's temporary directory
 outside the checkout with `--output-format json --strict-mcp-config --mcp-config mcp.json
 --plugin-dir plugins/proa --allowedTools "mcp__proa__*" --tools "" --permission-mode dontAsk
---no-session-persistence --model <model>`, so every batch starts with a fresh context. Before and
+--no-session-persistence --model <model>` and `MAX_MCP_OUTPUT_TOKENS=100000` (unless set), so
+every batch starts with a fresh context. Before and
 after each batch the script asks `GET /api/v1/analyses/pending?projectId=<project>` (with the
 token; `curl`, and `node` to read the JSON) and stops when nothing is pending, when a batch made
 no progress (pending did not go down), or after `max-batches`. The JSON result of every batch

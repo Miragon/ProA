@@ -16,13 +16,16 @@ the start prompt below tells it to (the procedure contains the whole loop).
 
 1. Create a **fresh project** for the run and an **agent token** for it (read + propose), named
    after the run's recording agent segment (`claude-desktop-1`, `claude-desktop-2`, …); never reuse
-   a project across runs ([DEVELOPMENT.md](../../../docs/proa-2/DEVELOPMENT.md#create-an-agent-token)).
+   a project across runs: `proa seed <landscape> --project <key> --issue-tokens --token-name
+   <name>` creates both ([M3-LIVE-RUNS.md](../../../docs/proa-2/M3-LIVE-RUNS.md), step 2).
 2. Merge one entry into `~/Library/Application Support/Claude/claude_desktop_config.json`
    (Windows: `%APPDATA%\Claude\claude_desktop_config.json`; keep other entries) and put the token
    into `env`. `command` must be an absolute path, since Claude Desktop does not get your shell's
    `PATH`: `which docker` for the Docker entry, `node -p process.execPath` for the checkout entry
    (and the absolute path of `apps/cli/src/main.ts`). The **Agent verbinden** page of the web UI
-   and `proa token create` print both entries with the real token.
+   prints both entries with the real token; `proa token create` and `proa seed --issue-tokens`
+   print the one for where they run (in the container the Docker entry, with `"command":
+   "docker"` to make absolute; from the checkout the checkout entry).
 3. Quit and restart Claude Desktop. `proa` appears under the connectors of a new chat; if it
    fails, see [Troubleshooting](../../../docs/proa-2/DEVELOPMENT.md#troubleshooting).
 

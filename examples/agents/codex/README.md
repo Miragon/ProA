@@ -25,8 +25,9 @@ read 2026-10-08):
 ## Run
 
 1. Create a **fresh project** and an **agent token** for the run (read + propose), named after the
-   recording agent segment (`codex-1`, …); never reuse a project across runs
-   ([DEVELOPMENT.md](../../../docs/proa-2/DEVELOPMENT.md#create-an-agent-token)).
+   recording agent segment (`codex-1`, …); never reuse a project across runs:
+   `proa seed <landscape> --project <key> --issue-tokens --token-name <name>` creates both
+   ([M3-LIVE-RUNS.md](../../../docs/proa-2/M3-LIVE-RUNS.md), step 2).
 2. `export PROA_TOKEN=proa_at_…` and start Codex in an **empty directory outside the checkout**,
    so its own file and shell tools have no path into `eval/`.
 3. Codex gets ProA's server instructions but has no Claude Code skill, and OpenAI's page does not

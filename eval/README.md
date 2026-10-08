@@ -10,17 +10,20 @@ information; ground truth lives next to it in `expected.yaml`.
 eval/
   README.md                  this file
   .gitignore                 tools/node_modules
-  tools/                     workspace package @proa/eval-tools: spec format, generator, validator
+  tools/                     workspace package @proa/eval-tools: spec format, generator, validator, eval commands
     SPEC.md                  the spec format, with a complete example
     generate.mjs             spec -> BPMN
     validate.mjs             checks a landscape end to end
     deploy-check.mjs         deploys the models to real Camunda 7 and 8 engines
     engines.compose.yaml     those engines, for Docker
     src/candidates.ts        the eval:candidates gate (TypeScript, uses @proa/bpmn-facts and @proa/relations)
-    src/replay.ts            eval:replay: scores recorded agent submissions
+    src/replay.ts            eval:replay: scores recorded agent submissions, reports the live gate
+    src/live.ts              eval:live: records a live run from a ProA project, scores it, checks the live gate
+    src/live-recordings.ts   eval:live's REST reader and the mapping to recording lines
+    src/live-gate.ts         the live gate (eval:live enforces it, eval:replay reports it)
     lib/  test/
   recordings/
-    <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl   agent runs (below)
+    <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl   agent runs: simulation agent and live runs (below)
   reports/
     candidates.md, .json     last eval:candidates report (generated, deterministic)
     replay.md, .json         last eval:replay report (generated, deterministic)
@@ -90,12 +93,16 @@ catalog is expressible in lint-clean BPMN, because lint looks at one file and
 traps live between files.
 
 **Loading landscapes into ProA.** With a ProA server running locally,
-`pnpm seed` (the `proa seed` CLI) creates one project per scored landscape,
-named after `landscape.yaml`, and imports its `models/` through the REST API;
-`pnpm seed _sample` loads the sample into project `sample`, and
-`--issue-tokens` also creates a read+propose agent token per project for live
-agent runs. Re-running it changes nothing. The server's integration test
-`apps/server/test/integration/corpus.test.ts` checks that an import yields
+`pnpm seed` from the repository root (the `proa seed` CLI; `proa seed` in the
+container) creates one project per scored landscape, named after
+`landscape.yaml`, and imports its `models/` through the REST API;
+`pnpm seed _sample` loads the sample into project `sample`. `--issue-tokens`
+also creates a read+propose agent token per project, named `seed` or
+`--token-name <name>`. `--project <key>` seeds exactly one landscape into a
+project of that key, named "<landscape name> (<key>)": the fresh project of a
+live run (below). Re-running it changes no project and no model
+(`--issue-tokens` creates another token each time). The server's integration
+test `apps/server/test/integration/corpus.test.ts` checks that an import yields
 exactly the rule relations and findings of `reports/candidates.json`. See
 `docs/proa-2/DEVELOPMENT.md` for the owner key the CLI needs.
 
@@ -105,26 +112,158 @@ An agent run on a landscape is recorded as
 `recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl`
 (CONCEPT §7), one JSON line per analysed task in the format `proa-recording/1`
 (`RecordingLine` in `packages/contracts/src/recordings.ts`): the landscape (the
-ProA project key; `_sample` is seeded as `sample`), the model and its revision,
-agent, declared procedure and LLM model, optionally the task ids, the claim input
-(in full or as counts), the submission as sent (relations with confidence,
-rationale, evidence and question; no-links; summary) without its lease token,
-and the server's outcome per item. The LLM-free simulation agent
-(`apps/agent-sim`, `pnpm agent-sim --record eval/recordings …`, see
-`docs/proa-2/DEVELOPMENT.md`) writes them; the committed ones under
-`proa-relations@0.0.1/agent-sim/sim-policy-1/` are reproduced byte for byte by the
-server test `apps/server/test/integration/agent-sim.test.ts`.
+corpus landscape the project was seeded from, `sample` for `_sample`; the
+simulation agent records the project key, so it works projects seeded under the
+landscape's name), the model and its revision, agent, declared procedure and LLM model,
+optionally the task ids and the claim input (in full or as counts), the
+submission as sent (relations with confidence, rationale, evidence and question;
+no-links; summary) without its lease token, and the server's outcome per item.
+Two writers produce them:
+
+- the LLM-free simulation agent (`apps/agent-sim`,
+  `pnpm agent-sim --record eval/recordings …`, see `docs/proa-2/DEVELOPMENT.md`)
+  records as it works, claim input included; the committed ones under
+  `proa-relations@0.1.0/agent-sim/sim-policy-1/` are reproduced byte for byte
+  by the server test `apps/server/test/integration/agent-sim.test.ts`;
+- `pnpm eval:live` (below) builds them afterwards from the submissions a live
+  project stored. The server keeps no claim inputs, so these lines have no
+  `input`; the same server test checks that eval:live rebuilds the simulation
+  agent's lines byte for byte, input aside.
 
 `pnpm eval:replay` (from the repository root) scores every recording against the
 landscape's `expected.yaml` and writes `reports/replay.{md,json}`: the union of an
 agent's valid proposals over all its submissions, by `(from, to)`, with
 precision (must_not_link, same-process and, in a closed world, unlisted pairs are
-false positives; may_link is neutral), recall (also counting the rule tier's
-accepted calls, which agents leave alone) and F1, overall, per relation type and
-per tag; the must_not_link hits with confidence and question (the live gate will
-allow none at ≥ 0.8); unlisted proposals; missed must_link pairs; questions and
-no-links per class. It is deterministic and gates nothing yet; it exits 1 only for
-an unreadable recording or an unknown landscape.
+false positives; may_link is neutral), recall (of the proposals, and of the
+proposals ∪ the rule tier's accepted calls, which agents leave alone) and F1,
+overall, per relation type and per tag; the must_not_link hits with confidence
+and question; unlisted proposals; missed must_link pairs; questions and no-links
+per class; and the [live gate](#the-live-gate) per procedure version,
+landscape and declared model. It is deterministic and enforces nothing: it exits 1 only for an
+unreadable recording or an unknown landscape. CI regenerates the report and
+requires no diff, so new recordings are committed together with the report.
+
+## Live runs and eval:live
+
+A live run is one LLM agent working one fresh ProA project, seeded from a
+corpus landscape, with its own agent token. The owner runs them with Claude
+Desktop or Claude Code on the owner's subscription (owner decision 13 in
+`docs/proa-2/HANDOFF.md`); the setups, including Codex and the optional Agent
+SDK worker (which needs an API key), are in
+[`examples/agents/`](../examples/agents/README.md). One run, against the Docker
+stack, from the repository root:
+
+```sh
+# 1. a fresh project and a read+propose token named after the run (the secret is printed once)
+docker compose -p proa2 -f docker/compose.yaml exec proa \
+  proa seed nordwind-handel --project nordwind-handel-cc-1 --issue-tokens --token-name claude-code-1
+# 2. the agent works project nordwind-handel-cc-1 with that token (examples/agents/)
+# 3. record the run below eval/recordings, score it, check the live gate
+PROA_TOKEN=proa_at_… pnpm eval:live --project nordwind-handel-cc-1 --landscape nordwind-handel
+# 4. regenerate the reports; commit the recording and reports/replay.{md,json} together
+pnpm eval:replay
+```
+
+Against a server started from the checkout, step 1 is
+`pnpm seed nordwind-handel --project … --issue-tokens --token-name …`.
+
+- **One fresh project per run.** A submission withdraws the pipeline proposals
+  of other principals that it does not repeat, and earlier proposals appear in
+  the next claim input, so a reused project mixes runs and biases them.
+  `proa seed --project` warns when the project already exists.
+- **One token name per run.** The token name becomes the agent segment of the
+  recording (`claude-desktop-1`, `claude-code-2`, …). eval:live writes every
+  file afresh, so a second run under the same name, procedure version, model and
+  landscape replaces the first; when the file held other content, eval:live
+  prints `replacing <file> (n lines before, m now)` on stderr (recording a run
+  again after it went on is legitimate).
+- **The exact model id.** The agent declares it as `llmModel` (the wrappers and
+  the start prompt tell it to); it becomes the `<llmModel>` segment, and the
+  live gate is per model. A run whose submissions declare several models or
+  procedure versions gives one file each, and the live gate counts each file as
+  a run; eval:live warns and names the files
+  (`warning: project … gives 2 recording files, …`). One run declares one model
+  and one procedure.
+- **Finish the run first.** Only `done` tasks are recorded; a queued, leased or
+  failed task is missing from the recording and can lower its recall. `--json`
+  shows `tasks.models` against `tasks.landscapeModels`.
+
+`pnpm eval:live --project <key>` reads the project over REST with
+`--token`/`PROA_TOKEN` (the run's agent token, or the owner key `proa_ok_…`) at
+`--url`/`PROA_URL` (default `http://127.0.0.1:7400`): every `done` analysis
+(all pages), its stored submission, and once per model the revisions, to map
+the revision id to its number. Each line has outcome `submitted`, the server's
+result without ids, no task ids and no input; the agent is the token name from
+the submitter's handle `agent:<name>`, and procedure and model are what the
+submissions declared. Lines are sorted by model key, then submission time, so
+reading the same project again writes the same bytes. eval:live warns when the
+declared procedure is not the one this checkout serves, scores the new files
+together with the other recordings of that procedure and landscape in `--out`,
+and prints one line per run and the live gates the new files count in, as a
+run or as the baseline (procedure version, landscape and model).
+
+| Option | |
+|---|---|
+| `--project <key>` | the project the run worked on (required) |
+| `--landscape <name>` | the corpus landscape the project was seeded from; default: the project key, if it names one |
+| `--url <url>`, `--token <token>` | server and token; default `PROA_URL` (else `http://127.0.0.1:7400`) and `PROA_TOKEN` |
+| `--agent <name>` | agent segment instead of the token name |
+| `--out <dir>`, `--corpus <dir>` | default `eval/recordings` and `eval/corpus`; relative paths resolve against the directory pnpm was started in (`INIT_CWD`), not `eval/tools` |
+| `--no-write` | score and check without writing |
+| `--json` | per run the counts and metrics, per gate the means, baseline and reasons |
+
+Exit 0 when every gate shown passes or is incomplete; 1 when one fails or on a
+runtime error (server unreachable, 401, 404, no done analyses, invalid data);
+2 on a usage error (unknown option, no `--project` or token, a landscape not
+in the corpus), like `proa-agent-sim` and `run-headless.sh`. The REST reader, the mapping and the gate are
+exported from `@proa/eval-tools` (`tools/src/index.ts`, without the corpus
+toolchain) for the server's `agent-sim.test.ts`.
+
+### The live gate
+
+`tools/src/live-gate.ts` is a pure function that eval:live enforces and
+eval:replay reports (section "Live gate" of `reports/replay.md`; today "No live
+runs yet"). The live runs are the recordings of every agent but `agent-sim`,
+one file per run; it groups them by procedure `<id>@<version>`, landscape and
+declared `llmModel` (the `<llmModel>` path segment), so each pinned model has
+a gate of its own, while runs of different clients with the same model count
+together.
+
+| Status | When |
+|---|---|
+| fail | a run proposes a must_not_link pair with confidence ≥ 0.8, or the runs' mean recall is more than 5 points below the baseline (exactly 5 points passes) |
+| incomplete | not fail, and fewer than 3 runs or no baseline |
+| pass | otherwise |
+
+The baseline is the mean recall of the live runs of the highest earlier version
+(`x.y.z`) of the same procedure on that landscape with the same `llmModel`;
+without such runs, the `agent-sim` recordings of the same version on that
+landscape, whatever their model (averaged if there are several); without
+either, there is none. Recall is the proposals' `overall.recall`,
+without the rule tier; runs without one (no must_link pairs) are left out of the
+mean, and without a mean or a baseline recall the recall rule does not apply.
+Fail is checked before incomplete, so a single run can fail a version on its
+model. Each gate reports its procedure, landscape and `llmModel`, the means of
+precision, recall and F1, the run count, the must_not_link pairs at ≥ 0.8, the
+baseline with its source and the reasons.
+
+### Holdout hygiene for live runs
+
+`stadtwerke-auental` is the holdout: the procedure is never tuned against it,
+and a miss only the holdout shows is documented, not special-cased.
+
+- **Start agents outside the checkout.** `eval/` holds the ground truth
+  (`expected.yaml`, the landscape READMEs with their traps, the reports). Start
+  Claude Code and Codex in an empty directory outside the checkout, Claude Code
+  with `--strict-mcp-config` and `--tools ""`, and use Claude Desktop without
+  other connectors (file system, web), so the agent works from ProA's MCP tools
+  only ([`examples/agents/README.md`](../examples/agents/README.md)).
+- **Read numbers, not pairs.** eval:live prints numbers only: per run the
+  counts and metrics, per gate the means, the baseline and the reasons; with
+  `--json` likewise, never pair lists, so a holdout run shows no ground truth on
+  the console. `reports/replay.md` and `replay.json` do list pairs per recording
+  (must_not_link hits, unlisted proposals, missed must_link pairs); whoever
+  works on the procedure does not open their holdout sections.
 
 ## Engines
 

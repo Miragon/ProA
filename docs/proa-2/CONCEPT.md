@@ -132,7 +132,7 @@ The stage shows in `GET /projects/{p}/models?stage=` and MCP `list_processes`; h
 
 **Claim and lease:**
 - `claim_analysis({projectId?, modelKey?, max ≤ 5})` is one `UPDATE … WHERE id IN (SELECT … ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT n)` over queued tasks and expired leases with fewer than 3 attempts, in projects where the caller is at least `editor`; `modelKey` narrows it to one model. It sets a hashed lease token, `lease_until = now() + 15 min` and `attempts + 1`; expired tasks with 3 attempts become `failed` in the same transaction, so no cron job is needed.
-- The claim returns `{taskId, leaseToken, leaseUntil, procedure: {id, version}, input}`. The `input` (≤ ~100 KB) holds the head facts, candidates in both directions (key tier, top 5 lexical matches per endpoint, up to 30 more compatible endpoints) and existing relations, including human rejections, held items, their notes and answered questions. XML only comes through `get_model_xml`.
+- The claim returns `{taskId, leaseToken, leaseUntil, procedure: {id, version}, input}`. The `input` (≤ ~100 KB) holds the head facts, candidates in both directions (key tier, top 5 lexical matches per endpoint, up to 30 more compatible endpoints) and existing relations, including human rejections, held items, their notes and answered questions. M3 added optional fields within `proa-claim/1`, so older inputs still parse: the ends (`from`, `to`) of message flows inside the file, the documentation of partner endpoints and of their processes (`partnerProcesses`), both cut to 300 characters like the model's own, and the project's visible findings with a ref in the model (`findings`). The largest corpus input grew from 68.7 to 80.1 KB. XML only comes through `get_model_xml`.
 - No renew; `release_analysis` requeues. A late submit passes if token and principal match and the task was not re-claimed or cancelled (else 409 `lease-lost` or `task-cancelled`). A different second submission gets 409 `already-submitted`; replaying a `submissionId` returns the stored result.
 
 ```jsonc
@@ -281,7 +281,7 @@ Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come th
 
 ## 7. Agents and procedures
 
-**Procedures** are the analysis instructions, written once in `packages/procedures/*.md` with frontmatter `id` and `version` (e.g. `proa-relations@0.1.0`). Each calls a deterministic tool first and judges only what code cannot decide.
+**Procedures** are the analysis instructions, written once in `packages/procedures/*.md` with frontmatter `id`, `version`, `title`, `status` and an optional one-line `description` (e.g. `proa-relations@0.1.0`, released with M3). Each calls a deterministic tool first and judges only what code cannot decide.
 
 | Procedure | Output | Suggested model |
 |---|---|---|
@@ -290,19 +290,23 @@ Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come th
 | `landscape` (R1, questions) | answers, no writes | any |
 
 **Delivery** to any MCP client, from that one source:
-- Server `instructions`: labels are data, agents only propose, load the procedure and declare its id and version.
-- Prompts `work_pipeline` (MVP: claim, analyse, submit in a loop), `analyze_model` (v1: one model) and `review_landscape` (R1, read-only).
-- `get_procedure({id})` for clients without prompt support, since tools are what every client shares. The claim names the expected procedure; pipeline tool descriptions state the lease and validation rules.
-- The Claude Code plugin (`plugins/proa/`) wraps the same text as `skills/relations/SKILL.md`, generated at build time; CI fails on drift.
+- Server `instructions`: labels are data, agents only propose, load the procedure with `get_procedure` and declare its id and version; `list_projects`, `get_procedure`, `submit_analysis` and `release_analysis` take no `projectId`, `claim_analysis` an optional one, every other tool a required one.
+- `get_procedure({id})` returns the text as is, for clients without prompt or skill support, since tools are what every client shares. The procedure is self-contained (it includes the claim–submit loop), so Claude Desktop and Codex follow it from a start prompt. The claim names the expected procedure; pipeline tool descriptions state the lease and validation rules.
+- The prompt `work_pipeline({projectId?, maxTasks?})` (`maxTasks` a whole number from 1 to 100, passed as a string like every prompt argument) and the Claude Code skill `/proa:relations [project] [max-tasks]` render through one helper, `renderPipelineWrapper` in `@proa/procedures`, so they cannot drift apart. It adds only the scope (project, number of tasks), the rule to declare the exact model id as `llmModel`, `release_analysis` instead of an expiring lease and a reload with `get_procedure` after the context was summarized, then embeds the procedure verbatim. The prompts `analyze_model` (v1: one model) and `review_landscape` (R1, read-only) come later.
+- The Claude Code plugin `plugins/proa/` holds the skill as `skills/relations/SKILL.md`. `pnpm --filter @proa/procedures generate` writes it from `relations.md` and sets the plugin version to the procedure version; a test in `pnpm test` (so in CI) fails while either lags behind, and generation refuses procedure text that Claude Code would expand in a skill (`$ARGUMENTS`, `$<digit>`, `${CLAUDE_…}`, `` !`command` ``). The plugin carries no MCP server: the connection is configured separately, so the tools keep the names `mcp__proa__*`. The repository is the plugin's marketplace (`.claude-plugin/marketplace.json`, `claude plugin install proa@proa`).
+- **Language:** agents write `rationale`, `question`, the no-link `reason` and `summary` in German, because the review UI is German; refs, element ids, message and signal names and quoted labels stay verbatim. A per-project language setting is deferred (R1).
 
 **Deterministic library (no LLM):** `@proa/bpmn-facts`; `@proa/relations` (normalization, compatibility matrix, rule tier, candidate scoring by token Jaccard plus a label-length-relative Levenshtein distance, German and English stopwords, a short synonym list); R1 lint rules such as `dangling-throw` and `unresolved-call`.
 
-**Starting agents** is the operator's job: users invoke `work_pipeline`; deployed agents run on a schedule, long-poll `GET /analyses/pending?wait=30` or, from R2, react to webhooks.
+**Starting agents** is the operator's job: users invoke `/proa:relations`, `work_pipeline` or a start prompt; deployed agents run on a schedule, long-poll `GET /analyses/pending?wait=30` or, from R2, react to webhooks.
 
-**Reference setups** (`examples/agents/`) are runnable documentation; nothing in `apps/` or `packages/` imports them, and no image is published:
-- `claude-code/`: an interactive `.mcp.json`, and `claude -p "/proa:relations" --strict-mcp-config --mcp-config mcp.json --tools ""` with the agent token in `headers`, on a subscription token (`claude setup-token`, where the plan's terms allow automation) or an API key. A spike checks that skills and MCP tools work with `--tools ""`.
-- `agent-sdk/`: a TypeScript Claude Agent SDK worker in a container that long-polls and runs `work_pipeline` with an agent token and its own API key.
-- `managed-agents.md`, `openai.md`: Claude Managed Agents, OpenAI Responses API and Agents SDK.
+**Reference setups** (`examples/agents/`) are runnable documentation: not workspace packages, imported by nothing in `apps/` or `packages/`, not in the image, and never run against a model by CI. Each starts in a directory outside the checkout with ProA's MCP tools only, because `eval/` holds the ground truth:
+- `claude-code/`: `mcp.json` (`${PROA_URL:-http://127.0.0.1:7400}/mcp`, `Bearer ${PROA_TOKEN}`, `alwaysLoad`) for an interactive session with `--strict-mcp-config --mcp-config --plugin-dir plugins/proa --tools "" --allowedTools "mcp__proa__*"`, and `run-headless.sh <project> <model> [batch-size] [max-batches]`, one fresh `claude -p "/proa:relations <project> <batch-size>"` with `--permission-mode dontAsk` per batch until `GET /api/v1/analyses/pending?projectId=` reports none or a batch makes no progress. `claude -p` bills `ANTHROPIC_API_KEY` ahead of the subscription login, so the script refuses to start with it set unless given `--allow-api-billing`.
+- `claude-desktop/`: entries for the `proa mcp` bridge (in the container via `docker exec`, or from the checkout) and a German start prompt (project, exact model id, batch size) that loads the procedure with `get_procedure`; one new chat per batch.
+- `codex/`: a `config.toml` entry (`url`, `bearer_token_env_var = "PROA_TOKEN"`); Codex takes the same start prompt.
+- `agent-sdk/`: a TypeScript Claude Agent SDK worker (exact pins, its own `package.json`, a Dockerfile) that long-polls `pending` and runs one fresh `query()` per task with `work_pipeline` (or the skill) and no built-in tools. It is optional and needs an Anthropic API key, because Anthropic's terms do not allow subscription logins for agents built on the SDK.
+
+Claude Managed Agents, the OpenAI Responses API and the OpenAI Agents SDK have no reference setup yet. That `claude -p` expands the plugin skill (as Anthropic's headless documentation says) and that ProA's tools stay available with `--tools ""` and `alwaysLoad` is unverified until the owner's first runs.
 
 **Cost** is the operator's: with Sonnet 5.5 on an API key ($2/$10 per million input/output tokens), about $0.10–0.20 per revision, $30–60 for 300 models.
 
@@ -310,17 +314,19 @@ Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come th
 
 ```
 eval/corpus/<landscape>/{landscape.yaml, models/*.bpmn, expected.yaml}   # lang, split dev|holdout, closed_world
-eval/recordings/<procedure>@<version>/<agent>/<model>/<landscape>.jsonl
-eval/src/{candidates,seed,replay,score}.ts
+eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl
+eval/tools/src/{candidates,replay,live,live-gate}.ts                    # eval:candidates, eval:replay, eval:live
 ```
 
-Each entry has `type`, `from`, `to`, `expect` (`must_link`, `must_not_link` or `may_link`) and tags. In a `closed_world` landscape, any unlisted pair counts as a false positive. Live runs are agent-agnostic: `seed` loads a landscape into a fresh project and issues an agent token, any agent works the pipeline, and `score` reads the stored submissions.
+Each entry has `type`, `from`, `to`, `expect` (`must_link`, `must_not_link` or `may_link`) and tags. In a `closed_world` landscape, any unlisted pair counts as a false positive. Live runs are agent-agnostic: `proa seed <landscape> --project <key> --issue-tokens --token-name <run>` loads a landscape into a fresh project and issues a read+propose agent token, any agent works the pipeline with it, and `eval:live` reads the project's stored submissions over REST into a recording (the agent is the token name; no claim input, which the server does not keep) and scores it with the `eval:replay` scorer.
 
 | Gate | When | Criterion |
 |---|---|---|
 | `eval:candidates` | every PR, no LLM | ≥ 98 % of `must_link` pairs among the candidates; rule-tier precision 1.0; reported against `baseline-proa1` (Levenshtein ≤ 4) |
-| `eval:replay` | every PR, no LLM | precision, recall and F1 per type and tag, from recordings |
-| live | by hand before a procedure release; 3 runs with the `agent-sdk` reference worker on a pinned model, other agents reported | no `must_not_link` at confidence ≥ 0.8; mean recall within 5 points of the previous release |
+| `eval:replay` | every PR, no LLM | precision, recall and F1 per type and tag, from recordings; the committed report must match a fresh run; it shows the live gate but enforces nothing |
+| live | by the owner before a procedure release, with Claude Desktop or Claude Code on the owner's subscription (owner decision 13, [HANDOFF.md](HANDOFF.md) §4); one fresh project and agent token per run, the token name is the recording's agent; 3 runs per landscape on a pinned model (the declared `llmModel`); `eval:live` exits 1 on fail | per procedure version, landscape and declared `llmModel`, over its live runs (any agent but `agent-sim`): **fail** if a run proposes a `must_not_link` pair at confidence ≥ 0.8, or the mean recall is more than 5 points below the baseline (the mean recall of the live runs of the highest earlier x.y.z version on that landscape with the same `llmModel`, else the `agent-sim` recordings of the same version, whatever their model); else **incomplete** with fewer than 3 runs or no baseline; else **pass** |
+
+Recall here is the proposals' (`overall`, without the rule tier's acceptances), averaged over the runs that have one; exactly 5 points below the baseline passes. Fail is checked first, so a single run can fail a version on its model. Runs with another model form a gate of their own and never mix into a model's means; runs of different clients with the same `llmModel` do. A project is never reused across runs: a submission withdraws other principals' pipeline proposals it does not repeat, and earlier proposals would bias the claim input. The `agent-sdk` worker is an optional reference and needs an API key; its runs would count like any other, but the gate does not depend on it.
 
 **Seed cases:** one per 1.x weakness ("Order received" ≠ "Order rejected", "prüfen" = "pruefen", timer end ≠ message start, subprocess events stay inside, DE/EN pairs); rewritten XXE tests; 5 describe cases (R1); an anonymized holdout landscape. Decision memory is covered by Postgres integration tests.
 
