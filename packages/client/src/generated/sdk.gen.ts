@@ -10,6 +10,12 @@ import {
   type TDataShape,
 } from './client/index.ts';
 import type {
+  AddRelationNoteData,
+  AddRelationNoteErrors,
+  AddRelationNoteResponses,
+  ClaimAnalysesData,
+  ClaimAnalysesErrors,
+  ClaimAnalysesResponses,
   CreateAgentTokenData,
   CreateAgentTokenErrors,
   CreateAgentTokenResponses,
@@ -19,11 +25,20 @@ import type {
   CreateSessionData,
   CreateSessionErrors,
   CreateSessionResponses,
+  DecideRelationData,
+  DecideRelationErrors,
+  DecideRelationResponses,
+  DecideRelationsData,
+  DecideRelationsErrors,
+  DecideRelationsResponses,
   DeleteModelData,
   DeleteModelErrors,
   DeleteModelResponses,
   DeleteSessionData,
   DeleteSessionResponses,
+  GetAnalysisSubmissionData,
+  GetAnalysisSubmissionErrors,
+  GetAnalysisSubmissionResponses,
   GetHealthData,
   GetHealthErrors,
   GetHealthResponses,
@@ -36,9 +51,15 @@ import type {
   GetModelData,
   GetModelErrors,
   GetModelResponses,
+  GetPendingAnalysesData,
+  GetPendingAnalysesErrors,
+  GetPendingAnalysesResponses,
   GetProjectData,
   GetProjectErrors,
   GetProjectResponses,
+  GetRelationAssertionsData,
+  GetRelationAssertionsErrors,
+  GetRelationAssertionsResponses,
   GetRelationData,
   GetRelationErrors,
   GetRelationResponses,
@@ -54,6 +75,9 @@ import type {
   ListAgentTokensData,
   ListAgentTokensErrors,
   ListAgentTokensResponses,
+  ListAnalysesData,
+  ListAnalysesErrors,
+  ListAnalysesResponses,
   ListFindingsData,
   ListFindingsErrors,
   ListFindingsResponses,
@@ -69,12 +93,27 @@ import type {
   ListRevisionsData,
   ListRevisionsErrors,
   ListRevisionsResponses,
+  ProposeRelationData,
+  ProposeRelationErrors,
+  ProposeRelationResponses,
   PutModelByKeyData,
   PutModelByKeyErrors,
   PutModelByKeyResponses,
+  ReleaseAnalysisData,
+  ReleaseAnalysisErrors,
+  ReleaseAnalysisResponses,
+  RequeueAnalysesData,
+  RequeueAnalysesErrors,
+  RequeueAnalysesResponses,
   RevokeAgentTokenData,
   RevokeAgentTokenErrors,
   RevokeAgentTokenResponses,
+  SubmitAnalysisData,
+  SubmitAnalysisErrors,
+  SubmitAnalysisResponses,
+  WithdrawProposalData,
+  WithdrawProposalErrors,
+  WithdrawProposalResponses,
 } from './types.gen.ts';
 
 export type Options<
@@ -320,6 +359,24 @@ export const listRelations = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * Propose a relation ad hoc (proa:propose), or add an accepted manual relation (humans)
+ *
+ * Agents and humans propose `call`, `message`, `signal` and `trigger` relations; the server computes the tier. An invalid proposal (unknown ref, wrong endpoint kinds, same process) is 422 with `reason`. `manual` relations are for humans only and are accepted at once.
+ */
+export const proposeRelation = <ThrowOnError extends boolean = false>(
+  options: Options<ProposeRelationData, ThrowOnError>,
+): RequestResult<ProposeRelationResponses, ProposeRelationErrors, ThrowOnError> =>
+  (options.client ?? client).post<ProposeRelationResponses, ProposeRelationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/relations',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
  * One relation
  */
 export const getRelation = <ThrowOnError extends boolean = false>(
@@ -340,6 +397,200 @@ export const listFindings = <ThrowOnError extends boolean = false>(
   (options.client ?? client).get<ListFindingsResponses, ListFindingsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/projects/{project}/findings',
+    ...options,
+  });
+
+/**
+ * The history (timeline) of a relation: every assertion, oldest first
+ */
+export const getRelationAssertions = <ThrowOnError extends boolean = false>(
+  options: Options<GetRelationAssertionsData, ThrowOnError>,
+): RequestResult<GetRelationAssertionsResponses, GetRelationAssertionsErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    GetRelationAssertionsResponses,
+    GetRelationAssertionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/relations/{relation}/assertions',
+    ...options,
+  });
+
+/**
+ * Withdraw the caller's own live proposal of a relation
+ */
+export const withdrawProposal = <ThrowOnError extends boolean = false>(
+  options: Options<WithdrawProposalData, ThrowOnError>,
+): RequestResult<WithdrawProposalResponses, WithdrawProposalErrors, ThrowOnError> =>
+  (options.client ?? client).delete<
+    WithdrawProposalResponses,
+    WithdrawProposalErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/relations/{relation}/proposal',
+    ...options,
+  });
+
+/**
+ * Decide a relation: accept, reject, hold or correct (humans only)
+ *
+ * Owner on an interactive client (local mode: the web UI or the CLI). Agent tokens get 403 `human-decision-required` with `reviewUrl`. `If-Match: "<version>"` (or `version` in the body) makes the decision conditional: 412 `precondition-failed` (409 `conflict` for the body field) if the relation changed.
+ */
+export const decideRelation = <ThrowOnError extends boolean = false>(
+  options: Options<DecideRelationData, ThrowOnError>,
+): RequestResult<DecideRelationResponses, DecideRelationErrors, ThrowOnError> =>
+  (options.client ?? client).post<DecideRelationResponses, DecideRelationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/relations/{relation}/decision',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Bulk decision with ids, versions and expectedCount (all or nothing)
+ */
+export const decideRelations = <ThrowOnError extends boolean = false>(
+  options: Options<DecideRelationsData, ThrowOnError>,
+): RequestResult<DecideRelationsResponses, DecideRelationsErrors, ThrowOnError> =>
+  (options.client ?? client).post<DecideRelationsResponses, DecideRelationsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/decisions',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Add a note to a relation, e.g. the answer to a held question (humans only)
+ */
+export const addRelationNote = <ThrowOnError extends boolean = false>(
+  options: Options<AddRelationNoteData, ThrowOnError>,
+): RequestResult<AddRelationNoteResponses, AddRelationNoteErrors, ThrowOnError> =>
+  (options.client ?? client).post<AddRelationNoteResponses, AddRelationNoteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/relations/{relation}/notes',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)
+ *
+ * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input. Empty when nothing is claimable.
+ */
+export const claimAnalyses = <ThrowOnError extends boolean = false>(
+  options: Options<ClaimAnalysesData, ThrowOnError>,
+): RequestResult<ClaimAnalysesResponses, ClaimAnalysesErrors, ThrowOnError> =>
+  (options.client ?? client).post<ClaimAnalysesResponses, ClaimAnalysesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/analyses/claim',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Claimable tasks per project; `wait=1..30` long-polls until work arrives
+ */
+export const getPendingAnalyses = <ThrowOnError extends boolean = false>(
+  options?: Options<GetPendingAnalysesData, ThrowOnError>,
+): RequestResult<GetPendingAnalysesResponses, GetPendingAnalysesErrors, ThrowOnError> =>
+  (options?.client ?? client).get<
+    GetPendingAnalysesResponses,
+    GetPendingAnalysesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/analyses/pending',
+    ...options,
+  });
+
+/**
+ * Submit the result of a claimed task (idempotent by submissionId)
+ *
+ * Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per item `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`. Earlier pipeline proposals touching the model that the submission does not repeat are withdrawn. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).
+ */
+export const submitAnalysis = <ThrowOnError extends boolean = false>(
+  options: Options<SubmitAnalysisData, ThrowOnError>,
+): RequestResult<SubmitAnalysisResponses, SubmitAnalysisErrors, ThrowOnError> =>
+  (options.client ?? client).post<SubmitAnalysisResponses, SubmitAnalysisErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/analyses/{analysis}/submission',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Hand a claimed task back; it is queued again
+ */
+export const releaseAnalysis = <ThrowOnError extends boolean = false>(
+  options: Options<ReleaseAnalysisData, ThrowOnError>,
+): RequestResult<ReleaseAnalysisResponses, ReleaseAnalysisErrors, ThrowOnError> =>
+  (options.client ?? client).post<ReleaseAnalysisResponses, ReleaseAnalysisErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/analyses/{analysis}/release',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Analysis tasks of a project, newest first
+ */
+export const listAnalyses = <ThrowOnError extends boolean = false>(
+  options: Options<ListAnalysesData, ThrowOnError>,
+): RequestResult<ListAnalysesResponses, ListAnalysesErrors, ThrowOnError> =>
+  (options.client ?? client).get<ListAnalysesResponses, ListAnalysesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/analyses',
+    ...options,
+  });
+
+/**
+ * Queue models again, e.g. after a procedure upgrade (proa:write)
+ */
+export const requeueAnalyses = <ThrowOnError extends boolean = false>(
+  options: Options<RequeueAnalysesData, ThrowOnError>,
+): RequestResult<RequeueAnalysesResponses, RequeueAnalysesErrors, ThrowOnError> =>
+  (options.client ?? client).post<RequeueAnalysesResponses, RequeueAnalysesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/analyses/requeue',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * The stored submission of a done task: verbatim payload and result
+ */
+export const getAnalysisSubmission = <ThrowOnError extends boolean = false>(
+  options: Options<GetAnalysisSubmissionData, ThrowOnError>,
+): RequestResult<GetAnalysisSubmissionResponses, GetAnalysisSubmissionErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    GetAnalysisSubmissionResponses,
+    GetAnalysisSubmissionErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/analyses/{analysis}/submission',
     ...options,
   });
 

@@ -1,14 +1,16 @@
 /**
- * Test doubles for the domain's AnalysisPort until `@proa/bpmn-facts` and
- * `@proa/relations` are implemented. `fakeBpmn(spec)` writes a BPMN-looking
- * document that carries its facts as JSON in a comment; `fakeAnalysis`
- * reads them back and applies a small version of the rule tier (CONCEPT §2):
- * unambiguous calls accepted, duplicate targets proposed, identical message
- * and signal names as key-tier proposals, and the five findings.
+ * Test doubles for the domain's AnalysisPort. `fakeBpmn(spec)` writes a
+ * BPMN-looking document that carries its facts as JSON in a comment;
+ * `fakeAnalysis` reads them back and applies a small version of the rule
+ * tier (CONCEPT §2): unambiguous calls accepted, duplicate targets proposed,
+ * identical message and signal names as key-tier proposals, and the five
+ * findings. Candidates and pair assessment come from the real
+ * `@proa/relations` over the fake facts.
  */
 import { createHash } from 'node:crypto';
 
 import { normalizeKey } from '@proa/bpmn-facts';
+import { createPairAssessor, generateCandidates } from '@proa/relations';
 import {
   formatRef,
   type DerivedRelation,
@@ -43,6 +45,8 @@ export interface FakeProcess {
 
 export interface FakeModelSpec {
   processes: FakeProcess[];
+  /** Engine the fake extractor reports (default `null`). */
+  engine?: 'c7' | 'c8';
   /** Changes the bytes (like moving shapes) without changing any fact. */
   layout?: string;
 }
@@ -158,6 +162,13 @@ export function extractFake(xml: string, modelKey: string): Extracted {
             attrs: {
               elementType: e.elementType ?? DEFAULT_ELEMENT_TYPE[e.kind] ?? 'bpmn:Task',
               ...(e.kind === 'call' ? { dynamic } : {}),
+              // Like the extractor: names only from real refs (`ref`), never from labels.
+              ...((e.kind === 'msg_throw' || e.kind === 'msg_catch') && e.ref !== undefined
+                ? { messageName: e.ref }
+                : {}),
+              ...((e.kind === 'sig_throw' || e.kind === 'sig_catch') && e.ref !== undefined
+                ? { signalName: e.ref }
+                : {}),
             },
           },
         ),
@@ -165,7 +176,13 @@ export function extractFake(xml: string, modelKey: string): Extracted {
     }
   }
   facts.sort((a, b) => (a.kind + a.elementId < b.kind + b.elementId ? -1 : 1));
-  return { factsVersion: 'test-1', processes, facts, messageFlows: [] };
+  return {
+    factsVersion: 'test-1',
+    engine: spec.engine ?? null,
+    processes,
+    facts,
+    messageFlows: [],
+  };
 }
 
 export function fakeFactsHash(facts: readonly Fact[]): string {
@@ -314,6 +331,9 @@ export function fakeAnalysis(): AnalysisPort & { extractCalls: number } {
     },
     factsHash: fakeFactsHash,
     runRules: fakeRules,
+    candidates: (projectFacts: ProjectFacts, focusModelKey: string) =>
+      generateCandidates(projectFacts, focusModelKey),
+    pairAssessor: (projectFacts: ProjectFacts) => createPairAssessor(projectFacts),
   };
   return port;
 }

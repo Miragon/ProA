@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { FactKind } from './facts.ts';
 import { Ref } from './refs.ts';
+import { plainName } from './zod-utils.ts';
 
 /**
  * Relation types (CONCEPT §2):
@@ -48,6 +49,35 @@ export const SourceKind = z
   .enum(['human', 'agent', 'rule'])
   .meta({ id: 'SourceKind', description: 'Origin of an assertion.' });
 export type SourceKind = z.infer<typeof SourceKind>;
+
+/**
+ * Kind of a relation assertion (CONCEPT §2): an agent's, human's or the
+ * rule tier's `proposal`, the `withdrawal` of a principal's earlier stance, a
+ * `decision` (humans, and the rule tier for unambiguous calls), or a human
+ * `note` (e.g. the answer to a held question), which never changes the status.
+ */
+export const AssertionKind = z
+  .enum(['proposal', 'withdrawal', 'decision', 'note'])
+  .meta({ id: 'AssertionKind', description: 'Kind of a relation assertion.' });
+export type AssertionKind = z.infer<typeof AssertionKind>;
+
+/**
+ * Verdict of a decision: `accept`, `reject` (with a reason) or `hold`
+ * ("vormerken": a note is required, a question and a label are optional).
+ */
+export const Verdict = z
+  .enum(['accept', 'reject', 'hold'])
+  .meta({ id: 'Verdict', description: 'Verdict of a decision.' });
+export type Verdict = z.infer<typeof Verdict>;
+
+/** The analysis procedure an agent declares it followed, e.g. `proa-relations` `0.1.0`. */
+export const DeclaredProcedure = z
+  .object({
+    id: plainName(100),
+    version: plainName(50),
+  })
+  .meta({ id: 'DeclaredProcedure', description: 'Procedure id and version declared by an agent.' });
+export type DeclaredProcedure = z.infer<typeof DeclaredProcedure>;
 
 /** Identifier of the rule tier, recorded as procedure of rule assertions. */
 export const RULES_PROCEDURE = 'proa-rules/1.0.0';

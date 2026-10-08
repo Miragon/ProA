@@ -55,6 +55,12 @@ describe('real @proa/bpmn-facts and @proa/relations on eval/corpus/_sample', () 
     ]);
 
     const models = (await (await t.asOwner('/api/v1/projects/sample/models')).json()) as ModelPage;
+    // The engine comes from `modeler:executionPlatform` (M2).
+    expect(models.items.map((m) => [m.key, m.engine])).toEqual([
+      ['finance/payment-collection', 'c7'],
+      ['finanzen/rechnungsstellung', 'c8'],
+      ['vertrieb/auftragsabwicklung', 'c7'],
+    ]);
     const order = models.items.find((m) => m.key === 'vertrieb/auftragsabwicklung');
     expect(order).toBeDefined();
     const facts = (await (

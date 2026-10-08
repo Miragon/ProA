@@ -4,7 +4,7 @@
  * `version`, `title` and `status`. MCP `get_procedure` serves them; the
  * Claude Code plugin will wrap the same text (M3).
  *
- * Status: one placeholder, `proa-relations@0.0.0`.
+ * Status: one placeholder, `proa-relations@0.0.1` (the real procedure is M3).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

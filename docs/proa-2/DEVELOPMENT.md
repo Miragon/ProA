@@ -1,12 +1,18 @@
 # ProA 2.0 – Development
 
-How to run, use, build and test ProA 2.0. Spec: [CONCEPT.md](CONCEPT.md); current milestone:
-[M1-SKELETON.md](M1-SKELETON.md). The 1.x tree (`backend/`, `frontend/`, Maven) lives next to it,
-untouched, until the cut-over PR.
+How to run, use, build and test ProA 2.0. Spec: [CONCEPT.md](CONCEPT.md); milestones:
+[M1-SKELETON.md](M1-SKELETON.md), current [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) (items
+1–9 are in: the backend of items 1–6, the review web UI of item 7, the simulation agent with
+`eval:replay` of item 8 and this document; all of it was run together against the Docker stack,
+see [M2 end to end](#m2-end-to-end-2026-10-08), and again after the
+[M2 review fixes](#m2-review-fixes-2026-10-08)). The 1.x tree (`backend/`, `frontend/`, Maven)
+lives next to it, untouched, until the cut-over PR.
 
 The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) were run end to end on
 2026-10-07 (macOS, Docker Desktop with Compose v5.5, Node 24.15, pnpm 11.1.3, Claude Code
-2.1.292). [Verified end to end](#verified-end-to-end) lists exactly what was run and what was not.
+2.1.292), the M2 part of the Quickstart ([Let the simulation agent work the
+pipeline](#let-the-simulation-agent-work-the-pipeline)) on 2026-10-08. [Verified end to
+end](#verified-end-to-end) lists exactly what was run and what was not.
 
 ## Status
 
@@ -18,11 +24,14 @@ The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) wer
 | `packages/bpmn-facts`: `extractFacts` (C7 and C8, CONCEPT §2), `assertSafeXml` (DOCTYPE/ENTITY, UTF-8, 5 MB), 50k-element limit, `factFingerprint`, `factsHash`, `normalizeKey` | working; tested per construct, against hostile XML and on every eval/corpus model |
 | `packages/relations`: `runRules` (rule tier + findings), `generateCandidates` (key, lexical, compatible; both directions), `baselineProa1` (the 1.x algorithm), endpoint semantics, DE/EN text similarity | working; unit-tested, gated by `eval:candidates` |
 | `apps/server`: full CONCEPT §2 schema, domain use cases with `policy.require`, ingest/import/delete as one transaction (facts, rule tier, assertions, endpoint state, analysis tasks, events) with the real `@proa/bpmn-facts` and `@proa/relations`, every REST route of the contracts, local mode (Host/Origin guard, owner session cookie, owner key for the CLI, agent tokens), MCP `/mcp` with the eight read tools, the built web UI at `/` | working; importing `nordwind-handel` and `stadtwerke-auental` reproduces the rule relations and findings of `eval:candidates` exactly (integration test); MCP contract test with the SDK client |
-| `packages/procedures`: procedure Markdown + loader for MCP `get_procedure` | working; only the placeholder `proa-relations@0.0.0` |
+| `packages/procedures`: procedure Markdown + loader for MCP `get_procedure` | working; only the placeholder `proa-relations@0.0.1` (describes the M2 pipeline loop; the real procedure is M3) |
+| M2 backend: analysis pipeline (claim/submit/release, lease, long-poll), claim input, submissions, ad-hoc proposals, review (accept/reject/hold/correct, bulk, notes, timeline), model engine, relation provenance, answered findings hidden ([below](#analysis-pipeline-and-review-m2)) | working over REST and MCP; real-Postgres integration tests incl. concurrent claims, lease expiry, cancellation, decision memory across re-uploads, the claim-input size on both corpus landscapes; MCP contract test with the SDK client; reviewed in the web UI ([Review in the web UI](#review-in-the-web-ui-m2)); end to end against the Docker stack with the simulation agent (HTTP and the bridge in the container) and in the browser (`e2e/pipeline.spec.ts`: review, re-upload, `suppressed` vs. `reopened`) |
 | `apps/cli`: `proa seed`, `import`, `token create/list/revoke`, `status`, `health`, and `proa mcp` (stdio bridge for Claude Desktop) | working; unit tests, an e2e test against a real server, and a live check against the running Docker stack |
-| `apps/web`: projects (create), per project the tabs Modelle (engine, revision, stage), Relationen (filters, rule vs. key tier, provenance), Befunde, Hochladen (files or a folder via the import endpoint) and Agent verbinden (token, Claude Code/Desktop/generic configurations, revoke); model view with bpmn-js that highlights relation endpoints and switches to the other model; Miragon design system | working; component tests (Testing Library), a Playwright smoke test and the screenshots below; no review actions yet (M2) |
+| `apps/agent-sim`: `proa-agent-sim`, the LLM-free simulation agent (M2 item 8): works the pipeline over MCP (HTTP or the `proa mcp` bridge) with the deterministic policy `sim-policy-1` and records claim inputs and submissions in `eval/recordings` ([below](#simulation-agent-and-evalreplay-m2)) | working; unit tests (policy, recorder, CLI, the loop against an in-memory MCP server) and an end-to-end server test on both corpus landscapes (every task done, provenance, nothing decided, the committed recordings reproduced byte for byte) |
+| `apps/web`: projects (create), per project the tabs Modelle (engine, revision, stage), Prüfen (M2: inbox by stage, review queue, bulk accept per tier, held list), Relationen (filters, rule vs. key tier, provenance), Befunde, Hochladen (files or a folder via the import endpoint) and Agent verbinden (token, Claude Code/Desktop/generic configurations, revoke); model view with bpmn-js that highlights relation endpoints and switches to the other model; review screen per relation (both models in bpmn-js, rationale, evidence, question, provenance, timeline; accept/reject/hold/correct with A/R/H/C, J/K through the queue); bulk accept that leaves generic or widely shared names, open agent questions and ambiguous call targets unchecked; Miragon design system | working; component tests (Testing Library), Playwright smoke, review and pipeline flows against a running server, the screenshots below |
 | `eval:candidates` | working; passes on `nordwind-handel` (dev) and `stadtwerke-auental` (holdout); report in `eval/reports/candidates.md` |
-| `docker/compose.yaml`, `docker/Dockerfile` | working; `up -d --build --wait` starts PostgreSQL and ProA (migrations at start, owner key in the `proa-state` volume); CI builds it, seeds it and runs the live check against it |
+| `eval:replay` | working; scores the recordings in `eval/recordings` against `expected.yaml` (precision, recall and F1 per type and tag, must_not_link hits, questions, no-links); report in `eval/reports/replay.md`; no gate yet |
+| `docker/compose.yaml`, `docker/Dockerfile` | working; `up -d --build --wait` starts PostgreSQL and ProA (migrations at start, owner key in the `proa-state` volume); CI builds it, seeds it and runs the live check against it; an M1 stack upgrades in place (migrations 0002/0003 on its data, the engine backfill equal to `@proa/bpmn-facts` on all 57 corpus models) |
 
 ## Quickstart (Docker)
 
@@ -62,7 +71,32 @@ docker compose -p proa2 -f docker/compose.yaml exec proa proa status
 and `stadtwerke-auental` (26 models; 3 accepted, 36 proposed; 17 findings) from `eval/corpus`,
 exactly the rule tier that `eval:candidates` computes. Running it again changes nothing.
 `proa seed _sample` loads the three-model sample into the project `sample`. Every model starts
-at the stage "waiting for agent": the agent pipeline is M2.
+at the stage "waiting for agent": an agent with `proa:propose` works the pipeline
+([Analysis pipeline and review](#analysis-pipeline-and-review-m2)).
+
+### Let the simulation agent work the pipeline
+
+Until a real agent runs the `relations` procedure (M3), the LLM-free simulation agent fills the
+review inbox. It runs from the checkout (`pnpm install`; it is not in the image) and talks to
+the stack over MCP with an agent token, one per project:
+
+```sh
+docker compose -p proa2 -f docker/compose.yaml exec proa proa token create \
+  --project nordwind-handel --name agent-sim --scopes read,propose --expires 7d --json   # the secret
+PROA_TOKEN=proa_at_… pnpm agent-sim                       # over HTTP, like Claude Code
+PROA_TOKEN=proa_at_… pnpm agent-sim \
+  --stdio-command "/usr/local/bin/docker exec -i -e PROA_TOKEN proa2-proa-1 proa mcp"   # like Claude Desktop
+docker compose -p proa2 -f docker/compose.yaml exec proa proa status
+```
+
+It claims and submits until nothing is left (31 tasks in `nordwind-handel`, 26 in
+`stadtwerke-auental`). Afterwards `nordwind-handel` has 48 proposed relations (33 of them in the
+key tier), 28 models "waiting for review" and 3 "incorporated"; `stadtwerke-auental` has 52
+proposed, 20 and 6. Every proposal names the token's principal (`agent:agent-sim`), its client
+id, the declared procedure `proa-relations@0.0.1` and the model `sim-policy-1`; borderline pairs
+carry a question. Review them at http://127.0.0.1:7400/projects/nordwind-handel/review. Running
+the agent again changes nothing (every task is done); after a re-upload with other facts it works
+only the changed model. Options and the policy: [Simulation agent](#simulation-agent-and-evalreplay-m2).
 
 ### URLs
 
@@ -78,11 +112,28 @@ Screenshots with the seeded landscapes (`apps/web/e2e/screenshots.spec.ts`):
 [projects](screenshots/01-projects.png), [models](screenshots/02-models.png),
 [relations](screenshots/03-relations.png), [model view](screenshots/04-model-view.png),
 [findings](screenshots/05-findings.png), [connect an agent](screenshots/06-connect-agent.png),
-[Claude Desktop entry](screenshots/07-connect-claude-desktop.png).
+[Claude Desktop entry](screenshots/07-connect-claude-desktop.png). The review (M2,
+`apps/web/e2e/review.spec.ts`, a project of its own with agent proposals made over REST):
+[inbox](screenshots/m2-01-inbox.png), [review screen](screenshots/m2-02-review.png),
+[bulk accept](screenshots/m2-03-bulk.png), [held list](screenshots/m2-04-held.png),
+[correction](screenshots/m2-05-correct.png), [timeline](screenshots/m2-06-timeline.png),
+[version conflict](screenshots/m2-07-conflict.png). The pipeline end to end (M2,
+`apps/web/e2e/pipeline.spec.ts`, a project worked by the simulation agent):
+[stages after the agent run](screenshots/m2-08-pipeline-stages.png), [an agent proposal with
+its question and provenance](screenshots/m2-09-agent-proposal.png), [bulk accept with agent
+questions and an ambiguous call target flagged](screenshots/m2-10-bulk-flags.png), [a rejection
+whose endpoint changed after a re-upload](screenshots/m2-11-endpoint-changed.png), [the same
+relation reopened by the agent's second run](screenshots/m2-12-reopened.png).
 
 ![Relations of nordwind-handel: rule acceptances and key-tier proposals](screenshots/03-relations.png)
 
 ![Model view: the endpoint of an accepted call highlighted in bpmn-js](screenshots/04-model-view.png)
+
+![Review screen: both endpoint models side by side, the agent's rationale, evidence, question and provenance, the decision with keyboard shortcuts](screenshots/m2-02-review.png)
+
+![Bulk accept of the key tier: every pair listed, generic and widely shared names flagged and left unchecked](screenshots/m2-03-bulk.png)
+
+![Decision memory: the rejection, then the simulation agent's new proposal after the endpoint was renamed](screenshots/m2-12-reopened.png)
 
 ### Create an agent token
 
@@ -100,7 +151,9 @@ Every MCP client needs an agent token (`proa_at_…`): valid for one project, sc
   docker compose -p proa2 -f docker/compose.yaml exec proa proa token revoke --project nordwind-handel agt_…
   ```
 
-A revoked or expired token is refused with 401 on its next request.
+A revoked or expired token is refused with 401 on its next request. Revoking also withdraws the
+token's open proposals and hands its claimed tasks back (CONCEPT §6); an expired token's proposals
+stay for review.
 
 ### Connect Claude Code
 
@@ -246,19 +299,23 @@ proa`). With the checkout CLI against the Docker server, copy the container's ow
 ```
 apps/server/      @proa/server  Hono + @hono/zod-openapi, Drizzle + pg, MCP (src/{domain,db,http,mcp,auth})
 apps/cli/         @proa/cli     the `proa` command (commander)
+apps/agent-sim/   @proa/agent-sim  `proa-agent-sim`: LLM-free simulation agent over MCP (src/{policy,agent,connect,recorder,program}.ts)
 apps/web/         @proa/web     React 19 + Vite + Tailwind v4 + shadcn + TanStack (src/{routes,components,lib,theme}, test/, e2e/)
 packages/contracts/  zod schemas, types, REST route configs, buildOpenApiDocument()
 packages/client/     hey-api client generated from the contracts (src/generated is generated)
 packages/bpmn-facts/ fact extraction (CONCEPT §2)
 packages/relations/  rules, candidates, baseline-proa1
 packages/procedures/ agent procedures as Markdown with id/version frontmatter (MCP get_procedure)
-eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates (src/*.ts)
+eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates and eval:replay (src/*.ts)
+eval/recordings/  agent recordings <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl (eval:replay input)
 docker/           compose.yaml (project proa2), Dockerfile
 docs/proa-2/      CONCEPT.md, M1-SKELETON.md, this file, screenshots/
 ```
 
 Package dependencies point one way: `contracts` ← `bpmn-facts` ← `relations` ← `server`;
-`contracts` ← `client` ← `cli`, `web`. Workspace dependencies use `workspace:0.0.0`.
+`contracts` ← `client` ← `cli`, `web`; `contracts` ← `agent-sim` (talks to the server over MCP
+only; the server's integration test uses it as a dev dependency). Workspace dependencies use
+`workspace:0.0.0`.
 
 ### Commands (repository root)
 
@@ -270,6 +327,8 @@ Package dependencies point one way: `contracts` ← `bpmn-facts` ← `relations`
 | `pnpm format` / `pnpm format:check` | Prettier over the 2.0 workspace (`.prettierignore` keeps 1.x, eval, Markdown, snapshots and generated files out) |
 | `pnpm build` | builds the web UI (`apps/web/dist`) |
 | `pnpm eval:candidates` | the LLM-free eval gate; writes `eval/reports/candidates.{md,json}`, exit 1 if a gate fails |
+| `pnpm eval:replay` | scores the recordings in `eval/recordings` against `expected.yaml`; writes `eval/reports/replay.{md,json}`, exit 1 only for an unreadable recording ([below](#simulation-agent-and-evalreplay-m2)) |
+| `pnpm agent-sim [options]` | the simulation agent `proa-agent-sim` from the checkout (`PROA_URL`, `PROA_TOKEN`; `--help`) |
 | `pnpm --filter @proa/eval-tools check` / `validate:all` / `test` | the corpus: models in sync with their specs, full validation of every landscape, the toolchain tests |
 | `pnpm docker:up` | the whole Compose stack (PostgreSQL + ProA on 127.0.0.1:7400), built fresh |
 | `pnpm db:up` / `pnpm db:down` | only PostgreSQL up (for `pnpm dev`) / the whole stack down (volumes stay) |
@@ -279,7 +338,9 @@ Package dependencies point one way: `contracts` ← `bpmn-facts` ← `relations`
 | `pnpm proa <command>` | the `proa` CLI from the checkout; relative paths resolve against the directory you run it in |
 | `PROA_LIVE_URL=http://127.0.0.1:7400 pnpm --filter @proa/cli test:live` | live check of a running, seeded ProA: tokens, MCP over HTTP, the stdio bridge as Claude Desktop starts it (see [Tests](#tests)) |
 | `pnpm --filter @proa/web e2e smoke` | Playwright smoke test against a running ProA (`PROA_E2E_URL`, default http://127.0.0.1:7400); creates its own project `e2e-<time>` |
-| `PROA_SCREENSHOTS_DIR=$PWD/docs/proa-2/screenshots pnpm --filter @proa/web e2e screenshots` | retakes the screenshots from a running, seeded ProA |
+| `pnpm --filter @proa/web e2e review` | Playwright review flow (M2) against a running ProA; creates its own project `review-<time>` from `nordwind-handel` and an agent token, proposes over REST, then reviews in the browser |
+| `pnpm --filter @proa/web e2e pipeline` | Playwright pipeline flow (M2) against a running ProA: its own project `pipeline-<time>` from `nordwind-handel`, worked by `proa-agent-sim` over MCP, reviewed in the browser, then a re-upload and the agent's second run (decision memory) |
+| `PROA_SCREENSHOTS_DIR=$PWD/docs/proa-2/screenshots pnpm --filter @proa/web e2e screenshots` | retakes the M1 screenshots from a running, seeded ProA; with `… e2e review` the `m2-*.png` |
 | `pnpm --filter @proa/client generate` | regenerates `packages/client` after a contracts change |
 | `pnpm --filter @proa/server db:generate` | writes the next migration after a schema change |
 
@@ -395,9 +456,19 @@ first.
 | `get_relations` | `projectId`, `modelKey?`, `type?`, `status?`, `tier?`, `cursor?`, `limit?` | relations with status, tier, confidence and endpoint state |
 | `which_processes_use` | `projectId`, `kind` (`message`, `signal`, `call`, `data_store`), `name` | who throws/catches a message or signal (names match like the key tier: case, umlauts, punctuation and word separators ignored), calls/defines a process id (exact), uses a data store (normalized name) |
 | `find_unlinked_events` | `projectId`, `modelKey?`, `kinds?` | message/signal events and labelled none start/end events that no live relation touches |
-| `get_procedure` | `id` (default `proa-relations`) | the procedure text (so far the placeholder `proa-relations@0.0.0`) |
+| `get_procedure` | `id` (default `proa-relations`) | the procedure text (so far the placeholder `proa-relations@0.0.1`) |
+| `get_landscape` | `projectId` | models with stage and processes, live relations with provenance, open findings |
+| `claim_analysis` | `projectId?`, `modelKey?`, `max` (1–5, default 1) | claimed tasks: lease token, `leaseUntil`, expected procedure, claim input (proa:propose) |
+| `submit_analysis` | `taskId`, `leaseToken`, `submissionId` (UUID), `procedure`, `llmModel?`, `relations` (≤ 200), `noLinks?`, `summary?`, `costUsd?` | the result per item (proa:propose) |
+| `release_analysis` | `taskId`, `leaseToken`, `reason?` | `{taskId, state: queued}` |
+| `propose_relation` | `projectId`, `type` (not `manual`), `from`, `to`, `confidence`, `rationale`, `evidence?`, `question?`, `procedure?`, `llmModel?` | `{result, relation}`; an invalid pair is the problem `validation-failed` with `reason` |
+| `withdraw_proposal` | `projectId`, `relationId` | the relation after withdrawing the caller's own live proposal |
+| `decide_relation` | `projectId`, `relationId`, `verdict` | never succeeds: `human-decision-required` with `reviewUrl` (agents only propose) |
 
-Every tool carries `readOnlyHint`; `projectId` is a `prj_` id or the project key (validated by
+The read tools carry `readOnlyHint`; the pipeline and proposal tools `readOnlyHint: false`,
+`destructiveHint: false`. The prompt `work_pipeline` (`projectId?`) states the loop claim →
+analyse → submit (or release) and embeds the procedure; `prompts/list` is the snapshot
+`__snapshots__/mcp-prompts.json`. `projectId` is a `prj_` id or the project key (validated by
 pattern, like REST `{project}`). Domain errors come back as tool errors whose text is the RFC
 9457 problem (`not-found`, 404, also for another project's key or ids); invalid arguments come
 back as tool errors naming the validation failure; any other error is logged on the server and
@@ -406,13 +477,221 @@ The complete `tools/list` (descriptions and JSON schemas) is the snapshot
 `apps/server/test/integration/__snapshots__/mcp-tools.json`. Output schemas have a plain object
 root: a named contract schema would serialize as a `$ref` root, which the SDK wraps as
 `{ result: … }`. Input schemas use `$defs`/`$ref` for the shared contract types (model key, ref,
-enums).
+enums). Schemas use standard JSON Schema only (`pattern`, the formats `date-time` and `uuid`;
+the contract test checks it): zod's `.startsWith()` would emit `format: "starts_with"`, which
+every SDK client reports on stderr, so the lease token is a `pattern`.
 
 `proa mcp` (the stdio bridge) relays JSON-RPC unchanged between stdio (`StdioServerTransport`)
 and `PROA_URL/mcp` (`StreamableHTTPClientTransport` with `Authorization: Bearer $PROA_TOKEN`),
 both from the official SDK 2.x. For 2025-era clients it forwards the version negotiated by
 `initialize` as `MCP-Protocol-Version`. stdout carries only the protocol; it exits when the
 client closes stdin.
+
+### Analysis pipeline and review (M2)
+
+Backend of [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) items 1–6 (CONCEPT §2, §3, §5). REST
+routes are in the contracts (`packages/contracts/src/api/{analyses,review}.ts`, OpenAPI tags
+`analyses` and `review`); MCP tools [above](#mcp). Domain: `src/domain/use-cases/{analyses,review}.ts`,
+`proposals.ts` (per-item checks and the one write path of submissions and ad-hoc proposals),
+`claim-input.ts`, `lease.ts`, `status.ts` (`recomputeStatus`, `classifyProposal`, both pure),
+`relation-state.ts`, `findings.ts`.
+
+| Route | |
+|---|---|
+| `POST /api/v1/analyses/claim` `{projectId?, modelKey?, max ≤ 5}` | claims queued tasks and expired leases with attempts left, oldest first, in the projects where the caller may propose (`proa:propose`, editor or better) |
+| `GET /api/v1/analyses/pending?projectId=&wait=0..30` | claimable tasks per project; `wait` long-polls |
+| `POST /api/v1/analyses/{a}/submission`, `…/release` | submit (≤ 1 MB) or hand back a claimed task |
+| `GET/POST /api/v1/projects/{p}/analyses[/requeue]`, `GET …/analyses/{a}/submission` | tasks newest first; requeue `{modelKeys}` or `{all: true}` (`proa:write`); the stored submission |
+| `POST /api/v1/projects/{p}/relations`, `DELETE …/relations/{rel}/proposal` | ad-hoc proposal (or, for humans, an accepted `manual` relation); withdraw the caller's own proposal |
+| `POST …/relations/{rel}/decision`, `POST …/decisions`, `POST …/relations/{rel}/notes`, `GET …/relations/{rel}/assertions` | decide (owner on an interactive client), bulk decide, note, timeline |
+
+**Claim and lease.** The claim is one transaction: it locks the projects (writers always lock the
+project row first, so claims cannot deadlock with ingest), turns claimed tasks whose lease expired
+at attempt 3 into `failed` (`analysis.failed`; nothing runs on a timer, so the pending count and a
+requeue do the same, and a model never stays "agent working" with a dead lease once an agent asks
+for work or the owner requeues), and claims with one `UPDATE … WHERE id IN (SELECT …
+ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT n)`, which sets the 15-minute lease and
+`attempts + 1`. Each task then gets a lease token `proa_lt_` + 256 random bits (base64url), shown
+once and stored as `sha256(taskId|principalId|token)`. The inputs are rendered afterwards from one
+snapshot; if that fails, the tasks are handed back at once. A release queues the task again and
+gives the attempt back. Submit and release need the holder's token and principal: another holder,
+a release or a wrong token answer 409 `lease-lost`, a new revision with other facts 409
+`task-cancelled`; a late submit passes while nobody claimed the task again or cancelled it, also
+after it failed, unless a newer task of the model exists or the model changed or was deleted
+since the failure (409 `task-cancelled`: the stale analysis would otherwise supersede the newer
+one). A requeue queues a new task for every model without an open one; a claimed task whose lease
+expired is not open (cancelled, "lease expired; requeued"). A done task answers its own
+`submissionId` with the stored result
+(`replayed: true`) and any other with 409 `already-submitted`. Clock: the server clock
+(`deps.clock`), so tests advance leases without waiting.
+
+**Claim input** (`proa-claim/1`, schema `ClaimInput` in the contracts): the model (key, name,
+revision, engine, processes), its head facts with default fields left out and documentation cut
+to 300 characters, the candidates of `generateCandidates` around the model as `[type, from, to,
+basis, score]` tuples, the partner endpoints they name (keyed by ref), and the non-obsolete
+relations touching the model with the human decision (reason, hold note, question, label), an
+agent's open question and the notes. On the eval corpus the largest input is 68.7 KB
+(`nordwind-handel` `vertrieb/order-handling`, 295 candidates), the mean 34–41 KB;
+`claim-input-size.test.ts` measures every model of both landscapes and requires < 100 KB.
+
+**Submissions.** At most 1 MB (`MAX_SUBMISSION_BYTES`), on REST (body limit, 413) and on MCP alike
+(`submit_analysis` answers `payload-too-large`; the MCP endpoint refuses any request over 1 MB +
+16 KB, instead of the SDK's 4 MiB default). The body is checked for shape only (≤ 200 relations,
+declared procedure and LLM model without control characters, 422 otherwise); each item is then
+checked in this order and answered `invalid:<reason>` if it fails: `type-not-allowed`
+(`manual`), `malformed-ref`, `confidence-out-of-range`, `rationale-too-long` (> 1,000),
+`question-too-long` (> 500), `too-much-evidence` (> 20), `control-characters` (rationale,
+question or evidence with a control character other than tab and line breaks; PostgreSQL cannot
+store U+0000), `outside-task-model` (neither end in the
+task's model), `unknown-ref` (not a head fact), `type-mismatch` (the ends cannot take those sides,
+`endpointRole`), `same-process`, `message-flow`. Valid items are `applied`, `duplicate` (the
+caller's identical live proposal, a rule acceptance with the same fingerprints, or an earlier item
+of the same submission), `suppressed` (the status rests on a human decision with the same endpoint
+fingerprints; nothing is recorded) or `reopened` (recorded, and a rejection becomes `proposed`
+because an endpoint changed). The server computes the tier (`createPairAssessor` of
+`@proa/relations`: `key`, `lexical`, `semantic`); `source_kind`, principal and client come from the
+credential, procedure and LLM model are only declared. Supersession (CONCEPT §2): earlier live
+pipeline proposals touching the task's model that the submission does not repeat are withdrawn
+under their proposer, with the new submission as reason; ad-hoc proposals stay, and human
+decisions keep the status (a held relation stays held). The submission is stored with the request
+as received (REST) or the parsed arguments (MCP), without the lease token and with U+0000 (which
+jsonb cannot hold) as U+FFFD, plus its result
+(`GET …/analyses/{a}/submission`). The assertion → submission foreign key is checked at commit
+(migration 0003), so the submission row can hold the final result.
+
+**Review.** Decisions need the `review` permission (a user on an interactive client: the owner via
+the web UI or the CLI); agent tokens get 403 `human-decision-required` with `reviewUrl`
+(`<origin>/projects/<key>/review/<relation>`, the review screen of the M2 web UI) on REST and from
+the MCP stub `decide_relation`. `accept` (optional note), `reject` (reason), `hold` (note, optional
+question and label: status `held`, an open item; a model whose only open items are held is
+`waiting_for_clarification`), `correct` (rejects the relation and accepts another pair as a
+`manual` relation, both assertions linked through `linkedRelationId`). `version` in the body (409
+`conflict`) or `If-Match: "<version>"` (412; `GET …/relations/{rel}` sends the ETag) make a decision
+conditional. Bulk decisions send `items: [{id, version}]`, `expectedCount` and optionally `tier`;
+any mismatch (count, version, tier, unknown, duplicate or obsolete) answers 409 with `mismatches`
+and changes nothing. Notes (`kind = note`, humans only, also a DB check) answer held questions,
+never change the status and reach the next claim input. Every relation carries `source` and
+`provenance` (the assertion its status rests on: kind, verdict, source, handle, client, declared
+procedure and model, tier, confidence, rationale, question, label); `GET …/assertions` is the full
+timeline. Decision memory: a rejection stays while proposals repeat the same endpoint fingerprints
+(`suppressed`), turns `endpointState: changed` when an endpoint changes, and is reopened by the
+next proposal with the new fingerprints. Stances are per principal, but a human's latest decision
+stays in force when the same human later proposes the relation (working the pipeline over REST)
+or that proposal is withdrawn (`decisionsInForce` in `status.ts`); only another decision replaces
+it. An accepted relation whose endpoint changed is an open item; accepting it again anchors the
+decision on the current fingerprints. Reasons, notes, questions, labels, rationales and evidence
+of decisions, notes and ad-hoc proposals refuse control characters other than tab and line
+breaks (422), as does a release reason.
+
+**Revoking an agent token** (CONCEPT §6: "revoking a token or service withdraws its proposals")
+withdraws, in the same transaction, every live proposal of the token's principal (pipeline and
+ad hoc; recorded under that principal, by the revoking owner, reason "agent token … revoked") and
+queues its claimed tasks again without counting the attempt. Decisions stay, and so do other
+principals' proposals on the same relations. Let a token expire instead if its proposals should
+stay for review.
+
+**Other API changes.** `Model.engine` and `Revision.engine` (`c7`/`c8`/`null`, from
+`@proa/bpmn-facts`; migration 0003 backfills older revisions from the `<definitions>` tag);
+relations created by any path return the database's `updatedAt` (`relations.insert` returns the
+stored row), and a relation's `version` moves with every new assertion, so a bulk decision on a
+stale view fails; `dangling-throw`/`unmatched-catch` findings are hidden once a proposed, accepted
+or held relation connects that endpoint (`GET …/findings`, the landscape).
+
+**Long-poll.** `GET /analyses/pending?wait=` subscribes before it counts, so no wake-up is lost,
+then waits at most `wait` seconds for `NOTIFY proa_analysis` (a trigger fires whenever a task
+becomes `queued`) and counts again; expired leases are not announced, the bounded wait covers
+them. One dedicated `LISTEN` connection per process (`application_name = proa-listen`, never a
+pool connection), opened on first use, re-opened after errors, at most 200 waiters per process and
+8 per caller (principal; more answer at once, so one token cannot take every slot), aborted
+requests let go at once; `docker`/`pnpm dev` shutdown closes it first so waiting requests answer
+immediately.
+
+**Events.** `analysis.queued` (new head or requeue), `claimed`, `released`, `done` (with counts,
+`late`), `failed`, `cancelled`; `relation.proposed`, `withdrawn`, `decided`, `noted`,
+`endpoint_changed`; each with the acting principal and client and a dense `seq`.
+
+### Simulation agent and `eval:replay` (M2)
+
+M2 item 8. `apps/agent-sim` (`@proa/agent-sim`, command `proa-agent-sim`, `pnpm agent-sim` from
+the checkout) is an LLM-free agent that works the pipeline the way an MCP client is told to by the
+`work_pipeline` prompt: it connects to `/mcp` with an agent token (Streamable HTTP, or `--stdio`
+through the `proa mcp` bridge as Claude Desktop does), reads `get_procedure` and the prompt, then
+claims one task at a time (`claim_analysis {max: 1}`), decides from the claim input alone and
+submits (`submit_analysis` with a fresh UUID, the procedure the claim names and `llmModel:
+"sim-policy-1"`) until a claim returns nothing. It uses MCP tools only, never REST, and never
+decides: everything it submits is a proposal under its token's principal and client.
+
+```sh
+pnpm seed --issue-tokens                # prints a read+propose token per project
+export PROA_TOKEN=proa_at_…             # the token of the project to work on
+pnpm agent-sim                          # HTTP: $PROA_URL/mcp (default http://127.0.0.1:7400)
+pnpm agent-sim --stdio                  # through `node apps/cli/src/main.ts mcp` (this checkout)
+pnpm agent-sim --stdio-command "docker exec -i -e PROA_TOKEN proa2-proa-1 proa mcp"
+pnpm agent-sim --dry-run -n 3 --record /tmp/rec    # decide and record 3 tasks, hand them back
+```
+
+Options: `--project`/`--model` narrow the claims, `-n/--max-tasks` stops early, `--dry-run`
+claims and decides but submits nothing and releases every task at the end (the attempt does not
+count), `--propose-at`/`--ask-at` move the thresholds, `--llm-model` changes the declared model,
+`--json` prints the report, `-q` silences the per-task log on stderr. Exit 0 when every task was
+submitted, 1 when a submission failed or the run broke off (no pipeline tools, a failing claim), 2
+for usage errors. A submission the server refuses as malformed is handed back at the end of the
+run; on `lease-lost`, `task-cancelled` or `already-submitted` there is nothing to hand back.
+
+**Policy `sim-policy-1`** (`src/policy.ts`, a pure function of the claim input). Every candidate
+`[type, from, to, basis, score]` gets one verdict: pairs whose relation is already accepted,
+rejected by a human (unless an endpoint changed since, `endpointState: changed`) or held are
+skipped; `score ≥ 0.65` is proposed; `0.5 ≤ score < 0.65` is proposed with a question for the
+reviewer (borderline: near-miss labels, a call target defined in two models); `key`, `rule` and
+`lexical` candidates below 0.5 go into `noLinks`; `compatible` ones below 0.5 are not judged
+(semantic judgement is what an LLM agent adds). The verdict depends on the score, never on the
+basis, so a pair is judged alike in the tasks of both its models (the second one answers
+`duplicate`, and supersession withdraws nothing). Confidence is the score rounded to two decimals;
+the rationale names basis, score and both endpoints (label, kind, process, model); evidence is
+both refs. The thresholds were set on the dev landscape only; the holdout was not looked at.
+
+**Recordings** (`--record <dir>`, CONCEPT §7):
+`<dir>/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl`, one line per task in the
+format `proa-recording/1` (`RecordingLine` in `packages/contracts/src/recordings.ts`): landscape
+(the project key), model key and revision number, agent, declared procedure and model, the task
+ids (`--no-record-ids` leaves them out), the claim input (`--record-input full`, the default, or
+`summary`: its counts and size), the submission without lease token and submission id, the outcome
+(`submitted`, `dry-run`, `failed` with the problem) and the server's result per item. A run starts
+each file it writes afresh. The committed recordings
+`eval/recordings/proa-relations@0.0.1/agent-sim/sim-policy-1/{nordwind-handel,stadtwerke-auental}.jsonl`
+(147 and 134 KB) are written with `--record-input summary --no-record-ids`, so a re-run against a
+fresh seed writes identical files: the server test `agent-sim.test.ts` requires exactly that
+(after an intended change to the policy, the candidates or the corpus, regenerate them with
+`pnpm --filter @proa/server exec vitest run test/integration/agent-sim.test.ts -u`, then
+`pnpm eval:replay`), and a run against a separately started server with `proa seed` produced the
+same bytes.
+
+**`eval:replay`** (`eval/tools/src/replay.ts`, `recordings.ts`, `replay-score.ts`,
+`replay-report.ts`) reads every recording below `eval/recordings`, finds the landscape in
+`eval/corpus` (by name, or `_<name>`: `_sample` is seeded as `sample`), runs the rule tier on it
+and scores each file: the agent's link set is the union of its valid proposals over all
+submissions (an item answered `invalid:<reason>` is not a proposal; unsubmitted dry-run items are
+checked for type and refs locally), deduplicated by `(from, to)` with the highest confidence and
+"asked a question" if any proposal did. Precision counts must_not_link, same-process and, in a
+closed world, unlisted pairs as false positives; may_link pairs are neutral. Recall counts
+must_link pairs, also "∪ rule-tier acceptances" (the unambiguous calls accepted at ingest, which
+agents leave alone). Per relation type and per tag (tags come from `expected.yaml`); must_not_link
+hits with their confidence (≥ 0.8 is what the live gate will forbid) and question; unlisted
+proposals; missed must_link; questions and no-links by class. The report
+(`eval/reports/replay.{md,json}`) is deterministic; CI regenerates it and requires no diff. It
+gates nothing yet (CONCEPT §7 sets the live-run criteria for procedure releases, M3).
+
+Current numbers (`eval/reports/replay.md`):
+
+| Recording | tasks | pairs | precision | recall | recall ∪ rule tier | F1 | must_not_link (≥ 0.8) | questions |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| `sim-policy-1` on `nordwind-handel` (dev) | 31 | 48 | 73.3 % | 78.6 % | 100 % | 75.9 % | 12 (3) | 12 |
+| `sim-policy-1` on `stadtwerke-auental` (holdout) | 26 | 52 | 64.0 % | 80.0 % | 87.5 % | 71.1 % | 11 (2) | 15 |
+
+Identical names carry the policy; the near-miss traps come back as proposals with a question (9
+of the 12 hits on the dev landscape), reused generic message names (`generic-name`, score 1.0) are
+the high-confidence misses, and the semantic links (`de-en` on the holdout, triggers with other
+words) are out of its reach. These are the numbers an LLM agent has to beat.
 
 ### The `proa` CLI
 
@@ -440,7 +719,9 @@ the server); after `pnpm build` the server serves it at http://127.0.0.1:7400.
 |---|---|
 | `/` | projects (name, key, role, `s<seq>`), "Neues Projekt" (key slugified from the name) |
 | `/projects/{key}` | **Modelle**: key, name, engine (C7/C8), head revision, stage (CONCEPT §3), open items; stage filter `?stage=` |
-| `/projects/{key}/relations` | **Relationen**: quick filters (all, accepted by rule, key-tier proposals, all proposals), filters status/tier/type/model in the URL (`?status=&tier=&type=&model=`); type, from → to with element label, model key and process, tier, status, endpoint state, confidence, provenance, details (refs, version, attributes); "Im Modell" opens the model view. The "Aktion" column is where the M2 review actions go (`renderActions` of `RelationTable`). |
+| `/projects/{key}/review` | **Prüfen** (M2, the tab counts open proposals): models per pipeline stage (a stage filters; for "Agent arbeitet" the holder and lease, for "Agent gescheitert" the error and "Erneut einplanen"), then **Vorschläge** (the review queue) and **Vorgemerkt** (`?view=held`); filters `?stage=&tier=&model=` stay in the URL and travel to the review screen ([below](#review-in-the-web-ui-m2)) |
+| `/projects/{key}/review/{relation}` | **Review screen** of one relation, also the relation detail and the `reviewUrl` of `human-decision-required` ([below](#review-in-the-web-ui-m2)) |
+| `/projects/{key}/relations` | **Relationen**: quick filters (all, accepted by rule, key-tier proposals, all proposals), filters status/tier/type/model in the URL (`?status=&tier=&type=&model=`); type, from → to with element label, model key and process, tier, status, endpoint state, confidence, provenance (from `Relation.provenance`), details (refs, version, attributes); "Prüfen" opens the review screen, the crosshair the model view. |
 | `/projects/{key}/findings` | **Befunde** grouped by kind, each ref with a link into the model view |
 | `/projects/{key}/upload` | **Hochladen**: drag and drop files or a whole folder, or pick them; `POST …/imports` in batches of ≤ 50 files / 25 MB (models > 5 MB and non-BPMN files are skipped and listed); a dropped or picked folder is the import root, so `models/vertrieb/a.bpmn` becomes `vertrieb/a`, like `proa import models`; outcome per file |
 | `/projects/{key}/agents` | **Agent verbinden**: create an agent token (scopes, expiry), secret shown once with a copy button, then ready-to-paste configurations: Claude Code (`claude mcp add --transport http …`), Claude Desktop (`proa mcp` from the checkout with Node 24, or `docker exec -i … proa2-proa-1 proa mcp`; the Node or Docker path you enter becomes `command`), any other MCP client (URL + bearer header, `.mcp.json`); list and revoke tokens |
@@ -452,13 +733,83 @@ How it talks to the server: only through `@proa/client` (generated from the cont
 holds a token and survives server restarts. `unwrap()` turns problem+json into `ApiError`.
 `src/` imports only *types* from `@proa/contracts` (ESLint enforces it; the zod schemas would
 land in the bundle) and mirrors the few constants it needs in `src/lib/limits.ts`, which
-`test/limits.test.ts` compares with the contracts. Two things the API does not carry yet are
-derived in the UI: the **engine** comes from each head revision's XML (`modeler:executionPlatform`,
-else the zeebe/camunda namespace, like `@proa/bpmn-facts`; the content is cached per revision), and
-the **provenance** column comes from tier and rule attributes (`proa-rules/1.0.0` for the rule and
-key tiers and rule proposals by file stem or process name, agent for lexical/semantic, human for
-manual) until the API exposes assertions. Element labels come from the facts of every head
-revision (`GET …/revisions/{r}/facts`, cached per revision).
+`test/limits.test.ts` compares with the contracts. The **engine** is `Model.engine` and the
+**provenance** is `Relation.provenance` (M2 API): the rule tier shows `proa-rules/1.0.0` and what
+matched, agent proposals the principal handle plus the declared procedure (`id@version`) and LLM
+model, human decisions the handle and the verdict; only a relation without provenance falls back
+to what tier and attributes say. Element labels come from the facts of every head revision
+(`GET …/revisions/{r}/facts`, cached per revision).
+
+#### Review in the web UI (M2)
+
+M2-PIPELINE-REVIEW item 7 on the REST routes of [Analysis pipeline and review](#analysis-pipeline-and-review-m2);
+`src/lib/review.ts` (queue, held list, stage counts, evidence, conflicts, all pure),
+`src/lib/review-actions.ts` (mutations), `src/components/review/*`, `src/routes/project-review.tsx`
+and `src/routes/review.tsx`.
+
+- **Inbox** (`/projects/{key}/review`). The stage bar counts models per pipeline stage ("Phase"
+  in the UI; "Stufe" is only the tier) in pipeline order (Wartet auf Agent → Agent arbeitet →
+  Agent gescheitert → Wartet auf Prüfung → Klärung offen → Eingearbeitet). Selecting a phase lists
+  its models; a lease that expired while nobody claimed since still says "Agent arbeitet" and is
+  marked "Lease abgelaufen" with "Erneut einplanen", like a failed task; "Vorgemerkte zeigen" on
+  a model waiting for clarification opens its held items. The queue holds the open proposals and
+  the accepted relations whose endpoint changed or is missing ("Angenommen, Endpunkt geändert";
+  the same `review_items` that keep a model in "Wartet auf Prüfung", and the count of the
+  "Prüfen" tab), highest confidence first, then those whose decision finishes a model (its last
+  open item, "schließt 1 Modell ab"); an agent's question shows as "Frage". "Prüfen" opens the
+  review screen with the same filters.
+- **Review screen** (`/projects/{key}/review/{relation}`, full viewport like the model view): both
+  endpoint models in bpmn-js side by side (from 1280 px; below that, and with the toggle, one at a
+  time: "Von" / "Nach"; one canvas when both ends lie in one file), endpoints marked and labelled
+  "Von"/"Nach", each pane with model key, engine, stage and "Im Modell"; a pane whose model was
+  deleted says so ("Modell „…“ gibt es nicht mehr") instead of loading. The panel shows type,
+  status, tier, endpoint state, confidence, both endpoints, the version, the agent's question,
+  rationale and evidence (refs into the two endpoint models are buttons that centre and mark the
+  element as "Beleg", switching to its pane when only the other one is shown; refs into other
+  project models link to the model view at that element; anything else stays text; a cited
+  element belongs to its relation, so another relation, reached by link or history, starts
+  without it), the provenance ("Vorgeschlagen von"/"Entschieden von", client, declared procedure
+  and LLM model, tier, confidence, time) and the **timeline** (`GET …/assertions`, oldest
+  first: proposals, withdrawals, decisions, notes with their texts, the assertion the status rests
+  on marked "maßgeblich", links between a correction and the corrected proposal).
+- **Decisions** at the panel's foot: **Annehmen** (A; "Erneut annehmen" for an accepted relation
+  whose endpoint changed, which anchors the decision on the current endpoints; a missing endpoint
+  can only be rejected or corrected), **Ablehnen** (R, reason required; agents see it),
+  **Vormerken** (H, note required, question and label optional), **Korrigieren** (C: choose
+  which end is wrong, pick an element from the compatible endpoints of the landscape, say why;
+  sent as `verdict: correct`, so the server accepts a `manual` relation and rejects the proposal;
+  the candidates are one radio group, a single tab stop with the arrow keys moving the choice).
+  The correction candidates mirror `endpointRole` of `@proa/relations` (`src/lib/endpoints.ts`,
+  same role as the replaced end, any endpoint for a `manual` relation, never in the process of the
+  end that stays), ranked by shared words with either end. J/→ and K/← walk the queue (opened
+  from the held list, `?view=held`, they walk the held list, and "Vorgemerkt" leads back to it);
+  after a decision the screen moves on to the next item (back to the list at its end). Shortcuts
+  never fire while typing, with a modifier, or while a dialog is open; Cmd/Ctrl+Enter submits a
+  form (reject, hold, correction, the answer in the held list), Escape cancels it, and a
+  cancelled correction starts afresh.
+- **Versions.** Every decision sends the `version` the reviewer saw. A 409 (another decision, a
+  new proposal, a re-upload meanwhile) shows "Die Relation wurde inzwischen geändert" with both
+  versions, saves nothing and reloads the new state; the shortcuts pause until "Neuen Stand
+  prüfen".
+- **Bulk accept per tier** ("Schlüssel: 33 annehmen…", one button per tier in the queue): the
+  dialog lists every pair with both labels and model keys and flags (`src/lib/generic-names.ts`)
+  a message or signal name or end label made of generic words only ("Antwort", "Antwort erhalten",
+  "Daten aktualisiert"; DE/EN list, camelCase split, umlauts folded), a name more than two
+  processes use (with how many send and receive), a proposal whose agent asks the reviewer a
+  question ("Der Agent fragt nach: …", the review screen shows it in full) and a call whose
+  process id several models define (`duplicate-process-id`: accepting every target is rarely
+  right). Flagged pairs start unchecked; a deliberate check holds for the version the reviewer
+  saw, so after a 409 reload a pair that changed or is flagged now is unchecked again (and one the
+  reviewer unchecked stays unchecked); the "Alle" box shows a dash while only some are selected.
+  The request carries ids, versions, the tier and `expectedCount`; a 409 keeps the dialog open
+  with "Die Liste hat sich geändert … Es wurde nichts entschieden". Accepted relations whose
+  endpoint changed are never in a bulk list; they are confirmed one by one.
+- **Held list** (`?view=held`): per held relation the hold note, question and label, the answers so
+  far (notes after the hold) and an answer field (`POST …/notes`), plus "Prüfen" to decide once the
+  answer is known.
+- **Plain text.** Rationales, questions, notes, labels, evidence and task errors render through
+  `PlainText` (React text, `white-space: pre-wrap`): no HTML, no Markdown; the review flow checks
+  that an `<img onerror>` rationale stays text under the CSP.
 
 Design: `miragon-brand:modeler-tool-design`. `src/theme/cd-tokens.generated.css` is vendored
 unchanged from the skill (re-copy it to update, never edit it); `src/index.css` maps the shadcn
@@ -535,6 +886,10 @@ unique index: one open task per model and kind), `analysis_submission`, `event`,
 (derived, replaced by every ingest), and the view `model_pipeline` (stage and open items).
 Child tables use composite foreign keys `(project_id, x_id)`. `event`, `relation_assertion` and
 `analysis_submission` are append-only (trigger in `drizzle/0001_append_only.sql`, hand-written).
+M2: `model_revision.engine`; `relation_assertion.question`, `label`, `linked_relation_id` and the
+kind `note` (check: notes only from humans); `analysis_submission.client_id`
+(`0002_pipeline_review.sql`, generated); the `proa_analysis` NOTIFY trigger, the engine backfill
+and the deferred assertion → submission foreign key (`0003_pipeline_notify.sql`, hand-written).
 Migrations: `pnpm --filter @proa/server db:generate` for schema changes,
 `pnpm --filter @proa/server exec drizzle-kit generate --custom --name <name>` for SQL drizzle-kit
 does not model.
@@ -613,6 +968,62 @@ error/escalation events, so the eval passes them in as `extraEvents` from a full
   content is a sandboxed download.
   `test/unit/policy.test.ts` checks the generated matrix permission × role × scopes × principal
   kind.
+- M2 pipeline and review (real PostgreSQL; fake analysis unless noted):
+  `pipeline.test.ts` (claim and its hashed, bound lease token, the claim input, per-item results
+  for every invalid reason, provenance, verbatim storage, replay and 409 `already-submitted`,
+  release, lease expiry with re-claim and `lease-lost`, failure after the third lost lease in the
+  claim transaction, late submits, cancellation by a new revision, supersession, requeue, scopes,
+  a claim whose input cannot be built; after the review: a third expired lease failed by the
+  pending count or a requeue without anybody claiming, a requeue cancelling an expired lease with
+  attempts left, a late submit after the failure refused once a newer task ran or the model
+  changed, the 413 for a body over 1 MB, items with control characters `invalid` while the others
+  apply and NUL stored as U+FFFD, control characters in the declared model and a release reason
+  refused, a revoked token's proposals withdrawn and its task handed back with decisions and other
+  agents' proposals kept); `pipeline-concurrency.test.ts` (over real HTTP: two
+  projects, six agent tokens and the owner claim at once, every task exactly once, again after the
+  leases expired; a row locked by another transaction is skipped, not waited for; the long-poll
+  wakes on NOTIFY, is bounded, shares one LISTEN connection, lets go of aborted requests, ignores
+  other projects and bounds the waits per caller); `review.test.ts` (accept, reject, hold, correct, notes, If-Match and versions,
+  bulk with count/version/tier/duplicate mismatches, decision memory across re-uploads, held items
+  and `waiting_for_clarification`, the claim input with decisions and notes, findings answered by a
+  relation, ad-hoc proposals and withdrawal, manual relations, agents never decide, events, a
+  human's acceptance kept when the same human proposes the pair again and that proposal is
+  superseded, control characters refused in every decision, note and ad-hoc proposal);
+  `claim-input-size.test.ts` (real libraries, every model of both scored landscapes, < 100 KB);
+  `policy.test.ts` (claim, pending, requeue, ad-hoc proposals, decisions, bulk and notes per
+  credential); `db-constraints.test.ts` (notes by humans only, agents never decide even through the
+  store, the deferred submission reference, the engine backfill); `mcp-contract.test.ts` (the pipeline
+  tools, `decide_relation`, `propose_relation`/`withdraw_proposal`, `get_landscape` and the prompt in
+  both protocol versions; a submission just over 1 MB refused as `payload-too-large`, a request
+  over the MCP limit as HTTP 413). Unit: `status.test.ts` (with 2,000 random histories as property tests:
+  order independence, notes ignored, obsolete exactly without live stances, latest decision wins
+  unless a changed proposal reopens a rejection, `classifyProposal` never drops a proposal that would
+  change the status; a human decision in force across the same human's later proposal and its
+  withdrawal), `pipeline.test.ts` (lease tokens, item checks incl. control characters, the stored
+  payload's NUL replacement, findings filter, claim-input rendering, If-Match, notifier fallbacks
+  incl. the per-caller limit); `packages/relations/test/assess.test.ts`.
+- M2 simulation agent and `eval:replay`: `apps/agent-sim/test/unit` (`pnpm --filter
+  @proa/agent-sim test`, no Docker): `policy.test.ts` (one verdict per candidate incl. skips for
+  accepted, rejected, held and reopened pairs, rationale and question texts, no-links, thresholds,
+  verdict by score whatever the basis, the submission limits on 900 seeded random candidates),
+  `recorder.test.ts` (recording lines with and without ids, input summary, layout, files started
+  afresh per run), `agent.test.ts` (the loop over the real SDK client against an in-memory MCP
+  server: procedure and prompt read, one claim per task, scope and `maxTasks`, dry run, refused
+  submissions handed back at the end, no loop on a repeated task, missing tools, wrong token) and
+  `program.test.ts` (the command line: token checks, options, exit codes, recording paths). The
+  end-to-end run is the server test `agent-sim.test.ts` (real PostgreSQL and libraries): both
+  scored landscapes imported, `nordwind-handel` worked over Streamable HTTP and
+  `stadtwerke-auental` through `proa-agent-sim --stdio` (the `proa mcp` bridge as a child
+  process); every task `done` with attempt 1 and its stored submission (handle, client, declared
+  procedure and model, no lease token, nothing invalid), every agent-sourced relation `proposed`
+  with the token's principal, client, procedure and model (also checked row by row in
+  `relation_assertion`), no decision but the rule tier's, no `relation.decided` event by the
+  agent, the recordings equal to `eval/recordings` (file snapshots), and a dry run that leaves
+  every task queued with no attempt counted. `eval/tools/test/replay.test.ts`: a fixture recording
+  of `_sample` with every case (server-invalid and locally invalid items, a pair proposed twice,
+  must_not_link at high confidence, unlisted, no-links incl. one on a must_link, questions) scored
+  to exact numbers; the report is deterministic and the committed `replay.md` up to date;
+  unreadable recordings are refused with file and line.
 - `apps/cli`: `pnpm --filter @proa/cli test:unit` (commands against a fake REST API, owner key
   file checks, the MCP bridge against the SDK's in-memory `createMcpHandler`) and `test:e2e`:
   starts `node apps/server/src/main.ts` as a child process on a free port with its own database
@@ -626,10 +1037,32 @@ error/escalation events, so the eval passes them in as `extraEvents` from a full
   states, creation with the request body, secret shown once, exact Claude Code command, Claude
   Desktop node/Docker configurations, generic client, revocation after confirmation, problem
   toast), `upload-panel.test.tsx` (folder paths, batches, per-file outcomes, skipped files),
-  `api.test.ts` (session on 401, one session for parallel 401s, problems), `lib.test.ts` (engine
-  detection against every corpus spec, upload planning, snippets, slugs, refs, filters),
-  `app.test.tsx` (routes rendered on the server), `theme.test.ts` (token drift) and
-  `limits.test.ts`. The tests stub `fetch` and talk through the real generated client.
+  `api.test.ts` (session on 401, one session for parallel 401s, problems), `lib.test.ts` (upload
+  planning, snippets, slugs, refs, filters, provenance fallback), `app.test.tsx` (routes rendered
+  on the server, incl. the inbox and the review screen), `theme.test.ts` (token drift) and
+  `limits.test.ts` (constants and label maps against the contracts). Review (M2):
+  `decision-panel.test.tsx` (accept with the seen version, A/R/H/C shortcuts, required reason and
+  note, question and label only when given, shortcuts ignored while typing, Escape, the correction
+  dialog with compatible candidates, search and the exact `correct` body, the 409 conflict message
+  with both versions and paused shortcuts, other errors as toasts, obsolete and accepted
+  relations, "Erneut annehmen" for a changed endpoint and none for a missing one, the correction
+  candidates as one radio group with arrow keys, Cmd/Ctrl+Enter and a fresh start after
+  "Abbrechen"), `bulk-accept-dialog.test.tsx` (every pair listed, generic and shared names, agent
+  questions and ambiguous call targets flagged and unchecked, the exact body with ids, versions,
+  tier and `expectedCount`, select all/none with a dash for "some", 409 keeps the dialog open,
+  after the reload a pair flagged now or changed since a deliberate check is unchecked),
+  `held-list.test.tsx` (hold note, question, label, only answers after the hold, saving an answer
+  as a note, also with Cmd/Ctrl+Enter, empty list), `review-screen.test.tsx` (the real router with
+  a stand-in canvas: evidence switches the pane, refs into other models link to the model view,
+  another relation by link or history starts without the previous one's evidence, a deleted
+  endpoint model is named instead of loading), `review-inbox.test.tsx` (accepted relations with a
+  changed endpoint in the queue and the tab count but not in bulk, held items of a model waiting
+  for clarification, requeue of an expired lease), `review-details.test.tsx` (hostile rationale as
+  plain text, endpoints, question, provenance, clickable evidence refs vs. text, timeline order with
+  the deciding entry and correction link) and `review-lib.test.ts` (queue order and filters, held
+  order, stage counts, neighbours, evidence parsing, conflicts, generic names, endpoint roles and
+  correction candidates, provenance from the API). The tests stub `fetch` and talk through the real
+  generated client; components with links render in a throwaway router (`renderWithRouter`).
 - `apps/web/e2e/smoke.spec.ts` (Playwright, Chromium): creates its own project `e2e-<time>`,
   imports `eval/corpus/_sample` and walks projects → relations (rule acceptance, key-tier quick
   filter) → model view (endpoint highlighted in the caller, switch to the called model), re-imports
@@ -641,6 +1074,36 @@ error/escalation events, so the eval passes them in as `extraEvents` from a full
   pnpm --filter @proa/web exec playwright install chromium     # once
   pnpm --filter @proa/web e2e                                  # PROA_E2E_URL=http://127.0.0.1:7400
   ```
+- `apps/web/e2e/review.spec.ts` (Playwright, M2 review flow, same prerequisites): creates its own
+  project from `eval/corpus/nordwind-handel` and an agent token, then as the agent over REST
+  claims ten tasks, submits proposals for eight (built from the claim input's lexical candidates,
+  with rationale, evidence, one question and one rationale carrying HTML), releases one and keeps
+  one claimed. In the browser: the stage counts (22 waiting, 1 working) and the holder of the
+  claimed task; the review screen with both models imported and endpoints marked, rationale,
+  provenance, an evidence ref marked "Beleg", J/K; A, R (reason, Ctrl+Enter) and H (note, question,
+  label) with the stored status checked over REST; the held list with a saved answer; a correction
+  and the linked timelines of both relations; the HTML rationale rendered as text (no element, no
+  dialog) and a 409 conflict after a decision made meanwhile over REST; the bulk accept of the key
+  tier with flagged pairs left open. Every page is checked for CSP violations.
+- `apps/web/e2e/pipeline.spec.ts` (Playwright, M2 end to end, same prerequisites plus the
+  checkout's `apps/agent-sim`): creates its own project from `eval/corpus/nordwind-handel` and an
+  agent token (read, propose), then runs `proa-agent-sim` as a child process over MCP until no task
+  is left (every task submitted at attempt 1, nothing invalid; the five pairs the flow decides are
+  proposed with the token's principal and client, `proa-relations` and `sim-policy-1`). In the
+  browser: the stage bar equals the models' stages (none waiting for the agent, some waiting for
+  review, some incorporated), questions in the queue, the agent's provenance in the relations
+  table; the review screen with the agent's rationale, question and provenance; A, R twice, H with
+  a question and its answer in the held list; a correction of the dynamic call
+  `Call_RechnungAusgeben` to `finanzen/briefversand` (a `manual` relation accepted, the proposal
+  rejected); the bulk accept of the key tier with "Antwort" (generic) and both targets of the
+  duplicate process id (agent question, ambiguous target) left open. Then decision memory: the
+  modeler renames the start event of `finanzen/zahlungslauf` and uploads it again; the rejection
+  touching it stays rejected with "Endpunkt geändert" and the model waits for the agent; the other
+  rejected pair, proposed again over MCP (`propose_relation`), answers `suppressed` without a new
+  version; `decide_relation` over MCP answers `human-decision-required` with a `reviewUrl` that
+  opens the review screen; the agent's second run works only that model and reopens the changed
+  pair (`reopened`, status `proposed`, timeline proposal → rejection → proposal), while the
+  accepted and held relations of that model keep their status; the reviewer accepts it.
 - `packages/bpmn-facts/test/hostile.test.ts` also appends NUL, a right-to-left override and SOH
   to every text attribute of every corpus model and requires the same facts as for the clean
   file, with no control or bidi character anywhere in the result.
@@ -668,14 +1131,15 @@ error/escalation events, so the eval passes them in as `extraEvents` from a full
   the official SDK client over real HTTP with agent tokens against the real libraries on
   `eval/corpus/_sample`, imported into two projects. `tools/list` is a file snapshot
   (`__snapshots__/mcp-tools.json`, identical in 2025-11-25 and 2026-07-28; after an intended
-  tool change run `pnpm --filter @proa/server exec vitest run -u test/integration/mcp-contract.test.ts`).
+  tool change run `pnpm --filter @proa/server exec vitest run test/integration/mcp-contract.test.ts -u`;
+  `-u` takes an optional value, so a path right after it is not a file filter and every file runs).
   Every tool is called with valid input (the client validates `structuredContent` against the
   output schema), invalid input, and the other project's key and id and unknown ids (404). The
   credential matrix: no token, malformed, revoked (also for an open client) and expired tokens,
   the owner key and the owner session (401), every agent scope, a token cannot be created
   without `proa:read` or with `proa:review` (422) nor stored without scopes (check
   constraint), and a scope-less row, with the constraint dropped, gets 403 `insufficient_scope`
-  on MCP and REST.
+  on MCP and REST. `tools/list` uses no JSON Schema format but `date-time` and `uuid`.
 - `apps/cli/test/live/stack.live.test.ts` (`PROA_LIVE_URL=http://127.0.0.1:7400 pnpm --filter
   @proa/cli test:live`) checks a running, seeded ProA as a user runs it: health, UI, OpenAPI
   and a foreign `Host`; agent tokens through `proa token create` in the container
@@ -685,11 +1149,17 @@ error/escalation events, so the eval passes them in as `extraEvents` from a full
   cwd `/`), where a bare `docker` cannot be found; a revoked token refused through the bridge.
   Each path lists the token's project, all models, the accepted rule relations (compared with
   `eval/reports/candidates.json`), a process, XML and the procedure, and gets 404 for the other
-  project. Its tokens are revoked at the end (they stay listed as revoked). Without
+  project. M2: the pipeline tools are listed, and deciding a proposed relation as an agent
+  (`decide_relation` for accept, reject and hold, and REST `POST …/decision`) answers 403
+  `human-decision-required` with `reviewUrl` = `<PROA_LIVE_URL>/projects/<key>/review/<rel>`,
+  changes nothing and that URL serves the UI. Its tokens are revoked at the end (they stay
+  listed as revoked). Without
   `PROA_LIVE_URL` it is skipped, so `pnpm test` never touches a running stack.
-- `apps/web/e2e/screenshots.spec.ts` retakes `docs/proa-2/screenshots/*.png` from a running,
+- `apps/web/e2e/screenshots.spec.ts` retakes `docs/proa-2/screenshots/0*.png` from a running,
   seeded ProA (`PROA_SCREENSHOTS_DIR`, see Commands). It creates a token named "Screenshot",
   blanks every full secret in the page before each screenshot, and revokes the token afterwards.
+  `review.spec.ts` writes `m2-01` … `m2-07`, `pipeline.spec.ts` `m2-08` … `m2-12` into the same
+  directory when `PROA_SCREENSHOTS_DIR` is set.
 
 ## CI
 
@@ -697,7 +1167,8 @@ error/escalation events, so the eval passes them in as `extraEvents` from a full
 `claude/proa-2` that touch the workspace. Job `verify`: install with the frozen lockfile, format
 check, typecheck, lint, tests (incl. Testcontainers and the MCP contract test), client drift
 check, `eval/tools` check and validate, `eval:candidates` (fails on a gate; `eval/reports` must be
-up to date), and the web build. Job `docker`: builds the image and starts the Compose stack
+up to date), `eval:replay` (`eval/reports` and `eval/recordings` must be up to date), and the web
+build. Job `docker`: builds the image and starts the Compose stack
 (`up -d --build --wait`), checks `/health` and `/`, runs `proa seed` and `proa status` in the
 container, then the live check (`test:live`) against it. Actions are pinned to commit SHAs. The
 Playwright tests are not in CI.
@@ -737,8 +1208,174 @@ Claude Code 2.1.292, starting from a clean state (`down -v`):
    `PROA_ALLOW_NON_LOOPBACK=1` refuses to start (exit 1); `proa status` on the host with a
    stale `~/.local/state/proa/owner-key` reports the server only (exit 0).
 
+M2 simulation agent, on 2026-10-08 (same machine, Node 24.15): PostgreSQL in a throwaway compose
+project (`PROA_DB_PORT=55441 docker compose -p proa2-sim -f docker/compose.yaml up -d --wait db`),
+the server from the checkout on port 7441 with its own owner key, `proa seed --issue-tokens`, then
+`pnpm agent-sim --record rec --record-input summary --no-record-ids` with the `nordwind-handel`
+token over HTTP (31 tasks submitted) and `node apps/agent-sim/src/main.ts --stdio …` with the
+`stadtwerke-auental` token through the bridge (26 tasks); both recordings byte-identical to
+`eval/recordings`, `eval:replay --recordings rec` gave the committed numbers, `proa status` showed
+no model waiting for an agent and only the rule tier's acceptances. A requeue of all models, a dry
+run of two tasks (both queued again, attempts 0) and a second full run (all 96 proposals
+`duplicate`, nothing withdrawn) followed; then `down -v`. The owner's `proa2` stack was not
+touched.
+
+M2 review UI, on 2026-10-08 (same machine): PostgreSQL in a throwaway compose project
+(`PROA_DB_PORT=55471 docker compose -p proa2-m2web -f docker/compose.yaml up -d --wait db`), the
+server from the checkout on port 7431 with its own owner key and the freshly built UI, `proa seed`;
+Playwright in Chromium with `PROA_E2E_URL=http://127.0.0.1:7431`: the review flow (7 tests), the
+smoke test (3) and the screenshots (M1 retaken, since the relations table and the model view now
+link to the review screen, plus `m2-*.png`), no CSP violation. Then the gates: `pnpm format:check`,
+`pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test` (web 98, server 723, cli 50 plus 6 live tests
+skipped, agent-sim 36, relations 61, bpmn-facts 134, contracts 32, procedures 6, client 4,
+eval/tools 32), `pnpm eval:candidates` (pass, report unchanged) and `pnpm build`; then `down -v`.
+Not run for the UI: the Docker image and the CI docker job, other browsers than Chromium, screen
+readers.
+
+### M2 end to end (2026-10-08)
+
+Everything of M2 together, on the owner's `proa2` stack (until then the M1 image with the M1
+seed; a `pg_dump` was taken first) and a second compose project from the same image:
+
+1. **Upgrade in place.** `docker compose -p proa2 -f docker/compose.yaml up -d --build --wait`
+   applied migrations 0002 and 0003 to the M1 database; the engine backfill gave every one of the
+   57 models the engine `@proa/bpmn-facts` detects (27 `c7`, 30 `c8`). `proa seed`: all files
+   `unchanged`.
+2. **Pipeline.** One read+propose token per project (`proa token create` in the container).
+   `proa-agent-sim` over HTTP on `nordwind-handel` (31 tasks, 96 proposals: 48 applied, 48
+   duplicate; 256 no-links) and through the bridge in the container (`--stdio-command
+   "/usr/local/bin/docker exec -i -e PROA_TOKEN proa2-proa-1 proa mcp"`, Claude Desktop's Docker
+   entry) on `stadtwerke-auental` (26 tasks, 104 proposals: 52 applied, 52 duplicate). The
+   recordings (`--record-input summary --no-record-ids`) are byte-identical to `eval/recordings`,
+   also on this upgraded database. Stages moved from 31 and 26 "waiting for agent" to 28 "waiting
+   for review" + 3 "incorporated" and 20 + 6; every proposed relation's provenance names the
+   token's principal and client, `proa-relations@0.0.1` and `sim-policy-1`; findings that a
+   proposal answers are hidden (14 → 8 and 17 → 16). The inbox in Chromium shows the same counts.
+3. **Agents cannot decide.** The live check (7 tests, incl. `decide_relation` for every verdict
+   and REST `POST …/decision` with an agent token: 403 `human-decision-required` with the stack's
+   `reviewUrl`, nothing changed) passed against the stack before and after the final rebuild.
+4. **Review in the browser** (`e2e/pipeline.spec.ts`, see [Tests](#tests)) against the second
+   project `PROA_HOST_PORT=7460 PROA_DB_PORT=55460 docker compose -p proa2-e2e -f
+   docker/compose.yaml up -d --build --wait`, so the owner's queue stays undecided: accept, two
+   rejections with reasons, a hold with a question and its answer, a correction, the key-tier bulk
+   accept with the generic "Antwort" pair and both targets of the duplicate process id left open;
+   then the re-upload of `finanzen/zahlungslauf`, `suppressed` for the unchanged rejected pair
+   over MCP, `reopened` for the changed one by the agent's second run, accepted and held relations
+   unchanged. With the review (7) and smoke (3) specs: 16 passed, no CSP violation; screenshots
+   `m2-01` … `m2-12`. Then `down -v`.
+5. **Gates:** `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint`, `pnpm -r test` (server
+   723, web 101, cli 50 plus 7 live tests skipped, agent-sim 36, relations 61, bpmn-facts 134,
+   contracts 32, procedures 6, client 4, eval/tools 32), `pnpm eval:candidates` (pass, report
+   unchanged), `pnpm eval:replay` (reports byte-identical), eval/tools `check` and `validate:all`,
+   client generation without drift, `drizzle-kit generate` without schema changes, `pnpm build`,
+   and the image build (`up --build`).
+6. **Fixed on the way:** the lease token's schema was zod `.startsWith()`, so `claim_analysis`
+   declared `format: "starts_with"` and every SDK client printed a warning (now a `pattern`; the
+   contract test allows only standard formats); the bulk accept took the agent's key-tier
+   proposals that ask the reviewer a question, and both targets of a duplicate process id, without
+   a look (now flagged and unchecked); its "Alle" box showed a tick while only some were selected
+   (now a dash); the e2e helpers counted the diagrams before they were mounted.
+
+Found and left open (decisions for the owner):
+
+- An agent that leaves out decided pairs, as `sim-policy-1` does, has its earlier proposals on
+  accepted and held relations of that model withdrawn by its next submission (supersession). The
+  status stays, but the relation's `version` moves, so a reviewer who has it open gets the 409
+  "inzwischen geändert" screen after an agent run.
+- `correct` towards a pair that already has a typed proposal (e.g. the key-tier message) creates a
+  second, `manual` relation next to it; the typed proposal stays open.
+- Revoking an agent token did not withdraw its proposals (CONCEPT §6 lists it as a mitigation);
+  fixed below, [M2 review fixes](#m2-review-fixes-2026-10-08).
+- Through the bridge in the container, `reviewUrl` carries the container's port 7400, which is
+  wrong when `PROA_HOST_PORT` moves the published port.
+- The simulation agent writes English rationales and questions into a German UI; the real
+  procedure (M3) decides the language.
+
+State left behind: the `proa2` stack runs the final image with both landscapes seeded and worked
+by the simulation agent, nothing decided but the rule tier (`nordwind-handel`: 48 proposed, 28
+models waiting for review; `stadtwerke-auental`: 52 and 20). The two simulation tokens
+(`agent-sim-http`, `agent-sim-bridge`) and the live check's tokens are revoked; their proposals
+stay (they were revoked before a revocation withdrew proposals).
+
 Not verified: Claude Desktop itself (no GUI session; the bridge was started exactly as its
 configuration says), the `local` and `user` scopes of `claude mcp add` (they write to the user's
 Claude configuration; the HTTP exchange is the same as with the project scope), Cursor, VS Code
 and Codex, other operating systems, `pnpm dev` in this run (earlier stages verified it), and
 `ci-2.yml` on GitHub (only parsed locally).
+
+### M2 review fixes (2026-10-08)
+
+A review of the M2 state (pipeline, security, UX) found 15 issues; all were verified and fixed,
+none rejected. Each fix has a test that fails without it (checked by disabling the fix for 1–7, 9
+and 10):
+
+1. A late submit on a `failed` task passed after a newer task of the model had run, and its
+   supersession withdrew the newer proposals. Now 409 `task-cancelled` when a newer task exists or
+   the model changed or was deleted after the failure.
+2. A task whose third lease expired stayed `claimed` ("Agent arbeitet") until somebody claimed in
+   the project; pending did not count it, and requeue answered `open`. Now the pending count and a
+   requeue fail it too (requeue then queues a new task; an expired lease with attempts left is
+   cancelled and requeued), and the inbox marks an expired lease with "Erneut einplanen".
+3. A human's later proposal replaced that human's own decision (per-principal stance), so an
+   accepted relation turned `proposed` and, after supersession, `obsolete`. Now a human's latest
+   decision stays in force until the same human decides again (`decisionsInForce`); the property
+   tests' oracle follows.
+4. MCP `submit_analysis` took up to the SDK default of 4 MiB and stored it. Now the MCP endpoint
+   refuses requests over 1 MB + 16 KB (HTTP 413), and the use case refuses a stored payload over
+   1 MB (`payload-too-large`) for REST and MCP alike.
+5. U+0000 in agent or human text gave a 500 and lost the whole submission. Now submission items
+   answer `invalid:control-characters` (a new reason in the contracts, OpenAPI, client and MCP
+   snapshot), other free text (decisions, bulk decisions, notes, ad-hoc proposals, release reason)
+   is refused with 422, declared procedure and LLM model are names, and the stored payload keeps
+   U+0000 as U+FFFD.
+6. One token could take all 200 long-poll slots. Now at most 8 waits per caller (principal).
+7. Revoking a token now withdraws its live proposals and hands its claimed tasks back (CONCEPT
+   §6); the revoke dialog says so.
+8. Accepted relations whose endpoint changed kept models in "Wartet auf Prüfung" but were in no
+   list, and "Annehmen" was disabled. Now they are in the queue and the tab count ("Angenommen,
+   Endpunkt geändert") and can be accepted again ("Erneut annehmen").
+9. The bulk dialog kept a pair checked after a 409 reload although it was flagged now. Deliberate
+   checks now hold for the version seen.
+10. The review screen kept the previous relation's "Beleg" after navigating by link or history.
+    Cited elements now belong to their relation; evidence switches to the hidden pane, and refs
+    into other models link to the model view.
+11. A pane for a deleted endpoint model spun forever; it now names the missing model.
+12. "Stufe" meant both the pipeline stage and the tier on the inbox; the pipeline stage is now
+    "Phase" (models table, filter, stage list), and the provenance says "Vorgeschlagen
+    von"/"Entschieden von" and "LLM-Modell".
+13. "Vorschläge zeigen" on a model waiting for clarification opened an empty list; it now opens
+    its held items, and the review screen walks and returns to the held list (`view=held`).
+14. The correction candidates were up to 60 tab stops without arrow keys, and Cmd/Ctrl+Enter did
+    nothing there or in the held list's answer. Now one Radix radio group, Cmd/Ctrl+Enter in both
+    forms, and "Abbrechen" starts afresh.
+15. `agent-sim.test.ts` told maintainers `vitest run -u <file>` (updates every snapshot); now
+    `vitest run <file> -u`.
+
+Verified afterwards, on the same machine:
+
+- Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (no dependency violations),
+  `pnpm -r test` (server 738, web 112, cli 50 plus 7 live tests skipped, agent-sim 36, relations
+  61, bpmn-facts 134, contracts 33, procedures 6, client 4, eval/tools 32), `pnpm eval:candidates`
+  and `pnpm eval:replay` (reports and recordings byte-identical), eval/tools `check` and
+  `validate:all`, client generation without drift, `drizzle-kit generate` without schema changes,
+  `pnpm --filter @proa/web build`.
+- E2E step 1: a `pg_dump` of the owner's database, then `docker compose -p proa2 -f
+  docker/compose.yaml up -d --build --wait` with the final code (the image build); `proa seed`
+  all `unchanged`; `proa status` identical before and after (48 and 52 proposed, 28 and 20 models
+  waiting for review).
+- Step 3: the live check (7 tests) against the owner's stack; nothing changed there but two
+  created and revoked tokens.
+- Steps 2 and 4 on a throwaway project from the same image (`PROA_HOST_PORT=7460
+  PROA_DB_PORT=55460 docker compose -p proa2-e2e …`, removed with `down -v` afterwards), so the
+  owner's queue stays undecided: `proa seed`, the M1 screenshots retaken from that fresh seed
+  (the models table now says "Phase"), one token per project, `proa-agent-sim` over HTTP on
+  `nordwind-handel` (31 tasks, 48 applied, 48 duplicate) and through the bridge in the container
+  on `stadtwerke-auental` (26 tasks, 52 and 52), both recordings byte-identical to
+  `eval/recordings`, the same stages, findings and provenance as before; revoking the
+  `nordwind-handel` token withdrew its 48 proposals (33 rule-tier key proposals stayed); then
+  `pipeline.spec`, `review.spec` and `smoke.spec` in Chromium (16 passed) with the `m2-*`
+  screenshots retaken.
+
+State left behind: the `proa2` stack runs the image with these fixes, its data as before (both
+landscapes seeded and worked by the simulation agent, nothing decided but the rule tier). The
+`pg_dump` taken before the rebuild stays in the session's scratchpad.

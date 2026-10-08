@@ -2,18 +2,30 @@ import {
   getHealth,
   getLandscape,
   getProject,
+  getRelation,
+  getRelationAssertions,
   getRevisionContent,
   getRevisionFacts,
   listAgentTokens,
+  listAnalyses,
   listModels,
   listProjects,
   type Health,
 } from '@proa/client';
-import type { AgentToken, Landscape, Model, Project, RevisionFacts } from '@proa/client';
+import type {
+  AgentToken,
+  AnalysisTask,
+  AnalysisTaskState,
+  Landscape,
+  Model,
+  Project,
+  Relation,
+  RelationAssertion,
+  RevisionFacts,
+} from '@proa/client';
 import { queryOptions } from '@tanstack/react-query';
 
 import { api, unwrap } from './api';
-import { detectEngine, type Engine } from './engine';
 import { MAX_PAGE_LIMIT } from './limits';
 
 /**
@@ -27,6 +39,11 @@ export const keys = {
   models: (project: string) => ['project', project, 'models'] as const,
   landscape: (project: string) => ['project', project, 'landscape'] as const,
   agentTokens: (project: string) => ['project', project, 'agent-tokens'] as const,
+  relation: (project: string, id: string) => ['project', project, 'relation', id] as const,
+  assertions: (project: string, id: string) =>
+    ['project', project, 'relation', id, 'assertions'] as const,
+  analyses: (project: string, state: AnalysisTaskState) =>
+    ['project', project, 'analyses', state] as const,
   // Revisions are immutable: keyed by revision id, cached for good.
   facts: (revisionId: string) => ['revision', revisionId, 'facts'] as const,
   content: (revisionId: string) => ['revision', revisionId, 'content'] as const,
@@ -89,6 +106,38 @@ export const landscapeQuery = (project: string) =>
     queryFn: (): Promise<Landscape> => unwrap(getLandscape({ client: api, path: { project } })),
   });
 
+/** One relation, also an obsolete one (the landscape leaves those out). */
+export const relationQuery = (project: string, id: string) =>
+  queryOptions({
+    queryKey: keys.relation(project, id),
+    queryFn: (): Promise<Relation> =>
+      unwrap(getRelation({ client: api, path: { project, relation: id } })),
+  });
+
+/** The relation's history, oldest first. */
+export const assertionsQuery = (project: string, id: string) =>
+  queryOptions({
+    queryKey: keys.assertions(project, id),
+    queryFn: async (): Promise<RelationAssertion[]> =>
+      (await unwrap(getRelationAssertions({ client: api, path: { project, relation: id } }))).items,
+  });
+
+/** Analysis tasks in one state, newest first (who works on what, why a task failed). */
+export const analysesQuery = (project: string, state: AnalysisTaskState) =>
+  queryOptions({
+    queryKey: keys.analyses(project, state),
+    queryFn: (): Promise<AnalysisTask[]> =>
+      allPages((cursor) =>
+        unwrap(
+          listAnalyses({
+            client: api,
+            path: { project },
+            query: { state, limit: MAX_PAGE_LIMIT, cursor },
+          }),
+        ),
+      ),
+  });
+
 export const agentTokensQuery = (project: string) =>
   queryOptions({
     queryKey: keys.agentTokens(project),
@@ -118,7 +167,6 @@ export const factsQuery = ({ project, modelId, revisionId }: RevisionRef) =>
 
 export interface RevisionContent {
   xml: string;
-  engine: Engine | null;
 }
 
 export const contentQuery = ({ project, modelId, revisionId }: RevisionRef) =>
@@ -133,7 +181,7 @@ export const contentQuery = ({ project, modelId, revisionId }: RevisionRef) =>
         }),
       );
       const xml = typeof body === 'string' ? body : await new Response(body as Blob).text();
-      return { xml, engine: detectEngine(xml) };
+      return { xml };
     },
     staleTime: Infinity,
     gcTime: 30 * 60_000,

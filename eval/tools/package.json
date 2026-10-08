@@ -20,7 +20,8 @@
     "test": "node --test \"test/**/*.test.mjs\" \"test/**/*.test.ts\"",
     "lint": "eslint .",
     "typecheck": "tsc",
-    "candidates": "node src/candidates.ts"
+    "candidates": "node src/candidates.ts",
+    "replay": "node src/replay.ts"
   },
   "dependencies": {
     "@proa/bpmn-facts": "workspace:0.0.0",

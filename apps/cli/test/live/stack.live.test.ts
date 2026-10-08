@@ -247,6 +247,63 @@ describe.skipIf(!LIVE_URL)(`live ProA at ${LIVE_URL ?? '(PROA_LIVE_URL not set)'
     await exercise(await connect(desktop({ ...entry, command: docker })));
   });
 
+  it('refuses decisions by agents over MCP and REST with the review URL (M2)', async () => {
+    const client = await connect(http(token.secret));
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'claim_analysis',
+        'submit_analysis',
+        'release_analysis',
+        'get_landscape',
+        'propose_relation',
+        'withdraw_proposal',
+        'decide_relation',
+      ]),
+    );
+    const open = await tool(client, 'get_relations', {
+      projectId: PROJECT,
+      status: 'proposed',
+      limit: 1,
+    });
+    const relation = (open.data['items'] as { id: string; version: number }[])[0];
+    expect(relation).toBeDefined();
+    const id = relation?.id ?? '';
+    const reviewUrl = `${LIVE_URL ?? ''}/projects/${PROJECT}/review/${id}`;
+    for (const verdict of ['accept', 'reject', 'hold']) {
+      const decided = await tool(client, 'decide_relation', {
+        projectId: PROJECT,
+        relationId: id,
+        verdict,
+      });
+      expect(decided.isError).toBe(true);
+      expect(JSON.parse(decided.text)).toMatchObject({
+        code: 'human-decision-required',
+        status: 403,
+        reviewUrl,
+      });
+    }
+    const rest = await fetch(
+      `${LIVE_URL ?? ''}/api/v1/projects/${PROJECT}/relations/${id}/decision`,
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token.secret}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ verdict: 'accept' }),
+      },
+    );
+    expect(rest.status).toBe(403);
+    expect(await rest.json()).toMatchObject({ code: 'human-decision-required', reviewUrl });
+
+    // nothing changed, and the URL is the web UI's review screen
+    const after = await fetch(`${LIVE_URL ?? ''}/api/v1/projects/${PROJECT}/relations/${id}`, {
+      headers: { authorization: `Bearer ${token.secret}` },
+    });
+    expect(await after.json()).toMatchObject({ status: 'proposed', version: relation?.version });
+    const page = await fetch(reviewUrl);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toMatch(/<div id="root">/);
+  });
+
   it('refuses a revoked token through the bridge with a message naming the cause', async () => {
     const revoked = await createToken(PROJECT, 'live-check-revoked');
     await proa(['token', 'revoke', '--project', PROJECT, revoked.id]);

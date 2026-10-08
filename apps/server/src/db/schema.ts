@@ -16,6 +16,8 @@
  */
 import {
   AgentScope,
+  AssertionKind,
+  Engine,
   EndpointState,
   EventDef,
   FactKind,
@@ -26,10 +28,12 @@ import {
   Role,
   SourceKind,
   Tier,
+  type DeclaredProcedure,
   type FactAttrs,
   type MessageFlowInfo,
   type ProcessInfo,
   type RevisionSource,
+  type SubmissionResult,
 } from '@proa/contracts';
 import { sql, type SQL } from 'drizzle-orm';
 import {
@@ -76,7 +80,7 @@ function oneOf(column: AnyPgColumn, values: readonly string[]): SQL {
 }
 
 export const PRINCIPAL_KINDS = ['user', 'service', 'system'] as const;
-export const ASSERTION_KINDS = ['proposal', 'withdrawal', 'decision'] as const;
+export const ASSERTION_KINDS = values(AssertionKind.options);
 export const VERDICTS = ['accept', 'reject', 'hold'] as const;
 export const TASK_KINDS = ['relations'] as const;
 export const TASK_STATES = ['queued', 'claimed', 'done', 'failed', 'cancelled'] as const;
@@ -230,6 +234,8 @@ export const modelRevision = pgTable(
     contentHash: text().notNull(),
     factsHash: text().notNull(),
     factsVersion: text().notNull(),
+    /** `c7`/`c8` from `ExtractResult.engine`; null if the file names neither (migration 0003 backfills older rows). */
+    engine: text({ enum: values(Engine.options) }),
     /** `ExtractResult.processes` and `.messageFlows` of `@proa/bpmn-facts`. */
     processes: jsonb().$type<ProcessInfo[]>().notNull(),
     messageFlows: jsonb().$type<MessageFlowInfo[]>().notNull(),
@@ -243,6 +249,10 @@ export const modelRevision = pgTable(
   (t): PgTableExtraConfigValue[] => [
     unique('model_revision_project_id_unique').on(t.projectId, t.id),
     unique('model_revision_model_rev_unique').on(t.modelId, t.rev),
+    check(
+      'model_revision_engine_check',
+      sql`${t.engine} is null or ${oneOf(t.engine, Engine.options)}`,
+    ),
     foreignKey({
       name: 'model_revision_model_fk',
       columns: [t.projectId, t.modelId],
@@ -347,13 +357,20 @@ export const relationAssertion = pgTable(
       .notNull()
       .references(() => principal.id),
     clientId: text(),
-    /** Declared procedure and LLM model (agents, M2). */
-    declared: jsonb().$type<Record<string, unknown>>(),
+    /** Declared procedure and LLM model (agents). */
+    declared: jsonb().$type<{ procedure: DeclaredProcedure | null; llmModel: string | null }>(),
     submissionId: text(),
     tier: text({ enum: values(Tier.options) }),
     confidence: doublePrecision(),
+    /** Agent rationale, rejection reason, hold or accept note, or the text of a note. */
     rationale: text(),
-    evidence: jsonb().$type<unknown[]>(),
+    evidence: jsonb().$type<string[]>(),
+    /** An agent's question to the reviewer, or the question of a hold. */
+    question: text(),
+    /** Label of a hold. */
+    label: text(),
+    /** `correct`: the manual relation accepted instead, or the corrected proposal. */
+    linkedRelationId: text(),
     fromFp: text(),
     toFp: text(),
     createdAt: createdAt(),
@@ -374,6 +391,11 @@ export const relationAssertion = pgTable(
     check(
       'relation_assertion_agents_never_decide',
       sql`not (${t.kind} = 'decision' and ${t.sourceKind} = 'agent')`,
+    ),
+    // Notes (answers to held questions) come from humans only.
+    check(
+      'relation_assertion_notes_by_humans',
+      sql`${t.kind} <> 'note' or ${t.sourceKind} = 'human'`,
     ),
     check(
       'relation_assertion_verdict_check',
@@ -435,7 +457,7 @@ export const analysisTask = pgTable(
   ],
 );
 
-/** Stored verbatim for the eval (M2); unused in M1. */
+/** Submissions, stored verbatim for the eval (CONCEPT §3, §7). */
 export const analysisSubmission = pgTable(
   'analysis_submission',
   {
@@ -447,9 +469,12 @@ export const analysisSubmission = pgTable(
     principalId: text()
       .notNull()
       .references(() => principal.id),
-    declared: jsonb().$type<Record<string, unknown>>().notNull(),
-    payload: jsonb().notNull(),
-    result: jsonb().notNull(),
+    /** Client of the credential (`agt_…`, `proa-web`, `proa-cli`). */
+    clientId: text(),
+    declared: jsonb().$type<{ procedure: DeclaredProcedure; llmModel: string | null }>().notNull(),
+    /** The request as received, minus the lease token. */
+    payload: jsonb().$type<Record<string, unknown>>().notNull(),
+    result: jsonb().$type<SubmissionResult>().notNull(),
     seq: seqColumn().notNull(),
     createdAt: createdAt(),
   },

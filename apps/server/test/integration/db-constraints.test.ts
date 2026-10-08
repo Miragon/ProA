@@ -3,8 +3,14 @@
  * history, "agents never decide", one open analysis task per model, and
  * composite foreign keys that keep rows inside their project.
  */
+import { readFile } from 'node:fs/promises';
+
+import { newId, type PrincipalId, type ProjectId, type RelationId } from '@proa/contracts';
 import { sql } from 'drizzle-orm';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { createStore } from '../../src/db/store.ts';
 
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
@@ -158,5 +164,118 @@ describe('composite foreign keys keep rows in their project', () => {
       ),
     );
     expect(message).toMatch(/agent_token_scopes_check/);
+  });
+});
+
+describe('M2: notes, submissions, engine', () => {
+  it('rejects a note that is not from a human', async () => {
+    const message = await failure(
+      sql.raw(
+        `INSERT INTO relation_assertion (id, project_id, relation_id, seq, kind, source_kind, principal_id, rationale)
+         SELECT 'asr_note', r.project_id, r.id, 999, 'note', 'agent', a.principal_id, 'agent note'
+         FROM relation r JOIN relation_assertion a ON a.relation_id = r.id
+         WHERE r.project_id = '${projectId}' LIMIT 1`,
+      ),
+    );
+    expect(message).toMatch(/relation_assertion_notes_by_humans/);
+  });
+
+  it('refuses an agent decision even through the store, bypassing the policy', async () => {
+    const store = createStore(database.db);
+    const [row] = (
+      await database.db.execute<{ relation_id: string; principal_id: string }>(
+        sql.raw(
+          `SELECT relation_id, principal_id FROM relation_assertion WHERE project_id = '${projectId}' LIMIT 1`,
+        ),
+      )
+    ).rows;
+    await expect(
+      store.write((tx) =>
+        tx.assertions.insert({
+          id: newId('assertion'),
+          projectId: projectId as ProjectId,
+          relationId: row?.relation_id as RelationId,
+          seq: 1000,
+          kind: 'decision',
+          verdict: 'accept',
+          sourceKind: 'agent',
+          principalId: row?.principal_id as PrincipalId,
+          clientId: 'agt_x',
+          declared: null,
+          submissionId: null,
+          tier: null,
+          confidence: null,
+          rationale: null,
+          evidence: null,
+          question: null,
+          label: null,
+          linkedRelationId: null,
+          fromFp: null,
+          toFp: null,
+        }),
+      ),
+    ).rejects.toMatchObject({ cause: { constraint: 'relation_assertion_agents_never_decide' } });
+  });
+
+  it('checks the submission reference of an assertion at commit (deferred)', async () => {
+    const client = new pg.Client({ connectionString: database.url });
+    await client.connect();
+    try {
+      await client.query('BEGIN');
+      // Accepted inside the transaction (the submission row would follow) …
+      await client.query(
+        `INSERT INTO relation_assertion (id, project_id, relation_id, seq, kind, source_kind, principal_id, submission_id)
+         SELECT 'asr_deferred', r.project_id, r.id, 998, 'proposal', 'agent', a.principal_id, 'sbm_missing'
+         FROM relation r JOIN relation_assertion a ON a.relation_id = r.id
+         WHERE r.project_id = '${projectId}' LIMIT 1`,
+      );
+      // … but refused at commit without it.
+      await expect(client.query('COMMIT')).rejects.toMatchObject({
+        constraint: 'relation_assertion_submission_fk',
+      });
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('backfills the engine of older revisions like @proa/bpmn-facts (migration 0003)', async () => {
+    const statements = (
+      await readFile(new URL('../../drizzle/0003_pipeline_notify.sql', import.meta.url), 'utf8')
+    )
+      .split('--> statement-breakpoint')
+      .map((s) => s.trim());
+    const backfill = statements.find((s) => s.includes('UPDATE "model_revision"'));
+    expect(backfill).toBeDefined();
+    const head = (attrs: string) =>
+      `<?xml version="1.0" encoding="UTF-8"?>\n<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" ${attrs} id="D">\n<bpmn:process id="P" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"/>\n</bpmn:definitions>`;
+    const MODELER = 'xmlns:modeler="http://camunda.org/schema/modeler/1.0"';
+    const C7 = 'xmlns:camunda="http://camunda.org/schema/1.0/bpmn"';
+    const C8 = 'xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"';
+    const cases: [string, string | null][] = [
+      [`${MODELER} modeler:executionPlatform="Camunda Cloud"`, 'c8'],
+      [`${MODELER} modeler:executionPlatform="Camunda Platform" ${C8}`, 'c7'],
+      [C8, 'c8'],
+      [C7, 'c7'],
+      [`${C7} ${C8}`, null],
+      ['', null],
+    ];
+    const [rev] = (
+      await database.db.execute<{ id: string }>(
+        sql.raw(`SELECT id FROM model_revision WHERE project_id = '${projectId}' LIMIT 1`),
+      )
+    ).rows;
+    for (const [attrs, engine] of cases) {
+      await database.db.execute(
+        sql`UPDATE model_revision SET engine = NULL, xml = convert_to(${head(attrs)}, 'UTF8') WHERE id = ${rev?.id}`,
+      );
+      await database.db.execute(sql.raw(backfill ?? ''));
+      const [after] = (
+        await database.db.execute<{ engine: string | null }>(
+          sql`SELECT engine FROM model_revision WHERE id = ${rev?.id}`,
+        )
+      ).rows;
+      // The zeebe namespace on an inner element does not count: only the <definitions> tag.
+      expect(after?.engine ?? null, attrs).toBe(engine);
+    }
   });
 });

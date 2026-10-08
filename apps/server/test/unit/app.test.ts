@@ -57,6 +57,7 @@ describe('contract routes', () => {
       .replace('{revision}', 'rev_01J9Z3N4X5Q6R7S8T9V0W1X2Y3')
       .replace('{relation}', 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3')
       .replace('{token}', 'agt_01J9Z3N4X5Q6R7S8T9V0W1X2Y3')
+      .replace('{analysis}', 'ana_01J9Z3N4X5Q6R7S8T9V0W1X2Y3')
       .replace('{key}', 'billing%2Fdunning');
 
   it('has a handler for every contract route (no 501 placeholders left)', () => {

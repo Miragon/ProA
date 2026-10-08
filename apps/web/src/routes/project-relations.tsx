@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
-import { LocateIcon } from 'lucide-react';
+import { LocateIcon, SearchCheckIcon } from 'lucide-react';
 
 import { RelationsView } from '@/components/relation-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -48,18 +48,29 @@ function RelationsTab() {
       filters={filters}
       onFiltersChange={(next) => void navigate({ search: next, replace: true })}
       renderActions={(relation) => (
-        // M2 adds the review actions (accept, reject, hold) next to this link.
-        <Button variant="outline" size="sm" asChild>
-          <Link
-            to="/projects/$project/models/$"
-            params={{ project, _splat: splitRef(relation.from).modelKey }}
-            search={{ relation: relation.id }}
-            aria-label={`Relation im Modell ${splitRef(relation.from).modelKey} zeigen`}
-          >
-            <LocateIcon data-icon="inline-start" />
-            Im Modell
-          </Link>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" asChild>
+            <Link
+              to="/projects/$project/review/$relation"
+              params={{ project, relation: relation.id }}
+              aria-label={`Relation ${relation.id} prüfen`}
+            >
+              <SearchCheckIcon data-icon="inline-start" />
+              Prüfen
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon-sm" asChild>
+            <Link
+              to="/projects/$project/models/$"
+              params={{ project, _splat: splitRef(relation.from).modelKey }}
+              search={{ relation: relation.id }}
+              aria-label={`Relation im Modell ${splitRef(relation.from).modelKey} zeigen`}
+              title="Im Modell zeigen"
+            >
+              <LocateIcon />
+            </Link>
+          </Button>
+        </div>
       )}
     />
   );

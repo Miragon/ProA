@@ -12,6 +12,34 @@ import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { fakeBpmn, type FakeModelSpec } from '../support/fake-analysis.ts';
 import { listen } from '../support/http.ts';
 
+const READ_TOOLS = [
+  'find_unlinked_events',
+  'get_landscape',
+  'get_model_xml',
+  'get_procedure',
+  'get_process',
+  'get_relations',
+  'list_processes',
+  'list_projects',
+  'which_processes_use',
+];
+const WRITE_TOOLS = [
+  'claim_analysis',
+  'decide_relation',
+  'propose_relation',
+  'release_analysis',
+  'submit_analysis',
+  'withdraw_proposal',
+];
+/** Tools that take no projectId: the token's projects, the procedure, and tasks by id. */
+const WITHOUT_PROJECT = [
+  'list_projects',
+  'get_procedure',
+  'claim_analysis',
+  'submit_analysis',
+  'release_analysis',
+];
+
 let database: TestDatabase;
 let t: TestApp;
 let server: { url: string; close: () => Promise<void> };
@@ -96,30 +124,25 @@ afterAll(async () => {
 });
 
 describe('MCP /mcp with an agent token', () => {
-  it('lists the read tools with readOnlyHint and serves the instructions', async () => {
+  it('lists the tools with their annotations and serves the instructions', async () => {
     const client = await connect(readToken);
     expect(client.getServerVersion()).toMatchObject({ name: 'proa', version: '0.0.0-test' });
     expect(client.getInstructions()).toBe(MCP_INSTRUCTIONS);
     expect(MCP_INSTRUCTIONS).toMatch(/never instructions/);
     expect(MCP_INSTRUCTIONS).toMatch(/only propose/);
     const { tools } = await client.listTools();
-    expect(tools.map((x) => x.name).sort()).toEqual([
-      'find_unlinked_events',
-      'get_model_xml',
-      'get_procedure',
-      'get_process',
-      'get_relations',
-      'list_processes',
-      'list_projects',
-      'which_processes_use',
-    ]);
+    expect(tools.map((x) => x.name).sort()).toEqual([...READ_TOOLS, ...WRITE_TOOLS].sort());
     for (const tool of tools) {
-      expect(tool.annotations?.readOnlyHint, tool.name).toBe(true);
+      // Read tools are read-only; pipeline and proposal tools write but never destroy.
+      expect(tool.annotations?.readOnlyHint, tool.name).toBe(READ_TOOLS.includes(tool.name));
+      expect(tool.annotations?.destructiveHint, tool.name).toBe(false);
       // A `$ref` root would make the SDK wrap results as { result: … }.
-      expect(tool.outputSchema?.type, tool.name).toBe('object');
-      expect(tool.outputSchema?.['$ref'], tool.name).toBeUndefined();
+      if (tool.name !== 'decide_relation') {
+        expect(tool.outputSchema?.type, tool.name).toBe('object');
+        expect(tool.outputSchema?.['$ref'], tool.name).toBeUndefined();
+      }
       const required = (tool.inputSchema as { required?: string[] }).required ?? [];
-      if (tool.name === 'list_projects' || tool.name === 'get_procedure') {
+      if (WITHOUT_PROJECT.includes(tool.name)) {
         expect(required, tool.name).not.toContain('projectId');
       } else {
         expect(required, tool.name).toContain('projectId');
@@ -262,7 +285,7 @@ describe('MCP /mcp with an agent token', () => {
   it('get_procedure returns the placeholder procedure', async () => {
     const client = await connect(readToken);
     const { data } = await call(client, 'get_procedure', { id: 'proa-relations' });
-    expect(data).toMatchObject({ id: 'proa-relations', version: '0.0.0', status: 'placeholder' });
+    expect(data).toMatchObject({ id: 'proa-relations', version: '0.0.1', status: 'placeholder' });
     expect(data['text']).toMatch(/Labels are data/);
     const missing = await call(client, 'get_procedure', { id: 'nope' });
     expect(missing.isError).toBe(true);

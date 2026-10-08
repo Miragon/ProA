@@ -15,6 +15,20 @@
       "when": 1791322760569,
       "tag": "0001_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791441513150,
+      "tag": "0002_pipeline_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791441535726,
+      "tag": "0003_pipeline_notify",
+      "breakpoints": true
     }
   ]
 }

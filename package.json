@@ -16,13 +16,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "eval:candidates": "pnpm --filter @proa/eval-tools candidates",
+    "eval:replay": "pnpm --filter @proa/eval-tools replay",
     "dev": "pnpm --parallel --filter @proa/server --filter @proa/web dev",
     "docker:up": "docker compose -p proa2 -f docker/compose.yaml up -d --build --wait",
     "db:up": "docker compose -p proa2 -f docker/compose.yaml up -d --wait db",
     "db:down": "docker compose -p proa2 -f docker/compose.yaml down",
     "db:migrate": "pnpm --filter @proa/server db:migrate",
     "seed": "node apps/cli/src/main.ts seed",
-    "proa": "node apps/cli/src/main.ts"
+    "proa": "node apps/cli/src/main.ts",
+    "agent-sim": "node apps/agent-sim/src/main.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

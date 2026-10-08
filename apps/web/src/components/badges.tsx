@@ -68,7 +68,7 @@ export function ToneBadge({
   );
 }
 
-const STAGE_ICONS: Record<ModelStage, LucideIcon> = {
+export const STAGE_ICONS: Record<ModelStage, LucideIcon> = {
   waiting_for_agent: ClockIcon,
   agent_working: LoaderCircleIcon,
   agent_failed: TriangleAlertIcon,

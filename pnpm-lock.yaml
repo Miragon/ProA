@@ -42,6 +42,25 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(@types/node@24.19.1)(jsdom@30.1.2)(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  apps/agent-sim:
+    dependencies:
+      '@modelcontextprotocol/client':
+        specifier: 2.3.1
+        version: 2.3.1
+      '@proa/contracts':
+        specifier: workspace:0.0.0
+        version: link:../../packages/contracts
+      commander:
+        specifier: 15.0.0
+        version: 15.0.0
+    devDependencies:
+      '@modelcontextprotocol/server':
+        specifier: 2.3.1
+        version: 2.3.1
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+
   apps/cli:
     dependencies:
       '@modelcontextprotocol/client':
@@ -112,6 +131,9 @@ importers:
       '@modelcontextprotocol/client':
         specifier: 2.3.1
         version: 2.3.1
+      '@proa/agent-sim':
+        specifier: workspace:0.0.0
+        version: link:../agent-sim
       '@testcontainers/postgresql':
         specifier: 12.2.0
         version: 12.2.0

@@ -1,10 +1,6 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-
 import { describe, expect, it } from 'vitest';
 
 import { claudeCodeCommand, claudeDesktopNodeConfig, serverOrigin } from '../src/lib/agent-config';
-import { detectEngine } from '../src/lib/engine';
 import { provenanceOf } from '../src/lib/labels';
 import { buildRefIndex, resolverOf, splitRef } from '../src/lib/refs';
 import {
@@ -15,54 +11,6 @@ import {
 import { isProjectKey, slugify } from '../src/lib/slug';
 import { entriesFromFileList, filesOf, isBpmnPath, planUpload, stripRoot } from '../src/lib/upload';
 import { relation, sampleRelations } from './support/fixtures';
-
-const CORPUS = join(import.meta.dirname, '../../../eval/corpus');
-
-function bpmnFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) return bpmnFiles(path);
-    return name.endsWith('.bpmn') ? [path] : [];
-  });
-}
-
-describe('detectEngine', () => {
-  it('reads modeler:executionPlatform like @proa/bpmn-facts', () => {
-    const c7 = readFileSync(
-      join(CORPUS, '_sample/models/vertrieb/auftragsabwicklung.bpmn'),
-      'utf8',
-    );
-    const c8 = readFileSync(join(CORPUS, '_sample/models/finanzen/rechnungsstellung.bpmn'), 'utf8');
-    expect(detectEngine(c7)).toBe('c7');
-    expect(detectEngine(c8)).toBe('c8');
-  });
-
-  it('agrees with the engine every corpus spec declares', () => {
-    const files = bpmnFiles(CORPUS);
-    expect(files.length).toBeGreaterThan(50);
-    for (const file of files) {
-      const spec = readFileSync(
-        file.replace('/models/', '/spec/').replace(/\.bpmn$/, '.yaml'),
-        'utf8',
-      );
-      const declared = /^engine:\s*(c7|c8)\s*$/m.exec(spec)?.[1];
-      expect(detectEngine(readFileSync(file, 'utf8')), file).toBe(declared);
-    }
-  });
-
-  it('falls back to the namespaces and gives up on non-BPMN', () => {
-    expect(
-      detectEngine(
-        '<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0">',
-      ),
-    ).toBe('c8');
-    expect(
-      detectEngine('<bpmn2:definitions xmlns:camunda="http://camunda.org/schema/1.0/bpmn">'),
-    ).toBe('c7');
-    expect(detectEngine('<definitions id="x">')).toBeNull();
-    expect(detectEngine('not xml')).toBeNull();
-  });
-});
 
 describe('upload planning', () => {
   const file = (name: string, size = 10) => new File(['x'.repeat(size)], name);
@@ -228,21 +176,33 @@ describe('relation filters', () => {
     expect([b, a].sort(compareRelations).map((r) => r.id)).toEqual(['rel_a', 'rel_b']);
   });
 
-  it('derives provenance from tier and rule attributes', () => {
-    expect(provenanceOf({ tier: 'rule', type: 'call', attrs: {} })).toEqual({
+  it('falls back to tier and rule attributes without API provenance', () => {
+    expect(provenanceOf({ tier: 'rule', type: 'call', attrs: {}, provenance: null })).toEqual({
       source: 'rule',
       label: 'proa-rules/1.0.0',
       detail: 'eindeutiger Aufruf',
     });
     expect(
-      provenanceOf({ tier: 'key', type: 'call', attrs: { match: 'duplicate-process-id' } }).detail,
+      provenanceOf({
+        tier: 'key',
+        type: 'call',
+        attrs: { match: 'duplicate-process-id' },
+        provenance: null,
+      }).detail,
     ).toBe('Prozess-ID mehrdeutig');
-    expect(provenanceOf({ tier: 'key', type: 'signal', attrs: {} }).detail).toBe(
+    expect(provenanceOf({ tier: 'key', type: 'signal', attrs: {}, provenance: null }).detail).toBe(
       'gleicher Signalname',
     );
     expect(
-      provenanceOf({ tier: 'lexical', type: 'call', attrs: { match: 'process-name' } }).source,
+      provenanceOf({
+        tier: 'lexical',
+        type: 'call',
+        attrs: { match: 'process-name' },
+        provenance: null,
+      }).source,
     ).toBe('rule');
-    expect(provenanceOf({ tier: 'lexical', type: 'message', attrs: {} }).source).toBe('agent');
+    expect(
+      provenanceOf({ tier: 'lexical', type: 'message', attrs: {}, provenance: null }).source,
+    ).toBe('agent');
   });
 });

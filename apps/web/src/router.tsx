@@ -8,7 +8,9 @@ import { projectAgentsRoute } from './routes/project-agents';
 import { projectFindingsRoute } from './routes/project-findings';
 import { projectModelsRoute } from './routes/project-models';
 import { projectRelationsRoute } from './routes/project-relations';
+import { projectReviewRoute } from './routes/project-review';
 import { projectUploadRoute } from './routes/project-upload';
+import { reviewRoute } from './routes/review';
 import { rootRoute } from './routes/root';
 
 /** Code-based route tree: add a route file under src/routes and list it here. */
@@ -16,12 +18,14 @@ export const routeTree = rootRoute.addChildren([
   indexRoute,
   projectRoute.addChildren([
     projectModelsRoute,
+    projectReviewRoute,
     projectRelationsRoute,
     projectFindingsRoute,
     projectUploadRoute,
     projectAgentsRoute,
   ]),
   modelViewRoute,
+  reviewRoute,
 ]);
 
 export function createAppRouter(options: { queryClient: QueryClient; history?: RouterHistory }) {

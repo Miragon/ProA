@@ -10,7 +10,14 @@ import { newId, type PrincipalId, type ProjectId, type RelationType } from '@pro
 
 import { headFingerprints } from './fingerprints.ts';
 import type { AnalysisPort, AssertionRecord, RelationRecord, Tx } from './ports.ts';
-import { currentStances, endpointState, recomputeStatus, type AssertionView } from './status.ts';
+import {
+  byRelation,
+  derivedState,
+  naturalKey,
+  prepareAssertion,
+  refreshRelation,
+} from './relation-state.ts';
+import { currentStances, decisionsInForce, type AssertionView } from './status.ts';
 
 export interface RecomputeContext {
   tx: Tx;
@@ -26,10 +33,6 @@ export interface RecomputeSummary {
   withdrawn: number;
   endpointChanges: number;
   findings: number;
-}
-
-function naturalKey(type: RelationType, from: string, to: string): string {
-  return `${type}\u0000${from}\u0000${to}`;
 }
 
 interface DesiredAssertion {
@@ -83,61 +86,29 @@ export async function recomputeProject(ctx: RecomputeContext): Promise<Recompute
   for (const r of await tx.relations.all(projectId)) {
     relations.set(naturalKey(r.type, r.fromRef, r.toRef), r);
   }
-  const history = new Map<string, AssertionView[]>();
-  for (const a of await tx.assertions.listForProject(projectId)) {
-    const list = history.get(a.relationId) ?? [];
-    list.push(a);
-    history.set(a.relationId, list);
-  }
+  const history = byRelation<AssertionView & { relationId: RelationRecord['id'] }>(
+    await tx.assertions.listForProject(projectId),
+  );
+  /** Relations created by this run (their row already holds the final state). */
   const fresh = new Set<string>();
+  /** Relations with a new assertion in this run (their version moves). */
+  const touched = new Set<string>();
 
-  async function assert(
-    relation: Pick<RelationRecord, 'id' | 'type' | 'fromRef' | 'toRef'>,
-    a: Omit<
-      AssertionRecord,
-      | 'id'
-      | 'projectId'
-      | 'relationId'
-      | 'seq'
-      | 'principalId'
-      | 'sourceKind'
-      | 'clientId'
-      | 'rationale'
-    >,
-  ): Promise<AssertionRecord> {
-    const type =
-      a.kind === 'decision'
-        ? 'relation.decided'
-        : a.kind === 'withdrawal'
-          ? 'relation.withdrawn'
-          : 'relation.proposed';
-    const seq = await tx.events.append(projectId, {
-      type,
-      principalId: rulesPrincipalId,
-      clientId: null,
-      subjectRef: relation.id,
-      payload: {
-        relationId: relation.id,
-        type: relation.type,
-        from: relation.fromRef,
-        to: relation.toRef,
-        sourceKind: 'rule',
-        ...(a.verdict ? { verdict: a.verdict } : {}),
-        ...(a.tier ? { tier: a.tier, confidence: a.confidence } : {}),
-      },
-    });
-    return {
-      ...a,
-      id: newId('assertion'),
-      projectId,
-      relationId: relation.id,
-      seq,
-      sourceKind: 'rule',
-      principalId: rulesPrincipalId,
-      clientId: null,
-      rationale: null,
-    };
-  }
+  const ruleInput = (
+    a: Pick<AssertionRecord, 'kind' | 'verdict' | 'tier' | 'confidence' | 'fromFp' | 'toFp'>,
+  ) => ({
+    ...a,
+    sourceKind: 'rule' as const,
+    principalId: rulesPrincipalId,
+    clientId: null,
+    declared: null,
+    submissionId: null,
+    rationale: null,
+    evidence: null,
+    question: null,
+    label: null,
+    linkedRelationId: null,
+  });
 
   // 1. Derived relations: create, re-assert or leave as they are.
   const derived = new Set<string>();
@@ -151,9 +122,7 @@ export async function recomputeProject(ctx: RecomputeContext): Promise<Recompute
     const hist = history.get(id) ?? [];
     const stances = currentStances(hist);
     const ruleStance = stances.find((s) => s.principalId === rulesPrincipalId);
-    const humanDecided = stances.some(
-      (s) => s.kind === 'decision' && s.principalId !== rulesPrincipalId,
-    );
+    const humanDecided = decisionsInForce(hist).some((s) => s.principalId !== rulesPrincipalId);
     // The policy limits rule decisions to `call` relations (CONCEPT §2).
     const decide = d.status === 'accepted' && d.type === 'call' && !humanDecided;
     const target = { id, type: d.type, fromRef: d.from, toRef: d.to };
@@ -168,36 +137,30 @@ export async function recomputeProject(ctx: RecomputeContext): Promise<Recompute
     };
 
     const assertion =
-      ruleStance && matches(ruleStance, desired) ? null : await assert(target, desired);
+      ruleStance && matches(ruleStance, desired)
+        ? null
+        : await prepareAssertion(tx, projectId, target, ruleInput(desired));
     if (assertion) {
       hist.push(assertion);
       history.set(id, hist);
+      touched.add(id);
       summary.asserted++;
     }
 
     if (!existing) {
-      const state = recomputeStatus(hist);
-      // The database sets created_at/updated_at (DEFAULT now()); passing the
-      // in-memory placeholders below would store 1970-01-01.
-      const row: Omit<RelationRecord, 'createdAt' | 'updatedAt'> = {
+      const state = derivedState({ tier: d.tier }, hist, current);
+      const stored = await tx.relations.insert({
         ...target,
         projectId,
-        status: state.status,
-        endpointState: endpointState(state.anchor, current),
-        tier: state.tier ?? d.tier,
-        confidence: state.confidence,
+        ...state,
         version: 1,
         attrs: d.attrs,
-        fromFp: state.anchor?.fromFp ?? null,
-        toFp: state.anchor?.toFp ?? null,
-      };
-      await tx.relations.insert(row);
-      // Only this run reads the in-memory copy, and never its timestamps.
-      relations.set(key, { ...row, createdAt: new Date(0), updatedAt: new Date(0) });
+      });
+      relations.set(key, stored);
       fresh.add(id);
     } else if (!isDeepStrictEqual(existing.attrs, d.attrs)) {
-      await tx.relations.update(projectId, existing.id, { attrs: d.attrs });
-      existing.attrs = d.attrs;
+      const stored = await tx.relations.update(projectId, existing.id, { attrs: d.attrs });
+      relations.set(key, stored);
     }
     if (assertion) await tx.assertions.insert(assertion);
   }
@@ -211,55 +174,38 @@ export async function recomputeProject(ctx: RecomputeContext): Promise<Recompute
     const current = endpointsOf(relation);
     const missing = current.from === undefined || current.to === undefined;
     if (ruleStance.kind === 'decision' && missing) continue;
-    const withdrawal = await assert(relation, {
-      kind: 'withdrawal',
-      verdict: null,
-      tier: null,
-      confidence: null,
-      fromFp: current.from ?? null,
-      toFp: current.to ?? null,
-    });
+    const withdrawal = await prepareAssertion(
+      tx,
+      projectId,
+      relation,
+      ruleInput({
+        kind: 'withdrawal',
+        verdict: null,
+        tier: null,
+        confidence: null,
+        fromFp: current.from ?? null,
+        toFp: current.to ?? null,
+      }),
+    );
     await tx.assertions.insert(withdrawal);
     hist.push(withdrawal);
     history.set(relation.id, hist);
+    touched.add(relation.id);
     summary.withdrawn++;
   }
 
   // 3. Status, tier and endpoint state of every relation.
   for (const relation of relations.values()) {
     if (fresh.has(relation.id)) continue;
-    const state = recomputeStatus(history.get(relation.id) ?? []);
-    const ep = endpointState(state.anchor, endpointsOf(relation));
-    const patch = {
-      status: state.status,
-      endpointState: ep,
-      tier: state.tier ?? relation.tier,
-      confidence: state.confidence,
-      fromFp: state.anchor?.fromFp ?? null,
-      toFp: state.anchor?.toFp ?? null,
-    };
-    const changed = (Object.keys(patch) as (keyof typeof patch)[]).some(
-      (k) => patch[k] !== relation[k],
+    const { endpointChanged } = await refreshRelation(
+      tx,
+      projectId,
+      relation,
+      history.get(relation.id) ?? [],
+      endpointsOf(relation),
+      { touched: touched.has(relation.id), principalId: rulesPrincipalId, clientId: null },
     );
-    if (!changed) continue;
-    await tx.relations.update(projectId, relation.id, patch);
-    if (ep !== relation.endpointState && state.status !== 'obsolete') {
-      summary.endpointChanges++;
-      await tx.events.append(projectId, {
-        type: 'relation.endpoint_changed',
-        principalId: rulesPrincipalId,
-        clientId: null,
-        subjectRef: relation.id,
-        payload: {
-          relationId: relation.id,
-          type: relation.type,
-          from: relation.fromRef,
-          to: relation.toRef,
-          previous: relation.endpointState,
-          endpointState: ep,
-        },
-      });
-    }
+    if (endpointChanged) summary.endpointChanges++;
   }
 
   await tx.findings.replace(projectId, rules.findings);

@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError, errorMessage } from '@/lib/api';
 import { landscapeQuery, modelsQuery, projectQuery } from '@/lib/queries';
+import { isReviewItem } from '@/lib/review';
 
 import { rootRoute } from './root';
 
@@ -21,16 +22,20 @@ function TabLink({
   to,
   children,
   count,
+  hint,
   exact = false,
 }: {
   to:
     | '/projects/$project'
+    | '/projects/$project/review'
     | '/projects/$project/relations'
     | '/projects/$project/findings'
     | '/projects/$project/upload'
     | '/projects/$project/agents';
   children: ReactNode;
   count?: number | undefined;
+  /** What the count counts, for screen readers. */
+  hint?: string;
   exact?: boolean;
 }) {
   const { project } = projectRoute.useParams();
@@ -43,7 +48,10 @@ function TabLink({
     >
       {children}
       {count === undefined ? null : (
-        <span className="rounded-sm bg-muted px-1.5 text-xs tabular-nums">{count}</span>
+        <span className="rounded-sm bg-muted px-1.5 text-xs tabular-nums">
+          {count}
+          {hint ? <span className="sr-only"> {hint}</span> : null}
+        </span>
       )}
     </Link>
   );
@@ -98,6 +106,13 @@ function ProjectLayout() {
           <nav aria-label="Projektbereiche" className="flex flex-wrap gap-5 border-b">
             <TabLink to="/projects/$project" exact count={models.data?.length}>
               Modelle
+            </TabLink>
+            <TabLink
+              to="/projects/$project/review"
+              count={landscape.data?.relations.filter(isReviewItem).length}
+              hint="zu prüfen"
+            >
+              Prüfen
             </TabLink>
             <TabLink to="/projects/$project/relations" count={landscape.data?.relations.length}>
               Relationen

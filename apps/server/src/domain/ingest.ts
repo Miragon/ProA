@@ -168,7 +168,7 @@ async function storeFile(
       error: extractError(extracted.error.code, extracted.error.message),
     };
   }
-  const { facts, processes, messageFlows, factsVersion } = extracted.value;
+  const { facts, processes, messageFlows, factsVersion, engine } = extracted.value;
   const outcome = live ? 'revised' : 'created';
   const name = modelName(extracted);
 
@@ -203,6 +203,7 @@ async function storeFile(
     contentHash: f.contentHash,
     factsHash,
     factsVersion,
+    engine,
     processes,
     messageFlows,
     source: f.source,
@@ -239,7 +240,18 @@ export async function queueAnalysis(
   if (open) await cancelTask(tx, actor, projectId, model, open, 'new head with different facts');
   const done = await tx.tasks.latest(projectId, model.id, ['done']);
   if (done?.factsHash === revision.factsHash) return null;
+  return queueTask(tx, actor, projectId, model, revision, 'new head');
+}
 
+/** Inserts a queued `relations` task for `revision` and records `analysis.queued`. */
+export async function queueTask(
+  tx: Tx,
+  actor: Actor,
+  projectId: ProjectId,
+  model: Pick<ModelRecord, 'id' | 'key'>,
+  revision: Pick<RevisionRecord, 'id' | 'factsHash'>,
+  reason: 'new head' | 'requeue',
+): Promise<TaskRecord> {
   const id = newId('analysisTask');
   const seq = await tx.events.append(projectId, {
     type: 'analysis.queued',
@@ -253,6 +265,7 @@ export async function queueAnalysis(
       modelKey: model.key,
       revisionId: revision.id,
       factsHash: revision.factsHash,
+      reason,
     },
   });
   const task: TaskRecord = {
@@ -278,7 +291,7 @@ export async function cancelTask(
   task: TaskRecord,
   reason: string,
 ): Promise<void> {
-  await tx.tasks.setState(projectId, task.id, 'cancelled');
+  await tx.tasks.setState(projectId, task.id, 'cancelled', reason);
   await tx.events.append(projectId, {
     type: 'analysis.cancelled',
     principalId: actor.principalId,

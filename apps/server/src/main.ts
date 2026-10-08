@@ -51,6 +51,8 @@ function shutdown(signal: string): void {
   if (stopping) return;
   stopping = true;
   console.log(`${signal}: shutting down`);
+  // Waiting long-polls answer at once instead of holding the shutdown up.
+  void database.notifier.close();
   server.close(() => {
     void database.close().finally(() => process.exit(0));
   });

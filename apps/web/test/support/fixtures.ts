@@ -1,4 +1,11 @@
-import type { AgentToken, Relation } from '@proa/client';
+import type {
+  AgentToken,
+  Fact,
+  Model,
+  Relation,
+  RelationAssertion,
+  RelationProvenance,
+} from '@proa/client';
 
 import { buildRefIndex, resolverOf } from '../../src/lib/refs';
 
@@ -15,6 +22,9 @@ export function relation(
     confidence: 1,
     version: 1,
     attrs: {},
+    // Without provenance the UI falls back to tier and attributes (relations from before M2).
+    source: null,
+    provenance: null,
     updatedAt: NOW,
     ...overrides,
   };
@@ -119,6 +129,89 @@ export function agentToken(
     revokedAt: null,
     lastUsedAt: null,
     createdAt: NOW,
+    ...overrides,
+  };
+}
+
+/** Provenance of an agent proposal (override for rule or human decisions). */
+export function provenance(overrides: Partial<RelationProvenance> = {}): RelationProvenance {
+  return {
+    assertionId: 'ast_01PROPOSAL',
+    kind: 'proposal',
+    verdict: null,
+    sourceKind: 'agent',
+    principalId: 'prn_01AGENT',
+    handle: 'agent:claude code',
+    clientId: 'agt_01CLAUDE',
+    procedure: { id: 'proa-relations', version: '0.1.0' },
+    llmModel: 'claude-sonnet-5-5',
+    tier: 'semantic',
+    confidence: 0.82,
+    rationale: 'Beide Ereignisse beschreiben die versandbereite Ware.',
+    question: null,
+    label: null,
+    at: NOW,
+    ...overrides,
+  };
+}
+
+export function assertion(
+  overrides: Partial<RelationAssertion> & Pick<RelationAssertion, 'id'>,
+): RelationAssertion {
+  return {
+    seq: 1,
+    kind: 'proposal',
+    verdict: null,
+    sourceKind: 'agent',
+    principalId: 'prn_01AGENT',
+    handle: 'agent:claude code',
+    clientId: 'agt_01CLAUDE',
+    procedure: { id: 'proa-relations', version: '0.1.0' },
+    llmModel: 'claude-sonnet-5-5',
+    submissionId: null,
+    tier: 'semantic',
+    confidence: 0.82,
+    rationale: null,
+    evidence: [],
+    question: null,
+    label: null,
+    linkedRelationId: null,
+    fromFp: 'aaaaaaaaaaaa',
+    toFp: 'bbbbbbbbbbbb',
+    at: NOW,
+    ...overrides,
+  };
+}
+
+/** A head fact; `ref` defaults to `<modelKey>#<elementId>`. */
+export function fact(
+  overrides: Partial<Fact> & Pick<Fact, 'modelKey' | 'elementId' | 'kind'>,
+): Fact {
+  return {
+    ref: `${overrides.modelKey}#${overrides.elementId}`,
+    processId: 'Process_1',
+    scope: 'process',
+    eventDef: null,
+    label: '',
+    keyRaw: '',
+    keyNorm: '',
+    fingerprint: 'abcdefabcdef',
+    attrs: {},
+    ...overrides,
+  };
+}
+
+export function model(overrides: Partial<Model> & Pick<Model, 'key'>): Model {
+  return {
+    id: `mdl_${overrides.key.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}`,
+    projectId: 'prj_01DEMO',
+    name: null,
+    headRevisionId: `rev_${overrides.key.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}`,
+    headRev: 1,
+    engine: 'c8',
+    stage: 'waiting_for_review',
+    openItems: 1,
+    updatedAt: NOW,
     ...overrides,
   };
 }

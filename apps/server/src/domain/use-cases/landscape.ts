@@ -21,9 +21,10 @@ import { nameKey } from '@proa/relations';
 import type { Actor } from '../actor.ts';
 import { decodeCursor, toPage } from '../cursor.ts';
 import { DomainError } from '../errors.ts';
+import { visibleFindings } from '../findings.ts';
 import { policy } from '../policy.ts';
 import type { HeadFact } from '../ports.ts';
-import { toRelation } from '../views.ts';
+import { relationViews } from '../relation-state.ts';
 import { ALL, type UseCaseDeps } from './deps.ts';
 
 /** What `whichProcessesUse` looks up (CONCEPT §4: "which processes throw message X"). */
@@ -147,8 +148,8 @@ export function landscapeUseCases(deps: UseCaseDeps) {
             stage: m.stage,
             processes: m.processes,
           })),
-          relations: relations.map(toRelation),
-          findings,
+          relations: await relationViews(tx, project.id, relations),
+          findings: visibleFindings(findings, relations),
         };
       });
     },
@@ -170,7 +171,10 @@ export function landscapeUseCases(deps: UseCaseDeps) {
           { after, limit: query.limit + 1 },
         );
         const page = toPage(rows, query.limit, (r) => [r.type, r.fromRef, r.toRef]);
-        return { items: page.items.map(toRelation), nextCursor: page.nextCursor };
+        return {
+          items: await relationViews(tx, project.id, page.items),
+          nextCursor: page.nextCursor,
+        };
       });
     },
 
@@ -179,14 +183,21 @@ export function landscapeUseCases(deps: UseCaseDeps) {
         const { project } = await policy.require(tx, actor, 'read', projectRef);
         const relation = await tx.relations.findInProject(project.id, id);
         if (!relation) throw new DomainError('not-found', 'relation not found');
-        return toRelation(relation);
+        const [view] = await relationViews(tx, project.id, [relation]);
+        if (!view) throw new Error('relation view missing');
+        return view;
       });
     },
 
+    /**
+     * The rule tier's findings, without `dangling-throw`/`unmatched-catch`
+     * whose endpoint a live relation already connects.
+     */
     async listFindings(actor: Actor, projectRef: string): Promise<FindingList> {
       return deps.store.read(async (tx) => {
         const { project } = await policy.require(tx, actor, 'read', projectRef);
-        return { items: await tx.findings.list(project.id) };
+        const relations = await tx.relations.list(project.id, {}, { limit: ALL });
+        return { items: visibleFindings(await tx.findings.list(project.id), relations) };
       });
     },
 
@@ -320,7 +331,7 @@ export function landscapeUseCases(deps: UseCaseDeps) {
           processes: model.processes,
           process,
           facts: facts.map(({ processName: _processName, ...fact }) => fact),
-          relations: relations.map(toRelation),
+          relations: await relationViews(tx, project.id, relations),
         };
       });
     },

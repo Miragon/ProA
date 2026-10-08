@@ -76,7 +76,14 @@ function ProvenanceCell({ relation }: { relation: Relation }) {
   const p = provenanceOf(relation);
   const Icon = SOURCE_ICONS[p.source];
   return (
-    <div className="flex min-w-0 flex-col" title="Abgeleitet aus Stufe und Attributen der Relation">
+    <div
+      className="flex min-w-0 flex-col"
+      title={
+        relation.provenance
+          ? 'Worauf der Status beruht (Verfahren und LLM-Modell sind vom Agenten angegeben)'
+          : 'Abgeleitet aus Stufe und Attributen der Relation'
+      }
+    >
       <span className="inline-flex items-center gap-1.5 truncate font-mono text-xs">
         <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         {p.label}
@@ -115,10 +122,7 @@ function AttrList({ relation }: { relation: Relation }) {
 export interface RelationTableProps {
   relations: readonly Relation[];
   resolve: RefResolver;
-  /**
-   * Content of the "Aktion" column. M1 links into the model view; the review
-   * actions of M2 (accept, reject, hold) go here as well.
-   */
+  /** Content of the "Aktion" column: the review screen and the model view. */
   renderActions?: (relation: Relation) => ReactNode;
   /** Highlights a row, e.g. the relation selected in the model view. */
   selectedId?: string;
@@ -141,7 +145,7 @@ export function RelationTable({
     });
 
   return (
-    <Table aria-label="Relationen" className="min-w-[1040px] table-fixed">
+    <Table aria-label="Relationen" className="min-w-[1056px] table-fixed">
       <colgroup>
         <col className="w-9" />
         <col className="w-28" />
@@ -152,7 +156,7 @@ export function RelationTable({
         <col className="w-36" />
         <col className="w-20" />
         <col className="w-44" />
-        <col className="w-32" />
+        <col className="w-36" />
       </colgroup>
       <TableHeader>
         <TableRow>

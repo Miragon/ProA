@@ -1,5 +1,5 @@
-import type { Model, ModelStage } from '@proa/client';
-import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
+import type { ModelStage } from '@proa/client';
+import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
 import { PlugIcon, UploadIcon } from 'lucide-react';
 import { useMemo } from 'react';
@@ -19,9 +19,8 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage } from '@/lib/api';
-import type { Engine } from '@/lib/engine';
 import { STAGES, STAGE_ORDER } from '@/lib/labels';
-import { contentQuery, modelsQuery, type RevisionContent } from '@/lib/queries';
+import { modelsQuery } from '@/lib/queries';
 
 import { projectRoute } from './project';
 import { MiragonMark } from '@/components/page-shell';
@@ -42,28 +41,12 @@ export const projectModelsRoute = createRoute({
   component: ModelsTab,
 });
 
-function combineEngines(results: UseQueryResult<RevisionContent>[]) {
-  return results.map((r) => (r.data ? r.data.engine : r.isError ? null : undefined));
-}
-
 function ModelsTab() {
   const { project } = projectModelsRoute.useParams();
   const { stage } = projectModelsRoute.useSearch();
   const navigate = projectModelsRoute.useNavigate();
   const models = useQuery(modelsQuery(project));
   const list = useMemo(() => models.data ?? [], [models.data]);
-  // The API has no engine field yet: read it from each head revision's bytes (cached per revision).
-  const engines = useQueries({
-    queries: list.map((m) =>
-      contentQuery({ project, modelId: m.id, revisionId: m.headRevisionId }),
-    ),
-    combine: combineEngines,
-  });
-  const engineById = useMemo(() => {
-    const map = new Map<string, Engine | null | undefined>();
-    list.forEach((m, i) => map.set(m.id, engines[i]));
-    return map;
-  }, [list, engines]);
 
   if (models.isPending) return <Skeleton className="h-40 w-full" />;
   if (models.isError)
@@ -110,7 +93,7 @@ function ModelsTab() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
         <Field className="w-auto">
-          <FieldLabel htmlFor="filter-stage">Stufe</FieldLabel>
+          <FieldLabel htmlFor="filter-stage">Phase</FieldLabel>
           <NativeSelect
             id="filter-stage"
             value={stage ?? ''}
@@ -120,7 +103,7 @@ function ModelsTab() {
               })
             }
           >
-            <NativeSelectOption value="">Alle Stufen</NativeSelectOption>
+            <NativeSelectOption value="">Alle Phasen</NativeSelectOption>
             {STAGE_ORDER.map((s) => (
               <NativeSelectOption key={s} value={s}>
                 {STAGES[s].label} ({list.filter((m) => m.stage === s).length})
@@ -137,7 +120,6 @@ function ModelsTab() {
       <div className="rounded-xl border bg-card">
         <ModelsTable
           models={sorted}
-          engineOf={(m: Model) => engineById.get(m.id)}
           renderKey={(m) => (
             <Link
               to="/projects/$project/models/$"

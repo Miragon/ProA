@@ -1,18 +1,31 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import {
+  AnalysisTaskId,
+  ClaimAnalysisBody,
+  ClaimedAnalysis,
   DEFAULT_PAGE_LIMIT,
+  Landscape,
+  MAX_CLAIM,
   MAX_PAGE_LIMIT,
   ModelKey,
   ModelStage,
   Project,
   ProjectRef,
+  ProposeRelationBody,
+  ProposeRelationResult,
   Ref,
+  RelationId,
   RelationPage,
   RelationStatus,
   RelationType,
+  ReleaseAnalysisBody,
+  ReleaseResult,
   RevisionId,
+  SubmissionResult,
+  SubmitAnalysisBody,
   Tier,
   createProblem,
+  type DecisionBody,
 } from '@proa/contracts';
 import { getProcedure, listProcedures } from '@proa/procedures';
 import { z } from 'zod';
@@ -20,6 +33,7 @@ import { z } from 'zod';
 import type { Actor } from '../domain/actor.ts';
 import { DomainError } from '../domain/errors.ts';
 import { EVENT_KINDS, USAGE_KINDS, type UseCases } from '../domain/use-cases/index.ts';
+import { problemExtras } from '../http/problem.ts';
 
 /** Server `instructions` (CONCEPT §7). */
 export const MCP_INSTRUCTIONS = [
@@ -39,6 +53,8 @@ export interface McpContext {
   useCases: UseCases;
   /** The authenticated caller (an agent token in local mode). */
   actor: Actor;
+  /** Origin of the request, for absolute links in problems (`reviewUrl`). */
+  origin?: string;
 }
 
 const READ_ONLY = {
@@ -47,6 +63,15 @@ const READ_ONLY = {
   idempotentHint: true,
   openWorldHint: false,
 } as const;
+
+/** Pipeline and proposal tools write, but never destroy anything (CONCEPT §5). */
+const WRITES = (idempotent: boolean) =>
+  ({
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: idempotent,
+    openWorldHint: false,
+  }) as const;
 
 const projectId = ProjectRef.describe('Project id (prj_…) or project key, e.g. "nordwind-handel".');
 const cursor = z.string().max(512).optional().describe('nextCursor of the previous page.');
@@ -97,14 +122,14 @@ type ToolResult = {
  * message (a failed query carries its SQL and parameters) never reaches the
  * agent, as on REST (`problemFromError`).
  */
-export async function run(fn: () => Promise<object>): Promise<ToolResult> {
+export async function runTool(fn: () => Promise<object>, origin?: string): Promise<ToolResult> {
   try {
     const output = (await fn()) as Record<string, unknown>;
     return { content: [{ type: 'text', text: JSON.stringify(output) }], structuredContent: output };
   } catch (err) {
     let problem;
     if (err instanceof DomainError) {
-      problem = createProblem(err.code, err.message, { ...err.extras });
+      problem = createProblem(err.code, err.message, problemExtras(err, origin));
     } else {
       console.error('unhandled error in an MCP tool:', err);
       problem = createProblem('internal');
@@ -120,6 +145,7 @@ export async function run(fn: () => Promise<object>): Promise<ToolResult> {
  */
 export function createMcpServer(ctx: McpContext): McpServer {
   const { useCases: uc, actor } = ctx;
+  const run = (fn: () => Promise<object>) => runTool(fn, ctx.origin);
   const server = new McpServer(
     { name: 'proa', version: ctx.version },
     { instructions: MCP_INSTRUCTIONS },
@@ -361,6 +387,167 @@ export function createMcpServer(ctx: McpContext): McpServer {
           text: p.text,
         });
       }),
+  );
+
+  // ------------------------------------------------------------ pipeline
+
+  server.registerTool(
+    'claim_analysis',
+    {
+      title: 'Claim analysis tasks',
+      description: [
+        `Claims up to ${MAX_CLAIM} queued relations tasks (default 1), oldest first, in the projects where this token may propose (proa:propose); projectId and modelKey narrow it.`,
+        'Each item has a leaseToken (keep it; shown once), a 15-minute lease without renewal, the procedure to follow and declare, and the input:',
+        "the model's facts, candidates as [type, from, to, basis, score] tuples, the partner endpoints they name, and the existing relations with human decisions (rejection reasons, hold notes and questions) and notes.",
+        'Submit with submit_analysis, or hand the task back with release_analysis. No items: nothing to do.',
+      ].join(' '),
+      inputSchema: ClaimAnalysisBody,
+      outputSchema: z.object({ items: z.array(ClaimedAnalysis) }),
+      annotations: WRITES(false),
+    },
+    (args) => run(() => uc.claimAnalyses(actor, args)),
+  );
+
+  server.registerTool(
+    'submit_analysis',
+    {
+      title: 'Submit an analysis',
+      description: [
+        'Submits the result of a claimed task (at most 1 MB): taskId and leaseToken from the claim, a fresh UUID as submissionId (replaying it returns the stored result), the declared procedure and llmModel,',
+        'relations (≤ 200; type, from, to, confidence 0–1, rationale ≤ 1,000 characters, evidence, optional question ≤ 500; no control characters except tab and line breaks) and noLinks.',
+        'Each item comes back as applied, duplicate, suppressed (a human already decided; nothing changed), reopened or invalid:<reason> (refs must exist, one end in the task model, types must fit the endpoints).',
+        'Earlier pipeline proposals touching the model that you do not repeat are withdrawn.',
+        'Errors: lease-lost (claimed again, released, wrong token), task-cancelled (new revision), already-submitted.',
+      ].join(' '),
+      inputSchema: SubmitAnalysisBody.extend({ taskId: AnalysisTaskId }),
+      outputSchema: z.object(SubmissionResult.shape),
+      annotations: WRITES(true),
+    },
+    ({ taskId, ...body }) => run(() => uc.submitAnalysis(actor, taskId, body)),
+  );
+
+  server.registerTool(
+    'release_analysis',
+    {
+      title: 'Release an analysis task',
+      description:
+        'Hands a claimed task back (taskId and leaseToken from the claim, optional reason); it is queued again and the attempt does not count.',
+      inputSchema: ReleaseAnalysisBody.extend({ taskId: AnalysisTaskId }),
+      outputSchema: z.object(ReleaseResult.shape),
+      annotations: WRITES(false),
+    },
+    ({ taskId, ...body }) => run(() => uc.releaseAnalysis(actor, taskId, body)),
+  );
+
+  // ------------------------------------------------------------- ad hoc
+
+  server.registerTool(
+    'get_landscape',
+    {
+      title: 'Get landscape',
+      description:
+        'The project head in one call: models with stage and processes, the live relations with status, tier and provenance, and the open findings.',
+      inputSchema: z.object({ projectId }),
+      outputSchema: z.object(Landscape.shape),
+      annotations: READ_ONLY,
+    },
+    (args) => run(() => uc.getLandscape(actor, args.projectId)),
+  );
+
+  server.registerTool(
+    'propose_relation',
+    {
+      title: 'Propose a relation',
+      description:
+        'Proposes one relation outside the pipeline (call, message, signal or trigger; manual relations are for humans): refs must exist in the head facts and fit the type. The server computes the tier. Ad-hoc proposals are never superseded by a submission; withdraw them with withdraw_proposal.',
+      inputSchema: ProposeRelationBody.extend({
+        projectId,
+        type: RelationType.exclude(['manual']),
+      }),
+      outputSchema: z.object(ProposeRelationResult.shape),
+      annotations: WRITES(true),
+    },
+    ({ projectId: project, ...body }) => run(() => uc.proposeRelation(actor, project, body)),
+  );
+
+  server.registerTool(
+    'withdraw_proposal',
+    {
+      title: 'Withdraw a proposal',
+      description:
+        "Withdraws this token's own live proposal of a relation; other proposals and human decisions stay.",
+      inputSchema: z.object({ projectId, relationId: RelationId }),
+      // A plain object root (a named schema would become a `$ref` root).
+      outputSchema: z.object(RelationOut.shape),
+      annotations: WRITES(true),
+    },
+    (args) => run(() => uc.withdrawProposal(actor, args.projectId, args.relationId)),
+  );
+
+  server.registerTool(
+    'decide_relation',
+    {
+      title: 'Decide a relation (humans only)',
+      description:
+        'Agents cannot decide: this tool never changes anything and always answers human-decision-required with reviewUrl, the review screen to hand to a human.',
+      inputSchema: z.object({
+        projectId,
+        relationId: RelationId,
+        verdict: z.enum(['accept', 'reject', 'hold']),
+      }),
+      annotations: WRITES(true),
+    },
+    (args) =>
+      run(() => {
+        // The same use case as REST: the policy refuses agents before anything else happens.
+        const body: DecisionBody =
+          args.verdict === 'accept'
+            ? { verdict: 'accept' }
+            : args.verdict === 'reject'
+              ? { verdict: 'reject', reason: 'requested by an agent' }
+              : { verdict: 'hold', note: 'requested by an agent' };
+        return uc.decideRelation(actor, args.projectId, args.relationId, body);
+      }),
+  );
+
+  // -------------------------------------------------------------- prompts
+
+  server.registerPrompt(
+    'work_pipeline',
+    {
+      title: 'Work the analysis pipeline',
+      description:
+        'Claim → analyse → submit in a loop until no task is left, following the proa-relations procedure.',
+      argsSchema: z.object({
+        projectId: ProjectRef.optional().describe('Only this project (id or key).'),
+      }),
+    },
+    (args) => {
+      const procedure = getProcedure('proa-relations');
+      const scope = args.projectId ? ` in project ${args.projectId}` : '';
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: [
+                `Work the ProA analysis pipeline${scope}:`,
+                `1. Claim one task: claim_analysis({${args.projectId ? `projectId: "${args.projectId}", ` : ''}max: 1}). If it returns no items, stop and report what you did.`,
+                '2. Analyse the claim input as the procedure below says. Read BPMN with get_model_xml only when the facts are not enough.',
+                '3. Submit once with submit_analysis: taskId and leaseToken from the claim, a new UUID as submissionId, the procedure id and version from the claim, your model as llmModel. If you cannot finish within the 15-minute lease, call release_analysis instead.',
+                '4. Report the per-item results briefly, then go back to step 1.',
+                'You only propose; humans decide in the ProA review screen.',
+                '',
+                `Procedure ${procedure ? `${procedure.id}@${procedure.version}` : 'proa-relations'}:`,
+                '',
+                procedure?.text ?? 'Load it with get_procedure({id: "proa-relations"}).',
+              ].join('\n'),
+            },
+          },
+        ],
+      };
+    },
   );
 
   return server;

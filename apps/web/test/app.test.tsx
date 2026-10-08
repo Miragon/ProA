@@ -65,6 +65,15 @@ describe('web app', () => {
     expect(view).toContain('data-testid="model-view"');
   });
 
+  it('routes the review inbox and the review screen of a relation (the reviewUrl)', async () => {
+    const inbox = await render('/projects/demo/review?view=held&tier=key');
+    expect(inbox).toContain('Prüfen');
+    expect(inbox).toContain('href="/projects/demo/review"');
+    const screen = await render('/projects/demo/review/rel_01ABCDEFGHJKMNPQRSTVWXYZ01?tier=key');
+    expect(screen).toContain('data-testid="review-screen"');
+    expect(screen).toContain('Prüfliste');
+  });
+
   it('answers unknown paths with a German not-found page', async () => {
     const html = await render('/gibt-es-nicht');
     expect(html).toContain('Seite nicht gefunden');

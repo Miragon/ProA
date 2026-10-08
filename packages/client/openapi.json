@@ -829,6 +829,16 @@
             "type": "integer",
             "minimum": 1
           },
+          "engine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Engine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stage": {
             "$ref": "#/components/schemas/ModelStage"
           },
@@ -847,6 +857,7 @@
           "name",
           "headRevisionId",
           "headRev",
+          "engine",
           "stage",
           "openItems",
           "updatedAt"
@@ -864,6 +875,14 @@
         "pattern": "^rev_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
         "description": "Model revision id (`rev_` + ULID).",
         "example": "rev_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "Engine": {
+        "type": "string",
+        "enum": [
+          "c7",
+          "c8"
+        ],
+        "description": "Target engine: Camunda 7 (`c7`) or Camunda 8 (`c8`)."
       },
       "ModelStage": {
         "type": "string",
@@ -924,6 +943,16 @@
           "factsVersion": {
             "type": "string"
           },
+          "engine": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Engine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "source": {
             "$ref": "#/components/schemas/RevisionSource"
           },
@@ -942,6 +971,7 @@
           "contentHash",
           "factsHash",
           "factsVersion",
+          "engine",
           "source",
           "seq",
           "createdAt"
@@ -1233,6 +1263,26 @@
             "type": "object",
             "additionalProperties": {}
           },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "updatedAt": {
             "$ref": "#/components/schemas/Timestamp"
           }
@@ -1248,6 +1298,8 @@
           "confidence",
           "version",
           "attrs",
+          "source",
+          "provenance",
           "updatedAt"
         ],
         "description": "A relation between two processes."
@@ -1288,6 +1340,169 @@
           "missing"
         ],
         "description": "State of the relation endpoints in the head revisions."
+      },
+      "SourceKind": {
+        "type": "string",
+        "enum": [
+          "human",
+          "agent",
+          "rule"
+        ],
+        "description": "Origin of an assertion."
+      },
+      "RelationProvenance": {
+        "type": "object",
+        "properties": {
+          "assertionId": {
+            "$ref": "#/components/schemas/AssertionId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssertionKind"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceKind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "assertionId",
+          "kind",
+          "verdict",
+          "sourceKind",
+          "principalId",
+          "handle",
+          "clientId",
+          "procedure",
+          "llmModel",
+          "tier",
+          "confidence",
+          "rationale",
+          "question",
+          "label",
+          "at"
+        ],
+        "description": "The assertion a relation status rests on."
+      },
+      "AssertionId": {
+        "type": "string",
+        "pattern": "^asr_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Relation assertion id (`asr_` + ULID).",
+        "example": "asr_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "AssertionKind": {
+        "type": "string",
+        "enum": [
+          "proposal",
+          "withdrawal",
+          "decision",
+          "note"
+        ],
+        "description": "Kind of a relation assertion."
+      },
+      "Verdict": {
+        "type": "string",
+        "enum": [
+          "accept",
+          "reject",
+          "hold"
+        ],
+        "description": "Verdict of a decision."
+      },
+      "DeclaredProcedure": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ],
+        "description": "Procedure id and version declared by an agent."
       },
       "Finding": {
         "type": "object",
@@ -1364,6 +1579,1503 @@
           "items"
         ],
         "description": "Deterministic findings of the project head."
+      },
+      "RelationAssertionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelationAssertion"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The history of a relation, oldest first."
+      },
+      "RelationAssertion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AssertionId"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssertionKind"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceKind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submissionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubmissionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkedRelationId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fromFp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "toFp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "kind",
+          "verdict",
+          "sourceKind",
+          "principalId",
+          "handle",
+          "clientId",
+          "procedure",
+          "llmModel",
+          "submissionId",
+          "tier",
+          "confidence",
+          "rationale",
+          "evidence",
+          "question",
+          "label",
+          "linkedRelationId",
+          "fromFp",
+          "toFp",
+          "at"
+        ],
+        "description": "One assertion of a relation history."
+      },
+      "SubmissionId": {
+        "type": "string",
+        "pattern": "^sbm_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Stored analysis submission id (`sbm_` + ULID); not the client-chosen `submissionId`.",
+        "example": "sbm_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "ProposeRelationResult": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/ProposalOutcome"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/Relation"
+          }
+        },
+        "required": [
+          "result",
+          "relation"
+        ],
+        "description": "Outcome of an ad-hoc proposal."
+      },
+      "ProposalOutcome": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "duplicate",
+          "suppressed",
+          "reopened",
+          "invalid:malformed-ref",
+          "invalid:type-not-allowed",
+          "invalid:unknown-ref",
+          "invalid:outside-task-model",
+          "invalid:type-mismatch",
+          "invalid:same-process",
+          "invalid:message-flow",
+          "invalid:confidence-out-of-range",
+          "invalid:rationale-too-long",
+          "invalid:question-too-long",
+          "invalid:too-much-evidence",
+          "invalid:control-characters"
+        ],
+        "description": "Outcome of one proposed relation."
+      },
+      "ProposeRelationBody": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/RelationType"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 20,
+            "default": []
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "default": null
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100,
+            "default": null
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "confidence",
+          "rationale"
+        ],
+        "description": "An ad-hoc relation proposal."
+      },
+      "DecisionResult": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "$ref": "#/components/schemas/Relation"
+          },
+          "corrected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Relation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "relation",
+          "corrected"
+        ],
+        "description": "The decided relation (and its correction)."
+      },
+      "DecisionBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "reject"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "hold"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict",
+              "note"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "correct"
+                ]
+              },
+              "from": {
+                "$ref": "#/components/schemas/Ref"
+              },
+              "to": {
+                "$ref": "#/components/schemas/Ref"
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict",
+              "from",
+              "to",
+              "note"
+            ]
+          }
+        ],
+        "description": "A human decision on one relation."
+      },
+      "BulkDecisionResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The decided relations."
+      },
+      "BulkDecisionBody": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "hold"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/RelationId"
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 500
+          },
+          "expectedCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": [
+          "verdict",
+          "items",
+          "expectedCount"
+        ],
+        "description": "One verdict for many relations."
+      },
+      "NoteBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "description": "A note on a relation."
+      },
+      "ClaimResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimedAnalysis"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Claimed tasks; empty when nothing is queued."
+      },
+      "ClaimedAnalysis": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "projectId": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "projectKey": {
+            "$ref": "#/components/schemas/ProjectKey"
+          },
+          "modelId": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/RevisionId"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^proa_lt_[A-Za-z0-9_-]{43}$"
+          },
+          "leaseUntil": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "procedure": {
+            "$ref": "#/components/schemas/DeclaredProcedure"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ClaimInput"
+          }
+        },
+        "required": [
+          "taskId",
+          "projectId",
+          "projectKey",
+          "modelId",
+          "modelKey",
+          "revisionId",
+          "attempt",
+          "leaseToken",
+          "leaseUntil",
+          "procedure",
+          "input"
+        ],
+        "description": "A claimed analysis task with its lease and input."
+      },
+      "AnalysisTaskId": {
+        "type": "string",
+        "pattern": "^ana_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Analysis task id (`ana_` + ULID).",
+        "example": "ana_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "ClaimInput": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "proa-claim/1"
+            ]
+          },
+          "model": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "$ref": "#/components/schemas/ModelKey"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revisionId": {
+                "$ref": "#/components/schemas/RevisionId"
+              },
+              "rev": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "engine": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Engine"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "processes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "processId": {
+                      "$ref": "#/components/schemas/ElementId"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "participantName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "processId",
+                    "name",
+                    "participantName"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "key",
+              "name",
+              "revisionId",
+              "rev",
+              "engine",
+              "processes"
+            ]
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimFact"
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimCandidate"
+            }
+          },
+          "partners": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClaimEndpoint"
+            }
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimRelation"
+            }
+          }
+        },
+        "required": [
+          "format",
+          "model",
+          "facts",
+          "candidates",
+          "partners",
+          "relations"
+        ],
+        "description": "Input of a claimed relations task (compact)."
+      },
+      "ClaimFact": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FactKind"
+          },
+          "eventDef": {
+            "$ref": "#/components/schemas/EventDef"
+          },
+          "label": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/FactScope"
+          },
+          "process": {
+            "$ref": "#/components/schemas/ElementId"
+          },
+          "doc": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "kind",
+          "label"
+        ],
+        "description": "A fact of the claimed model (compact)."
+      },
+      "ClaimCandidate": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          {
+            "$ref": "#/components/schemas/Ref"
+          },
+          {
+            "$ref": "#/components/schemas/Ref"
+          },
+          {
+            "$ref": "#/components/schemas/CandidateBasis"
+          },
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        ],
+        "description": "[type, from, to, basis, score]"
+      },
+      "ClaimEndpoint": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FactKind"
+          },
+          "eventDef": {
+            "$ref": "#/components/schemas/EventDef"
+          },
+          "label": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/FactScope"
+          },
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "processName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "process"
+        ],
+        "description": "An endpoint in another model (compact)."
+      },
+      "ClaimRelation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/RelationId"
+          },
+          "type": {
+            "$ref": "#/components/schemas/RelationType"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ClaimDecision"
+          },
+          "question": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "at": {
+                  "$ref": "#/components/schemas/Timestamp"
+                }
+              },
+              "required": [
+                "text",
+                "at"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "from",
+          "to",
+          "status",
+          "tier",
+          "confidence",
+          "source",
+          "endpointState"
+        ],
+        "description": "An existing relation touching the model (compact)."
+      },
+      "ClaimDecision": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "note": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "verdict",
+          "at"
+        ],
+        "description": "A human decision (compact)."
+      },
+      "ClaimAnalysisBody": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+            "description": "Project id (`prj_…`) or project key.",
+            "example": "nordwind-handel"
+          },
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 1
+          }
+        },
+        "description": "Request body to claim analysis tasks."
+      },
+      "PendingAnalyses": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "projectId": {
+                  "$ref": "#/components/schemas/ProjectId"
+                },
+                "projectKey": {
+                  "$ref": "#/components/schemas/ProjectKey"
+                },
+                "pending": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "projectId",
+                "projectKey",
+                "pending"
+              ]
+            }
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "description": "Claimable tasks per project."
+      },
+      "SubmissionResult": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "submissionId": {
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmissionItemResult"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "duplicate": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "suppressed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reopened": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "invalid": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "applied",
+              "duplicate",
+              "suppressed",
+              "reopened",
+              "invalid"
+            ]
+          },
+          "withdrawn": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "taskId",
+          "submissionId",
+          "replayed",
+          "items",
+          "counts",
+          "withdrawn"
+        ],
+        "description": "Outcome of a submission, per item."
+      },
+      "SubmissionItemResult": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "result": {
+            "$ref": "#/components/schemas/ProposalOutcome"
+          },
+          "relationId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "result",
+          "relationId",
+          "status"
+        ],
+        "description": "Outcome of one item of a submission."
+      },
+      "SubmitAnalysisBody": {
+        "type": "object",
+        "properties": {
+          "leaseToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "procedure": {
+            "$ref": "#/components/schemas/DeclaredProcedure"
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100,
+            "default": null
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposalItem"
+            },
+            "maxItems": 200
+          },
+          "noLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoLinkItem"
+            },
+            "maxItems": 500,
+            "default": []
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "default": null
+          },
+          "costUsd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": null
+          }
+        },
+        "required": [
+          "leaseToken",
+          "submissionId",
+          "procedure",
+          "relations"
+        ],
+        "description": "The result of an analysis task."
+      },
+      "ProposalItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 30
+          },
+          "from": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "to": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 20000,
+            "default": ""
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 200,
+            "default": []
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "default": null
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "confidence"
+        ],
+        "description": "A relation an agent proposes."
+      },
+      "NoLinkItem": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "to": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "default": ""
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "description": "A pair judged unrelated."
+      },
+      "ReleaseResult": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued"
+            ]
+          }
+        },
+        "required": [
+          "taskId",
+          "state"
+        ],
+        "description": "The released task is queued again."
+      },
+      "ReleaseAnalysisBody": {
+        "type": "object",
+        "properties": {
+          "leaseToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "default": null
+          }
+        },
+        "required": [
+          "leaseToken"
+        ],
+        "description": "Request body to release a claimed task."
+      },
+      "AnalysisTaskPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisTask"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of AnalysisTask items."
+      },
+      "AnalysisTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "projectId": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "modelId": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/RevisionId"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "relations"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/AnalysisTaskState"
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "factsHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "leaseUntil": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claimedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submissionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "modelId",
+          "modelKey",
+          "revisionId",
+          "kind",
+          "state",
+          "attempts",
+          "factsHash",
+          "leaseUntil",
+          "claimedBy",
+          "lastError",
+          "submissionId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "An analysis task of one model revision."
+      },
+      "AnalysisTaskState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "claimed",
+          "done",
+          "failed",
+          "cancelled"
+        ],
+        "description": "State of an analysis task."
+      },
+      "RequeueResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "modelKey": {
+                  "$ref": "#/components/schemas/ModelKey"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "open",
+                    "not-found"
+                  ]
+                },
+                "taskId": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AnalysisTaskId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "modelKey",
+                "outcome",
+                "taskId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Outcome per model of a requeue."
+      },
+      "RequeueBody": {
+        "type": "object",
+        "properties": {
+          "modelKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelKey"
+            },
+            "minItems": 1,
+            "maxItems": 1000
+          },
+          "all": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "description": "Models to analyse again (e.g. after a procedure upgrade)."
+      },
+      "AnalysisSubmission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/SubmissionId"
+          },
+          "taskId": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "submissionId": {
+            "type": "string"
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "procedure": {
+            "$ref": "#/components/schemas/DeclaredProcedure"
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "result": {
+            "$ref": "#/components/schemas/SubmissionResult"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "submissionId",
+          "principalId",
+          "handle",
+          "clientId",
+          "procedure",
+          "llmModel",
+          "payload",
+          "result",
+          "createdAt"
+        ],
+        "description": "A stored analysis submission."
       },
       "AgentTokenList": {
         "type": "object",
@@ -2950,6 +4662,92 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "proposeRelation",
+        "tags": [
+          "review"
+        ],
+        "summary": "Propose a relation ad hoc (proa:propose), or add an accepted manual relation (humans)",
+        "description": "Agents and humans propose `call`, `message`, `signal` and `trigger` relations; the server computes the tier. An invalid proposal (unknown ref, wrong endpoint kinds, same process) is 422 with `reason`. `manual` relations are for humans only and are accepted at once.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeRelationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome and the relation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposeRelationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/projects/{project}/relations/{relation}": {
@@ -3068,6 +4866,1163 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FindingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/relations/{relation}/assertions": {
+      "get": {
+        "operationId": "getRelationAssertions",
+        "tags": [
+          "relations"
+        ],
+        "summary": "The history (timeline) of a relation: every assertion, oldest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationId"
+            },
+            "required": true,
+            "description": "Relation id (`rel_` + ULID).",
+            "name": "relation",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The assertions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationAssertionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/relations/{relation}/proposal": {
+      "delete": {
+        "operationId": "withdrawProposal",
+        "tags": [
+          "review"
+        ],
+        "summary": "Withdraw the caller's own live proposal of a relation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationId"
+            },
+            "required": true,
+            "description": "Relation id (`rel_` + ULID).",
+            "name": "relation",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The relation after the withdrawal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Relation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/relations/{relation}/decision": {
+      "post": {
+        "operationId": "decideRelation",
+        "tags": [
+          "review"
+        ],
+        "summary": "Decide a relation: accept, reject, hold or correct (humans only)",
+        "description": "Owner on an interactive client (local mode: the web UI or the CLI). Agent tokens get 403 `human-decision-required` with `reviewUrl`. `If-Match: \"<version>\"` (or `version` in the body) makes the decision conditional: 412 `precondition-failed` (409 `conflict` for the body field) if the relation changed.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationId"
+            },
+            "required": true,
+            "description": "Relation id (`rel_` + ULID).",
+            "name": "relation",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "required": false,
+            "name": "if-match",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided relation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Problem: `precondition-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/decisions": {
+      "post": {
+        "operationId": "decideRelations",
+        "tags": [
+          "review"
+        ],
+        "summary": "Bulk decision with ids, versions and expectedCount (all or nothing)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDecisionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided relations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDecisionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/relations/{relation}/notes": {
+      "post": {
+        "operationId": "addRelationNote",
+        "tags": [
+          "review"
+        ],
+        "summary": "Add a note to a relation, e.g. the answer to a held question (humans only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationId"
+            },
+            "required": true,
+            "description": "Relation id (`rel_` + ULID).",
+            "name": "relation",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analyses/claim": {
+      "post": {
+        "operationId": "claimAnalyses",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)",
+        "description": "Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input. Empty when nothing is claimable.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimAnalysisBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The claimed tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analyses/pending": {
+      "get": {
+        "operationId": "getPendingAnalyses",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Claimable tasks per project; `wait=1..30` long-polls until work arrives",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": false,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "projectId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 30,
+              "default": 0
+            },
+            "required": false,
+            "name": "wait",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Claimable tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingAnalyses"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analyses/{analysis}/submission": {
+      "post": {
+        "operationId": "submitAnalysis",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Submit the result of a claimed task (idempotent by submissionId)",
+        "description": "Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per item `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`. Earlier pipeline proposals touching the model that the submission does not repeat are withdrawn. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AnalysisTaskId"
+            },
+            "required": true,
+            "description": "Analysis task id (`ana_` + ULID).",
+            "name": "analysis",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitAnalysisBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome per item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `lease-lost`, `task-cancelled`, `already-submitted`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Problem: `payload-too-large`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analyses/{analysis}/release": {
+      "post": {
+        "operationId": "releaseAnalysis",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Hand a claimed task back; it is queued again",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AnalysisTaskId"
+            },
+            "required": true,
+            "description": "Analysis task id (`ana_` + ULID).",
+            "name": "analysis",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseAnalysisBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The task is queued again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `lease-lost`, `task-cancelled`, `already-submitted`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/analyses": {
+      "get": {
+        "operationId": "listAnalyses",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Analysis tasks of a project, newest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AnalysisTaskState"
+            },
+            "required": false,
+            "description": "State of an analysis task.",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelKey"
+            },
+            "required": false,
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "name": "modelKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisTaskPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/analyses/requeue": {
+      "post": {
+        "operationId": "requeueAnalyses",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "Queue models again, e.g. after a procedure upgrade (proa:write)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequeueBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Outcome per model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequeueResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/analyses/{analysis}/submission": {
+      "get": {
+        "operationId": "getAnalysisSubmission",
+        "tags": [
+          "analyses"
+        ],
+        "summary": "The stored submission of a done task: verbatim payload and result",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AnalysisTaskId"
+            },
+            "required": true,
+            "description": "Analysis task id (`ana_` + ULID).",
+            "name": "analysis",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisSubmission"
                 }
               }
             }

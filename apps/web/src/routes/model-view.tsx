@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon,
   ArrowRightLeftIcon,
   ArrowUpRightIcon,
+  SearchCheckIcon,
   TriangleAlertIcon,
   XIcon,
 } from 'lucide-react';
@@ -125,17 +126,29 @@ function RelationItem({
           Endpunkt in diesem Modell ist der Prozess „{shortLabel(local)}“ als Ganzes.
         </p>
       ) : null}
-      {selected && !sameModel ? (
-        <div className="px-2.5 pb-2.5">
-          <Button size="sm" asChild className="w-full">
+      {selected ? (
+        <div className="flex gap-2 px-2.5 pb-2.5">
+          {!sameModel ? (
+            <Button size="sm" asChild className="min-w-0 flex-1">
+              <Link
+                to="/projects/$project/models/$"
+                params={{ project, _splat: remote.modelKey }}
+                search={{ relation: relation.id }}
+                data-testid="switch-model"
+              >
+                <ArrowRightLeftIcon data-icon="inline-start" />
+                <span className="truncate">Zu {remote.modelKey} wechseln</span>
+              </Link>
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" asChild>
             <Link
-              to="/projects/$project/models/$"
-              params={{ project, _splat: remote.modelKey }}
-              search={{ relation: relation.id }}
-              data-testid="switch-model"
+              to="/projects/$project/review/$relation"
+              params={{ project, relation: relation.id }}
+              data-testid="review-relation"
             >
-              <ArrowRightLeftIcon data-icon="inline-start" />
-              Zu {remote.modelKey} wechseln
+              <SearchCheckIcon data-icon="inline-start" />
+              Prüfen
             </Link>
           </Button>
         </div>
@@ -321,7 +334,7 @@ function ModelView() {
         </div>
         {model ? (
           <div className="flex flex-wrap items-center gap-1.5">
-            <EngineBadge engine={content.data?.engine} />
+            <EngineBadge engine={model.engine} />
             <Badge variant="outline" title="Kopfrevision">
               r{model.headRev}
             </Badge>

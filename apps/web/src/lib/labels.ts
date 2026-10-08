@@ -1,12 +1,16 @@
 import type {
+  AgentScope,
+  AssertionKind,
+  DeclaredProcedure,
   EndpointState,
   FindingKind,
   ModelStage,
   Relation,
   RelationStatus,
   RelationType,
-  AgentScope,
+  SourceKind,
   Tier,
+  Verdict,
 } from '@proa/client';
 
 /** Tone of a badge; maps onto the Miragon status colours (modeler-tool-design §3.3). */
@@ -182,38 +186,96 @@ export const SCOPES: Record<AgentScope, { label: string; hint: string }> = {
   'proa:read': { label: 'Lesen', hint: 'Modelle, Fakten und Relationen lesen.' },
   'proa:propose': {
     label: 'Vorschlagen',
-    hint: 'Relationen vorschlagen und Analysen bearbeiten (ab M2).',
+    hint: 'Relationen vorschlagen und Analysen bearbeiten.',
   },
   'proa:write': { label: 'Schreiben', hint: 'Modelle hochladen und löschen.' },
 };
 
-/** Who stands behind a relation, derived from tier and attributes (the API has no assertion list yet). */
+/** Who stands behind a relation: the principal and procedure its status rests on. */
 export interface Provenance {
-  source: 'rule' | 'agent' | 'human';
+  source: SourceKind;
   label: string;
   detail: string;
 }
 
 const RULES_PROCEDURE = 'proa-rules/1.0.0';
 
-export function provenanceOf(relation: Pick<Relation, 'tier' | 'type' | 'attrs'>): Provenance {
+/** `proa-rules/1.0.0` for the rule tier (CONCEPT §2), `id@version` for agent procedures. */
+export function procedureText(procedure: DeclaredProcedure | null): string | null {
+  if (procedure === null) return null;
+  return procedure.id === 'proa-rules'
+    ? `${procedure.id}/${procedure.version}`
+    : `${procedure.id}@${procedure.version}`;
+}
+
+/** What the rule tier matched on, from tier, type and attributes. */
+function ruleDetail(relation: Pick<Relation, 'tier' | 'type' | 'attrs'>): string {
   const match = typeof relation.attrs['match'] === 'string' ? relation.attrs['match'] : null;
+  if (relation.tier === 'rule') return 'eindeutiger Aufruf';
+  if (match === 'duplicate-process-id') return 'Prozess-ID mehrdeutig';
+  if (match === 'file-stem') return 'Treffer über Dateinamen';
+  if (match === 'process-name') return 'Treffer über Prozessnamen';
+  if (relation.type === 'message') return 'gleicher Nachrichtenname';
+  if (relation.type === 'signal') return 'gleicher Signalname';
+  return 'gleicher Schlüssel';
+}
+
+/** Past-tense verdicts for provenance and the timeline. */
+export const VERDICT_DONE: Record<Verdict, string> = {
+  accept: 'angenommen',
+  reject: 'abgelehnt',
+  hold: 'vorgemerkt',
+};
+
+/**
+ * Provenance of a relation from the API (`Relation.provenance`): rule
+ * relations show `proa-rules/1.0.0` and what matched, agent proposals the
+ * principal plus procedure and model they declared, human decisions the
+ * handle and the verdict. Relations without provenance fall back to what
+ * tier and attributes say.
+ */
+export function provenanceOf(
+  relation: Pick<Relation, 'tier' | 'type' | 'attrs' | 'provenance'>,
+): Provenance {
+  const p = relation.provenance;
+  if (p) {
+    switch (p.sourceKind) {
+      case 'rule':
+        return {
+          source: 'rule',
+          label: procedureText(p.procedure) ?? RULES_PROCEDURE,
+          detail: ruleDetail(relation),
+        };
+      case 'agent': {
+        const declared = [procedureText(p.procedure), p.llmModel].filter(Boolean).join(' · ');
+        return {
+          source: 'agent',
+          label: p.handle,
+          detail: declared === '' ? 'Agent-Vorschlag' : declared,
+        };
+      }
+      case 'human':
+        return {
+          source: 'human',
+          label: p.handle,
+          detail:
+            p.kind === 'decision' && p.verdict
+              ? relation.tier === 'manual'
+                ? 'manuell angelegt'
+                : VERDICT_DONE[p.verdict]
+              : p.kind === 'proposal'
+                ? 'Vorschlag'
+                : 'Notiz',
+        };
+    }
+  }
   switch (relation.tier) {
     case 'rule':
-      return { source: 'rule', label: RULES_PROCEDURE, detail: 'eindeutiger Aufruf' };
     case 'key':
-      if (match === 'duplicate-process-id')
-        return { source: 'rule', label: RULES_PROCEDURE, detail: 'Prozess-ID mehrdeutig' };
-      if (match === 'file-stem')
-        return { source: 'rule', label: RULES_PROCEDURE, detail: 'Treffer über Dateinamen' };
-      if (relation.type === 'message')
-        return { source: 'rule', label: RULES_PROCEDURE, detail: 'gleicher Nachrichtenname' };
-      if (relation.type === 'signal')
-        return { source: 'rule', label: RULES_PROCEDURE, detail: 'gleicher Signalname' };
-      return { source: 'rule', label: RULES_PROCEDURE, detail: 'gleicher Schlüssel' };
+      return { source: 'rule', label: RULES_PROCEDURE, detail: ruleDetail(relation) };
     case 'lexical':
-      if (match === 'process-name')
-        return { source: 'rule', label: RULES_PROCEDURE, detail: 'Treffer über Prozessnamen' };
+      if (relation.attrs['match'] === 'process-name')
+        return { source: 'rule', label: RULES_PROCEDURE, detail: ruleDetail(relation) };
       return { source: 'agent', label: 'Agent', detail: 'ähnliche Bezeichnung' };
     case 'semantic':
       return { source: 'agent', label: 'Agent', detail: 'gleiche Bedeutung' };
@@ -221,6 +283,19 @@ export function provenanceOf(relation: Pick<Relation, 'tier' | 'type' | 'attrs'>
       return { source: 'human', label: 'Mensch', detail: 'manuell angelegt' };
   }
 }
+
+export const SOURCE_KINDS: Record<SourceKind, string> = {
+  rule: 'Regel',
+  agent: 'Agent',
+  human: 'Mensch',
+};
+
+export const ASSERTION_KINDS: Record<AssertionKind, string> = {
+  proposal: 'Vorschlag',
+  withdrawal: 'Zurückgezogen',
+  decision: 'Entscheidung',
+  note: 'Notiz',
+};
 
 /** `0.8` → `80 %`; `null` → `–`. */
 export function formatConfidence(confidence: number | null): string {

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "work_pipeline",
+    "title": "Work the analysis pipeline",
+    "description": "Claim → analyse → submit in a loop until no task is left, following the proa-relations procedure.",
+    "arguments": [
+      {
+        "name": "projectId",
+        "description": "Only this project (id or key).",
+        "required": false
+      }
+    ]
+  }
+]

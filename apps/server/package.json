@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
+    "@proa/agent-sim": "workspace:0.0.0",
     "@testcontainers/postgresql": "12.2.0",
     "@types/pg": "8.23.1",
     "dependency-cruiser": "18.5.0",

@@ -1,0 +1,1053 @@
+{
+  "recordings": [
+    {
+      "file": "proa-relations@0.0.1/agent-sim/sim-policy-1/nordwind-handel.jsonl",
+      "procedure": "proa-relations@0.0.1",
+      "agent": "agent-sim",
+      "llmModel": "sim-policy-1",
+      "landscape": "nordwind-handel",
+      "split": "dev",
+      "closedWorld": true,
+      "tasks": {
+        "lines": 31,
+        "models": 31,
+        "landscapeModels": 31,
+        "submitted": 31,
+        "dryRun": 0,
+        "failed": 0
+      },
+      "items": {
+        "total": 96,
+        "invalid": {},
+        "outcomes": {
+          "applied": 48,
+          "duplicate": 48
+        }
+      },
+      "pairs": 48,
+      "overall": {
+        "mustLink": 42,
+        "found": 33,
+        "mayLink": 3,
+        "mustNotLink": 12,
+        "unlisted": 0,
+        "sameProcess": 0,
+        "precision": 0.7333333333333333,
+        "recall": 0.7857142857142857,
+        "f1": 0.7586206896551724
+      },
+      "withRules": {
+        "mustLink": 42,
+        "found": 42,
+        "mayLink": 3,
+        "mustNotLink": 12,
+        "unlisted": 0,
+        "sameProcess": 0,
+        "precision": 0.7777777777777778,
+        "recall": 1,
+        "f1": 0.8750000000000001
+      },
+      "byType": {
+        "call": {
+          "mustLink": 9,
+          "found": 0,
+          "mayLink": 3,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        },
+        "message": {
+          "mustLink": 25,
+          "found": 25,
+          "mayLink": 0,
+          "mustNotLink": 12,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.6756756756756757,
+          "recall": 1,
+          "f1": 0.8064516129032258
+        },
+        "signal": {
+          "mustLink": 6,
+          "found": 6,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "trigger": {
+          "mustLink": 2,
+          "found": 2,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        }
+      },
+      "byTag": {
+        "call-ambiguous": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 2,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "call-dynamic": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 1,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "call-unique": {
+          "mustLink": 9,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        },
+        "call-unresolved": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "collaboration": {
+          "mustLink": 25,
+          "found": 22,
+          "mayLink": 2,
+          "mustNotLink": 3,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.88,
+          "recall": 0.88,
+          "f1": 0.88
+        },
+        "cross-engine-message": {
+          "mustLink": 14,
+          "found": 14,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "de-en": {
+          "mustLink": 2,
+          "found": 2,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "distractor": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "event-def-mismatch": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "exact-key": {
+          "mustLink": 8,
+          "found": 8,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "generic-name": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 3,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0,
+          "recall": null,
+          "f1": null
+        },
+        "lexical": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "near-miss": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 9,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0,
+          "recall": null,
+          "f1": null
+        },
+        "self-link": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "semantic": {
+          "mustLink": 1,
+          "found": 1,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "signal-broadcast": {
+          "mustLink": 6,
+          "found": 6,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "subprocess-scope": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "transliteration": {
+          "mustLink": 3,
+          "found": 3,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "trigger": {
+          "mustLink": 2,
+          "found": 2,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        }
+      },
+      "mustNotLinkHits": [
+        {
+          "type": "message",
+          "from": "finanzen/kreditpruefung#End_AntwortGesendet",
+          "to": "einkauf/bestellanforderung#Event_AntwortErhalten",
+          "class": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "confidence": 1,
+          "question": false
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungseingang#Task_KundensperreAufheben",
+          "to": "partner/customer-account-lock#Start_CustomerBlocked",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.52,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungseingang#Task_ZuordnungMelden",
+          "to": "finanzen/lieferantenrechnung#Event_ZahlungAngeordnet",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.56,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungslauf#Event_ZahlungAngeordnet",
+          "to": "finanzen/forderungsmanagement#Event_ZahlungZugeordnet",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.56,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungslauf#Event_ZahlungAngeordnet",
+          "to": "finanzen/mahnwesen#Event_ZahlungZugeordnet",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.56,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "finanzen/zahlungslauf#Event_ZahlungAngeordnet",
+          "to": "vertrieb/order-handling#Event_PaymentAllocated",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.56,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "logistik/shipping#Event_DeliveryDelayed",
+          "to": "finanzen/rechnungsstellung#Start_LieferungVersendet",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.52,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "logistik/shipping#Event_ShipmentDispatched",
+          "to": "service/kundenbenachrichtigung#Start_LieferungVerspaetet",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.52,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "logistik/speditionsversand#Event_LieferungVersendet",
+          "to": "service/kundenbenachrichtigung#Start_LieferungVerspaetet",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.52,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "service/reklamation#Task_AntwortSenden",
+          "to": "einkauf/bestellanforderung#Event_AntwortErhalten",
+          "class": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "confidence": 1,
+          "question": false
+        },
+        {
+          "type": "message",
+          "from": "service/reklamation#Task_AntwortSenden",
+          "to": "finanzen/kreditpruefung#Event_AntwortErhalten",
+          "class": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "confidence": 1,
+          "question": false
+        },
+        {
+          "type": "message",
+          "from": "vertrieb/marketplace-order-import#End_OrderRejected",
+          "to": "vertrieb/order-handling#Start_OrderReceived",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.51,
+          "question": true
+        }
+      ],
+      "mustNotLinkHighConfidence": 3,
+      "unlistedPairs": [],
+      "missed": [],
+      "questions": {
+        "pairs": 12,
+        "byClass": {
+          "must_link": 0,
+          "may_link": 3,
+          "must_not_link": 9,
+          "unlisted": 0,
+          "same_process": 0
+        }
+      },
+      "noLinks": {
+        "pairs": 150,
+        "byClass": {
+          "must_link": 0,
+          "may_link": 2,
+          "must_not_link": 3,
+          "unlisted": 145,
+          "same_process": 0
+        },
+        "onMustLink": []
+      }
+    },
+    {
+      "file": "proa-relations@0.0.1/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
+      "procedure": "proa-relations@0.0.1",
+      "agent": "agent-sim",
+      "llmModel": "sim-policy-1",
+      "landscape": "stadtwerke-auental",
+      "split": "holdout",
+      "closedWorld": true,
+      "tasks": {
+        "lines": 26,
+        "models": 26,
+        "landscapeModels": 26,
+        "submitted": 26,
+        "dryRun": 0,
+        "failed": 0
+      },
+      "items": {
+        "total": 104,
+        "invalid": {},
+        "outcomes": {
+          "applied": 52,
+          "duplicate": 52
+        }
+      },
+      "pairs": 52,
+      "overall": {
+        "mustLink": 40,
+        "found": 32,
+        "mayLink": 2,
+        "mustNotLink": 11,
+        "unlisted": 7,
+        "sameProcess": 0,
+        "precision": 0.64,
+        "recall": 0.8,
+        "f1": 0.7111111111111111
+      },
+      "withRules": {
+        "mustLink": 40,
+        "found": 35,
+        "mayLink": 2,
+        "mustNotLink": 11,
+        "unlisted": 7,
+        "sameProcess": 0,
+        "precision": 0.660377358490566,
+        "recall": 0.875,
+        "f1": 0.7526881720430108
+      },
+      "byType": {
+        "call": {
+          "mustLink": 3,
+          "found": 0,
+          "mayLink": 2,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        },
+        "message": {
+          "mustLink": 30,
+          "found": 26,
+          "mayLink": 0,
+          "mustNotLink": 9,
+          "unlisted": 3,
+          "sameProcess": 0,
+          "precision": 0.6842105263157895,
+          "recall": 0.8666666666666667,
+          "f1": 0.7647058823529413
+        },
+        "signal": {
+          "mustLink": 6,
+          "found": 6,
+          "mayLink": 0,
+          "mustNotLink": 2,
+          "unlisted": 4,
+          "sameProcess": 0,
+          "precision": 0.5,
+          "recall": 1,
+          "f1": 0.6666666666666666
+        },
+        "trigger": {
+          "mustLink": 1,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        }
+      },
+      "byTag": {
+        "call-ambiguous": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 2,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "call-dynamic": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "call-unique": {
+          "mustLink": 3,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        },
+        "collaboration": {
+          "mustLink": 22,
+          "found": 19,
+          "mayLink": 0,
+          "mustNotLink": 2,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.9047619047619048,
+          "recall": 0.8636363636363636,
+          "f1": 0.8837209302325582
+        },
+        "cross-engine-message": {
+          "mustLink": 12,
+          "found": 12,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "de-en": {
+          "mustLink": 4,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        },
+        "distractor": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 4,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0,
+          "recall": null,
+          "f1": null
+        },
+        "event-def-mismatch": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "exact-key": {
+          "mustLink": 10,
+          "found": 10,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "generic-name": {
+          "mustLink": 2,
+          "found": 2,
+          "mayLink": 0,
+          "mustNotLink": 2,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0.5,
+          "recall": 1,
+          "f1": 0.6666666666666666
+        },
+        "near-miss": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 5,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 0,
+          "recall": null,
+          "f1": null
+        },
+        "self-link": {
+          "mustLink": 0,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": null,
+          "f1": null
+        },
+        "semantic": {
+          "mustLink": 1,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        },
+        "signal-broadcast": {
+          "mustLink": 6,
+          "found": 6,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "subprocess-scope": {
+          "mustLink": 7,
+          "found": 6,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 0.8571428571428571,
+          "f1": 0.923076923076923
+        },
+        "transliteration": {
+          "mustLink": 2,
+          "found": 2,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "trigger": {
+          "mustLink": 1,
+          "found": 0,
+          "mayLink": 0,
+          "mustNotLink": 0,
+          "unlisted": 0,
+          "sameProcess": 0,
+          "precision": null,
+          "recall": 0,
+          "f1": null
+        }
+      },
+      "mustNotLinkHits": [
+        {
+          "type": "message",
+          "from": "forderung/sperrung#End_AnlageEntsperrt",
+          "to": "kundenservice/kundeninformation#Start_AnlageGesperrt",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.53,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "forderung/sperrung#Event_AnlageGesperrt",
+          "to": "kundenservice/kundeninformation#Start_AnlageEntsperrt",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.53,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "marktkommunikation/lieferantenwechsel#Event_AbmeldungBestaetigt",
+          "to": "marktkommunikation/lieferbeginn#Event_AnmeldungBestaetigt",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss",
+            "collaboration"
+          ],
+          "confidence": 0.58,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "marktkommunikation/lieferantenwechsel#Event_LieferendeGemeldet",
+          "to": "abrechnung/stammdatenuebernahme#Start_LieferbeginnGemeldet",
+          "class": "must_not_link",
+          "tags": [
+            "distractor"
+          ],
+          "confidence": 0.5,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "marktkommunikation/lieferbeginn#Event_LieferbeginnGemeldet",
+          "to": "abrechnung/schlussrechnung#Start_LieferendeGemeldet",
+          "class": "must_not_link",
+          "tags": [
+            "distractor"
+          ],
+          "confidence": 0.5,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlermontage#End_ZaehlerEingebaut",
+          "to": "abrechnung/stammdatenuebernahme#Start_ZaehlerAusgebaut",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.53,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerwechsel#End_ZaehlerAusgebaut",
+          "to": "abrechnung/stammdatenuebernahme#Start_ZaehlerEingebaut",
+          "class": "must_not_link",
+          "tags": [
+            "near-miss"
+          ],
+          "confidence": 0.53,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerwechsel#Task_RueckmeldungSenden",
+          "to": "netz/stoerungsannahme#Task_RueckmeldungErhalten",
+          "class": "must_not_link",
+          "tags": [
+            "generic-name",
+            "collaboration"
+          ],
+          "confidence": 1,
+          "question": false
+        },
+        {
+          "type": "signal",
+          "from": "netz/entstoerung#Event_GrossstoerungAusgerufen",
+          "to": "kundenservice/kundeninformation#Event_GrossstoerungBeendet",
+          "class": "must_not_link",
+          "tags": [
+            "distractor"
+          ],
+          "confidence": 0.55,
+          "question": true
+        },
+        {
+          "type": "signal",
+          "from": "netz/entstoerung#Event_GrossstoerungBeendet",
+          "to": "kundenservice/kundeninformation#Start_GrossstoerungAusgerufen",
+          "class": "must_not_link",
+          "tags": [
+            "distractor"
+          ],
+          "confidence": 0.55,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "netz/entstoerung#Event_RueckmeldungGesendet",
+          "to": "netz/pv-einspeisung#Task_RueckmeldungErhalten",
+          "class": "must_not_link",
+          "tags": [
+            "generic-name"
+          ],
+          "confidence": 1,
+          "question": false
+        }
+      ],
+      "mustNotLinkHighConfidence": 2,
+      "unlistedPairs": [
+        {
+          "type": "message",
+          "from": "forderung/mahnverfahren#Task_ForderungAbgeben",
+          "to": "netz/entstoerung#Start_EntstoerauftragEingegangen",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.84,
+          "question": false
+        },
+        {
+          "type": "message",
+          "from": "messwesen/zaehlerwechsel#Task_RueckmeldungSenden",
+          "to": "netz/stoerungsannahme#Start_StoerungGemeldet",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.83,
+          "question": false
+        },
+        {
+          "type": "signal",
+          "from": "netz/entstoerung#Event_GrossstoerungAusgerufen",
+          "to": "forderung/sperrung#Event_GrossstoerungBeendet",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.55,
+          "question": true
+        },
+        {
+          "type": "signal",
+          "from": "netz/entstoerung#Event_GrossstoerungBeendet",
+          "to": "forderung/sperrung#Start_GrossstoerungAusgerufen",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.55,
+          "question": true
+        },
+        {
+          "type": "signal",
+          "from": "netz/entstoerung#Event_GrossstoerungBeendet",
+          "to": "messwesen/zaehlerwechsel#Start_GrossstoerungAusgerufen",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.55,
+          "question": true
+        },
+        {
+          "type": "signal",
+          "from": "netz/entstoerung#Event_GrossstoerungBeendet",
+          "to": "netz/stoerungsannahme#Start_GrossstoerungAusgerufen",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.55,
+          "question": true
+        },
+        {
+          "type": "message",
+          "from": "netz/entstoerung#Event_RueckmeldungGesendet",
+          "to": "netz/stoerungsannahme#Start_StoerungGemeldet",
+          "class": "unlisted",
+          "tags": [],
+          "confidence": 0.83,
+          "question": false
+        }
+      ],
+      "missed": [
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_MeterReadingSubmitted",
+          "to": "messwesen/zaehlerablesung#Event_ZaehlerstandUebermittelt",
+          "expect": "must_link",
+          "tags": [
+            "de-en",
+            "subprocess-scope"
+          ],
+          "rationale": "\"Meter reading submitted\" is the portal's English name for the customer self-reading that the reading process waits for as \"Zählerstand übermittelt\"; the message names differ, so only the semantic tier finds it. The catch lies inside an embedded subprocess, which is fine: only start and end events there are excluded."
+        },
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_TariffChangeRequested",
+          "to": "vertrieb/tarifwechsel#Start_TarifwechselBeantragt",
+          "expect": "must_link",
+          "tags": [
+            "de-en"
+          ],
+          "rationale": "\"Tariff change requested\" and \"Tarifwechsel beantragt\" are the same request, English in the portal and German in sales; different message names."
+        },
+        {
+          "type": "message",
+          "from": "kundenservice/kundenportal#Event_InstalmentChangeRequested",
+          "to": "abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht",
+          "expect": "must_link",
+          "tags": [
+            "de-en"
+          ],
+          "rationale": "\"Instalment change requested\" is the English portal event for \"Abschlagsaenderung gewuenscht\" in the C7 instalment process; different message names."
+        },
+        {
+          "type": "message",
+          "from": "abrechnung/rechnungsausgabe-digital#Event_InvoicePublished",
+          "to": "kundenservice/kundeninformation#Start_RechnungBereitgestellt",
+          "expect": "must_link",
+          "tags": [
+            "de-en",
+            "collaboration"
+          ],
+          "rationale": "\"Invoice published\" (e-invoice platform, English) and \"Rechnung bereitgestellt\" are the same event; different message names, so only the semantic tier finds it."
+        },
+        {
+          "type": "trigger",
+          "from": "netz/hausanschluss#End_ZaehlersetzungBeauftragt",
+          "to": "messwesen/zaehlermontage#Start_HausanschlussFertiggestellt",
+          "expect": "must_link",
+          "tags": [
+            "trigger",
+            "semantic",
+            "collaboration"
+          ],
+          "rationale": "Handover from grid service to metering - after the installer's completion notice the grid side orders the first meter, and the meter setting process starts at \"Hausanschluss fertiggestellt\". Labels differ; agents only."
+        }
+      ],
+      "questions": {
+        "pairs": 15,
+        "byClass": {
+          "must_link": 0,
+          "may_link": 2,
+          "must_not_link": 9,
+          "unlisted": 4,
+          "same_process": 0
+        }
+      },
+      "noLinks": {
+        "pairs": 101,
+        "byClass": {
+          "must_link": 3,
+          "may_link": 0,
+          "must_not_link": 7,
+          "unlisted": 91,
+          "same_process": 0
+        },
+        "onMustLink": [
+          {
+            "type": "message",
+            "from": "abrechnung/rechnungsausgabe-digital#Event_InvoicePublished",
+            "to": "kundenservice/kundeninformation#Start_RechnungBereitgestellt",
+            "expect": "must_link",
+            "tags": [
+              "de-en",
+              "collaboration"
+            ],
+            "rationale": "\"Invoice published\" (e-invoice platform, English) and \"Rechnung bereitgestellt\" are the same event; different message names, so only the semantic tier finds it."
+          },
+          {
+            "type": "message",
+            "from": "kundenservice/kundenportal#Event_InstalmentChangeRequested",
+            "to": "abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht",
+            "expect": "must_link",
+            "tags": [
+              "de-en"
+            ],
+            "rationale": "\"Instalment change requested\" is the English portal event for \"Abschlagsaenderung gewuenscht\" in the C7 instalment process; different message names."
+          },
+          {
+            "type": "message",
+            "from": "kundenservice/kundenportal#Event_TariffChangeRequested",
+            "to": "vertrieb/tarifwechsel#Start_TarifwechselBeantragt",
+            "expect": "must_link",
+            "tags": [
+              "de-en"
+            ],
+            "rationale": "\"Tariff change requested\" and \"Tarifwechsel beantragt\" are the same request, English in the portal and German in sales; different message names."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -44,9 +44,27 @@ const STATUS_CODES: Readonly<Record<number, ProblemCode>> = {
   501: 'not-implemented',
 };
 
-/** Maps any thrown value to a problem response; unexpected errors become 500 and are logged. */
-export function problemFromError(err: unknown): Response {
-  if (err instanceof DomainError) return problemResponse(err.code, err.message, { ...err.extras });
+/**
+ * Extension members of a domain error as clients get them: a `reviewUrl`
+ * path (`human-decision-required`) becomes absolute on the request's origin.
+ */
+export function problemExtras(err: DomainError, origin?: string): Record<string, unknown> {
+  const extras: Record<string, unknown> = { ...err.extras };
+  const reviewUrl = extras['reviewUrl'];
+  if (origin && typeof reviewUrl === 'string' && reviewUrl.startsWith('/')) {
+    extras['reviewUrl'] = new URL(reviewUrl, origin).toString();
+  }
+  return extras;
+}
+
+/**
+ * Maps any thrown value to a problem response; unexpected errors become 500 and are logged.
+ * @param origin the request's origin, for absolute links in problems
+ */
+export function problemFromError(err: unknown, origin?: string): Response {
+  if (err instanceof DomainError) {
+    return problemResponse(err.code, err.message, problemExtras(err, origin));
+  }
   if (err instanceof HTTPException) {
     const code = STATUS_CODES[err.status];
     if (code) return problemResponse(code, err.message || undefined);

@@ -1,4 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from '@tanstack/react-router';
 import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { vi } from 'vitest';
@@ -15,6 +21,38 @@ export function renderWithQuery(ui: ReactNode) {
       <QueryClientProvider client={queryClient}>
         {ui}
         <Toaster />
+      </QueryClientProvider>,
+    ),
+  };
+}
+
+/**
+ * Renders `ui` as the only page of a throwaway router, for components with
+ * `Link`s (hrefs are built from the route path and params).
+ */
+export async function renderWithRouter(ui: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const rootRoute = createRootRoute({
+    component: () => (
+      <>
+        {ui}
+        <Toaster />
+      </>
+    ),
+  });
+  const router = createRouter({
+    routeTree: rootRoute,
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  });
+  await router.load();
+  return {
+    queryClient,
+    router,
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
       </QueryClientProvider>,
     ),
   };

@@ -348,6 +348,7 @@ export type Model = {
   name: string | null;
   headRevisionId: RevisionId;
   headRev: number;
+  engine: Engine | null;
   stage: ModelStage;
   openItems: number;
   updatedAt: Timestamp;
@@ -362,6 +363,11 @@ export type ModelId = string;
  * Model revision id (`rev_` + ULID).
  */
 export type RevisionId = string;
+
+/**
+ * Target engine: Camunda 7 (`c7`) or Camunda 8 (`c8`).
+ */
+export type Engine = 'c7' | 'c8';
 
 /**
  * Pipeline stage of a model.
@@ -393,6 +399,7 @@ export type Revision = {
   contentHash: Sha256Hex;
   factsHash: Sha256Hex;
   factsVersion: string;
+  engine: Engine | null;
   source: RevisionSource;
   seq: number;
   createdAt: Timestamp;
@@ -499,6 +506,8 @@ export type Relation = {
   attrs: {
     [key: string]: unknown;
   };
+  source: SourceKind | null;
+  provenance: RelationProvenance | null;
   updatedAt: Timestamp;
 };
 
@@ -521,6 +530,55 @@ export type RelationStatus = 'proposed' | 'accepted' | 'rejected' | 'held' | 'ob
  * State of the relation endpoints in the head revisions.
  */
 export type EndpointState = 'ok' | 'changed' | 'missing';
+
+/**
+ * Origin of an assertion.
+ */
+export type SourceKind = 'human' | 'agent' | 'rule';
+
+/**
+ * The assertion a relation status rests on.
+ */
+export type RelationProvenance = {
+  assertionId: AssertionId;
+  kind: AssertionKind;
+  verdict: Verdict | null;
+  sourceKind: SourceKind;
+  principalId: PrincipalId;
+  handle: string;
+  clientId: string | null;
+  procedure: DeclaredProcedure | null;
+  llmModel: string | null;
+  tier: Tier | null;
+  confidence: number | null;
+  rationale: string | null;
+  question: string | null;
+  label: string | null;
+  at: Timestamp;
+};
+
+/**
+ * Relation assertion id (`asr_` + ULID).
+ */
+export type AssertionId = string;
+
+/**
+ * Kind of a relation assertion.
+ */
+export type AssertionKind = 'proposal' | 'withdrawal' | 'decision' | 'note';
+
+/**
+ * Verdict of a decision.
+ */
+export type Verdict = 'accept' | 'reject' | 'hold';
+
+/**
+ * Procedure id and version declared by an agent.
+ */
+export type DeclaredProcedure = {
+  id: string;
+  version: string;
+};
 
 /**
  * A deterministic finding about the landscape.
@@ -554,6 +612,457 @@ export type RelationPage = {
  */
 export type FindingList = {
   items: Array<Finding>;
+};
+
+/**
+ * The history of a relation, oldest first.
+ */
+export type RelationAssertionList = {
+  items: Array<RelationAssertion>;
+};
+
+/**
+ * One assertion of a relation history.
+ */
+export type RelationAssertion = {
+  id: AssertionId;
+  seq: number;
+  kind: AssertionKind;
+  verdict: Verdict | null;
+  sourceKind: SourceKind;
+  principalId: PrincipalId;
+  handle: string;
+  clientId: string | null;
+  procedure: DeclaredProcedure | null;
+  llmModel: string | null;
+  submissionId: SubmissionId | null;
+  tier: Tier | null;
+  confidence: number | null;
+  rationale: string | null;
+  evidence: Array<string>;
+  question: string | null;
+  label: string | null;
+  linkedRelationId: RelationId | null;
+  fromFp: string | null;
+  toFp: string | null;
+  at: Timestamp;
+};
+
+/**
+ * Stored analysis submission id (`sbm_` + ULID); not the client-chosen `submissionId`.
+ */
+export type SubmissionId = string;
+
+/**
+ * Outcome of an ad-hoc proposal.
+ */
+export type ProposeRelationResult = {
+  result: ProposalOutcome;
+  relation: Relation;
+};
+
+/**
+ * Outcome of one proposed relation.
+ */
+export type ProposalOutcome =
+  | 'applied'
+  | 'duplicate'
+  | 'suppressed'
+  | 'reopened'
+  | 'invalid:malformed-ref'
+  | 'invalid:type-not-allowed'
+  | 'invalid:unknown-ref'
+  | 'invalid:outside-task-model'
+  | 'invalid:type-mismatch'
+  | 'invalid:same-process'
+  | 'invalid:message-flow'
+  | 'invalid:confidence-out-of-range'
+  | 'invalid:rationale-too-long'
+  | 'invalid:question-too-long'
+  | 'invalid:too-much-evidence'
+  | 'invalid:control-characters';
+
+/**
+ * An ad-hoc relation proposal.
+ */
+export type ProposeRelationBody = {
+  type: RelationType;
+  from: Ref;
+  to: Ref;
+  confidence: number;
+  rationale: string;
+  evidence?: Array<string>;
+  question?: string | null;
+  procedure?: DeclaredProcedure | null;
+  llmModel?: string | null;
+};
+
+/**
+ * The decided relation (and its correction).
+ */
+export type DecisionResult = {
+  relation: Relation;
+  corrected: Relation | null;
+};
+
+/**
+ * A human decision on one relation.
+ */
+export type DecisionBody =
+  | {
+      verdict: 'accept';
+      note?: string;
+      version?: number;
+    }
+  | {
+      verdict: 'reject';
+      reason: string;
+      version?: number;
+    }
+  | {
+      verdict: 'hold';
+      note: string;
+      question?: string;
+      label?: string;
+      version?: number;
+    }
+  | {
+      verdict: 'correct';
+      from: Ref;
+      to: Ref;
+      note: string;
+      version?: number;
+    };
+
+/**
+ * The decided relations.
+ */
+export type BulkDecisionResult = {
+  items: Array<Relation>;
+};
+
+/**
+ * One verdict for many relations.
+ */
+export type BulkDecisionBody = {
+  verdict: 'accept' | 'reject' | 'hold';
+  reason?: string;
+  note?: string;
+  question?: string;
+  label?: string;
+  tier?: Tier;
+  items: Array<{
+    id: RelationId;
+    version: number;
+  }>;
+  expectedCount: number;
+};
+
+/**
+ * A note on a relation.
+ */
+export type NoteBody = {
+  text: string;
+};
+
+/**
+ * Claimed tasks; empty when nothing is queued.
+ */
+export type ClaimResult = {
+  items: Array<ClaimedAnalysis>;
+};
+
+/**
+ * A claimed analysis task with its lease and input.
+ */
+export type ClaimedAnalysis = {
+  taskId: AnalysisTaskId;
+  projectId: ProjectId;
+  projectKey: ProjectKey;
+  modelId: ModelId;
+  modelKey: ModelKey;
+  revisionId: RevisionId;
+  attempt: number;
+  leaseToken: string;
+  leaseUntil: Timestamp;
+  procedure: DeclaredProcedure;
+  input: ClaimInput;
+};
+
+/**
+ * Analysis task id (`ana_` + ULID).
+ */
+export type AnalysisTaskId = string;
+
+/**
+ * Input of a claimed relations task (compact).
+ */
+export type ClaimInput = {
+  format: 'proa-claim/1';
+  model: {
+    key: ModelKey;
+    name: string | null;
+    revisionId: RevisionId;
+    rev: number;
+    engine: Engine | null;
+    processes: Array<{
+      processId: ElementId;
+      name: string | null;
+      participantName: string | null;
+    }>;
+  };
+  facts: Array<ClaimFact>;
+  candidates: Array<ClaimCandidate>;
+  partners: {
+    [key: string]: ClaimEndpoint;
+  };
+  relations: Array<ClaimRelation>;
+};
+
+/**
+ * A fact of the claimed model (compact).
+ */
+export type ClaimFact = {
+  ref: Ref;
+  kind: FactKind;
+  eventDef?: EventDef;
+  label: string;
+  key?: string;
+  scope?: FactScope;
+  process?: ElementId;
+  doc?: string;
+};
+
+/**
+ * [type, from, to, basis, score]
+ */
+export type ClaimCandidate = [
+  'call' | 'message' | 'signal' | 'trigger',
+  Ref,
+  Ref,
+  CandidateBasis,
+  number,
+];
+
+/**
+ * An endpoint in another model (compact).
+ */
+export type ClaimEndpoint = {
+  kind: FactKind;
+  eventDef?: EventDef;
+  label: string;
+  key?: string;
+  scope?: FactScope;
+  process: Ref;
+  processName?: string;
+};
+
+/**
+ * An existing relation touching the model (compact).
+ */
+export type ClaimRelation = {
+  id: RelationId;
+  type: RelationType;
+  from: Ref;
+  to: Ref;
+  status: RelationStatus;
+  tier: Tier;
+  confidence: number | null;
+  source: SourceKind | null;
+  endpointState: EndpointState;
+  decision?: ClaimDecision;
+  question?: string;
+  notes?: Array<{
+    text: string;
+    at: Timestamp;
+  }>;
+};
+
+/**
+ * A human decision (compact).
+ */
+export type ClaimDecision = {
+  verdict: Verdict;
+  note?: string;
+  question?: string;
+  label?: string;
+  at: Timestamp;
+};
+
+/**
+ * Request body to claim analysis tasks.
+ */
+export type ClaimAnalysisBody = {
+  /**
+   * Project id (`prj_…`) or project key.
+   */
+  projectId?: string;
+  modelKey?: ModelKey;
+  max?: number;
+};
+
+/**
+ * Claimable tasks per project.
+ */
+export type PendingAnalyses = {
+  total: number;
+  items: Array<{
+    projectId: ProjectId;
+    projectKey: ProjectKey;
+    pending: number;
+  }>;
+};
+
+/**
+ * Outcome of a submission, per item.
+ */
+export type SubmissionResult = {
+  taskId: AnalysisTaskId;
+  submissionId: string;
+  replayed: boolean;
+  items: Array<SubmissionItemResult>;
+  counts: {
+    applied: number;
+    duplicate: number;
+    suppressed: number;
+    reopened: number;
+    invalid: number;
+  };
+  withdrawn: number;
+};
+
+/**
+ * Outcome of one item of a submission.
+ */
+export type SubmissionItemResult = {
+  index: number;
+  result: ProposalOutcome;
+  relationId: RelationId | null;
+  status: RelationStatus | null;
+};
+
+/**
+ * The result of an analysis task.
+ */
+export type SubmitAnalysisBody = {
+  leaseToken: string;
+  submissionId: string;
+  procedure: DeclaredProcedure;
+  llmModel?: string | null;
+  relations: Array<ProposalItem>;
+  noLinks?: Array<NoLinkItem>;
+  summary?: string | null;
+  costUsd?: number | null;
+};
+
+/**
+ * A relation an agent proposes.
+ */
+export type ProposalItem = {
+  type: string;
+  from: string;
+  to: string;
+  confidence: number;
+  rationale?: string;
+  evidence?: Array<string>;
+  question?: string | null;
+};
+
+/**
+ * A pair judged unrelated.
+ */
+export type NoLinkItem = {
+  from: string;
+  to: string;
+  reason?: string;
+};
+
+/**
+ * The released task is queued again.
+ */
+export type ReleaseResult = {
+  taskId: AnalysisTaskId;
+  state: 'queued';
+};
+
+/**
+ * Request body to release a claimed task.
+ */
+export type ReleaseAnalysisBody = {
+  leaseToken: string;
+  reason?: string | null;
+};
+
+/**
+ * A page of AnalysisTask items.
+ */
+export type AnalysisTaskPage = {
+  items: Array<AnalysisTask>;
+  nextCursor: Cursor | null;
+};
+
+/**
+ * An analysis task of one model revision.
+ */
+export type AnalysisTask = {
+  id: AnalysisTaskId;
+  projectId: ProjectId;
+  modelId: ModelId;
+  modelKey: ModelKey;
+  revisionId: RevisionId;
+  kind: 'relations';
+  state: AnalysisTaskState;
+  attempts: number;
+  factsHash: Sha256Hex;
+  leaseUntil: Timestamp | null;
+  claimedBy: string | null;
+  lastError: string | null;
+  submissionId: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+/**
+ * State of an analysis task.
+ */
+export type AnalysisTaskState = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
+
+/**
+ * Outcome per model of a requeue.
+ */
+export type RequeueResult = {
+  items: Array<{
+    modelKey: ModelKey;
+    outcome: 'queued' | 'open' | 'not-found';
+    taskId: AnalysisTaskId | null;
+  }>;
+};
+
+/**
+ * Models to analyse again (e.g. after a procedure upgrade).
+ */
+export type RequeueBody = {
+  modelKeys?: Array<ModelKey>;
+  all?: true;
+};
+
+/**
+ * A stored analysis submission.
+ */
+export type AnalysisSubmission = {
+  id: SubmissionId;
+  taskId: AnalysisTaskId;
+  submissionId: string;
+  principalId: PrincipalId;
+  handle: string;
+  clientId: string | null;
+  procedure: DeclaredProcedure;
+  llmModel: string | null;
+  payload: {
+    [key: string]: unknown;
+  };
+  result: SubmissionResult;
+  createdAt: Timestamp;
 };
 
 /**
@@ -1339,6 +1848,48 @@ export type ListRelationsResponses = {
 
 export type ListRelationsResponse = ListRelationsResponses[keyof ListRelationsResponses];
 
+export type ProposeRelationData = {
+  body: ProposeRelationBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/relations';
+};
+
+export type ProposeRelationErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ProposeRelationError = ProposeRelationErrors[keyof ProposeRelationErrors];
+
+export type ProposeRelationResponses = {
+  /**
+   * The outcome and the relation
+   */
+  200: ProposeRelationResult;
+};
+
+export type ProposeRelationResponse = ProposeRelationResponses[keyof ProposeRelationResponses];
+
 export type GetRelationData = {
   body?: never;
   path: {
@@ -1426,6 +1977,580 @@ export type ListFindingsResponses = {
 };
 
 export type ListFindingsResponse = ListFindingsResponses[keyof ListFindingsResponses];
+
+export type GetRelationAssertionsData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Relation id (`rel_` + ULID).
+     */
+    relation: RelationId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/relations/{relation}/assertions';
+};
+
+export type GetRelationAssertionsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetRelationAssertionsError =
+  GetRelationAssertionsErrors[keyof GetRelationAssertionsErrors];
+
+export type GetRelationAssertionsResponses = {
+  /**
+   * The assertions
+   */
+  200: RelationAssertionList;
+};
+
+export type GetRelationAssertionsResponse =
+  GetRelationAssertionsResponses[keyof GetRelationAssertionsResponses];
+
+export type WithdrawProposalData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Relation id (`rel_` + ULID).
+     */
+    relation: RelationId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/relations/{relation}/proposal';
+};
+
+export type WithdrawProposalErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type WithdrawProposalError = WithdrawProposalErrors[keyof WithdrawProposalErrors];
+
+export type WithdrawProposalResponses = {
+  /**
+   * The relation after the withdrawal
+   */
+  200: Relation;
+};
+
+export type WithdrawProposalResponse = WithdrawProposalResponses[keyof WithdrawProposalResponses];
+
+export type DecideRelationData = {
+  body: DecisionBody;
+  headers?: {
+    'if-match'?: string;
+  };
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Relation id (`rel_` + ULID).
+     */
+    relation: RelationId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/relations/{relation}/decision';
+};
+
+export type DecideRelationErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `precondition-failed`
+   */
+  412: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type DecideRelationError = DecideRelationErrors[keyof DecideRelationErrors];
+
+export type DecideRelationResponses = {
+  /**
+   * The decided relation
+   */
+  200: DecisionResult;
+};
+
+export type DecideRelationResponse = DecideRelationResponses[keyof DecideRelationResponses];
+
+export type DecideRelationsData = {
+  body: BulkDecisionBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/decisions';
+};
+
+export type DecideRelationsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type DecideRelationsError = DecideRelationsErrors[keyof DecideRelationsErrors];
+
+export type DecideRelationsResponses = {
+  /**
+   * The decided relations
+   */
+  200: BulkDecisionResult;
+};
+
+export type DecideRelationsResponse = DecideRelationsResponses[keyof DecideRelationsResponses];
+
+export type AddRelationNoteData = {
+  body: NoteBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Relation id (`rel_` + ULID).
+     */
+    relation: RelationId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/relations/{relation}/notes';
+};
+
+export type AddRelationNoteErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type AddRelationNoteError = AddRelationNoteErrors[keyof AddRelationNoteErrors];
+
+export type AddRelationNoteResponses = {
+  /**
+   * The note
+   */
+  201: RelationAssertion;
+};
+
+export type AddRelationNoteResponse = AddRelationNoteResponses[keyof AddRelationNoteResponses];
+
+export type ClaimAnalysesData = {
+  body: ClaimAnalysisBody;
+  path?: never;
+  query?: never;
+  url: '/api/v1/analyses/claim';
+};
+
+export type ClaimAnalysesErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ClaimAnalysesError = ClaimAnalysesErrors[keyof ClaimAnalysesErrors];
+
+export type ClaimAnalysesResponses = {
+  /**
+   * The claimed tasks
+   */
+  200: ClaimResult;
+};
+
+export type ClaimAnalysesResponse = ClaimAnalysesResponses[keyof ClaimAnalysesResponses];
+
+export type GetPendingAnalysesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    projectId?: string;
+    wait?: number | null;
+  };
+  url: '/api/v1/analyses/pending';
+};
+
+export type GetPendingAnalysesErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetPendingAnalysesError = GetPendingAnalysesErrors[keyof GetPendingAnalysesErrors];
+
+export type GetPendingAnalysesResponses = {
+  /**
+   * Claimable tasks
+   */
+  200: PendingAnalyses;
+};
+
+export type GetPendingAnalysesResponse =
+  GetPendingAnalysesResponses[keyof GetPendingAnalysesResponses];
+
+export type SubmitAnalysisData = {
+  body: SubmitAnalysisBody;
+  path: {
+    /**
+     * Analysis task id (`ana_` + ULID).
+     */
+    analysis: AnalysisTaskId;
+  };
+  query?: never;
+  url: '/api/v1/analyses/{analysis}/submission';
+};
+
+export type SubmitAnalysisErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `lease-lost`, `task-cancelled`, `already-submitted`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `payload-too-large`
+   */
+  413: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type SubmitAnalysisError = SubmitAnalysisErrors[keyof SubmitAnalysisErrors];
+
+export type SubmitAnalysisResponses = {
+  /**
+   * The outcome per item
+   */
+  200: SubmissionResult;
+};
+
+export type SubmitAnalysisResponse = SubmitAnalysisResponses[keyof SubmitAnalysisResponses];
+
+export type ReleaseAnalysisData = {
+  body: ReleaseAnalysisBody;
+  path: {
+    /**
+     * Analysis task id (`ana_` + ULID).
+     */
+    analysis: AnalysisTaskId;
+  };
+  query?: never;
+  url: '/api/v1/analyses/{analysis}/release';
+};
+
+export type ReleaseAnalysisErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `lease-lost`, `task-cancelled`, `already-submitted`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ReleaseAnalysisError = ReleaseAnalysisErrors[keyof ReleaseAnalysisErrors];
+
+export type ReleaseAnalysisResponses = {
+  /**
+   * The task is queued again
+   */
+  200: ReleaseResult;
+};
+
+export type ReleaseAnalysisResponse = ReleaseAnalysisResponses[keyof ReleaseAnalysisResponses];
+
+export type ListAnalysesData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: {
+    /**
+     * State of an analysis task.
+     */
+    state?: AnalysisTaskState;
+    /**
+     * Immutable model key: lowercase slug segments separated by `/`.
+     */
+    modelKey?: ModelKey;
+    /**
+     * Opaque pagination cursor.
+     */
+    cursor?: Cursor;
+    limit?: number;
+  };
+  url: '/api/v1/projects/{project}/analyses';
+};
+
+export type ListAnalysesErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListAnalysesError = ListAnalysesErrors[keyof ListAnalysesErrors];
+
+export type ListAnalysesResponses = {
+  /**
+   * A page of tasks
+   */
+  200: AnalysisTaskPage;
+};
+
+export type ListAnalysesResponse = ListAnalysesResponses[keyof ListAnalysesResponses];
+
+export type RequeueAnalysesData = {
+  body: RequeueBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/analyses/requeue';
+};
+
+export type RequeueAnalysesErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type RequeueAnalysesError = RequeueAnalysesErrors[keyof RequeueAnalysesErrors];
+
+export type RequeueAnalysesResponses = {
+  /**
+   * Outcome per model
+   */
+  200: RequeueResult;
+};
+
+export type RequeueAnalysesResponse = RequeueAnalysesResponses[keyof RequeueAnalysesResponses];
+
+export type GetAnalysisSubmissionData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Analysis task id (`ana_` + ULID).
+     */
+    analysis: AnalysisTaskId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/analyses/{analysis}/submission';
+};
+
+export type GetAnalysisSubmissionErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetAnalysisSubmissionError =
+  GetAnalysisSubmissionErrors[keyof GetAnalysisSubmissionErrors];
+
+export type GetAnalysisSubmissionResponses = {
+  /**
+   * The submission
+   */
+  200: AnalysisSubmission;
+};
+
+export type GetAnalysisSubmissionResponse =
+  GetAnalysisSubmissionResponses[keyof GetAnalysisSubmissionResponses];
 
 export type ListAgentTokensData = {
   body?: never;

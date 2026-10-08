@@ -99,6 +99,15 @@ jobs:
           pnpm eval:candidates
           git diff --exit-code -- eval/reports
 
+      # Scores the committed agent recordings (eval/recordings) against the
+      # ground truth; the committed report must match a fresh run. The
+      # simulation agent's recordings are reproduced by the server test
+      # agent-sim.test.ts (in "Test" above).
+      - name: eval:replay
+        run: |
+          pnpm eval:replay
+          git diff --exit-code -- eval/reports eval/recordings
+
       - name: Build
         run: pnpm build
 

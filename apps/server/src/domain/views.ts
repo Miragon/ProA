@@ -1,5 +1,15 @@
 /** Records → API resources of `@proa/contracts` (shared by REST and MCP). */
-import type { AgentToken, Model, Project, Relation, Revision, Role } from '@proa/contracts';
+import type {
+  AgentToken,
+  AnalysisTask,
+  Model,
+  Project,
+  Relation,
+  RelationAssertion,
+  RelationProvenance,
+  Revision,
+  Role,
+} from '@proa/contracts';
 
 import type {
   AgentTokenRecord,
@@ -7,7 +17,10 @@ import type {
   ProjectRecord,
   RelationRecord,
   RevisionRecord,
+  StoredAssertion,
+  TaskDetail,
 } from './ports.ts';
+import { recomputeStatus } from './status.ts';
 
 const iso = (d: Date): string => d.toISOString();
 
@@ -30,6 +43,7 @@ export function toModel(m: ModelView): Model {
     name: m.name,
     headRevisionId: m.headRevisionId,
     headRev: m.headRev,
+    engine: m.engine,
     stage: m.stage,
     openItems: m.openItems,
     updatedAt: iso(m.updatedAt),
@@ -44,13 +58,45 @@ export function toRevision(r: RevisionRecord): Revision {
     contentHash: r.contentHash,
     factsHash: r.factsHash,
     factsVersion: r.factsVersion,
+    engine: r.engine,
     source: r.source,
     seq: r.seq,
     createdAt: iso(r.createdAt),
   };
 }
 
-export function toRelation(r: RelationRecord): Relation {
+function toProvenance(a: StoredAssertion): RelationProvenance {
+  return {
+    assertionId: a.id,
+    kind: a.kind,
+    verdict: a.verdict,
+    sourceKind: a.sourceKind,
+    principalId: a.principalId,
+    handle: a.handle,
+    clientId: a.clientId,
+    procedure: a.declared?.procedure ?? null,
+    llmModel: a.declared?.llmModel ?? null,
+    tier: a.tier,
+    confidence: a.confidence,
+    rationale: a.rationale,
+    question: a.question,
+    label: a.label,
+    at: iso(a.createdAt),
+  };
+}
+
+/** The assertion a relation's status rests on (see `recomputeStatus`). */
+export function basisOf(history: readonly StoredAssertion[]): StoredAssertion | null {
+  const { basisSeq } = recomputeStatus(history);
+  return history.find((a) => a.seq === basisSeq) ?? null;
+}
+
+/**
+ * @param history the relation's assertions (provenance and `source` come
+ *   from the one its status rests on)
+ */
+export function toRelation(r: RelationRecord, history: readonly StoredAssertion[]): Relation {
+  const basis = basisOf(history);
   return {
     id: r.id,
     type: r.type,
@@ -62,7 +108,55 @@ export function toRelation(r: RelationRecord): Relation {
     confidence: r.confidence,
     version: r.version,
     attrs: r.attrs,
+    source: basis?.sourceKind ?? null,
+    provenance: basis ? toProvenance(basis) : null,
     updatedAt: iso(r.updatedAt),
+  };
+}
+
+export function toRelationAssertion(a: StoredAssertion): RelationAssertion {
+  return {
+    id: a.id,
+    seq: a.seq,
+    kind: a.kind,
+    verdict: a.verdict,
+    sourceKind: a.sourceKind,
+    principalId: a.principalId,
+    handle: a.handle,
+    clientId: a.clientId,
+    procedure: a.declared?.procedure ?? null,
+    llmModel: a.declared?.llmModel ?? null,
+    submissionId: a.submissionId,
+    tier: a.tier,
+    confidence: a.confidence,
+    rationale: a.rationale,
+    evidence: a.evidence ?? [],
+    question: a.question,
+    label: a.label,
+    linkedRelationId: a.linkedRelationId,
+    fromFp: a.fromFp,
+    toFp: a.toFp,
+    at: iso(a.createdAt),
+  };
+}
+
+export function toAnalysisTask(t: TaskDetail): AnalysisTask {
+  return {
+    id: t.id,
+    projectId: t.projectId,
+    modelId: t.modelId,
+    modelKey: t.modelKey,
+    revisionId: t.revisionId,
+    kind: t.kind,
+    state: t.state,
+    attempts: t.attempts,
+    factsHash: t.factsHash,
+    leaseUntil: t.leaseUntil ? iso(t.leaseUntil) : null,
+    claimedBy: t.claimedByHandle,
+    lastError: t.lastError,
+    submissionId: t.submissionId,
+    createdAt: iso(t.createdAt),
+    updatedAt: iso(t.updatedAt),
   };
 }
 

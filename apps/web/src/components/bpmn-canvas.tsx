@@ -110,6 +110,7 @@ export default function BpmnCanvas({
       const badge = document.createElement('span');
       badge.className = 'proa-overlay';
       if (h.tone === 'finding') badge.dataset['tone'] = 'warning';
+      if (h.tone === 'evidence') badge.dataset['tone'] = 'evidence';
       badge.textContent = h.label;
       overlays.add(element, OVERLAY_TYPE, { position: { top: -22, left: 0 }, html: badge });
     }

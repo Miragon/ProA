@@ -3,6 +3,7 @@ import { apiRoutes } from '@proa/contracts';
 
 import type { UseCases } from '../../domain/use-cases/index.ts';
 import { requireActor, type App } from '../context.ts';
+import { relationEtag } from './review.ts';
 
 /** `"s<seq>"`: the landscape changes exactly when the project's event seq does. */
 export function landscapeEtag(seq: number): string {
@@ -47,7 +48,10 @@ export function registerRelationRoutes(app: App, useCases: UseCases): void {
 
   app.openapi(createRoute(apiRoutes.getRelation), async (c) => {
     const { project, relation } = c.req.valid('param');
-    return c.json(await useCases.getRelation(requireActor(c), project, relation), 200);
+    const result = await useCases.getRelation(requireActor(c), project, relation);
+    // For If-Match on decisions.
+    c.header('etag', relationEtag(result.version));
+    return c.json(result, 200);
   });
 
   app.openapi(createRoute(apiRoutes.listFindings), async (c) => {

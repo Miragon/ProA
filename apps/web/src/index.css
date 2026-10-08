@@ -144,6 +144,11 @@
   stroke: var(--cd-warning) !important;
   stroke-width: 3px !important;
 }
+.proa-canvas .djs-element.proa-evidence .djs-visual > :first-child {
+  stroke: var(--cd-success) !important;
+  stroke-width: 3px !important;
+  stroke-dasharray: 6 3;
+}
 .proa-overlay {
   display: inline-flex;
   align-items: center;
@@ -163,6 +168,9 @@
 }
 .proa-overlay[data-tone='warning'] {
   background: var(--cd-warning);
+}
+.proa-overlay[data-tone='evidence'] {
+  background: var(--cd-success);
 }
 .proa-canvas .djs-container {
   font-family: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;

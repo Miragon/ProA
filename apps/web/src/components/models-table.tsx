@@ -10,18 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { Engine } from '@/lib/engine';
 import { formatDateTime } from '@/lib/labels';
 
 /** Models of a project: key, engine, head revision, pipeline stage, open items. */
 export function ModelsTable({
   models,
-  engineOf,
   renderKey,
 }: {
   models: readonly Model[];
-  /** Engine of the head revision; `undefined` while loading. */
-  engineOf: (model: Model) => Engine | null | undefined;
   /** The key cell, e.g. a link into the model view. */
   renderKey?: (model: Model) => ReactNode;
 }) {
@@ -32,7 +28,7 @@ export function ModelsTable({
           <TableHead>Modell</TableHead>
           <TableHead>Engine</TableHead>
           <TableHead className="text-right">Revision</TableHead>
-          <TableHead>Stufe</TableHead>
+          <TableHead>Phase</TableHead>
           <TableHead className="text-right">Offen</TableHead>
           <TableHead>Aktualisiert</TableHead>
         </TableRow>
@@ -47,7 +43,7 @@ export function ModelsTable({
               </div>
             </TableCell>
             <TableCell>
-              <EngineBadge engine={engineOf(m)} />
+              <EngineBadge engine={m.engine} />
             </TableCell>
             <TableCell className="text-right tabular-nums">r{m.headRev}</TableCell>
             <TableCell>

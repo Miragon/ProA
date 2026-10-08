@@ -56,6 +56,14 @@ export const RelationId = typedId('rel', 'RelationId', 'Relation id (`rel_` + UL
 export type RelationId = TypedId<'rel'>;
 export const AnalysisTaskId = typedId('ana', 'AnalysisTaskId', 'Analysis task id (`ana_` + ULID).');
 export type AnalysisTaskId = TypedId<'ana'>;
+export const AssertionId = typedId('asr', 'AssertionId', 'Relation assertion id (`asr_` + ULID).');
+export type AssertionId = TypedId<'asr'>;
+export const SubmissionId = typedId(
+  'sbm',
+  'SubmissionId',
+  'Stored analysis submission id (`sbm_` + ULID); not the client-chosen `submissionId`.',
+);
+export type SubmissionId = TypedId<'sbm'>;
 
 /**
  * Creates a new typed ULID: 48-bit millisecond timestamp plus 80 random bits,

@@ -17,9 +17,13 @@ eval/
     deploy-check.mjs         deploys the models to real Camunda 7 and 8 engines
     engines.compose.yaml     those engines, for Docker
     src/candidates.ts        the eval:candidates gate (TypeScript, uses @proa/bpmn-facts and @proa/relations)
+    src/replay.ts            eval:replay: scores recorded agent submissions
     lib/  test/
+  recordings/
+    <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl   agent runs (below)
   reports/
     candidates.md, .json     last eval:candidates report (generated, deterministic)
+    replay.md, .json         last eval:replay report (generated, deterministic)
   corpus/
     <landscape>/
       landscape.yaml         metadata (below)
@@ -94,6 +98,33 @@ agent runs. Re-running it changes nothing. The server's integration test
 `apps/server/test/integration/corpus.test.ts` checks that an import yields
 exactly the rule relations and findings of `reports/candidates.json`. See
 `docs/proa-2/DEVELOPMENT.md` for the owner key the CLI needs.
+
+## Recordings and eval:replay
+
+An agent run on a landscape is recorded as
+`recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl`
+(CONCEPT §7), one JSON line per analysed task in the format `proa-recording/1`
+(`RecordingLine` in `packages/contracts/src/recordings.ts`): the landscape (the
+ProA project key; `_sample` is seeded as `sample`), the model and its revision,
+agent, declared procedure and LLM model, optionally the task ids, the claim input
+(in full or as counts), the submission as sent (relations with confidence,
+rationale, evidence and question; no-links; summary) without its lease token,
+and the server's outcome per item. The LLM-free simulation agent
+(`apps/agent-sim`, `pnpm agent-sim --record eval/recordings …`, see
+`docs/proa-2/DEVELOPMENT.md`) writes them; the committed ones under
+`proa-relations@0.0.1/agent-sim/sim-policy-1/` are reproduced byte for byte by the
+server test `apps/server/test/integration/agent-sim.test.ts`.
+
+`pnpm eval:replay` (from the repository root) scores every recording against the
+landscape's `expected.yaml` and writes `reports/replay.{md,json}`: the union of an
+agent's valid proposals over all its submissions, by `(from, to)`, with
+precision (must_not_link, same-process and, in a closed world, unlisted pairs are
+false positives; may_link is neutral), recall (also counting the rule tier's
+accepted calls, which agents leave alone) and F1, overall, per relation type and
+per tag; the must_not_link hits with confidence and question (the live gate will
+allow none at ≥ 0.8); unlisted proposals; missed must_link pairs; questions and
+no-links per class. It is deterministic and gates nothing yet; it exits 1 only for
+an unreadable recording or an unknown landscape.
 
 ## Engines
 

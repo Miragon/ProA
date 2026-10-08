@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 
 import {
   ApiProblem,
+  BulkDecisionBody,
   Candidate,
+  DecisionBody,
+  INVALID_REASONS,
+  MAX_SUBMISSION_RELATIONS,
+  NoteBody,
+  ReleaseAnalysisBody,
+  hasControlCharacters,
+  ProposalOutcome,
+  RequeueBody,
+  SubmitAnalysisBody,
+  reviewPath,
   CreateAgentTokenBody,
   CreateProjectBody,
   Fact,
@@ -27,6 +38,10 @@ import {
   newId,
   parseRef,
   problemType,
+  RECORDING_FORMAT,
+  RecordingLine,
+  recordingPath,
+  recordingSegment,
 } from '../src/index.ts';
 
 describe('refs', () => {
@@ -310,5 +325,227 @@ describe('local owner key', () => {
     expect(defaultOwnerKeyFile({ XDG_STATE_HOME: '' }, '/home/ada')).toBe(
       '/home/ada/.local/state/proa/owner-key',
     );
+  });
+});
+
+describe('pipeline and review contracts (M2)', () => {
+  it('lists every invalid reason as a per-item outcome', () => {
+    expect(ProposalOutcome.options).toEqual([
+      'applied',
+      'duplicate',
+      'suppressed',
+      'reopened',
+      ...INVALID_REASONS.map((r) => `invalid:${r}`),
+    ]);
+  });
+
+  it('checks a submission’s shape only; the limits are per item', () => {
+    const base = {
+      leaseToken: 'proa_lt_x',
+      submissionId: '6f1e1a4e-4b7a-4c8e-9f5a-1d2c3b4a5f60',
+      procedure: { id: 'proa-relations', version: '0.0.1' },
+      relations: [
+        { type: 'manual', from: 'x', to: 'y', confidence: 7, rationale: 'r'.repeat(5000) },
+      ],
+    };
+    const parsed = SubmitAnalysisBody.parse(base);
+    expect(parsed).toMatchObject({ llmModel: null, noLinks: [], summary: null, costUsd: null });
+    expect(parsed.relations[0]).toMatchObject({ evidence: [], question: null });
+    expect(SubmitAnalysisBody.safeParse({ ...base, submissionId: 'nope' }).success).toBe(false);
+    const many = Array.from({ length: MAX_SUBMISSION_RELATIONS + 1 }, () => base.relations[0]);
+    expect(SubmitAnalysisBody.safeParse({ ...base, relations: many }).success).toBe(false);
+    expect(SubmitAnalysisBody.safeParse({ ...base, summary: 'x'.repeat(501) }).success).toBe(false);
+  });
+
+  it('validates decisions by verdict', () => {
+    const ok = [
+      { verdict: 'accept' },
+      { verdict: 'reject', reason: 'falsch' },
+      { verdict: 'hold', note: 'klären', question: 'wer?', label: 'Finanzen' },
+      { verdict: 'correct', from: 'a/b#X', to: 'c/d#Y', note: 'anders' },
+    ];
+    for (const body of ok)
+      expect(DecisionBody.safeParse(body).success, JSON.stringify(body)).toBe(true);
+    const bad = [
+      { verdict: 'reject' },
+      { verdict: 'reject', reason: '  ' },
+      { verdict: 'hold' },
+      { verdict: 'correct', from: 'a/b#X', note: 'x' },
+      { verdict: 'accept', version: 0 },
+      { verdict: 'undecided' },
+    ];
+    for (const body of bad)
+      expect(DecisionBody.safeParse(body).success, JSON.stringify(body)).toBe(false);
+  });
+
+  it('needs reasons and notes in bulk decisions, and ids with versions', () => {
+    const items = [{ id: 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3', version: 2 }];
+    expect(BulkDecisionBody.safeParse({ verdict: 'accept', items, expectedCount: 1 }).success).toBe(
+      true,
+    );
+    expect(BulkDecisionBody.safeParse({ verdict: 'reject', items, expectedCount: 1 }).success).toBe(
+      false,
+    );
+    expect(BulkDecisionBody.safeParse({ verdict: 'hold', items, expectedCount: 1 }).success).toBe(
+      false,
+    );
+    expect(
+      BulkDecisionBody.safeParse({ verdict: 'accept', question: 'q', items, expectedCount: 1 })
+        .success,
+    ).toBe(false);
+    expect(
+      BulkDecisionBody.safeParse({ verdict: 'accept', items: [], expectedCount: 1 }).success,
+    ).toBe(false);
+  });
+
+  it('refuses control characters other than tab and line breaks in free text', () => {
+    expect(hasControlCharacters('Zeile 1\nZeile 2\tTab\r\n')).toBe(false);
+    for (const c of ['\u0000', '\u0007', '\u001b', '\u007f', '\u0085']) {
+      expect(hasControlCharacters(`a${c}b`), JSON.stringify(c)).toBe(true);
+    }
+    const nul = 'a\u0000b';
+    for (const body of [
+      { verdict: 'reject', reason: nul },
+      { verdict: 'hold', note: nul },
+      { verdict: 'hold', note: 'ok', label: nul },
+      { verdict: 'accept', note: nul },
+    ]) {
+      expect(DecisionBody.safeParse(body).success, JSON.stringify(body)).toBe(false);
+    }
+    expect(DecisionBody.safeParse({ verdict: 'reject', reason: 'a\nb' }).success).toBe(true);
+    const submission = {
+      leaseToken: 'proa_lt_x',
+      submissionId: '6f1e1a4e-4b7a-4c8e-9f5a-1d2c3b4a5f60',
+      procedure: { id: 'proa-relations', version: '0.0.1' },
+      relations: [],
+    };
+    // Items are checked one by one on the server (invalid:control-characters) …
+    expect(
+      SubmitAnalysisBody.safeParse({
+        ...submission,
+        relations: [{ type: 'message', from: 'a', to: 'b', confidence: 1, rationale: nul }],
+      }).success,
+    ).toBe(true);
+    // … the declared procedure and model are names.
+    expect(SubmitAnalysisBody.safeParse({ ...submission, llmModel: nul }).success).toBe(false);
+    expect(
+      SubmitAnalysisBody.safeParse({ ...submission, procedure: { id: 'p\n', version: '1' } })
+        .success,
+    ).toBe(false);
+    expect(ReleaseAnalysisBody.safeParse({ leaseToken: 'x', reason: nul }).success).toBe(false);
+    expect(NoteBody.safeParse({ text: nul }).success).toBe(false);
+  });
+
+  it('requeues either named models or all', () => {
+    expect(RequeueBody.safeParse({ all: true }).success).toBe(true);
+    expect(RequeueBody.safeParse({ modelKeys: ['a/b'] }).success).toBe(true);
+    expect(RequeueBody.safeParse({}).success).toBe(false);
+    expect(RequeueBody.safeParse({ all: true, modelKeys: ['a/b'] }).success).toBe(false);
+  });
+
+  it('builds review paths', () => {
+    expect(reviewPath('nordwind-handel')).toBe('/projects/nordwind-handel/review');
+    expect(reviewPath('p', 'rel_1')).toBe('/projects/p/review/rel_1');
+  });
+
+  it('documents the pipeline and review routes with their problems', () => {
+    const doc = buildOpenApiDocument();
+    const submit = doc.paths?.['/api/v1/analyses/{analysis}/submission']?.post;
+    expect(Object.keys(submit?.responses ?? {})).toEqual([
+      '200',
+      '401',
+      '403',
+      '404',
+      '409',
+      '413',
+      '422',
+    ]);
+    expect(JSON.stringify(submit?.responses?.['409'])).toMatch(
+      /lease-lost.*task-cancelled.*already-submitted/,
+    );
+    const decision = doc.paths?.['/api/v1/projects/{project}/relations/{relation}/decision']?.post;
+    expect(JSON.stringify(decision?.responses?.['403'])).toMatch(/human-decision-required/);
+    expect(Object.keys(decision?.responses ?? {})).toContain('412');
+    const schemas = doc.components?.schemas ?? {};
+    for (const name of [
+      'ClaimInput',
+      'ClaimCandidate',
+      'Engine',
+      'RelationProvenance',
+      'RelationAssertion',
+    ]) {
+      expect(Object.keys(schemas), name).toContain(name);
+    }
+    expect(
+      (schemas as Record<string, { properties?: Record<string, unknown> }>)['Model']?.properties?.[
+        'engine'
+      ],
+    ).toMatchObject({
+      anyOf: expect.arrayContaining([{ type: 'null' }]) as unknown,
+    });
+  });
+});
+
+describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
+  const line = {
+    format: RECORDING_FORMAT,
+    landscape: 'nordwind-handel',
+    modelKey: 'finanzen/mahnwesen',
+    rev: 1,
+    agent: 'agent-sim',
+    procedure: { id: 'proa-relations', version: '0.0.1' },
+    llmModel: 'sim-policy-1',
+    input: {
+      format: 'proa-claim/1',
+      summary: true,
+      facts: 3,
+      candidates: 2,
+      partners: 2,
+      relations: 0,
+      bytes: 900,
+    },
+    submission: {
+      relations: [
+        {
+          type: 'message',
+          from: 'finanzen/mahnwesen#Event_A',
+          to: 'vertrieb/order#Start_A',
+          confidence: 1,
+        },
+      ],
+      noLinks: [],
+      summary: null,
+      costUsd: 0,
+    },
+    outcome: 'submitted',
+    result: {
+      replayed: false,
+      counts: { applied: 1, duplicate: 0, suppressed: 0, reopened: 0, invalid: 0 },
+      withdrawn: 0,
+      items: [{ index: 0, result: 'applied', status: 'proposed' }],
+    },
+  };
+
+  it('parses a recording line, without server ids and with a summarized input', () => {
+    const parsed = RecordingLine.parse(line);
+    expect(parsed.task).toBeUndefined();
+    expect(parsed.submission.relations[0]).toMatchObject({
+      rationale: '',
+      evidence: [],
+      question: null,
+    });
+    expect(() => RecordingLine.parse({ ...line, outcome: 'maybe' })).toThrow();
+    expect(() => RecordingLine.parse({ ...line, landscape: '_sample' })).toThrow();
+    expect(() =>
+      RecordingLine.parse({ ...line, input: { ...line.input, summary: false } }),
+    ).toThrow();
+  });
+
+  it('lays recordings out as <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl', () => {
+    expect(recordingPath(RecordingLine.parse(line))).toBe(
+      'proa-relations@0.0.1/agent-sim/sim-policy-1/nordwind-handel.jsonl',
+    );
+    expect(recordingSegment('claude code / sonnet')).toBe('claude-code-sonnet');
+    expect(recordingSegment('..')).toBe('none');
   });
 });

@@ -54,7 +54,7 @@ function pairKey(type: string, from: string, to: string): string {
 }
 
 /** The texts an endpoint is known by: label and names from refs (and, for processes, ids and the file stem). */
-function textsOf(index: LandscapeIndex, e: Endpoint): string[] {
+export function textsOf(index: LandscapeIndex, e: Endpoint): string[] {
   const f = e.fact;
   const texts = [f.label];
   if (e.type === 'call' && f.kind === 'process') {

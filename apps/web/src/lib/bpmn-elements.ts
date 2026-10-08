@@ -62,13 +62,14 @@ export interface CanvasHighlight {
   elementId: string;
   /** Short text shown next to the element, e.g. "Von" or "Nach". */
   label: string;
-  tone?: 'endpoint' | 'related' | 'finding';
+  tone?: 'endpoint' | 'related' | 'finding' | 'evidence';
 }
 
 export const MARKERS = {
   endpoint: 'proa-endpoint',
   related: 'proa-related',
   finding: 'proa-finding',
+  evidence: 'proa-evidence',
 } as const;
 export const OVERLAY_TYPE = 'proa-highlight';
 

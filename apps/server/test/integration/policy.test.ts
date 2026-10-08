@@ -253,3 +253,143 @@ describe('write as owner and token', () => {
     expect(res.status).toBe(204);
   });
 });
+
+describe('pipeline (proa:propose, editor; requeue: proa:write)', () => {
+  const claimBody = (projectId?: string) => ({
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(projectId ? { projectId, max: 1 } : { max: 1 }),
+  });
+
+  it.each<[Who, number, string | null]>([
+    ['read', 403, 'insufficient-scope'],
+    ['write', 403, 'insufficient-scope'],
+    ['other', 404, 'not-found'],
+    ['anonymous', 401, 'unauthorized'],
+    ['propose', 200, null],
+    ['owner', 200, null],
+  ])('claim in project p as %s → %i', async (who, status, code) => {
+    const res = await as(who, '/api/v1/analyses/claim', claimBody('p'));
+    expect(res.status).toBe(status);
+    if (code) expect(await res.json()).toMatchObject({ code });
+  });
+
+  it('claims only in the caller’s own projects without projectId', async () => {
+    const other = await as('other', '/api/v1/analyses/claim', claimBody());
+    const items = ((await other.json()) as { items: { projectKey: string }[] }).items;
+    expect(items.map((i) => i.projectKey)).toEqual(['q']);
+    for (const who of ['read', 'write'] as const) {
+      expect((await as(who, '/api/v1/analyses/claim', claimBody())).status).toBe(403);
+      expect((await as(who, '/api/v1/analyses/pending')).status).toBe(403);
+    }
+    expect((await as('propose', '/api/v1/analyses/pending')).status).toBe(200);
+  });
+
+  it.each<[Who, number]>([
+    ['read', 403],
+    ['propose', 403],
+    ['other', 404],
+    ['anonymous', 401],
+    ['write', 200],
+    ['owner', 200],
+  ])('requeue as %s → %i', async (who, status) => {
+    const res = await as(who, '/api/v1/projects/p/analyses/requeue', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    expect(res.status).toBe(status);
+  });
+
+  it.each<[Who, number]>([
+    ['read', 200],
+    ['propose', 200],
+    ['write', 200],
+    ['owner', 200],
+    ['other', 404],
+    ['anonymous', 401],
+  ])('read the task list and a relation history as %s → %i', async (who, status) => {
+    expect((await as(who, '/api/v1/projects/p/analyses')).status).toBe(status);
+    expect((await as(who, `/api/v1/projects/p/relations/${ids.relation}/assertions`)).status).toBe(
+      status,
+    );
+  });
+});
+
+describe('review (proa:review: a user on an interactive client)', () => {
+  const json = (body: unknown) => ({
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  it.each<[Who, number, string]>([
+    ['read', 403, 'human-decision-required'],
+    ['propose', 403, 'human-decision-required'],
+    ['write', 403, 'human-decision-required'],
+    ['other', 404, 'not-found'],
+    ['anonymous', 401, 'unauthorized'],
+  ])('agent tokens never decide: %s → %i %s', async (who, status, code) => {
+    for (const [path, body] of [
+      [`/api/v1/projects/p/relations/${ids.relation}/decision`, { verdict: 'accept' }],
+      [
+        '/api/v1/projects/p/decisions',
+        { verdict: 'accept', items: [{ id: ids.relation, version: 1 }], expectedCount: 1 },
+      ],
+      [`/api/v1/projects/p/relations/${ids.relation}/notes`, { text: 'x' }],
+      [
+        '/api/v1/projects/p/relations',
+        {
+          type: 'manual',
+          from: 'a/caller#Call_B',
+          to: 'b/callee#Process_B',
+          confidence: 1,
+          rationale: 'x',
+        },
+      ],
+    ] as const) {
+      const res = await as(who, path, json(body));
+      expect(res.status, `${who} ${path}`).toBe(status);
+      expect(await res.json()).toMatchObject({ code });
+    }
+  });
+
+  it('lets the owner decide; a foreign relation is 404', async () => {
+    const res = await as(
+      'owner',
+      `/api/v1/projects/p/relations/${ids.relation}/decision`,
+      json({ verdict: 'accept' }),
+    );
+    expect(res.status).toBe(200);
+    const foreignRes = await as(
+      'owner',
+      `/api/v1/projects/p/relations/${foreign.relation}/decision`,
+      json({ verdict: 'accept' }),
+    );
+    expect(foreignRes.status).toBe(404);
+  });
+
+  it.each<[Who, number]>([
+    ['read', 403],
+    ['write', 403],
+    ['other', 404],
+    ['anonymous', 401],
+  ])('ad-hoc proposals need proa:propose: %s → %i', async (who, status) => {
+    const res = await as(
+      who,
+      '/api/v1/projects/p/relations',
+      json({
+        type: 'call',
+        from: 'a/caller#Call_B',
+        to: 'b/callee#Process_B',
+        confidence: 1,
+        rationale: 'x',
+      }),
+    );
+    expect(res.status).toBe(status);
+    const withdraw = await as(who, `/api/v1/projects/p/relations/${ids.relation}/proposal`, {
+      method: 'DELETE',
+    });
+    expect(withdraw.status).toBe(status);
+  });
+});

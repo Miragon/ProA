@@ -5,11 +5,13 @@
  */
 import type { IngestDeps } from '../ingest.ts';
 import { agentTokenUseCases } from './agent-tokens.ts';
+import { analysisUseCases } from './analyses.ts';
 import type { UseCaseDeps } from './deps.ts';
 import { identityUseCases } from './identity.ts';
 import { landscapeUseCases } from './landscape.ts';
 import { modelUseCases } from './models.ts';
 import { projectUseCases } from './projects.ts';
+import { reviewUseCases } from './review.ts';
 
 export type { UseCaseDeps } from './deps.ts';
 export { EVENT_KINDS, USAGE_KINDS, type EventKind, type UsageKind } from './landscape.ts';
@@ -28,6 +30,8 @@ export function createUseCases(deps: UseCaseDeps) {
     ...modelUseCases(deps, ingestDeps),
     ...landscapeUseCases(deps),
     ...agentTokenUseCases(deps),
+    ...analysisUseCases(deps),
+    ...reviewUseCases(deps),
   };
 }
 

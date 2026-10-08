@@ -20,5 +20,11 @@ export const AGENT_TOKEN_PREFIX = 'proa_at_';
 export const AGENT_TOKEN_DEFAULT_DAYS = 90;
 export const AGENT_TOKEN_MAX_DAYS = 365;
 
+/** Review texts (CONCEPT §3): reasons and notes, hold labels, questions; bulk size. */
+export const MAX_NOTE_CHARS = 2000;
+export const MAX_LABEL_CHARS = 100;
+export const MAX_QUESTION_CHARS = 500;
+export const MAX_BULK_DECISIONS = 500;
+
 /** Port of the ProA server in local mode (docker/compose.yaml, `pnpm dev`). */
 export const PROA_DEFAULT_PORT = 7400;

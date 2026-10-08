@@ -25,6 +25,16 @@ export const ModelStage = z
   .meta({ id: 'ModelStage', description: 'Pipeline stage of a model.' });
 export type ModelStage = z.infer<typeof ModelStage>;
 
+/**
+ * Target engine of a BPMN file: Camunda 7 (`c7`) or Camunda 8 (`c8`), from
+ * `modeler:executionPlatform`, else from the declared camunda or zeebe
+ * namespace (`@proa/bpmn-facts`); `null` when the file names neither.
+ */
+export const Engine = z
+  .enum(['c7', 'c8'])
+  .meta({ id: 'Engine', description: 'Target engine: Camunda 7 (`c7`) or Camunda 8 (`c8`).' });
+export type Engine = z.infer<typeof Engine>;
+
 export const Model = z
   .object({
     id: ModelId,
@@ -35,6 +45,8 @@ export const Model = z
     headRevisionId: RevisionId,
     /** Revision number of the head, starting at 1. */
     headRev: z.number().int().min(1),
+    /** Engine of the head revision; `null` if the file names none. */
+    engine: orNull(Engine),
     stage: ModelStage,
     /** Relations touching the model that are proposed, held, or accepted with `endpointState` ≠ ok. */
     openItems: z.number().int().min(0),
@@ -66,6 +78,8 @@ export const Revision = z
     /** SHA-256 over the facts; ignores layout. */
     factsHash: Sha256Hex,
     factsVersion: z.string(),
+    /** Engine the file targets; `null` if it names none (also for revisions stored before M2). */
+    engine: orNull(Engine),
     source: RevisionSource,
     /** Event sequence number of the ingest. */
     seq: z.number().int().min(1),

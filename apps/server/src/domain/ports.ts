@@ -12,7 +12,12 @@ import type {
   AgentScope,
   AgentTokenId,
   AnalysisTaskId,
+  AssertionId,
+  AssertionKind,
+  Candidate,
+  DeclaredProcedure,
   DerivedRelation,
+  Engine,
   EndpointState,
   Fact,
   FactKind,
@@ -32,8 +37,12 @@ import type {
   RevisionSource,
   Role,
   SourceKind,
+  SubmissionId,
+  SubmissionResult,
   Tier,
+  Verdict,
 } from '@proa/contracts';
+import type { PairAssessment, PairQuery } from '@proa/relations';
 
 // ---------------------------------------------------------------- records
 
@@ -85,6 +94,7 @@ export interface ModelRecord {
 export interface ModelView extends ModelRecord {
   headRevisionId: RevisionId;
   headRev: number;
+  engine: Engine | null;
   stage: ModelStage;
   openItems: number;
   processes: ProcessInfo[];
@@ -98,6 +108,7 @@ export interface RevisionRecord {
   contentHash: string;
   factsHash: string;
   factsVersion: string;
+  engine: Engine | null;
   source: RevisionSource;
   principalId: PrincipalId;
   seq: number;
@@ -138,11 +149,16 @@ export interface RelationRecord {
   updatedAt: Date;
 }
 
-export type AssertionKind = 'proposal' | 'withdrawal' | 'decision';
-export type Verdict = 'accept' | 'reject' | 'hold';
+export type { AssertionKind, Verdict };
+
+/** Procedure and LLM model an agent declares (CONCEPT §6: declared, never verified). */
+export interface Declared {
+  procedure: DeclaredProcedure | null;
+  llmModel: string | null;
+}
 
 export interface AssertionRecord {
-  id: string;
+  id: AssertionId;
   projectId: ProjectId;
   relationId: RelationId;
   seq: number;
@@ -151,11 +167,24 @@ export interface AssertionRecord {
   sourceKind: SourceKind;
   principalId: PrincipalId;
   clientId: string | null;
+  declared: Declared | null;
+  /** The stored submission (pipeline proposals, their supersession). */
+  submissionId: SubmissionId | null;
   tier: Tier | null;
   confidence: number | null;
   rationale: string | null;
+  evidence: string[] | null;
+  question: string | null;
+  label: string | null;
+  linkedRelationId: RelationId | null;
   fromFp: string | null;
   toFp: string | null;
+}
+
+/** An assertion as read back: with the principal's handle and the time it was recorded. */
+export interface StoredAssertion extends AssertionRecord {
+  handle: string;
+  createdAt: Date;
 }
 
 export type TaskState = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
@@ -170,6 +199,56 @@ export interface TaskRecord {
   state: TaskState;
   /** Seq of the `analysis.queued` event; orders a model's tasks. */
   seq: number;
+}
+
+/** A task with its lease (CONCEPT §3 "Claim and lease"). */
+export interface TaskDetail extends TaskRecord {
+  modelKey: string;
+  attempts: number;
+  /** sha256 of `taskId|principalId|token`; null while queued. */
+  leaseTokenHash: string | null;
+  claimedBy: PrincipalId | null;
+  claimedByHandle: string | null;
+  leaseUntil: Date | null;
+  lastError: string | null;
+  /** Client-chosen id of the stored submission. */
+  submissionId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TaskFilter {
+  state?: TaskState | undefined;
+  modelKey?: string | undefined;
+}
+
+export interface ClaimQuery {
+  projectIds: readonly ProjectId[];
+  modelKey?: string | undefined;
+  principalId: PrincipalId;
+  now: Date;
+  leaseUntil: Date;
+  maxAttempts: number;
+  limit: number;
+}
+
+export interface SubmissionRecord {
+  id: SubmissionId;
+  projectId: ProjectId;
+  taskId: AnalysisTaskId;
+  clientSubmissionId: string;
+  principalId: PrincipalId;
+  clientId: string | null;
+  declared: { procedure: DeclaredProcedure; llmModel: string | null };
+  /** The request body as received, minus the lease token. */
+  payload: Record<string, unknown>;
+  result: SubmissionResult;
+  seq: number;
+}
+
+export interface StoredSubmission extends SubmissionRecord {
+  handle: string;
+  createdAt: Date;
 }
 
 export interface EventInput {
@@ -302,7 +381,9 @@ export interface FactRepo {
 export interface RelationRepo {
   all(projectId: ProjectId): Promise<RelationRecord[]>;
   findInProject(projectId: ProjectId, id: RelationId): Promise<RelationRecord | null>;
-  insert(r: Omit<RelationRecord, 'createdAt' | 'updatedAt'>): Promise<void>;
+  /** Inserts and returns the stored row (timestamps from the database). */
+  insert(r: Omit<RelationRecord, 'createdAt' | 'updatedAt'>): Promise<RelationRecord>;
+  /** Applies the patch, increments `version`, sets `updated_at`; returns the stored row. */
   update(
     projectId: ProjectId,
     id: RelationId,
@@ -312,7 +393,15 @@ export interface RelationRepo {
         'status' | 'endpointState' | 'tier' | 'confidence' | 'attrs' | 'fromFp' | 'toFp'
       >
     >,
-  ): Promise<void>;
+  ): Promise<RelationRecord>;
+  /** `SELECT … FOR UPDATE` of one relation in the project. */
+  lock(projectId: ProjectId, id: RelationId): Promise<RelationRecord | null>;
+  findByNaturalKey(
+    projectId: ProjectId,
+    type: RelationType,
+    from: string,
+    to: string,
+  ): Promise<RelationRecord | null>;
   /** Ordered by `(type, from, to)`. */
   list(
     projectId: ProjectId,
@@ -324,7 +413,9 @@ export interface RelationRepo {
 export interface AssertionRepo {
   insert(a: AssertionRecord): Promise<void>;
   /** All assertions of the project, ordered by seq. */
-  listForProject(projectId: ProjectId): Promise<AssertionRecord[]>;
+  listForProject(projectId: ProjectId): Promise<StoredAssertion[]>;
+  /** The assertions of these relations, ordered by seq. */
+  listForRelations(projectId: ProjectId, ids: readonly RelationId[]): Promise<StoredAssertion[]>;
 }
 
 export interface TaskRepo {
@@ -335,7 +426,56 @@ export interface TaskRepo {
     states: readonly TaskState[],
   ): Promise<TaskRecord | null>;
   insert(t: TaskRecord): Promise<void>;
-  setState(projectId: ProjectId, id: AnalysisTaskId, state: TaskState): Promise<void>;
+  setState(
+    projectId: ProjectId,
+    id: AnalysisTaskId,
+    state: TaskState,
+    lastError?: string,
+  ): Promise<void>;
+  /** The project of a task id; not scoped: callers go through `policy.require` next. */
+  projectOf(id: AnalysisTaskId): Promise<ProjectId | null>;
+  /** One task with its lease; `forUpdate` locks the row. */
+  findInProject(
+    projectId: ProjectId,
+    id: AnalysisTaskId,
+    options?: { forUpdate?: boolean },
+  ): Promise<TaskDetail | null>;
+  /** Newest first (by seq). */
+  list(
+    projectId: ProjectId,
+    filter: TaskFilter,
+    page: { beforeSeq?: number | undefined; limit: number },
+  ): Promise<TaskDetail[]>;
+  /** Whether a claimed task's lease expired at the last attempt (see {@link failExpired}). */
+  hasExpired(projectIds: readonly ProjectId[], now: Date, maxAttempts: number): Promise<boolean>;
+  /** Claimed tasks whose lease expired at the last attempt become `failed`. */
+  failExpired(
+    projectIds: readonly ProjectId[],
+    now: Date,
+    maxAttempts: number,
+    reason: string,
+  ): Promise<TaskDetail[]>;
+  /**
+   * One `UPDATE … WHERE id IN (SELECT … ORDER BY created_at FOR UPDATE SKIP
+   * LOCKED LIMIT n)` over queued tasks and expired leases with attempts
+   * left: sets the lease and `attempts + 1`. The lease token hash is set
+   * per task afterwards ({@link setLeaseHash}).
+   */
+  claim(q: ClaimQuery): Promise<TaskDetail[]>;
+  setLeaseHash(projectId: ProjectId, id: AnalysisTaskId, hash: string): Promise<void>;
+  /** Back to `queued`; the attempt is given back. */
+  release(projectId: ProjectId, id: AnalysisTaskId, reason: string | null): Promise<void>;
+  /** Claimable tasks per project: queued, or claimed with an expired lease and attempts left. */
+  countClaimable(
+    projectIds: readonly ProjectId[],
+    now: Date,
+    maxAttempts: number,
+  ): Promise<Map<ProjectId, number>>;
+}
+
+export interface SubmissionRepo {
+  insert(s: SubmissionRecord): Promise<void>;
+  findByTask(projectId: ProjectId, taskId: AnalysisTaskId): Promise<StoredSubmission | null>;
 }
 
 export interface FindingRepo {
@@ -361,6 +501,7 @@ export interface Tx {
   relations: RelationRepo;
   assertions: AssertionRepo;
   tasks: TaskRepo;
+  submissions: SubmissionRepo;
   findings: FindingRepo;
   events: EventRepo;
 }
@@ -377,6 +518,7 @@ export interface Store {
 /** Facts of one file, as the extractor returns them. */
 export interface Extracted {
   factsVersion: string;
+  engine: Engine | null;
   processes: ProcessInfo[];
   facts: Fact[];
   messageFlows: MessageFlowInfo[];
@@ -402,6 +544,31 @@ export interface AnalysisPort {
   extract(xml: Uint8Array, modelKey: string): Promise<ExtractOutcome>;
   factsHash(facts: readonly Fact[]): string;
   runRules(projectFacts: ProjectFacts): RuleOutput;
+  /** Candidate pairs around one model, both directions (claim input, CONCEPT §3). */
+  candidates(projectFacts: ProjectFacts, focusModelKey: string): Candidate[];
+  /** Validates proposed pairs against the head facts and computes their tier. */
+  pairAssessor(projectFacts: ProjectFacts): (pair: PairQuery) => PairAssessment;
+}
+
+export type { PairAssessment, PairQuery };
+
+/** A subscription to "work was queued" in some projects (LISTEN/NOTIFY). */
+export interface WorkSubscription {
+  /**
+   * Resolves `true` when a task is queued in one of the projects, `false`
+   * after `timeoutMs` or when `signal` aborts. Call {@link close} afterwards.
+   */
+  wait(timeoutMs: number, signal?: AbortSignal): Promise<boolean>;
+  close(): void;
+}
+
+export interface Notifier {
+  /**
+   * Subscribes before the caller counts, so no wake-up is lost in between.
+   * `owner` (the caller's principal) bounds the concurrent waits of one
+   * caller, so one credential cannot take every waiting slot.
+   */
+  subscribe(projectIds: readonly ProjectId[], owner: string): Promise<WorkSubscription>;
 }
 
 export interface Clock {

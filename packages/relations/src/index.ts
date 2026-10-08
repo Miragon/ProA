@@ -30,6 +30,8 @@ export {
   generateCandidates,
 } from './candidates.ts';
 export type { CandidateOptions } from './candidates.ts';
+export { createPairAssessor } from './assess.ts';
+export type { PairAssessment, PairQuery, PairRejection, ProposalTier } from './assess.ts';
 export {
   BASELINE_PROA1,
   PROA1_MAX_DISTANCE,

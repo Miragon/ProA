@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { OPENAPI_PATH, apiRoutes } from '@proa/contracts';
+import { OPENAPI_PATH, apiRoutes, type DeclaredProcedure } from '@proa/contracts';
+import { getProcedure } from '@proa/procedures';
 
 import { libraryAnalysis } from './analysis.ts';
 import { authenticate, requireAuthentication } from './auth/authenticate.ts';
@@ -9,15 +10,17 @@ import { createSessionCodec, type SessionCodec } from './auth/session.ts';
 import type { Config } from './config.ts';
 import type { Database } from './db/client.ts';
 import { createStore } from './db/store.ts';
-import type { AnalysisPort, Clock } from './domain/ports.ts';
+import type { AnalysisPort, Clock, Notifier } from './domain/ports.ts';
 import { createUseCases, type UseCases } from './domain/use-cases/index.ts';
 import type { AppEnv } from './http/context.ts';
 import { problemFromError, problemResponse, validationHook } from './http/problem.ts';
 import { registerAgentTokenRoutes } from './http/routes/agent-tokens.ts';
+import { registerAnalysisRoutes } from './http/routes/analyses.ts';
 import { registerModelRoutes } from './http/routes/models.ts';
 import { mountNotImplementedRoutes } from './http/routes/not-implemented.ts';
 import { registerProjectRoutes } from './http/routes/projects.ts';
 import { registerRelationRoutes } from './http/routes/relations.ts';
+import { registerReviewRoutes } from './http/routes/review.ts';
 import { registerSessionRoutes } from './http/routes/session.ts';
 import { registerSystemRoutes } from './http/routes/system.ts';
 import { securityHeaders } from './http/security-headers.ts';
@@ -34,6 +37,8 @@ export interface AppDeps {
   /** Fact extraction and rules; defaults to the libraries. Tests inject doubles. */
   analysis?: AnalysisPort;
   clock?: Clock;
+  /** Wake-ups of the pending long-poll; defaults to the database's LISTEN connection. */
+  notifier?: Notifier;
   /** Session cookie codec; defaults to one keyed by `config.sessionSecret` or a random key. */
   sessions?: SessionCodec;
   /**
@@ -66,6 +71,8 @@ export function createProaApp(deps: AppDeps): ProaApp {
     store: createStore(deps.database.db),
     analysis: deps.analysis ?? libraryAnalysis,
     clock: deps.clock ?? { now: () => new Date() },
+    notifier: deps.notifier ?? deps.database.notifier,
+    expectedProcedure: relationsProcedure,
   });
   const sessions = deps.sessions ?? createSessionCodec(deps.config.sessionSecret ?? undefined);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
@@ -92,6 +99,8 @@ export function createProaApp(deps: AppDeps): ProaApp {
   registerProjectRoutes(app, useCases);
   registerModelRoutes(app, useCases);
   registerRelationRoutes(app, useCases);
+  registerReviewRoutes(app, useCases);
+  registerAnalysisRoutes(app, useCases);
   registerAgentTokenRoutes(app, useCases);
 
   mountMcp(app, { version, useCases, auth: { sessions } });
@@ -99,8 +108,15 @@ export function createProaApp(deps: AppDeps): ProaApp {
   if (deps.config.webDist) mountWebUi(app, deps.config.webDist);
 
   app.notFound((c) => problemResponse('not-found', `no route for ${c.req.method} ${c.req.path}`));
-  app.onError((err) => problemFromError(err));
+  app.onError((err, c) => problemFromError(err, new URL(c.req.url).origin));
   return { app, useCases, sessions, placeholders };
+}
+
+/** The procedure a claim names: `proa-relations` at its current version (`@proa/procedures`). */
+export function relationsProcedure(): DeclaredProcedure {
+  const p = getProcedure('proa-relations');
+  if (!p) throw new Error('the proa-relations procedure is missing');
+  return { id: p.id, version: p.version };
 }
 
 /** The Hono app of {@link createProaApp}. */

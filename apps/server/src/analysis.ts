@@ -5,7 +5,7 @@
  * bug and propagates (→ 500 `internal`, logged).
  */
 import { BpmnInputError, DEFAULT_PARSE_LIMITS, extractFacts, factsHash } from '@proa/bpmn-facts';
-import { runRules } from '@proa/relations';
+import { createPairAssessor, generateCandidates, runRules } from '@proa/relations';
 
 import type { AnalysisPort } from './domain/ports.ts';
 
@@ -17,6 +17,7 @@ export const libraryAnalysis: AnalysisPort = {
         ok: true,
         value: {
           factsVersion: result.factsVersion,
+          engine: result.engine,
           processes: result.processes,
           facts: result.facts,
           messageFlows: result.messageFlows,
@@ -31,4 +32,6 @@ export const libraryAnalysis: AnalysisPort = {
   },
   factsHash: (facts) => factsHash(facts),
   runRules: (projectFacts) => runRules(projectFacts),
+  candidates: (projectFacts, focusModelKey) => generateCandidates(projectFacts, focusModelKey),
+  pairAssessor: (projectFacts) => createPairAssessor(projectFacts),
 };

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RelationsView } from '../src/components/relation-table';
 import type { RelationFilters } from '../src/lib/relation-filters';
-import { relation, sampleRelations, sampleResolver } from './support/fixtures';
+import { provenance, relation, sampleRelations, sampleResolver } from './support/fixtures';
 
 const MODEL_KEYS = [
   'finance/payment-collection',
@@ -147,7 +147,7 @@ describe('RelationsView', () => {
     expect(within(first).getByRole('button', { name: 'Details ausblenden' })).toBeTruthy();
   });
 
-  it('renders the action slot per row (room for the M2 review actions)', () => {
+  it('renders the action slot per row (review screen and model view)', () => {
     render(<Harness />);
     expect(screen.getByRole('columnheader', { name: 'Aktion' })).toBeTruthy();
     for (const r of sampleRelations) {
@@ -158,6 +158,39 @@ describe('RelationsView', () => {
   it('explains an empty landscape', () => {
     render(<Harness relations={[]} />);
     expect(screen.getByText('Noch keine Relationen')).toBeTruthy();
+  });
+
+  it('shows the provenance the API reports: agent handle, procedure and model', () => {
+    render(
+      <Harness
+        relations={[
+          relation({
+            id: 'rel_A',
+            from: 'a#x',
+            to: 'b#y',
+            tier: 'lexical',
+            confidence: 0.7,
+            provenance: provenance({ handle: 'agent:sim', llmModel: null }),
+          }),
+          relation({
+            id: 'rel_B',
+            from: 'a#x',
+            to: 'c#z',
+            status: 'rejected',
+            provenance: provenance({
+              sourceKind: 'human',
+              handle: 'owner',
+              kind: 'decision',
+              verdict: 'reject',
+            }),
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText('agent:sim')).toBeTruthy();
+    expect(screen.getByText('proa-relations@0.1.0')).toBeTruthy();
+    expect(screen.getByText('owner')).toBeTruthy();
+    expect(screen.getByText('abgelehnt')).toBeTruthy();
   });
 
   it('marks agent proposals and human relations by their provenance', () => {
