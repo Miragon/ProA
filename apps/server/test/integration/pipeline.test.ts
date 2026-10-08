@@ -30,6 +30,7 @@ import {
   item,
   post,
   problemOf,
+  RELATIONS_PROCEDURE,
   release,
   submission,
   submit,
@@ -188,7 +189,7 @@ describe('claim', () => {
       modelKey: ORDER,
       attempt: 1,
       leaseUntil: new Date(clock.now().getTime() + 15 * MINUTE).toISOString(),
-      procedure: { id: 'proa-relations', version: '0.0.1' },
+      procedure: RELATIONS_PROCEDURE,
     });
     expect(claimed.leaseToken).toMatch(/^proa_lt_[A-Za-z0-9_-]{43}$/);
 
@@ -380,7 +381,7 @@ describe('claim', () => {
           kind: 'proposal',
           sourceKind: 'agent',
           handle: 'agent:test proa:read proa:propose',
-          procedure: { id: 'proa-relations', version: '0.0.1' },
+          procedure: RELATIONS_PROCEDURE,
           llmModel: 'sim-1',
           question: 'Startet die Rechnung wirklich erst nach Auftragsende?',
         },
@@ -418,7 +419,7 @@ describe('claim', () => {
       expect(JSON.stringify(stored)).not.toContain(claimed.leaseToken);
       expect(stored).toMatchObject({
         submissionId: sent.submissionId,
-        procedure: { id: 'proa-relations', version: '0.0.1' },
+        procedure: RELATIONS_PROCEDURE,
         llmModel: 'sim-1',
         handle: 'agent:test proa:read proa:propose',
         result: { counts: { applied: 3 } },

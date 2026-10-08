@@ -4,15 +4,24 @@ import { randomUUID } from 'node:crypto';
 import type {
   ClaimResult,
   ClaimedAnalysis,
+  DeclaredProcedure,
   SubmissionResult,
   SubmitAnalysisInput,
 } from '@proa/contracts';
+import { getProcedure } from '@proa/procedures';
 
 import type { TestApp } from './app.ts';
 
 export type Caller = (path: string, init?: RequestInit) => Promise<Response>;
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
+
+/** The procedure claims name: `proa-relations` at its current version (`@proa/procedures`). */
+export const RELATIONS_PROCEDURE: DeclaredProcedure = (() => {
+  const p = getProcedure('proa-relations');
+  if (!p) throw new Error('the proa-relations procedure is missing');
+  return { id: p.id, version: p.version };
+})();
 
 export function post(call: Caller, path: string, body: unknown): Promise<Response> {
   return call(path, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) });
@@ -41,7 +50,7 @@ export function submission(
   return {
     leaseToken: claimed.leaseToken,
     submissionId: randomUUID(),
-    procedure: { id: 'proa-relations', version: '0.0.1' },
+    procedure: RELATIONS_PROCEDURE,
     llmModel: 'sim-1',
     relations,
     ...extra,

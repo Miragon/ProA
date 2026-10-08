@@ -1552,7 +1552,7 @@
     {
       "name": "get_procedure",
       "title": "Get procedure",
-      "description": "The analysis instructions an agent follows, by id. Available: proa-relations@0.0.1.",
+      "description": "The analysis instructions an agent follows, by id. Available: proa-relations@0.1.0.",
       "inputSchema": {
         "type": "object",
         "properties": {

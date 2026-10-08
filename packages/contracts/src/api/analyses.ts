@@ -63,6 +63,8 @@ export const MAX_RATIONALE_CHARS = 1000;
 export const MAX_QUESTION_CHARS = 500;
 export const MAX_EVIDENCE_ITEMS = 20;
 export const MAX_SUMMARY_CHARS = 500;
+/** Characters of a no-link `reason` (whole submission rejected with 422 above it). */
+export const MAX_NO_LINK_REASON_CHARS = 2000;
 /** Body limit of a submission (REST and MCP). */
 export const MAX_SUBMISSION_BYTES = 1024 * 1024;
 /** `GET /analyses/pending?wait=` upper bound in seconds. */
@@ -372,7 +374,7 @@ export const NoLinkItem = z
   .object({
     from: z.string().max(LOOSE_REF),
     to: z.string().max(LOOSE_REF),
-    reason: z.string().max(2000).default(''),
+    reason: z.string().max(MAX_NO_LINK_REASON_CHARS).default(''),
   })
   .meta({ id: 'NoLinkItem', description: 'A pair judged unrelated.' });
 

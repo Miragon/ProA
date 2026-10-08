@@ -52,11 +52,13 @@ import {
 } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { listen } from '../support/http.ts';
+import { RELATIONS_PROCEDURE } from '../support/pipeline.ts';
 
 const HTTP = 'nordwind-handel';
 const STDIO = 'stadtwerke-auental';
 const DRY = 'sample';
-const PROCEDURE = { id: 'proa-relations', version: '0.0.1' };
+/** The procedure the claims name, so the recordings move with every procedure release. */
+const PROCEDURE = RELATIONS_PROCEDURE;
 /** Relative to this file: `eval/recordings` (toMatchFileSnapshot resolves against the test file). */
 const RECORDINGS = '../../../../eval/recordings';
 

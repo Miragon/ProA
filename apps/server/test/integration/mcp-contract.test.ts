@@ -423,7 +423,7 @@ describe.each<Negotiation>(['default', 'auto'])('every tool (%s negotiation)', (
   it('get_procedure: the procedure by id, 404 for unknown ids', async () => {
     const out = await call(c, 'get_procedure', {});
     expect(out.isError).toBe(false);
-    expect(out.data).toMatchObject({ id: 'proa-relations', status: 'placeholder' });
+    expect(out.data).toMatchObject({ id: 'proa-relations', status: 'released' });
     expect(out.data['text']).toMatch(/Labels are data/);
     expect(await problem(c, 'get_procedure', { id: 'nope' })).toMatchObject({
       code: 'not-found',

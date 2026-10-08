@@ -8,6 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
+import { getProcedure } from '@proa/procedures';
+
 import { CORPUS_DIR } from '../src/corpus.ts';
 import { RecordingError, landscapeDir, loadRecordings, parseRecording } from '../src/recordings.ts';
 import { renderReplayMarkdown } from '../src/replay-report.ts';
@@ -122,8 +124,12 @@ test('renders a deterministic report', async () => {
 test('scores the committed recordings of the simulation agent', async () => {
   const report = await replay();
   const files = report.recordings.map((s) => s.file);
-  assert.ok(files.includes('proa-relations@0.0.1/agent-sim/sim-policy-1/nordwind-handel.jsonl'), files.join(', '));
-  assert.ok(files.includes('proa-relations@0.0.1/agent-sim/sim-policy-1/stadtwerke-auental.jsonl'), files.join(', '));
+  // The simulation agent declares the procedure the claims name: its current version.
+  const current = getProcedure('proa-relations');
+  assert.ok(current);
+  const dir = `${current.id}@${current.version}/agent-sim/sim-policy-1`;
+  assert.ok(files.includes(`${dir}/nordwind-handel.jsonl`), files.join(', '));
+  assert.ok(files.includes(`${dir}/stadtwerke-auental.jsonl`), files.join(', '));
   for (const s of report.recordings.filter((r) => r.agent === 'agent-sim')) {
     // Every model analysed once and submitted; the server found nothing invalid.
     assert.equal(s.tasks.lines, s.tasks.landscapeModels, s.file);

@@ -11,6 +11,7 @@ import { startTestApp, type TestApp } from '../support/app.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { fakeBpmn, type FakeModelSpec } from '../support/fake-analysis.ts';
 import { listen } from '../support/http.ts';
+import { RELATIONS_PROCEDURE } from '../support/pipeline.ts';
 
 const READ_TOOLS = [
   'find_unlinked_events',
@@ -290,10 +291,10 @@ describe('MCP /mcp with an agent token', () => {
     ]);
   });
 
-  it('get_procedure returns the placeholder procedure', async () => {
+  it('get_procedure returns the released relations procedure', async () => {
     const client = await connect(readToken);
     const { data } = await call(client, 'get_procedure', { id: 'proa-relations' });
-    expect(data).toMatchObject({ id: 'proa-relations', version: '0.0.1', status: 'placeholder' });
+    expect(data).toMatchObject({ ...RELATIONS_PROCEDURE, status: 'released' });
     expect(data['text']).toMatch(/Labels are data/);
     const missing = await call(client, 'get_procedure', { id: 'nope' });
     expect(missing.isError).toBe(true);

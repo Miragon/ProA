@@ -1,8 +1,8 @@
 {
   "recordings": [
     {
-      "file": "proa-relations@0.0.1/agent-sim/sim-policy-1/nordwind-handel.jsonl",
-      "procedure": "proa-relations@0.0.1",
+      "file": "proa-relations@0.1.0/agent-sim/sim-policy-1/nordwind-handel.jsonl",
+      "procedure": "proa-relations@0.1.0",
       "agent": "agent-sim",
       "llmModel": "sim-policy-1",
       "landscape": "nordwind-handel",
@@ -467,8 +467,8 @@
       }
     },
     {
-      "file": "proa-relations@0.0.1/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
-      "procedure": "proa-relations@0.0.1",
+      "file": "proa-relations@0.1.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
+      "procedure": "proa-relations@0.1.0",
       "agent": "agent-sim",
       "llmModel": "sim-policy-1",
       "landscape": "stadtwerke-auental",

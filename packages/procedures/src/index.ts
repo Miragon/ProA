@@ -7,7 +7,7 @@
  * `pnpm --filter @proa/procedures generate`) wrap the same text
  * (`wrappers.ts`).
  *
- * Status: one placeholder, `proa-relations@0.0.1` (the real procedure is M3).
+ * Status: `proa-relations@0.1.0` (`relations.md`, released with M3).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -382,7 +382,7 @@ test('review screen: the agent proposal with rationale, question and provenance;
     held.provenance?.question?.slice(0, 60) ?? '-',
   );
   await expect(details).toContainText(`agent:${AGENT}`);
-  await expect(details).toContainText('proa-relations@0.0.1');
+  await expect(details).toContainText(/proa-relations@\d+\.\d+\.\d+/);
   await expect(details).toContainText('sim-policy-1');
   await expect(page.locator('.djs-element.proa-endpoint')).toHaveCount(2);
   await shot(page, 'm2-09-agent-proposal');
