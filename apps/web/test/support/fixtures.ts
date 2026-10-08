@@ -4,6 +4,7 @@ import type {
   Model,
   Relation,
   RelationAssertion,
+  RelationNoLink,
   RelationProvenance,
 } from '@proa/client';
 
@@ -25,6 +26,7 @@ export function relation(
     // Without provenance the UI falls back to tier and attributes (relations from before M2).
     source: null,
     provenance: null,
+    noLinks: [],
     updatedAt: NOW,
     ...overrides,
   };
@@ -150,6 +152,18 @@ export function provenance(overrides: Partial<RelationProvenance> = {}): Relatio
     rationale: 'Beide Ereignisse beschreiben die versandbereite Ware.',
     question: null,
     label: null,
+    at: NOW,
+    ...overrides,
+  };
+}
+
+/** A current agent no-link on a relation's pair (judge each pair once). */
+export function noLink(overrides: Partial<RelationNoLink> = {}): RelationNoLink {
+  return {
+    id: 'nlk_01NOLINK',
+    handle: 'agent:claude code',
+    origin: 'finanzen/debitoren',
+    reason: 'no-evidence: Die Ereignisse betreffen verschiedene Vorgänge.',
     at: NOW,
     ...overrides,
   };

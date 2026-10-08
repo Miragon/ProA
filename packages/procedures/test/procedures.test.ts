@@ -12,7 +12,7 @@ describe('procedures', () => {
     const p = getProcedure('proa-relations');
     expect(p).toMatchObject({
       id: 'proa-relations',
-      version: '0.1.0',
+      version: '0.2.0',
       status: 'released',
       name: 'relations',
     });

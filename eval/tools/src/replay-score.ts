@@ -1,6 +1,8 @@
 // Scores one recording (an agent's submissions on one landscape) against
 // expected.yaml (CONCEPT §7 eval:replay): precision, recall and F1 overall,
-// per relation type and per tag; must_not_link hits; questions; no-links.
+// per relation type and per tag; must_not_link hits; questions; no-links;
+// double work (pairs judged in the tasks of more than one model) and the
+// assigned pairs the submissions left uncovered (judge each pair once).
 //
 // The agent's link set is the union of the valid proposals of all its
 // submissions (deduplicated by (from, to); an item the server answered
@@ -8,7 +10,10 @@
 // as false positives in a closed-world landscape; same-process pairs always.
 // may_link pairs are neutral (neither true nor false positives). The rule
 // tier's acceptances (unambiguous calls, never proposed by agents) are
-// added in "incl. rule tier".
+// added in "incl. rule tier". A no-link the server answered
+// `invalid:<reason>` (results since proa-relations@0.2.0 carry the no-link
+// outcomes) is no judgement; older results have none, so all their no-links
+// count.
 import type { DerivedRelation } from '@proa/contracts';
 
 import type { Expect, ExpectedRelation, LandscapeRun } from './landscape.ts';
@@ -91,12 +96,24 @@ export interface ReplayScore {
   missed: ExpectedRelation[];
   questions: { pairs: number; byClass: Record<PairClass, number> };
   noLinks: {
-    /** Distinct pairs judged unrelated. */
+    /** Distinct pairs judged unrelated (valid no-links only, where the result says). */
     pairs: number;
     byClass: Record<PairClass, number>;
     /** must_link pairs the agent called unrelated (and did not propose elsewhere). */
     onMustLink: ExpectedRelation[];
   };
+  /**
+   * Double work: distinct pairs `(from, to)` judged (a valid proposal or
+   * no-link, whatever the server answered otherwise) in the lines of more
+   * than one model. 0 when every pair is judged once.
+   */
+  pairsJudgedTwice: number;
+  /**
+   * Assigned pairs the submissions left without a judgement: the sum of
+   * `result.uncovered.count`; null when no line's result has it (results
+   * before proa-relations@0.2.0, unsubmitted lines).
+   */
+  uncovered: number | null;
 }
 
 const pairKey = (from: string, to: string): string => `${from} -> ${to}`;
@@ -150,6 +167,15 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
     return { class: a !== undefined && a === processOf.get(to) ? 'same_process' : 'unlisted', tags: [] };
   };
 
+  // The models whose lines judged a pair (a valid proposal or no-link): double work if more than one.
+  const judgedBy = new Map<string, Set<string>>();
+  const judged = (from: string, to: string, modelKey: string): void => {
+    const k = pairKey(from, to);
+    const models = judgedBy.get(k);
+    if (models) models.add(modelKey);
+    else judgedBy.set(k, new Set([modelKey]));
+  };
+
   // The proposals: every recorded item that is a valid proposal, deduplicated by pair.
   const invalid: Record<string, number> = {};
   const outcomes: Record<string, number> = {};
@@ -173,6 +199,7 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
       }
       const outcome = answered ?? 'unsubmitted';
       outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
+      judged(item.from, item.to, line.modelKey);
       const k = pairKey(item.from, item.to);
       const prev = proposed.get(k);
       const asked = item.question !== null && item.question.trim() !== '';
@@ -255,13 +282,19 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
   const questionsByClass = emptyClasses();
   for (const p of pairs) if (p.question) questionsByClass[p.class]++;
 
-  // No-links: distinct pairs judged unrelated and never proposed in the same recording.
+  // No-links: distinct pairs judged unrelated and never proposed in the same recording; a no-link the
+  // server answered invalid is none (results without no-link outcomes: every no-link counts).
   const noLinkPairs = new Map<string, { from: string; to: string }>();
+  let uncovered: number | null = null;
   for (const line of rec.lines) {
-    for (const n of line.submission.noLinks) {
+    const answers = line.result?.noLinks?.items;
+    for (const [i, n] of line.submission.noLinks.entries()) {
+      if (answers?.find((x) => x.index === i)?.result.startsWith('invalid:')) continue;
+      judged(n.from, n.to, line.modelKey);
       const k = pairKey(n.from, n.to);
       if (!proposed.has(k)) noLinkPairs.set(k, { from: n.from, to: n.to });
     }
+    if (line.result?.uncovered) uncovered = (uncovered ?? 0) + line.result.uncovered.count;
   }
   const noLinksByClass = emptyClasses();
   const noLinkOnMustLink: ExpectedRelation[] = [];
@@ -302,6 +335,8 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
     ),
     questions: { pairs: pairs.filter((p) => p.question).length, byClass: questionsByClass },
     noLinks: { pairs: noLinkPairs.size, byClass: noLinksByClass, onMustLink: noLinkOnMustLink },
+    pairsJudgedTwice: [...judgedBy.values()].filter((models) => models.size > 1).length,
+    uncovered,
   };
 }
 

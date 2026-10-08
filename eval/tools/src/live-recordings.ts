@@ -5,9 +5,11 @@
 // U+0000 as U+FFFD): over REST the raw body, without defaults; over MCP the
 // tool arguments as parsed, with defaults. It keeps no claim input, so a
 // line built here has none. Per line: outcome `submitted`, the server's
-// result without task and submission id, no relation ids and no task ids
-// (like `--no-record-ids`), so building again from the same project gives
-// the same bytes.
+// result without task and submission id (the no-link outcomes, withdrawn
+// no-links and the uncovered count where the server answered them), no relation
+// ids and no task ids (like `--no-record-ids`), so building again from the
+// same project gives the same bytes. The mapping matches the simulation
+// agent's recorder (apps/agent-sim/src/recorder.ts) key for key.
 import {
   API_PREFIX,
   AnalysisSubmission,
@@ -160,7 +162,7 @@ export function recordingLineOf(stored: StoredAnalysis, options: LineOptions): R
     );
   }
   const body = payload.data;
-  const { counts } = s.result;
+  const { counts, noLinks, uncovered } = s.result;
   const line: RecordingLine = {
     format: RECORDING_FORMAT,
     landscape: options.landscape,
@@ -179,7 +181,7 @@ export function recordingLineOf(stored: StoredAnalysis, options: LineOptions): R
         evidence: r.evidence,
         question: r.question,
       })),
-      noLinks: body.noLinks.map((n) => ({ from: n.from, to: n.to, reason: n.reason })),
+      noLinks: body.noLinks.map((n) => ({ ...(n.type !== undefined ? { type: n.type } : {}), from: n.from, to: n.to, reason: n.reason })),
       summary: body.summary,
       costUsd: body.costUsd,
     },
@@ -195,6 +197,17 @@ export function recordingLineOf(stored: StoredAnalysis, options: LineOptions): R
       },
       withdrawn: s.result.withdrawn,
       items: s.result.items.map((i) => ({ index: i.index, result: i.result, status: i.status })),
+      // Results since no-links are validated (proa-relations@0.2.0); older stored results have none.
+      ...(noLinks
+        ? {
+            noLinks: {
+              items: noLinks.items.map((i) => ({ index: i.index, result: i.result })),
+              counts: { stored: noLinks.counts.stored, duplicate: noLinks.counts.duplicate, invalid: noLinks.counts.invalid },
+            },
+          }
+        : {}),
+      ...(s.result.withdrawnNoLinks !== undefined ? { withdrawnNoLinks: s.result.withdrawnNoLinks } : {}),
+      ...(uncovered ? { uncovered: { count: uncovered.count } } : {}),
     },
   };
   const valid = RecordingLine.safeParse(line);

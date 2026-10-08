@@ -243,8 +243,8 @@ function BulkList({
  * Bulk accept per tier (CONCEPT §3: "a reviewer checks [key-tier proposals]
  * briefly and accepts them in bulk per tier") with a preview of every pair.
  * Pairs with generic names, names more than two processes share, an open
- * agent question or an ambiguous call target are flagged and left
- * unchecked. The request carries ids, versions, the tier and the count, so a
+ * agent question, an agent's no-link or an ambiguous call target are
+ * flagged and left unchecked. The request carries ids, versions, the tier and the count, so a
  * list that changed meanwhile fails as a whole (409).
  */
 export function BulkAcceptDialog({
@@ -275,8 +275,8 @@ export function BulkAcceptDialog({
           </DialogTitle>
           <DialogDescription>
             Prüfe die Paare. Markiert sind allgemeine Namen, Namen aus mehr als zwei Prozessen,
-            offene Fragen des Agenten und nicht eindeutige Aufrufziele; sie sind nicht ausgewählt,
-            bis du sie bewusst anhakst.
+            offene Fragen des Agenten, Paare ohne Zusammenhang laut einem Agenten und nicht
+            eindeutige Aufrufziele; sie sind nicht ausgewählt, bis du sie bewusst anhakst.
           </DialogDescription>
         </DialogHeader>
         {open ? (

@@ -76,6 +76,10 @@ export const MAX_WAIT_SECONDS = 30;
 export const CLAIM_DOC_CHARS = 300;
 /** Format id of {@link ClaimInput}. */
 export const CLAIM_INPUT_FORMAT = 'proa-claim/1';
+/** No-link reasons in the claim input's `judged` are cut to this many characters. */
+export const CLAIM_REASON_CHARS = 120;
+/** `uncovered.pairs` of a submission result lists at most this many pairs. */
+export const MAX_UNCOVERED_PAIRS = 50;
 
 /** Structural caps of submission items; the documented limits above are checked per item. */
 const LOOSE_TEXT = 20_000;
@@ -254,9 +258,68 @@ export const ClaimRelation = z
   .meta({ id: 'ClaimRelation', description: 'An existing relation touching the model (compact).' });
 export type ClaimRelation = z.infer<typeof ClaimRelation>;
 
+/** The relation types agents judge (`manual` is for humans only). */
+const JudgedType = RelationType.exclude(['manual']);
+
+/**
+ * A current link verdict in `judged`: the live pipeline proposal of `by`
+ * (a principal handle) on relation `relation`, whose type, refs, confidence
+ * and question are in `relations`, from the analysis of model `origin`;
+ * `mine` when `by` is the claimant.
+ */
+export const ClaimJudgedLink = z
+  .object({
+    relation: RelationId,
+    origin: ModelKey,
+    by: z.string(),
+    mine: z.literal(true).optional(),
+  })
+  .meta({ id: 'ClaimJudgedLink', description: 'A current link verdict on a pair (compact).' });
+export type ClaimJudgedLink = z.infer<typeof ClaimJudgedLink>;
+
+/**
+ * A current no-link in `judged`: `by` found the typed pair unrelated in the
+ * analysis of model `origin`; `reason` cut to {@link CLAIM_REASON_CHARS}
+ * characters; `mine` when `by` is the claimant.
+ */
+export const ClaimJudgedNoLink = z
+  .object({
+    type: JudgedType,
+    from: Ref,
+    to: Ref,
+    origin: ModelKey,
+    by: z.string(),
+    mine: z.literal(true).optional(),
+    reason: z.string(),
+  })
+  .meta({ id: 'ClaimJudgedNoLink', description: 'A current no-link verdict on a pair (compact).' });
+export type ClaimJudgedNoLink = z.infer<typeof ClaimJudgedNoLink>;
+
+export const ClaimJudged = z
+  .union([ClaimJudgedLink, ClaimJudgedNoLink])
+  .meta({ id: 'ClaimJudged', description: 'A current agent judgement on a pair.' });
+export type ClaimJudged = z.infer<typeof ClaimJudged>;
+
+/**
+ * A candidate pair another model's analysis judges: `claimed` (its claimed
+ * task was assigned the pair) or `queued` (its queued task judges it when
+ * claimed).
+ */
+export const ClaimSkip = z
+  .object({
+    type: JudgedType,
+    from: Ref,
+    to: Ref,
+    /** The partner model whose analysis judges the pair. */
+    model: ModelKey,
+    reason: z.enum(['claimed', 'queued']),
+  })
+  .meta({ id: 'ClaimSkip', description: 'A candidate pair a partner analysis judges.' });
+export type ClaimSkip = z.infer<typeof ClaimSkip>;
+
 /**
  * The input of a claimed `relations` task (CONCEPT §3), rendered compactly
- * (`proa-claim/1`; on the eval corpus at most 81 KB, mean 41–49 KB, measured
+ * (`proa-claim/1`; on the eval corpus at most 82 KB, mean 41–49 KB, measured
  * for every model of both scored landscapes by the server's
  * `claim-input-size` test, which requires < 100 KB):
  *
@@ -267,7 +330,9 @@ export type ClaimRelation = z.infer<typeof ClaimRelation>;
  *   (`generateCandidates` with the model as focus: rule and key pairs, top 5
  *   lexical matches and up to 30 further compatible endpoints per endpoint)
  *   as `[type, from, to, basis, score]` tuples ({@link ClaimCandidate}),
- *   sorted by score;
+ *   sorted by score; a pair in `judged` or `skip` is listed there instead,
+ *   so the candidates are the pairs left to judge, the `compatible` search
+ *   space and the pairs a decision settles;
  * - `partners`: every endpoint of another model that a candidate or
  *   relation names, keyed by ref ({@link ClaimEndpoint});
  * - `partnerProcesses`: the process of every partner endpoint, keyed by
@@ -275,12 +340,24 @@ export type ClaimRelation = z.infer<typeof ClaimRelation>;
  * - `relations`: the non-obsolete relations touching the model, with their
  *   human decision (reasons, hold notes, questions) and notes
  *   ({@link ClaimRelation});
+ * - `judged`: every current agent judgement (live pipeline proposal or
+ *   no-link whose basis equals both models' heads and the procedure claims
+ *   name) on a pair touching the model, any origin and principal, the
+ *   claimant's own included ({@link ClaimJudged}); sorted by pair, then
+ *   origin and principal; left out when there is none;
+ * - `skip`: the candidate pairs without a current judgement that a partner
+ *   model's analysis judges ({@link ClaimSkip}); left out when there is
+ *   none. The remaining `rule`, `key` and `lexical` candidates are this
+ *   task's assignment (judge each pair once), except accepted pairs and
+ *   rejected ones with unchanged endpoints; `compatible` candidates are
+ *   nobody's assignment but the search space for missing partners;
  * - `findings`: the project's deterministic findings (as `GET …/findings`
  *   lists them) with at least one ref in the model, sorted by kind and
  *   refs; left out when there are none.
  *
- * `partnerProcesses` and `findings` came later in `proa-claim/1`, so they
- * are optional. The XML comes only through `get_model_xml`.
+ * `partnerProcesses`, `judged`, `skip` and `findings` came later in
+ * `proa-claim/1`, so they are optional. The XML comes only through
+ * `get_model_xml`.
  */
 export const ClaimInput = z
   .object({
@@ -305,6 +382,10 @@ export const ClaimInput = z
     /** The process of every partner endpoint, keyed by process ref `<modelKey>#<processId>`. */
     partnerProcesses: z.record(z.string(), ClaimPartnerProcess).optional(),
     relations: z.array(ClaimRelation),
+    /** Current agent judgements on pairs touching the model (judge each pair once). */
+    judged: z.array(ClaimJudged).optional(),
+    /** Candidate pairs a partner model's analysis judges. */
+    skip: z.array(ClaimSkip).optional(),
     /** Findings of the project with a ref in the model (unresolved or dynamic calls, dangling throws, …). */
     findings: z.array(Finding).optional(),
   })
@@ -366,12 +447,18 @@ export const ProposalItem = z
 export type ProposalItem = z.input<typeof ProposalItem>;
 
 /**
- * A pair the agent judged and found unrelated; stored verbatim for the eval
- * (like the whole submission, with U+0000, which PostgreSQL cannot store, as
- * U+FFFD).
+ * A pair the agent judged and found unrelated. `type` is the relation type
+ * the pair was judged for (`call`, `message`, `signal`, `trigger`); without
+ * it the server takes the one type the endpoints fit. Only the shape is
+ * checked up front; type, refs and the reason's characters are checked per
+ * item ({@link NO_LINK_INVALID_REASONS}). A stored no-link is an agent
+ * judgement (reviewers see it on the relation, partner analyses skip the
+ * pair); the whole submission is also kept verbatim for the eval (with
+ * U+0000, which PostgreSQL cannot store, as U+FFFD).
  */
 export const NoLinkItem = z
   .object({
+    type: z.string().max(30).optional(),
     from: z.string().max(LOOSE_REF),
     to: z.string().max(LOOSE_REF),
     reason: z.string().max(MAX_NO_LINK_REASON_CHARS).default(''),
@@ -415,7 +502,8 @@ export type InvalidReason = (typeof INVALID_REASONS)[number];
 /**
  * Outcome of one proposal (CONCEPT §3):
  * - `applied`: recorded;
- * - `duplicate`: nothing new (the caller's identical live proposal, an
+ * - `duplicate`: nothing new (the caller's identical live pipeline
+ *   proposal on the same model versions under the same procedure, an
  *   accepted relation with the same endpoints, or an earlier item of the
  *   same submission);
  * - `suppressed`: a human already decided and the endpoint fingerprints are
@@ -434,6 +522,75 @@ export const ProposalOutcome = z
   ])
   .meta({ id: 'ProposalOutcome', description: 'Outcome of one proposed relation.' });
 export type ProposalOutcome = z.infer<typeof ProposalOutcome>;
+
+/** Why a no-link is invalid (`invalid:<reason>`), in the order they are checked. */
+export const NO_LINK_INVALID_REASONS = [
+  'type-not-allowed',
+  'malformed-ref',
+  'control-characters',
+  'outside-task-model',
+  'unknown-ref',
+  'type-mismatch',
+  'same-process',
+  'message-flow',
+  'type-required',
+  'also-proposed',
+] as const;
+export type NoLinkInvalidReason = (typeof NO_LINK_INVALID_REASONS)[number];
+
+/**
+ * Outcome of one no-link:
+ * - `stored`: recorded as the caller's judgement of the typed pair;
+ * - `duplicate`: nothing new (an earlier no-link of the same submission on
+ *   the typed pair, or the caller's live, current no-link on it);
+ * - `invalid:<reason>`: not recorded ({@link NO_LINK_INVALID_REASONS};
+ *   `type-required`: the endpoints fit several types, `also-proposed`: the
+ *   submission also proposes the typed pair).
+ */
+export const NoLinkOutcome = z
+  .enum(['stored', 'duplicate', ...NO_LINK_INVALID_REASONS.map((r) => `invalid:${r}` as const)])
+  .meta({ id: 'NoLinkOutcome', description: 'Outcome of one no-link.' });
+export type NoLinkOutcome = z.infer<typeof NoLinkOutcome>;
+
+export const SubmissionNoLinks = z
+  .object({
+    /** Per item of `noLinks`, in order. */
+    items: z.array(
+      z.object({
+        /** Position in `noLinks`. */
+        index: z.number().int().min(0),
+        result: NoLinkOutcome,
+      }),
+    ),
+    counts: z.object({
+      stored: z.number().int().min(0),
+      duplicate: z.number().int().min(0),
+      invalid: z.number().int().min(0),
+    }),
+  })
+  .meta({ id: 'SubmissionNoLinks', description: 'Outcome of the no-links of a submission.' });
+export type SubmissionNoLinks = z.infer<typeof SubmissionNoLinks>;
+
+/** A typed pair (`uncovered`). */
+export const TypedPair = z
+  .object({ type: JudgedType, from: Ref, to: Ref })
+  .meta({ id: 'TypedPair', description: 'A typed pair of endpoints.' });
+export type TypedPair = z.infer<typeof TypedPair>;
+
+/**
+ * The pairs the claim assigned to the task (its `rule`, `key` and `lexical`
+ * candidates minus `judged`, `skip`, accepted pairs and rejections with
+ * unchanged endpoints; never `compatible` ones) that the submission neither
+ * proposed nor no-linked and that have no current judgement: the count and
+ * the first {@link MAX_UNCOVERED_PAIRS}. Nothing is queued for them.
+ */
+export const UncoveredPairs = z
+  .object({
+    count: z.number().int().min(0),
+    pairs: z.array(TypedPair).max(MAX_UNCOVERED_PAIRS),
+  })
+  .meta({ id: 'UncoveredPairs', description: 'Assigned pairs a submission left unjudged.' });
+export type UncoveredPairs = z.infer<typeof UncoveredPairs>;
 
 export const SubmissionItemResult = z
   .object({
@@ -462,8 +619,18 @@ export const SubmissionResult = z
       reopened: z.number().int().min(0),
       invalid: z.number().int().min(0),
     }),
-    /** Earlier pipeline proposals touching the model that this submission did not repeat. */
+    /**
+     * Earlier pipeline proposals this submission withdrew: judged on another
+     * version of the model or under another procedure, or the caller's own
+     * proposal from an analysis of the model that a no-link replaces.
+     */
     withdrawn: z.number().int().min(0),
+    /** Per no-link outcome (results stored before no-links were validated have none). */
+    noLinks: SubmissionNoLinks.optional(),
+    /** Earlier no-links this submission withdrew, like `withdrawn`. */
+    withdrawnNoLinks: z.number().int().min(0).optional(),
+    /** Assigned pairs left without a judgement. */
+    uncovered: UncoveredPairs.optional(),
   })
   .meta({ id: 'SubmissionResult', description: 'Outcome of a submission, per item.' });
 export type SubmissionResult = z.infer<typeof SubmissionResult>;

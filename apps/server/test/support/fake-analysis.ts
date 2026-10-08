@@ -35,6 +35,8 @@ export interface FakeElement {
   scope?: FactScope;
   eventDef?: EventDef;
   elementType?: string;
+  /** `bpmn:documentation`: part of the facts hash, not of the fingerprint. */
+  doc?: string;
 }
 
 export interface FakeProcess {
@@ -169,6 +171,7 @@ export function extractFake(xml: string, modelKey: string): Extracted {
               ...((e.kind === 'sig_throw' || e.kind === 'sig_catch') && e.ref !== undefined
                 ? { signalName: e.ref }
                 : {}),
+              ...(e.doc === undefined ? {} : { documentation: e.doc }),
             },
           },
         ),
@@ -196,6 +199,7 @@ export function fakeFactsHash(facts: readonly Fact[]): string {
       f.label,
       f.keyRaw,
       f.fingerprint,
+      ...(f.attrs.documentation === undefined ? [] : [f.attrs.documentation]),
     ])
     .sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');

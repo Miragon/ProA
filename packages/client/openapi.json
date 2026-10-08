@@ -1283,6 +1283,12 @@
               }
             ]
           },
+          "noLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelationNoLink"
+            }
+          },
           "updatedAt": {
             "$ref": "#/components/schemas/Timestamp"
           }
@@ -1300,6 +1306,7 @@
           "attrs",
           "source",
           "provenance",
+          "noLinks",
           "updatedAt"
         ],
         "description": "A relation between two processes."
@@ -1503,6 +1510,40 @@
           "version"
         ],
         "description": "Procedure id and version declared by an agent."
+      },
+      "RelationNoLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/NoLinkId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "handle",
+          "origin",
+          "reason",
+          "at"
+        ],
+        "description": "An agent judgement that the pair is unrelated."
+      },
+      "NoLinkId": {
+        "type": "string",
+        "pattern": "^nlk_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Stored no-link id (`nlk_` + ULID).",
+        "example": "nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
       },
       "Finding": {
         "type": "object",
@@ -2282,6 +2323,18 @@
               "$ref": "#/components/schemas/ClaimRelation"
             }
           },
+          "judged": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimJudged"
+            }
+          },
+          "skip": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimSkip"
+            }
+          },
           "findings": {
             "type": "array",
             "items": {
@@ -2521,6 +2574,125 @@
         ],
         "description": "A human decision (compact)."
       },
+      "ClaimJudged": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ClaimJudgedLink"
+          },
+          {
+            "$ref": "#/components/schemas/ClaimJudgedNoLink"
+          }
+        ],
+        "description": "A current agent judgement on a pair."
+      },
+      "ClaimJudgedLink": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "$ref": "#/components/schemas/RelationId"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "by": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "relation",
+          "origin",
+          "by"
+        ],
+        "description": "A current link verdict on a pair (compact)."
+      },
+      "ClaimJudgedNoLink": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "by": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "origin",
+          "by",
+          "reason"
+        ],
+        "description": "A current no-link verdict on a pair (compact)."
+      },
+      "ClaimSkip": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "claimed",
+              "queued"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to",
+          "model",
+          "reason"
+        ],
+        "description": "A candidate pair a partner analysis judges."
+      },
       "ClaimAnalysisBody": {
         "type": "object",
         "properties": {
@@ -2634,6 +2806,16 @@
           "withdrawn": {
             "type": "integer",
             "minimum": 0
+          },
+          "noLinks": {
+            "$ref": "#/components/schemas/SubmissionNoLinks"
+          },
+          "withdrawnNoLinks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uncovered": {
+            "$ref": "#/components/schemas/UncoveredPairs"
           }
         },
         "required": [
@@ -2684,6 +2866,122 @@
           "status"
         ],
         "description": "Outcome of one item of a submission."
+      },
+      "SubmissionNoLinks": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "result": {
+                  "$ref": "#/components/schemas/NoLinkOutcome"
+                }
+              },
+              "required": [
+                "index",
+                "result"
+              ]
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "stored": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "duplicate": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "invalid": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "stored",
+              "duplicate",
+              "invalid"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "counts"
+        ],
+        "description": "Outcome of the no-links of a submission."
+      },
+      "NoLinkOutcome": {
+        "type": "string",
+        "enum": [
+          "stored",
+          "duplicate",
+          "invalid:type-not-allowed",
+          "invalid:malformed-ref",
+          "invalid:control-characters",
+          "invalid:outside-task-model",
+          "invalid:unknown-ref",
+          "invalid:type-mismatch",
+          "invalid:same-process",
+          "invalid:message-flow",
+          "invalid:type-required",
+          "invalid:also-proposed"
+        ],
+        "description": "Outcome of one no-link."
+      },
+      "UncoveredPairs": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pairs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypedPair"
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "count",
+          "pairs"
+        ],
+        "description": "Assigned pairs a submission left unjudged."
+      },
+      "TypedPair": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          }
+        },
+        "required": [
+          "type",
+          "from",
+          "to"
+        ],
+        "description": "A typed pair of endpoints."
       },
       "SubmitAnalysisBody": {
         "type": "object",
@@ -2802,6 +3100,10 @@
       "NoLinkItem": {
         "type": "object",
         "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 30
+          },
           "from": {
             "type": "string",
             "maxLength": 1000
@@ -5464,7 +5766,7 @@
           "analyses"
         ],
         "summary": "Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)",
-        "description": "Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input. Empty when nothing is claimable.",
+        "description": "Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction: the current agent judgements on pairs touching the model (`judged`) and the candidate pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates, accepted pairs and unchanged rejections aside, are the task’s assignment, and `compatible` candidates the search space for missing partners. Empty when nothing is claimable.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5627,7 +5929,7 @@
           "analyses"
         ],
         "summary": "Submit the result of a claimed task (idempotent by submissionId)",
-        "description": "Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per item `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`. Earlier pipeline proposals touching the model that the submission does not repeat are withdrawn. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).",
+        "description": "Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per relation `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`, per no-link `stored`, `duplicate` or `invalid:<reason>`, and the assigned pairs left unjudged (`uncovered`). Earlier pipeline proposals and no-links on pairs touching the model that were judged on another version of the model or under another procedure are withdrawn; current judgements stay. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).",
         "parameters": [
           {
             "schema": {

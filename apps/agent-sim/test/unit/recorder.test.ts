@@ -103,6 +103,54 @@ describe('recordingLine', () => {
     expect(recordingLine(task(), { input: 'summary', ids: false })).toEqual(line);
   });
 
+  it('keeps the no-link types and the no-link outcomes, withdrawn no-links and the uncovered count', () => {
+    const t = task();
+    const result = t.result;
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(t.decision.noLinks.length).toBeGreaterThan(0);
+    // Server results before no-links were validated have none of the three fields.
+    const before = recordingLine(t, { input: 'summary', ids: false });
+    expect(before.result && Object.keys(before.result)).toEqual([
+      'replayed',
+      'counts',
+      'withdrawn',
+      'items',
+    ]);
+    expect(before.submission.noLinks.every((n) => n.type === 'message')).toBe(true);
+
+    const pair = { type: 'message', from: 'vertrieb/orders#A', to: 'lager/stock#B' } as const;
+    const line = recordingLine(
+      {
+        ...t,
+        result: {
+          // Keys in another order than the recorder writes them.
+          ...result,
+          uncovered: { pairs: [{ to: pair.to, from: pair.from, type: pair.type }], count: 3 },
+          withdrawnNoLinks: 1,
+          noLinks: {
+            counts: { invalid: 1, duplicate: 0, stored: 0 },
+            items: [{ result: 'invalid:type-required', index: 0 }],
+          },
+        },
+      },
+      { input: 'summary', ids: false },
+    );
+    expect(RecordingLine.parse(line)).toEqual(line);
+    expect(JSON.stringify(line.result)).toBe(
+      JSON.stringify({
+        ...before.result,
+        noLinks: {
+          items: [{ index: 0, result: 'invalid:type-required' }],
+          counts: { stored: 0, duplicate: 0, invalid: 1 },
+        },
+        withdrawnNoLinks: 1,
+        // The count only: the pairs would bloat the recordings.
+        uncovered: { count: 3 },
+      }),
+    );
+  });
+
   it('records dry runs and failures without a result', () => {
     expect(recordingLine(task('dry-run'), { input: 'summary', ids: true })).toMatchObject({
       outcome: 'dry-run',

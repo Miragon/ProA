@@ -37,6 +37,6 @@ export const RULES_SUBJECT = 'proa-rules';
  * by clients (CONCEPT §6): `human` is a user on an interactive client, `agent`
  * everything else. (`rule` is reserved for the system principal.)
  */
-export function sourceKindOf(actor: Actor): SourceKind {
+export function sourceKindOf(actor: Actor): Exclude<SourceKind, 'rule'> {
   return actor.kind === 'user' && actor.interactive ? 'human' : 'agent';
 }

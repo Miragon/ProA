@@ -1,8 +1,8 @@
 {
   "recordings": [
     {
-      "file": "proa-relations@0.1.0/agent-sim/sim-policy-1/nordwind-handel.jsonl",
-      "procedure": "proa-relations@0.1.0",
+      "file": "proa-relations@0.2.0/agent-sim/sim-policy-1/nordwind-handel.jsonl",
+      "procedure": "proa-relations@0.2.0",
       "agent": "agent-sim",
       "llmModel": "sim-policy-1",
       "landscape": "nordwind-handel",
@@ -17,11 +17,10 @@
         "failed": 0
       },
       "items": {
-        "total": 96,
+        "total": 48,
         "invalid": {},
         "outcomes": {
-          "applied": 48,
-          "duplicate": 48
+          "applied": 48
         }
       },
       "pairs": 48,
@@ -464,11 +463,13 @@
           "same_process": 0
         },
         "onMustLink": []
-      }
+      },
+      "pairsJudgedTwice": 0,
+      "uncovered": 0
     },
     {
-      "file": "proa-relations@0.1.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
-      "procedure": "proa-relations@0.1.0",
+      "file": "proa-relations@0.2.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
+      "procedure": "proa-relations@0.2.0",
       "agent": "agent-sim",
       "llmModel": "sim-policy-1",
       "landscape": "stadtwerke-auental",
@@ -483,11 +484,10 @@
         "failed": 0
       },
       "items": {
-        "total": 104,
+        "total": 52,
         "invalid": {},
         "outcomes": {
-          "applied": 52,
-          "duplicate": 52
+          "applied": 52
         }
       },
       "pairs": 52,
@@ -1047,7 +1047,9 @@
             "rationale": "\"Tariff change requested\" and \"Tarifwechsel beantragt\" are the same request, English in the portal and German in sales; different message names."
           }
         ]
-      }
+      },
+      "pairsJudgedTwice": 0,
+      "uncovered": 0
     }
   ],
   "liveGate": []

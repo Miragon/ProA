@@ -11,9 +11,11 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * proposals built from the claim input's lexical candidates, release one
  * task, keep one claimed), then reviews in the browser: inbox by stage, the
  * review screen with both models, A/R/H/C and J/K, the held list with an
- * answer, a correction and its timeline, a version conflict and the bulk
- * accept of the key tier. With PROA_SCREENSHOTS_DIR set it writes
- * m2-*.png there. Skips itself when no server answers.
+ * answer, a correction and its timeline, a version conflict, an agent's
+ * no-link on a key-tier pair (judge each pair once: flagged in the bulk
+ * dialog, shown on the review screen) and the bulk accept of the key tier.
+ * With PROA_SCREENSHOTS_DIR set it writes m2-*.png there. Skips itself when
+ * no server answers.
  */
 
 const CORPUS = join(import.meta.dirname, '../../../eval/corpus/nordwind-handel/models');
@@ -39,14 +41,22 @@ interface Claimed {
 }
 interface SubmissionResult {
   items: { index: number; result: string; relationId: string | null }[];
+  noLinks?: { items: { index: number; result: string }[] };
+}
+interface TypedPair {
+  type: string;
+  from: string;
+  to: string;
 }
 interface Relation {
   id: string;
+  type: string;
   status: string;
   version: number;
   tier: string;
   from: string;
   to: string;
+  noLinks: { id: string; handle: string; origin: string; reason: string }[];
 }
 
 /** Relations the agent proposed, in submission order (highest confidence first). */
@@ -55,6 +65,11 @@ const proposed: string[] = [];
 let hostileId = '';
 /** The tier most agent proposals landed in (the server computes it); the flow walks it. */
 let agentTier = '';
+/** The agent's no-link on a key-tier pair: the model whose analysis stored it, its relation. */
+const NO_LINK_REASON =
+  'no-evidence: Laut Prozessdokumentation betreffen die beiden Ereignisse verschiedene Vorgänge.';
+let noLinkOrigin = '';
+let noLinkRelationId = '';
 /** The owner (session cookie) and the agent (bearer token) as API clients. */
 let owner: APIRequestContext;
 let agent: APIRequestContext;
@@ -166,6 +181,7 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   expect(claimed.length).toBe(10);
   const used = new Set<string>();
   let rank = 0;
+  let noLinkPair: TypedPair | null = null;
   for (const [n, task] of claimed.slice(0, 8).entries()) {
     const labelOf = (ref: string) =>
       task.input.facts.find((f) => f.ref === ref)?.label ?? task.input.partners[ref]?.label ?? ref;
@@ -192,6 +208,21 @@ test.beforeAll(async ({ playwright, baseURL }) => {
         question: first ? 'Gilt das auch für Teillieferungen?' : null,
       };
     });
+    // the first task with a key-tier candidate finds one key pair unrelated (a typed no-link)
+    const keyPair: Claimed['input']['candidates'][number] | undefined =
+      noLinkPair === null
+        ? task.input.candidates.find(
+            ([, from, to, basis]) => basis === 'key' && !used.has(`${from}>${to}`),
+          )
+        : undefined;
+    const noLinks: (TypedPair & { reason: string })[] = keyPair
+      ? [{ type: keyPair[0], from: keyPair[1], to: keyPair[2], reason: NO_LINK_REASON }]
+      : [];
+    if (keyPair) {
+      used.add(`${keyPair[1]}>${keyPair[2]}`);
+      noLinkPair = noLinks[0]!;
+      noLinkOrigin = task.modelKey;
+    }
     const submitted = await agent.post(`/api/v1/analyses/${task.taskId}/submission`, {
       data: {
         leaseToken: task.leaseToken,
@@ -199,11 +230,13 @@ test.beforeAll(async ({ playwright, baseURL }) => {
         procedure: task.procedure,
         llmModel: 'sim-e2e',
         relations,
-        summary: `${relations.length} Vorschläge`,
+        noLinks,
+        summary: `${relations.length} Vorschläge${noLinks.length > 0 ? ', 1 ohne Zusammenhang' : ''}`,
       },
     });
     expect(submitted.ok()).toBe(true);
     const result = (await submitted.json()) as SubmissionResult;
+    if (keyPair) expect(result.noLinks?.items).toEqual([{ index: 0, result: 'stored' }]);
     for (const item of result.items) {
       if (item.result === 'applied' && item.relationId) {
         proposed.push(item.relationId);
@@ -229,6 +262,24 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   agentTier = [...tiers].sort((a, b) => b[1] - a[1])[0]![0];
   // the flow decides four proposals of that tier and keeps the HTML one for last
   expect(tiers.get(agentTier)).toBeGreaterThanOrEqual(5);
+  // the no-link sits on the rule tier's key-tier proposal of that typed pair
+  expect(agentTier).not.toBe('key');
+  expect(noLinkPair).not.toBeNull();
+  const landscape = (await (await owner.get(`/api/v1/projects/${PROJECT}/landscape`)).json()) as {
+    relations: Relation[];
+  };
+  const objected = landscape.relations.find(
+    (r) => r.type === noLinkPair!.type && r.from === noLinkPair!.from && r.to === noLinkPair!.to,
+  );
+  expect(objected).toMatchObject({ tier: 'key', status: 'proposed' });
+  expect(objected!.noLinks).toEqual([
+    expect.objectContaining({
+      handle: `agent:${AGENT_NAME}`,
+      origin: noLinkOrigin,
+      reason: NO_LINK_REASON,
+    }),
+  ]);
+  noLinkRelationId = objected!.id;
 });
 
 test.afterAll(async () => {
@@ -396,6 +447,37 @@ test('agent text renders as text, and a stale decision shows a conflict', async 
   await expect(conflict).toContainText(`du hast Version ${before.version} gesehen`);
   await shot(page, 'm2-07-conflict');
   expect((await relationOf(hostileId)).status).toBe('held');
+});
+
+test("an agent's no-link: an objection in the queue, flagged in the bulk dialog, shown on the review screen", async ({
+  page,
+}) => {
+  await page.goto(`/projects/${PROJECT}/review?tier=key`);
+  const queued = page.locator(`[data-testid=queue-row][data-relation-id=${noLinkRelationId}]`);
+  await expect(queued.getByTestId('queue-no-link')).toHaveText('Einwand');
+
+  await page.goto(`/projects/${PROJECT}/review`);
+  await page.locator('[data-testid=bulk-open][data-tier=key]').click();
+  const dialog = page.getByTestId('bulk-dialog');
+  await expect(dialog).toBeVisible();
+  const row = dialog.locator(`[data-testid=bulk-row][data-relation-id=${noLinkRelationId}]`);
+  await expect(row).toHaveAttribute('data-flagged', 'true');
+  await expect(row.locator('[data-flag=agent-no-link]')).toHaveText(
+    `agent:${AGENT_NAME} sieht keinen Zusammenhang: „${NO_LINK_REASON}“`,
+  );
+  await expect(row.getByRole('checkbox')).toHaveAttribute('aria-checked', 'false');
+  await dialog.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await page.goto(`/projects/${PROJECT}/review/${noLinkRelationId}`);
+  await onReviewScreen(page, noLinkRelationId);
+  const callout = page.getByTestId('agent-no-links');
+  await expect(callout).toContainText('Kein Zusammenhang laut Agent');
+  await expect(callout.getByTestId('agent-no-link')).toHaveCount(1);
+  await expect(callout).toContainText(`agent:${AGENT_NAME}`);
+  await expect(callout).toContainText(`Analyse von ${noLinkOrigin}`);
+  await expect(callout).toContainText(NO_LINK_REASON);
+  expect((await relationOf(noLinkRelationId)).status).toBe('proposed');
 });
 
 test('bulk accept of the key tier with generic names flagged', async ({ page }) => {

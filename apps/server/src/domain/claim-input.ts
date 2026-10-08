@@ -7,6 +7,7 @@
 import {
   CLAIM_DOC_CHARS,
   CLAIM_INPUT_FORMAT,
+  CLAIM_REASON_CHARS,
   RELATION_ENDPOINT_KINDS,
   type Candidate,
   type ClaimCandidate,
@@ -14,17 +15,21 @@ import {
   type ClaimEndpoint,
   type ClaimFact,
   type ClaimInput,
+  type ClaimJudged,
   type ClaimPartnerProcess,
   type ClaimRelation,
+  type ClaimSkip,
   type Engine,
   type Fact,
   type FactKind,
   type Finding,
+  type PrincipalId,
   type ProcessInfo,
   type ProjectFacts,
   type RevisionId,
 } from '@proa/contracts';
 
+import { sortJudgements, type Judgement } from './judgements.ts';
 import type { RelationRecord, StoredAssertion } from './ports.ts';
 import { currentStances, decisionsInForce } from './status.ts';
 import { basisOf } from './views.ts';
@@ -53,6 +58,12 @@ export interface ClaimInputSource {
    * order; the input keeps those with a ref in the model.
    */
   findings: readonly Finding[];
+  /** The current agent judgements on pairs touching the model (`planClaim`), any order. */
+  judged?: readonly Judgement[];
+  /** The candidate pairs partner analyses judge (`planClaim`). */
+  skip?: readonly ClaimSkip[];
+  /** The claiming principal (`mine` on its own judgements). */
+  claimant?: PrincipalId;
 }
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
@@ -86,11 +97,29 @@ function compactFact(f: Fact): ClaimFact {
   };
 }
 
+/** A judgement as `judged` lists it: link verdicts by relation id, no-links with the pair. */
+function compactJudgement(j: Judgement, claimant: PrincipalId | undefined): ClaimJudged {
+  const mine = j.principalId === claimant ? { mine: true as const } : {};
+  if (j.kind === 'link' && j.relationId !== null) {
+    return { relation: j.relationId, origin: j.origin, by: j.handle, ...mine };
+  }
+  return {
+    type: j.type,
+    from: j.from,
+    to: j.to,
+    origin: j.origin,
+    by: j.handle,
+    ...mine,
+    reason: truncate(j.reason ?? '', CLAIM_REASON_CHARS),
+  };
+}
+
 /**
  * Renders the input of a `relations` task: the model's head facts, the
  * candidates as tuples, the partner endpoints they name and their
  * processes, the existing relations with human decisions, questions and
- * notes, and the findings touching the model.
+ * notes, the current judgements and skipped pairs, and the findings
+ * touching the model.
  */
 export function renderClaimInput(src: ClaimInputSource): ClaimInput {
   const { model } = src;
@@ -198,6 +227,9 @@ export function renderClaimInput(src: ClaimInputSource): ClaimInput {
     )
     .map((f) => ({ kind: f.kind, refs: [...f.refs], detail: f.detail }));
 
+  const judged = sortJudgements(src.judged ?? []).map((j) => compactJudgement(j, src.claimant));
+  const skip = [...(src.skip ?? [])];
+
   return {
     format: CLAIM_INPUT_FORMAT,
     model: {
@@ -217,6 +249,8 @@ export function renderClaimInput(src: ClaimInputSource): ClaimInput {
     partners,
     ...(processRefs.length > 0 ? { partnerProcesses } : {}),
     relations,
+    ...(judged.length > 0 ? { judged } : {}),
+    ...(skip.length > 0 ? { skip } : {}),
     ...(findings.length > 0 ? { findings } : {}),
   };
 }

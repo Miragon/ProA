@@ -1,19 +1,19 @@
 import type { Relation, RelationAssertion } from '@proa/client';
 import { Link } from '@tanstack/react-router';
-import { CircleHelpIcon, CrosshairIcon, ExternalLinkIcon } from 'lucide-react';
+import { CircleHelpIcon, CrosshairIcon, ExternalLinkIcon, UnlinkIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { EndpointStateBadge, StatusBadge, TierBadge, TypeLabel } from '@/components/badges';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatConfidence, provenanceOf } from '@/lib/labels';
+import { formatConfidence, formatDateTime, provenanceOf } from '@/lib/labels';
 import type { RefResolver } from '@/lib/refs';
 import { currentProposal, evidenceItems, type EvidenceItem } from '@/lib/review';
 
 import { Endpoint } from '../relation-table';
 import { PlainText } from './plain-text';
-import { ProvenanceList } from './provenance';
+import { Principal, ProvenanceList } from './provenance';
 import { AssertionTimeline } from './timeline';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -47,8 +47,9 @@ export interface ReviewDetailsProps {
 
 /**
  * Everything a reviewer reads before deciding (CONCEPT §3): both endpoints,
- * the agent's rationale, evidence and question, who the status rests on,
- * and the full history. All agent text is plain text.
+ * the agent's rationale, evidence and question, the agents' current
+ * no-links on the pair (judge each pair once), who the status rests on, and
+ * the full history. All agent text is plain text.
  */
 export function ReviewDetails({
   project,
@@ -104,6 +105,40 @@ export function ReviewDetails({
           <div className="min-w-0">
             <p className="font-medium">Frage des Agenten</p>
             <PlainText text={question} />
+          </div>
+        </div>
+      ) : null}
+      {relation.noLinks.length > 0 ? (
+        <div
+          className="flex gap-2 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm"
+          data-testid="agent-no-links"
+        >
+          <UnlinkIcon className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <p className="font-medium">Kein Zusammenhang laut Agent</p>
+            <ul className="flex flex-col gap-2">
+              {relation.noLinks.map((n) => (
+                <li
+                  key={n.id}
+                  data-testid="agent-no-link"
+                  data-no-link-id={n.id}
+                  className="flex min-w-0 flex-col gap-0.5"
+                >
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                    <Principal sourceKind="agent" handle={n.handle} />
+                    <span>{formatDateTime(n.at)}</span>
+                    <span className="min-w-0 truncate" title={n.origin}>
+                      Analyse von <span className="font-mono">{n.origin}</span>
+                    </span>
+                  </span>
+                  {n.reason.trim() ? (
+                    <PlainText text={n.reason} />
+                  ) : (
+                    <p className="text-muted-foreground">Ohne Begründung.</p>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       ) : null}

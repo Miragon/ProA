@@ -52,7 +52,12 @@ export const RecordedSubmission = z.object({
 });
 export type RecordedSubmission = z.infer<typeof RecordedSubmission>;
 
-/** The server's answer, per item in the order of `submission.relations`. */
+/**
+ * The server's answer, per item in the order of `submission.relations`; the
+ * no-link outcomes, withdrawn no-links and the number of uncovered pairs
+ * where the server answered them (results since no-links are validated).
+ * `uncovered` keeps the count only: the pairs would bloat the recordings.
+ */
 export const RecordedResult = z.object({
   replayed: z.boolean(),
   counts: SubmissionResult.shape.counts,
@@ -66,6 +71,9 @@ export const RecordedResult = z.object({
       relationId: RelationId.nullable().optional(),
     }),
   ),
+  noLinks: SubmissionResult.shape.noLinks,
+  withdrawnNoLinks: SubmissionResult.shape.withdrawnNoLinks,
+  uncovered: z.object({ count: z.number().int().min(0) }).optional(),
 });
 export type RecordedResult = z.infer<typeof RecordedResult>;
 

@@ -148,7 +148,7 @@ export function landscapeUseCases(deps: UseCaseDeps) {
             stage: m.stage,
             processes: m.processes,
           })),
-          relations: await relationViews(tx, project.id, relations),
+          relations: await relationViews(tx, project.id, relations, deps.expectedProcedure()),
           findings: visibleFindings(findings, relations),
         };
       });
@@ -172,7 +172,7 @@ export function landscapeUseCases(deps: UseCaseDeps) {
         );
         const page = toPage(rows, query.limit, (r) => [r.type, r.fromRef, r.toRef]);
         return {
-          items: await relationViews(tx, project.id, page.items),
+          items: await relationViews(tx, project.id, page.items, deps.expectedProcedure()),
           nextCursor: page.nextCursor,
         };
       });
@@ -183,7 +183,7 @@ export function landscapeUseCases(deps: UseCaseDeps) {
         const { project } = await policy.require(tx, actor, 'read', projectRef);
         const relation = await tx.relations.findInProject(project.id, id);
         if (!relation) throw new DomainError('not-found', 'relation not found');
-        const [view] = await relationViews(tx, project.id, [relation]);
+        const [view] = await relationViews(tx, project.id, [relation], deps.expectedProcedure());
         if (!view) throw new Error('relation view missing');
         return view;
       });
@@ -331,7 +331,7 @@ export function landscapeUseCases(deps: UseCaseDeps) {
           processes: model.processes,
           process,
           facts: facts.map(({ processName: _processName, ...fact }) => fact),
-          relations: await relationViews(tx, project.id, relations),
+          relations: await relationViews(tx, project.id, relations, deps.expectedProcedure()),
         };
       });
     },

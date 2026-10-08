@@ -119,11 +119,17 @@ export async function ingest(
     await tx.projects.lockForWrite(project.id);
 
     const results: IngestResult[] = [];
-    const changed: { model: ModelRecord; revision: RevisionRecord }[] = [];
+    const changed: {
+      model: ModelRecord;
+      revision: RevisionRecord;
+      previousFactsHash: string | null;
+    }[] = [];
     for (const f of prepared) {
-      const result = await storeFile(tx, deps, actor, project.id, f);
+      const { result, previousFactsHash } = await storeFile(tx, deps, actor, project.id, f);
       results.push(result);
-      if (result.outcome === 'created' || result.outcome === 'revised') changed.push(result);
+      if (result.outcome === 'created' || result.outcome === 'revised') {
+        changed.push({ ...result, previousFactsHash });
+      }
     }
     if (changed.length > 0) {
       await recomputeProject({
@@ -132,7 +138,9 @@ export async function ingest(
         rulesPrincipalId,
         analysis: deps.analysis,
       });
-      for (const c of changed) await queueAnalysis(tx, actor, project.id, c.model, c.revision);
+      for (const c of changed) {
+        await queueAnalysis(tx, actor, project.id, c.model, c.revision, c.previousFactsHash);
+      }
     }
     return { project, results };
   });
@@ -145,27 +153,41 @@ async function liveHeadHash(tx: Tx, projectId: ProjectId, key: string): Promise<
   return head?.contentHash ?? null;
 }
 
+/**
+ * Stores one file as the model's new head unless its bytes equal the head.
+ *
+ * @returns the outcome and the `facts_hash` of the previous live head (`null`
+ *   for a new or revived model)
+ */
 async function storeFile(
   tx: Tx,
   deps: IngestDeps,
   actor: Actor,
   projectId: ProjectId,
   f: Prepared,
-): Promise<IngestResult> {
+): Promise<{ result: IngestResult; previousFactsHash: string | null }> {
   const existing = await tx.models.findByKey(projectId, f.key);
   const live = existing !== null && existing.deletedSeq === null;
-  if (live && existing.headRevisionId) {
-    const head = await tx.revisions.findInProject(projectId, existing.id, existing.headRevisionId);
-    if (head && head.contentHash === f.contentHash) {
-      return { outcome: 'unchanged', model: existing, revision: head };
-    }
+  const previous =
+    live && existing.headRevisionId
+      ? await tx.revisions.findInProject(projectId, existing.id, existing.headRevisionId)
+      : null;
+  const previousFactsHash = previous?.factsHash ?? null;
+  if (live && previous && previous.contentHash === f.contentHash) {
+    return {
+      result: { outcome: 'unchanged', model: existing, revision: previous },
+      previousFactsHash,
+    };
   }
 
   const extracted = await f.extract();
   if (!extracted.ok) {
     return {
-      outcome: 'failed',
-      error: extractError(extracted.error.code, extracted.error.message),
+      result: {
+        outcome: 'failed',
+        error: extractError(extracted.error.code, extracted.error.message),
+      },
+      previousFactsHash,
     };
   }
   const { facts, processes, messageFlows, factsVersion, engine } = extracted.value;
@@ -220,13 +242,18 @@ async function storeFile(
   const model = await tx.models.findByKey(projectId, f.key);
   const revision = await tx.revisions.findInProject(projectId, modelId, revisionId);
   if (!model || !revision) throw new Error(`ingest: ${f.key} vanished inside its transaction`);
-  return { outcome, model, revision };
+  return { result: { outcome, model, revision }, previousFactsHash };
 }
 
 /**
- * Queues a `relations` task when the head's `facts_hash` differs from that of
- * the model's last `done` task (CONCEPT §3). An open task for different facts
- * is cancelled first; one for the same facts stays.
+ * Queues a `relations` task for a new head (CONCEPT §3, judge each pair
+ * once): always for a new or revived model (`previousFactsHash` null), and
+ * when the head's `facts_hash` differs from the previous head's, so a
+ * revert is judged again although an earlier task analysed the same facts;
+ * judge-once keeps that cheap. A layout-only change queues nothing, unless
+ * no task is open and none analysed these facts (a failed task). An open
+ * task for different facts is cancelled first; one for the same facts
+ * stays.
  */
 export async function queueAnalysis(
   tx: Tx,
@@ -234,13 +261,41 @@ export async function queueAnalysis(
   projectId: ProjectId,
   model: ModelRecord,
   revision: RevisionRecord,
+  previousFactsHash: string | null,
 ): Promise<TaskRecord | null> {
   const open = await tx.tasks.latest(projectId, model.id, ['queued', 'claimed']);
   if (open?.factsHash === revision.factsHash) return null;
   if (open) await cancelTask(tx, actor, projectId, model, open, 'new head with different facts');
-  const done = await tx.tasks.latest(projectId, model.id, ['done']);
-  if (done?.factsHash === revision.factsHash) return null;
+  if (!open && previousFactsHash === revision.factsHash) {
+    const done = await tx.tasks.latest(projectId, model.id, ['done']);
+    if (done?.factsHash === revision.factsHash) return null;
+  }
   return queueTask(tx, actor, projectId, model, revision, 'new head');
+}
+
+/**
+ * After pipeline judgements were withdrawn outside an analysis (a revoked
+ * token, `withdraw_proposal`), the live models among `modelKeys` judge
+ * their pairs again: a model without an open task gets a queued one, a
+ * claimed task gets `requeue_after` (its submit queues a follow-up, since
+ * its claim may have skipped the lost pairs); a queued task's claim sees the
+ * loss anyway.
+ */
+export async function requeueAfterLoss(
+  tx: Tx,
+  actor: Actor,
+  projectId: ProjectId,
+  modelKeys: Iterable<string>,
+): Promise<void> {
+  for (const key of [...new Set(modelKeys)].sort()) {
+    const model = await tx.models.findByKey(projectId, key);
+    if (!model?.headRevisionId || model.deletedSeq !== null) continue;
+    const open = await tx.tasks.latest(projectId, model.id, ['queued', 'claimed']);
+    if (open?.state === 'claimed') await tx.tasks.setRequeueAfter(projectId, open.id);
+    if (open) continue;
+    const head = await tx.revisions.findInProject(projectId, model.id, model.headRevisionId);
+    if (head) await queueTask(tx, actor, projectId, model, head, 'judgement withdrawn');
+  }
 }
 
 /** Inserts a queued `relations` task for `revision` and records `analysis.queued`. */
@@ -250,7 +305,7 @@ export async function queueTask(
   projectId: ProjectId,
   model: Pick<ModelRecord, 'id' | 'key'>,
   revision: Pick<RevisionRecord, 'id' | 'factsHash'>,
-  reason: 'new head' | 'requeue',
+  reason: 'new head' | 'requeue' | 'judgement withdrawn',
 ): Promise<TaskRecord> {
   const id = newId('analysisTask');
   const seq = await tx.events.append(projectId, {

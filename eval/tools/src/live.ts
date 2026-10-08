@@ -102,6 +102,8 @@ function runSummary(s: ReplayScore) {
     questions: s.questions.pairs,
     noLinks: s.noLinks.pairs,
     invalid: s.items.invalid,
+    pairsJudgedTwice: s.pairsJudgedTwice,
+    uncovered: s.uncovered,
   };
 }
 

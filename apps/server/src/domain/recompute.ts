@@ -108,6 +108,8 @@ export async function recomputeProject(ctx: RecomputeContext): Promise<Recompute
     question: null,
     label: null,
     linkedRelationId: null,
+    fromHash: null,
+    toHash: null,
   });
 
   // 1. Derived relations: create, re-assert or leave as they are.

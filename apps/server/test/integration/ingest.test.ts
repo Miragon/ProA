@@ -385,7 +385,9 @@ describe('stage (view model_pipeline)', () => {
     expect(filtered.items.map((m) => m.key)).toEqual(['b/billing']);
   });
 
-  it('does not queue again when the facts return to those of the last done task', async () => {
+  // Judge each pair once: a revert queues a task, since partners may have judged the pairs
+  // against the other version meanwhile (before 0.2.0 the last done task's facts queued none).
+  it('queues again when the facts return to those of the last done task', async () => {
     const p = await t.createProject('requeue');
     const first = await put('requeue', 'a/order', order);
     await database.db.execute(
@@ -396,7 +398,7 @@ describe('stage (view model_pipeline)', () => {
     const r = await database.db.execute<{ state: string }>(
       sql.raw(`SELECT state FROM analysis_task WHERE project_id = '${p.id}' ORDER BY seq`),
     );
-    expect(r.rows.map((x) => x.state)).toEqual(['done', 'cancelled']);
+    expect(r.rows.map((x) => x.state)).toEqual(['done', 'cancelled', 'queued']);
     expect(first.body.model.stage).toBe('waiting_for_agent');
   });
 });

@@ -6,6 +6,7 @@ import type {
   Project,
   Relation,
   RelationAssertion,
+  RelationNoLink,
   RelationProvenance,
   Revision,
   Role,
@@ -18,6 +19,7 @@ import type {
   RelationRecord,
   RevisionRecord,
   StoredAssertion,
+  StoredNoLink,
   TaskDetail,
 } from './ports.ts';
 import { recomputeStatus } from './status.ts';
@@ -91,11 +93,26 @@ export function basisOf(history: readonly StoredAssertion[]): StoredAssertion | 
   return history.find((a) => a.seq === basisSeq) ?? null;
 }
 
+function toRelationNoLink(n: StoredNoLink): RelationNoLink {
+  return {
+    id: n.id,
+    handle: n.handle,
+    origin: n.origin,
+    reason: n.reason,
+    at: iso(n.createdAt),
+  };
+}
+
 /**
  * @param history the relation's assertions (provenance and `source` come
  *   from the one its status rests on)
+ * @param noLinks the live, current no-links on its typed pair, oldest first
  */
-export function toRelation(r: RelationRecord, history: readonly StoredAssertion[]): Relation {
+export function toRelation(
+  r: RelationRecord,
+  history: readonly StoredAssertion[],
+  noLinks: readonly StoredNoLink[] = [],
+): Relation {
   const basis = basisOf(history);
   return {
     id: r.id,
@@ -110,6 +127,7 @@ export function toRelation(r: RelationRecord, history: readonly StoredAssertion[
     attrs: r.attrs,
     source: basis?.sourceKind ?? null,
     provenance: basis ? toProvenance(basis) : null,
+    noLinks: noLinks.map(toRelationNoLink),
     updatedAt: iso(r.updatedAt),
   };
 }

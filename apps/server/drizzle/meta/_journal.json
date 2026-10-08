@@ -29,6 +29,20 @@
       "when": 1791441535726,
       "tag": "0003_pipeline_notify",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791486475868,
+      "tag": "0004_judge_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791486483416,
+      "tag": "0005_judge_once_triggers",
+      "breakpoints": true
     }
   ]
 }

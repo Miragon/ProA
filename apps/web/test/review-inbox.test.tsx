@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import { App } from '../src/app';
+import { QueueTable } from '../src/components/review/queue-table';
 import {
   analysesQuery,
   assertionsQuery,
@@ -14,8 +15,8 @@ import {
   projectQuery,
 } from '../src/lib/queries';
 import { createAppRouter } from '../src/router';
-import { findToast, json, stubApi } from './support/render';
-import { model, provenance, relation } from './support/fixtures';
+import { findToast, json, renderWithRouter, stubApi } from './support/render';
+import { model, noLink, provenance, relation, sampleResolver } from './support/fixtures';
 
 const models: Model[] = [
   model({ key: 'a/held', stage: 'waiting_for_clarification', openItems: 1 }),
@@ -147,5 +148,41 @@ describe('review inbox', () => {
     expect(calls.filter((c) => c.method === 'POST').map((c) => c.body)).toContainEqual({
       modelKeys: ['b/stuck'],
     });
+  });
+});
+
+describe('QueueTable', () => {
+  it('marks an open agent question and an agent no-link on the pair', async () => {
+    const proposals = [
+      relation({
+        id: 'rel_01PLAIN',
+        from: 'a/one#S',
+        to: 'b/two#C',
+        provenance: provenance(),
+      }),
+      relation({
+        id: 'rel_01OBJECTED',
+        from: 'a/one#T',
+        to: 'b/two#D',
+        provenance: provenance({ question: 'Auch bei Teillieferungen?' }),
+        noLinks: [noLink({ id: 'nlk_01A' }), noLink({ id: 'nlk_02B', handle: 'agent:codex' })],
+      }),
+    ];
+    await renderWithRouter(
+      <QueueTable
+        project="demo"
+        items={proposals.map((relation) => ({ relation, finishes: 0 }))}
+        resolve={sampleResolver}
+        filters={{}}
+      />,
+    );
+    const rows = screen.getAllByTestId('queue-row');
+    const [plain, objected] = rows;
+    expect(within(plain!).queryByTestId('queue-no-link')).toBeNull();
+    expect(within(plain!).queryByText('Frage')).toBeNull();
+    expect(within(objected!).getByText('Frage')).toBeTruthy();
+    const marker = within(objected!).getByTestId('queue-no-link');
+    expect(marker.textContent).toBe('Einwand');
+    expect(marker.getAttribute('title')).toBe('Kein Zusammenhang laut Agent (2 Einwände)');
   });
 });

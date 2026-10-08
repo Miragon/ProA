@@ -6,6 +6,7 @@
  */
 import {
   newId,
+  type DeclaredProcedure,
   type PrincipalId,
   type ProjectId,
   type Relation,
@@ -18,6 +19,7 @@ import type {
   AssertionRecord,
   RelationRecord,
   StoredAssertion,
+  StoredNoLink,
   Tx,
 } from './ports.ts';
 import { endpointState, recomputeStatus, type AssertionView } from './status.ts';
@@ -145,11 +147,18 @@ export async function refreshRelation(
   return { relation: stored, endpointChanged };
 }
 
-/** Relations as API resources, with provenance from their histories (one query). */
+/**
+ * Relations as API resources: provenance from their histories (one query)
+ * and the live, current no-links on their typed pairs (one query, currency
+ * in SQL against the heads and `procedure`).
+ *
+ * @param procedure the procedure claims name now
+ */
 export async function relationViews(
   tx: Tx,
   projectId: ProjectId,
   records: readonly RelationRecord[],
+  procedure: DeclaredProcedure,
 ): Promise<Relation[]> {
   if (records.length === 0) return [];
   const histories = byRelation<StoredAssertion>(
@@ -158,5 +167,22 @@ export async function relationViews(
       records.map((r) => r.id),
     ),
   );
-  return records.map((r) => toRelation(r, histories.get(r.id) ?? []));
+  const pairs = records.flatMap((r) =>
+    r.type === 'manual' ? [] : [{ type: r.type, from: r.fromRef, to: r.toRef }],
+  );
+  const noLinks = new Map<string, StoredNoLink[]>();
+  if (pairs.length > 0) {
+    for (const n of await tx.noLinks.listLive(projectId, { pairs }, procedure)) {
+      if (!n.current) continue;
+      const key = naturalKey(n.type, n.fromRef, n.toRef);
+      noLinks.set(key, [...(noLinks.get(key) ?? []), n]);
+    }
+  }
+  return records.map((r) =>
+    toRelation(
+      r,
+      histories.get(r.id) ?? [],
+      noLinks.get(naturalKey(r.type, r.fromRef, r.toRef)) ?? [],
+    ),
+  );
 }

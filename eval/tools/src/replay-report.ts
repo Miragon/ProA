@@ -17,9 +17,13 @@ export function scoreLine(s: ReplayScore): string {
     `${s.file}: ${s.tasks.lines} tasks, ${s.pairs} pairs; precision ${formatRatio(s.overall.precision)}, ` +
     `recall ${formatRatio(s.overall.recall)} (∪ rules ${formatRatio(s.withRules.recall)}), ` +
     `F1 ${formatRatio(s.overall.f1)}; must_not_link ${s.mustNotLinkHits.length} ` +
-    `(${s.mustNotLinkHighConfidence} at ≥ ${HIGH_CONFIDENCE}); ${s.questions.pairs} questions`
+    `(${s.mustNotLinkHighConfidence} at ≥ ${HIGH_CONFIDENCE}); ${s.questions.pairs} questions; ` +
+    `${s.pairsJudgedTwice} judged twice${s.uncovered === null ? '' : `, ${s.uncovered} uncovered`}`
   );
 }
+
+/** `uncovered` in a table: `–` for results that do not report it (before proa-relations@0.2.0). */
+const uncoveredCell = (s: ReplayScore): string | number => s.uncovered ?? '–';
 
 const cell = (s: string | number): string => String(s).replaceAll('|', '\\|');
 
@@ -88,6 +92,13 @@ function section(s: ReplayScore): string {
       `${s.tasks.dryRun} dry run, ${s.tasks.failed} failed) · ${s.items.total} proposals ` +
       `(outcomes: ${counts(s.items.outcomes)}; invalid ${invalid}${invalid > 0 ? `: ${counts(s.items.invalid)}` : ''}) ` +
       `on ${s.pairs} distinct pairs.`,
+  );
+  parts.push(
+    `Judge each pair once: ${s.pairsJudgedTwice} ${s.pairsJudgedTwice === 1 ? 'pair' : 'pairs'} judged (proposed or ` +
+      'no-linked) in the tasks of more than one model; ' +
+      (s.uncovered === null
+        ? 'uncovered pairs not reported (results before proa-relations@0.2.0).'
+        : `${s.uncovered} assigned ${s.uncovered === 1 ? 'pair' : 'pairs'} left uncovered.`),
   );
   parts.push(
     table(METRIC_HEADER, [metricRow('proposals', s.overall), metricRow('proposals ∪ rule-tier acceptances', s.withRules)]),
@@ -185,7 +196,9 @@ export function renderReplayMarkdown(report: ReplayReport): string {
       'all its submissions, by `(from, to)`. Precision counts must_not_link, same-process and (closed world) ' +
       'unlisted pairs as false positives; may_link pairs are neutral. Recall counts must_link pairs; ' +
       '"∪ rule-tier acceptances" adds the unambiguous calls the rule tier accepts at ingest, which agents ' +
-      'do not propose again.',
+      'do not propose again. "judged twice" counts the pairs judged (a valid proposal or no-link) in the tasks ' +
+      'of more than one model, "uncovered" the assigned pairs the submissions left without a judgement (– for ' +
+      'results before proa-relations@0.2.0, which do not report them).',
   );
   if (report.recordings.length === 0) {
     parts.push('_No recordings._');
@@ -206,6 +219,8 @@ export function renderReplayMarkdown(report: ReplayReport): string {
         'questions',
         'no-links',
         'invalid',
+        'judged twice',
+        'uncovered',
       ],
       report.recordings.map((s) => [
         title(s),
@@ -220,6 +235,8 @@ export function renderReplayMarkdown(report: ReplayReport): string {
         s.questions.pairs,
         s.noLinks.pairs,
         Object.values(s.items.invalid).reduce((a, b) => a + b, 0),
+        s.pairsJudgedTwice,
+        uncoveredCell(s),
       ]),
     ),
   );

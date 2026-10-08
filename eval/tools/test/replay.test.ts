@@ -13,11 +13,14 @@ import { getProcedure } from '@proa/procedures';
 
 import { CORPUS_DIR } from '../src/corpus.ts';
 import { RecordingError, landscapeDir, loadRecordings, parseRecording } from '../src/recordings.ts';
-import { renderReplayMarkdown } from '../src/replay-report.ts';
+import { renderReplayMarkdown, scoreLine } from '../src/replay-report.ts';
 import { USAGE, replay, runReplay, type ReplayIo } from '../src/replay.ts';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/recordings', import.meta.url));
 const FIXTURE_FILE = 'proa-relations@0.0.1/fixture-agent/fixture-model/sample.jsonl';
+/** A recording with results as the server answers since proa-relations@0.2.0 (no-link outcomes, uncovered pairs). */
+const JUDGE_ONCE = fileURLToPath(new URL('./fixtures/judge-once', import.meta.url));
+const JUDGE_ONCE_FILE = 'proa-relations@0.0.2/fixture-agent/fixture-model/sample.jsonl';
 const A = 'vertrieb/auftragsabwicklung';
 const R = 'finanzen/rechnungsstellung';
 const P = 'finance/payment-collection';
@@ -91,6 +94,10 @@ test('scores the fixture recording of _sample exactly', async () => {
   assert.deepEqual(s.noLinks.byClass, { must_link: 1, may_link: 0, must_not_link: 0, unlisted: 1, same_process: 0 });
   assert.equal(s.noLinks.pairs, 2);
   assert.deepEqual(s.noLinks.onMustLink.map((e) => e.tags), [['de-en']]);
+  // Double work: the cancellation pair is judged in the tasks of both models (proposed, then no-linked too).
+  assert.equal(s.pairsJudgedTwice, 1);
+  // Results before proa-relations@0.2.0 report no uncovered pairs.
+  assert.equal(s.uncovered, null);
 
   // fixture-agent is a live run (not agent-sim): its must_not_link pair at 0.85 fails the live gate.
   assert.deepEqual(
@@ -106,7 +113,11 @@ test('renders a deterministic report', async () => {
   assert.match(md, /^# eval:replay\n/);
   assert.match(
     md,
-    /\| proa-relations@0\.0\.1 \/ fixture-agent \/ fixture-model \/ sample \| dev \| 2 \| 5 \| 60\.0 % \| 60\.0 % \| 60\.0 % \| 80\.0 % \| 1 \(1\) \| 2 \| 2 \| 3 \|/,
+    /\| proa-relations@0\.0\.1 \/ fixture-agent \/ fixture-model \/ sample \| dev \| 2 \| 5 \| 60\.0 % \| 60\.0 % \| 60\.0 % \| 80\.0 % \| 1 \(1\) \| 2 \| 2 \| 3 \| 1 \| – \|/,
+  );
+  assert.match(
+    md,
+    /Judge each pair once: 1 pair judged \(proposed or no-linked\) in the tasks of more than one model; uncovered pairs not reported \(results before proa-relations@0\.2\.0\)\./,
   );
   assert.match(md, /- `trigger` finance\/payment-collection#End_InvoicePaid → finance\/payment-collection#Event_InvoiceSent \(confidence 0\.85; near-miss, self-link\)/);
   assert.match(renderReplayMarkdown({ recordings: [], liveGate: [] }), /_No recordings\._/);
@@ -123,6 +134,36 @@ test('renders a deterministic report', async () => {
     liveGate: [],
   });
   assert.match(onlySim, /## Live gate\n\n.*\n\n_No live runs yet\._\n/);
+});
+
+test('scores judge-once results: double work, uncovered pairs, invalid no-links left out', async () => {
+  const report = await replay(JUDGE_ONCE, CORPUS_DIR);
+  assert.equal(report.recordings.length, 1);
+  const s = report.recordings[0];
+  assert.ok(s);
+  assert.equal(s.file, JUDGE_ONCE_FILE);
+  assert.deepEqual(s.tasks, { lines: 3, models: 3, landscapeModels: 3, submitted: 3, dryRun: 0, failed: 0 });
+  assert.deepEqual(s.items, { total: 2, invalid: {}, outcomes: { applied: 2 } });
+  assert.equal(s.pairs, 2);
+  assert.deepEqual([s.overall.found, s.overall.mustLink, s.overall.precision], [2, 5, 1]);
+  // Valid no-links only: the cancellation pair (unlisted) and the de-en pair (must_link); the no-link on the
+  // proposed pair does not count, nor do the two the server answered invalid (one of them would be unlisted).
+  assert.deepEqual(s.noLinks.byClass, { must_link: 1, may_link: 0, must_not_link: 0, unlisted: 1, same_process: 0 });
+  assert.equal(s.noLinks.pairs, 2);
+  assert.deepEqual(s.noLinks.onMustLink.map((e) => e.tags), [['de-en']]);
+  // Judged twice: the pair model A proposed and model R no-linked. The de-en pair counts once: A's no-link on it
+  // was invalid (outside the task's model), so only P judged it.
+  assert.equal(s.pairsJudgedTwice, 1);
+  // 2 + 1 + 0 assigned pairs left uncovered.
+  assert.equal(s.uncovered, 3);
+
+  assert.match(scoreLine(s), /; 0 questions; 1 judged twice, 3 uncovered$/);
+  const md = renderReplayMarkdown(report);
+  assert.match(md, /\| proa-relations@0\.0\.2 \/ fixture-agent \/ fixture-model \/ sample \| dev \| 3 \| 2 \| 100\.0 % \| 40\.0 % \|.*\| 2 \| 0 \| 1 \| 3 \|\n/);
+  assert.match(
+    md,
+    /Judge each pair once: 1 pair judged \(proposed or no-linked\) in the tasks of more than one model; 3 assigned pairs left uncovered\./,
+  );
 });
 
 test('scores the committed recordings of the simulation agent', async () => {
@@ -143,6 +184,9 @@ test('scores the committed recordings of the simulation agent', async () => {
     // The rule tier's acceptances are the calls the agent leaves alone.
     assert.ok((s.withRules.recall ?? 0) >= (s.overall.recall ?? 0), s.file);
     assert.ok(s.questions.pairs > 0, s.file);
+    // Judge each pair once (proa-relations@0.2.0): no pair is judged in the tasks of two models.
+    assert.equal(s.pairsJudgedTwice, 0, s.file);
+    assert.ok(s.uncovered !== null, s.file);
   }
   // The live gate covers exactly the groups (procedure, landscape, model) with live runs.
   assert.deepEqual(

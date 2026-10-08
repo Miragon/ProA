@@ -1,11 +1,17 @@
 /**
  * The claim input stays small (CONCEPT §3: "≤ ~100 KB"; M2 item 2): both
  * scored corpus landscapes are imported with the real libraries, every task
- * is claimed, and every input is checked against the contract and measured
- * as the agent receives it (UTF-8 JSON). Prints only sizes and counts, never
- * the content of a model's input.
+ * is claimed (all at once, so later claims list what earlier ones were
+ * assigned in `skip` instead of `candidates`), and every input is checked against the contract and measured
+ * as the agent receives it (UTF-8 JSON). A third run seeds LLM-sized
+ * judgements (judge each pair once): the partners of the largest model
+ * judge every key and lexical pair and some compatible ones with long
+ * texts, and the largest model's claim lists them in `judged`. Prints only
+ * sizes and counts, never the content of a model's input.
  */
-import { ClaimInput, ClaimedAnalysis } from '@proa/contracts';
+import { randomUUID } from 'node:crypto';
+
+import { ClaimInput, ClaimedAnalysis, type SubmitAnalysisInput } from '@proa/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { libraryAnalysis } from '../../src/analysis.ts';
@@ -13,10 +19,16 @@ import { claimInputBytes } from '../../src/domain/claim-input.ts';
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { corpusFiles, importAll } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
-import { claim } from '../support/pipeline.ts';
+import { RELATIONS_PROCEDURE, asAgent, claim, submit } from '../support/pipeline.ts';
 
 const LANDSCAPES = ['nordwind-handel', 'stadtwerke-auental'] as const;
 const LIMIT_BYTES = 100 * 1024;
+/** The model with the largest claim input of the eval corpus (DEVELOPMENT.md). */
+const LARGEST = 'vertrieb/order-handling';
+/** Texts as long as an LLM writes them (rationale about 400 characters, reasons beyond the cut). */
+const RATIONALE =
+  `${'Die Nachricht wird im Sender ausgelöst und im Empfänger erwartet; '.repeat(6)}`.slice(0, 400);
+const REASON = `no-evidence: ${'Die Bezeichnungen ähneln sich, beschreiben aber verschiedene Vorgänge. '.repeat(3)}`;
 
 let database: TestDatabase;
 let t: TestApp;
@@ -45,6 +57,64 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await database.drop();
+});
+
+describe('claim input after LLM-sized judgements', () => {
+  it(`lists them in judged and stays below ${LIMIT_BYTES / 1024} KB for ${LARGEST}`, async () => {
+    const project = 'judged';
+    await t.createProject(project);
+    const owner = (path: string, init?: RequestInit) => t.asOwner(path, init);
+    const files = await corpusFiles('nordwind-handel');
+    await importAll(owner, project, files);
+    const token = await t.createToken(project, ['proa:read', 'proa:propose']);
+    const agent = asAgent(t, token.secret);
+    // Every partner first, one task at a time: each judges its whole assignment.
+    for (const key of files.map((f) => f.key).filter((k) => k !== LARGEST)) {
+      const [c] = await claim(agent, { projectId: project, modelKey: key });
+      if (!c) throw new Error(`no task for ${key}`);
+      // Judged and skipped pairs are not among the candidates: all of them are open.
+      const open = c.input.candidates;
+      let compatible = 0;
+      const body: SubmitAnalysisInput = {
+        leaseToken: c.leaseToken,
+        submissionId: randomUUID(),
+        procedure: RELATIONS_PROCEDURE,
+        llmModel: 'claude-sonnet-5-5',
+        relations: open
+          .filter(([, , , basis]) => basis === 'key')
+          .slice(0, 200)
+          .map(([type, from, to]) => ({
+            type,
+            from,
+            to,
+            confidence: 0.95,
+            rationale: RATIONALE,
+            evidence: [from, to],
+            question: null,
+          })),
+        noLinks: open
+          .filter(
+            ([, , , basis]) => basis === 'lexical' || (basis === 'compatible' && compatible++ < 10),
+          )
+          .slice(0, 500)
+          .map(([type, from, to]) => ({ type, from, to, reason: REASON })),
+        summary: 'Alle Kandidaten beurteilt.',
+      };
+      await submit(agent, c.taskId, body);
+    }
+    const [largest] = await claim(agent, { projectId: project, modelKey: LARGEST });
+    if (!largest) throw new Error(`no task for ${LARGEST}`);
+    const bytes = claimInputBytes(largest.input);
+    const judged = largest.input.judged ?? [];
+    console.log(
+      `${LARGEST} after LLM-sized judgements: ${(bytes / 1024).toFixed(1)} KB, ` +
+        `${judged.filter((j) => 'relation' in j).length} link verdicts and ` +
+        `${judged.filter((j) => !('relation' in j)).length} no-links in judged`,
+    );
+    expect(ClaimInput.parse(largest.input)).toEqual(largest.input);
+    expect(judged.length).toBeGreaterThan(20);
+    expect(bytes).toBeLessThan(LIMIT_BYTES);
+  }, 120_000);
 });
 
 describe.each(LANDSCAPES)('claim input of every model of %s', (landscape) => {

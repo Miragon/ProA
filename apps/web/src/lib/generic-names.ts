@@ -7,7 +7,8 @@ import type { Fact, Relation } from '@proa/client';
  * signal name, or an end's label, consists of generic words only, or when
  * more than two processes use the same name ({@link genericFlags}); and,
  * once agents work the pipeline, when the proposal asks the reviewer a
- * question or a call target is not unique ({@link bulkFlags}).
+ * question, an agent judged the pair unrelated (a no-link) or a call target
+ * is not unique ({@link bulkFlags}).
  */
 
 /** Words that say nothing about the business object (DE/EN, normalized like {@link nameWords}). */
@@ -213,8 +214,8 @@ export function nameUsage(facts: readonly Fact[]): NameUsage {
 }
 
 export interface GenericFlag {
-  kind: 'generic-word' | 'shared-name' | 'agent-question' | 'ambiguous-target';
-  /** The name or label the flag is about. */
+  kind: 'generic-word' | 'shared-name' | 'agent-question' | 'agent-no-link' | 'ambiguous-target';
+  /** The name or label the flag is about; the question, or the no-link's id. */
   text: string;
   /** One German sentence for the preview. */
   detail: string;
@@ -268,33 +269,50 @@ export function genericFlags(
   return flags;
 }
 
-/** Longest question shown in a bulk preview row; the review screen shows it in full. */
-const MAX_FLAG_QUESTION = 160;
+/**
+ * Longest agent text (question, no-link reason) in a bulk preview row; the
+ * review screen shows it in full.
+ */
+const MAX_FLAG_TEXT = 160;
+
+/** `text` cut to {@link MAX_FLAG_TEXT} characters with an ellipsis. */
+function cut(text: string): string {
+  return text.length > MAX_FLAG_TEXT ? `${text.slice(0, MAX_FLAG_TEXT - 1).trimEnd()}…` : text;
+}
 
 /**
  * Everything that makes a pair need more than a glance before a bulk accept:
  * {@link genericFlags}, plus
  * - `agent-question`: the proposal the status rests on asks the reviewer a
  *   question (the review screen shows it; a bulk accept would skip it);
+ * - `agent-no-link`: one per current no-link on the pair, an agent's
+ *   judgement that it is unrelated (judge each pair once), whatever the
+ *   proposal the status rests on says;
  * - `ambiguous-target`: a call whose process id several models define
  *   (`duplicate-process-id`), where accepting every target is rarely right.
  */
 export function bulkFlags(
-  relation: Pick<Relation, 'type' | 'from' | 'to' | 'attrs' | 'provenance'>,
+  relation: Pick<Relation, 'type' | 'from' | 'to' | 'attrs' | 'provenance' | 'noLinks'>,
   labelOf: (ref: string) => string | null,
   usage: NameUsage,
 ): GenericFlag[] {
   const flags = genericFlags(relation, labelOf, usage);
   const question = relation.provenance?.question?.trim();
   if (question) {
-    const shown =
-      question.length > MAX_FLAG_QUESTION
-        ? `${question.slice(0, MAX_FLAG_QUESTION - 1).trimEnd()}…`
-        : question;
     flags.push({
       kind: 'agent-question',
       text: question,
-      detail: `Der Agent fragt nach: „${shown}“`,
+      detail: `Der Agent fragt nach: „${cut(question)}“`,
+    });
+  }
+  for (const noLink of relation.noLinks) {
+    const reason = noLink.reason.trim();
+    flags.push({
+      kind: 'agent-no-link',
+      text: noLink.id,
+      detail: reason
+        ? `${noLink.handle} sieht keinen Zusammenhang: „${cut(reason)}“`
+        : `${noLink.handle} sieht keinen Zusammenhang.`,
     });
   }
   if (relation.type === 'call' && relation.attrs['match'] === 'duplicate-process-id') {

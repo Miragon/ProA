@@ -15,6 +15,7 @@ import { createStore } from '../../src/db/store.ts';
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { fakeBpmn } from '../support/fake-analysis.ts';
+import { claim, submission, submit } from '../support/pipeline.ts';
 
 let database: TestDatabase;
 let t: TestApp;
@@ -212,6 +213,8 @@ describe('M2: notes, submissions, engine', () => {
           linkedRelationId: null,
           fromFp: null,
           toFp: null,
+          fromHash: null,
+          toHash: null,
         }),
       ),
     ).rejects.toMatchObject({ cause: { constraint: 'relation_assertion_agents_never_decide' } });
@@ -277,5 +280,96 @@ describe('M2: notes, submissions, engine', () => {
       // The zeebe namespace on an inner element does not count: only the <definitions> tag.
       expect(after?.engine ?? null, attrs).toBe(engine);
     }
+  });
+});
+
+describe('judge each pair once: no-links (migrations 0004, 0005)', () => {
+  let noLinkId: string;
+
+  beforeAll(async () => {
+    // The owner works the caller's task and judges the call pair unrelated.
+    const owner = (path: string, init?: RequestInit) => t.asOwner(path, init);
+    const [c] = await claim(owner, { projectId: 'db', modelKey: 'a/caller' });
+    if (!c) throw new Error('no task for a/caller');
+    const result = await submit(owner, c.taskId, {
+      ...submission(c, []),
+      noLinks: [{ type: 'call', from: 'a/caller#Call_B', to: 'b/callee#P_B', reason: 'x: y' }],
+    });
+    expect(result.noLinks?.counts.stored).toBe(1);
+    const [row] = (
+      await database.db.execute<{ id: string }>(
+        sql.raw(`SELECT id FROM no_link WHERE project_id = '${projectId}'`),
+      )
+    ).rows;
+    noLinkId = row?.id ?? '';
+    expect(noLinkId).toMatch(/^nlk_/);
+  });
+
+  it.each([
+    ['UPDATE no_link SET reason = reason', /no_link is append-only: UPDATE/],
+    ['DELETE FROM no_link', /no_link is append-only: DELETE/],
+    ['TRUNCATE no_link CASCADE', /is append-only: TRUNCATE/],
+  ])('no_link: %s fails', async (statement, message) => {
+    expect(await failure(sql.raw(statement))).toMatch(message);
+  });
+
+  it('ends a no-link with one withdrawal row, itself append-only', async () => {
+    const withdraw = (project: string) =>
+      sql.raw(
+        `INSERT INTO no_link_withdrawal (no_link_id, project_id, seq, principal_id, reason)
+         SELECT n.id, '${project}', n.seq, n.principal_id, 'test' FROM no_link n WHERE n.id = '${noLinkId}'`,
+      );
+    // Never into another project (composite foreign key).
+    expect(await failure(withdraw(otherProjectId))).toMatch(/no_link_withdrawal_project_fk/);
+    await database.db.execute(withdraw(projectId));
+    expect(await failure(withdraw(projectId))).toMatch(/no_link_withdrawal_pkey/);
+    expect(await failure(sql.raw('UPDATE no_link_withdrawal SET reason = reason'))).toMatch(
+      /no_link_withdrawal is append-only: UPDATE/,
+    );
+    expect(await failure(sql.raw('DELETE FROM no_link_withdrawal'))).toMatch(
+      /no_link_withdrawal is append-only: DELETE/,
+    );
+  });
+
+  it('backfills claimed_seq from the latest analysis.claimed event (migration 0005)', async () => {
+    const statements = (
+      await readFile(new URL('../../drizzle/0005_judge_once_triggers.sql', import.meta.url), 'utf8')
+    )
+      .split('--> statement-breakpoint')
+      .map((s) => s.trim());
+    const backfill = statements.find((s) => s.includes('UPDATE "analysis_task"'));
+    expect(backfill).toBeDefined();
+    const claimedSeq = async () =>
+      (
+        await database.db.execute<{ claimed_seq: string | null; latest: string }>(
+          sql.raw(
+            `SELECT t.claimed_seq, (SELECT max(e.seq) FROM event e WHERE e.project_id = t.project_id
+               AND e.type = 'analysis.claimed' AND e.payload->>'taskId' = t.id) AS latest
+             FROM analysis_task t JOIN model m ON m.id = t.model_id
+             WHERE t.project_id = '${projectId}' AND m.key = 'a/caller'`,
+          ),
+        )
+      ).rows[0];
+    const before = await claimedSeq();
+    expect(before?.claimed_seq).toBe(before?.latest);
+    await database.db.execute(
+      sql.raw(`UPDATE analysis_task SET claimed_seq = NULL WHERE project_id = '${projectId}'`),
+    );
+    await database.db.execute(sql.raw(backfill ?? ''));
+    expect((await claimedSeq())?.claimed_seq).toBe(before?.latest);
+  });
+
+  it('refuses a no-link without its submission or with another relation type', async () => {
+    const insert = (type: string, submissionId: string) =>
+      sql.raw(
+        `INSERT INTO no_link (id, project_id, type, from_ref, to_ref, from_model, to_model, from_hash,
+           to_hash, reason, source_kind, principal_id, declared, submission_id, model_id, seq)
+         SELECT 'nlk_x', n.project_id, '${type}', n.from_ref, n.to_ref, n.from_model, n.to_model,
+           n.from_hash, n.to_hash, n.reason, n.source_kind, n.principal_id, n.declared,
+           ${submissionId}, n.model_id, n.seq
+         FROM no_link n WHERE n.id = '${noLinkId}'`,
+      );
+    expect(await failure(insert('manual', 'n.submission_id'))).toMatch(/no_link_type_check/);
+    expect(await failure(insert('call', "'sbm_missing'"))).toMatch(/no_link_submission_fk/);
   });
 });

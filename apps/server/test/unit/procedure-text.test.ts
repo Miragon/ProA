@@ -12,6 +12,7 @@ import { MAX_DOCUMENTATION_LENGTH } from '@proa/bpmn-facts';
 import {
   CLAIM_DOC_CHARS,
   INVALID_REASONS,
+  NO_LINK_INVALID_REASONS,
   LEASE_MINUTES,
   MAX_ATTEMPTS,
   MAX_EVIDENCE_ITEMS,
@@ -93,6 +94,15 @@ describe('the relations procedure text', () => {
     const listed = [...limits.slice(start.length).matchAll(/`([a-z-]+)`/g)].map((m) => m[1]);
     // The text orders them for agents, so compare as sets.
     expect([...listed].sort()).toEqual([...INVALID_REASONS].sort());
+  });
+
+  it('names exactly the no-link invalid reasons the server answers', () => {
+    const start = 'Per no-link, `invalid:<reason>` while the others apply:';
+    const from = text.indexOf(start);
+    const list = text.slice(from, text.indexOf('Other no-link outcomes:', from));
+    expect(list.startsWith(start)).toBe(true);
+    const listed = [...list.slice(start.length).matchAll(/`([a-z-]+)`/g)].map((m) => m[1]);
+    expect([...listed].sort()).toEqual([...NO_LINK_INVALID_REASONS].sort());
   });
 
   it('names only MCP tools that exist', () => {

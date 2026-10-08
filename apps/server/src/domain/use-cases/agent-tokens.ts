@@ -4,12 +4,16 @@ import {
   type AgentTokenList,
   type CreateAgentTokenBody,
   type CreatedAgentToken,
+  type DeclaredProcedure,
 } from '@proa/contracts';
 
 import { AGENT_TOKEN_ISSUER, type Actor } from '../actor.ts';
 import { generateAgentTokenSecret } from '../agent-token-secret.ts';
 import { DomainError } from '../errors.ts';
 import { headFingerprints } from '../fingerprints.ts';
+import { requeueAfterLoss } from '../ingest.ts';
+import { modelOf } from '../judgements.ts';
+import { withdrawNoLinks } from '../no-links.ts';
 import { policy } from '../policy.ts';
 import type { AgentTokenRecord, AssertionRecord, ProjectRecord, Tx } from '../ports.ts';
 import { withdrawStance, type ProposalContext } from '../proposals.ts';
@@ -22,25 +26,34 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * What a revoked token leaves behind (CONCEPT §6, "revoking a token or
- * service withdraws its proposals"): its live proposals are withdrawn under
- * its principal, by the revoking owner, and its claimed tasks are queued
- * again without counting the attempt. Decisions by others stay.
+ * service withdraws its proposals"): its live proposals and no-links are
+ * withdrawn under its principal, by the revoking owner, and its claimed
+ * tasks are queued again without counting the attempt. Decisions by others
+ * stay. Both endpoint models of every withdrawn pipeline judgement judge
+ * their pairs again (`requeueAfterLoss`): partner analyses may have skipped
+ * the pairs because of them (judge each pair once).
+ *
+ * @param seq the `agent_token.revoked` event (stamps the no-link withdrawals)
+ * @param procedure the procedure claims name now
  */
 async function retractToken(
   tx: Tx,
   actor: Actor,
   project: ProjectRecord,
   token: AgentTokenRecord,
-): Promise<{ withdrawn: number; released: number }> {
+  seq: number,
+  procedure: DeclaredProcedure,
+): Promise<{ withdrawn: number; withdrawnNoLinks: number; released: number }> {
   const reason = `agent token ${token.name} (${token.prefix}…) revoked`;
   const histories = byRelation<AssertionRecord>(await tx.assertions.listForProject(project.id));
   const own = (history: readonly AssertionRecord[]) =>
     currentStances(history).find(
       (a) => a.principalId === token.principalId && a.kind === 'proposal',
     );
-  const affected = (await tx.relations.all(project.id)).filter((r) =>
-    own(histories.get(r.id) ?? []),
-  );
+  const all = await tx.relations.all(project.id);
+  const relations = new Map(all.map((r) => [naturalKey(r.type, r.fromRef, r.toRef), r]));
+  const affected = all.filter((r) => own(histories.get(r.id) ?? []));
+  const lost = new Set<string>();
 
   let withdrawn = 0;
   if (affected.length > 0) {
@@ -49,7 +62,7 @@ async function retractToken(
       projectId: project.id,
       actor,
       fps: headFingerprints(await tx.facts.headProjectFacts(project.id)),
-      relations: new Map(affected.map((r) => [naturalKey(r.type, r.fromRef, r.toRef), r])),
+      relations,
       histories,
       declared: null,
       submissionId: null,
@@ -62,8 +75,25 @@ async function retractToken(
         clientId: actor.clientId,
       });
       withdrawn++;
+      if (stance.submissionId !== null) {
+        lost.add(modelOf(relation.fromRef)).add(modelOf(relation.toRef));
+      }
     }
   }
+
+  const noLinks = await tx.noLinks.listLive(
+    project.id,
+    { principalId: token.principalId },
+    procedure,
+  );
+  await withdrawNoLinks(
+    tx,
+    project.id,
+    noLinks,
+    { seq, principalId: actor.principalId, reason },
+    relations,
+  );
+  for (const n of noLinks) lost.add(n.fromModel).add(n.toModel);
 
   let released = 0;
   const claimed = await tx.tasks.list(project.id, { state: 'claimed' }, { limit: ALL });
@@ -84,7 +114,8 @@ async function retractToken(
     });
     released++;
   }
-  return { withdrawn, released };
+  await requeueAfterLoss(tx, actor, project.id, lost);
+  return { withdrawn, withdrawnNoLinks: noLinks.length, released };
 }
 
 /**
@@ -156,8 +187,8 @@ export function agentTokenUseCases(deps: UseCaseDeps) {
     },
 
     /**
-     * Revokes a token and withdraws what it left open: its live proposals
-     * and its claimed tasks ({@link retractToken}), in one transaction.
+     * Revokes a token and withdraws what it left open: its live proposals,
+     * no-links and claimed tasks ({@link retractToken}), in one transaction.
      * Idempotent: revoking a revoked token changes nothing.
      */
     async revokeAgentToken(actor: Actor, projectRef: string, tokenId: AgentTokenId): Promise<void> {
@@ -169,14 +200,14 @@ export function agentTokenUseCases(deps: UseCaseDeps) {
         if (!token) throw new DomainError('not-found', 'agent token not found');
         if (token.revokedAt) return;
         await tx.agentTokens.revoke(project.id, tokenId, now);
-        await tx.events.append(project.id, {
+        const seq = await tx.events.append(project.id, {
           type: 'agent_token.revoked',
           principalId: actor.principalId,
           clientId: actor.clientId,
           subjectRef: tokenId,
           payload: { tokenId, name: token.name, prefix: token.prefix },
         });
-        await retractToken(tx, actor, project, token);
+        await retractToken(tx, actor, project, token, seq, deps.expectedProcedure());
       });
     },
   };

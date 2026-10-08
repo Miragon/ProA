@@ -2,6 +2,7 @@ import {
   SESSION_COOKIE,
   type AgentScope,
   type CreatedAgentToken,
+  type DeclaredProcedure,
   type Project,
 } from '@proa/contracts';
 
@@ -53,7 +54,12 @@ function withHeaders(init: RequestInit | undefined, extra: Record<string, string
 
 export function startTestApp(
   database: TestDatabase,
-  options: { analysis?: AnalysisPort; clock?: Clock; ownerKey?: string } = {},
+  options: {
+    analysis?: AnalysisPort;
+    clock?: Clock;
+    ownerKey?: string;
+    expectedProcedure?: () => DeclaredProcedure;
+  } = {},
 ): TestApp {
   const analysis = options.analysis ?? fakeAnalysis();
   const proa = createProaApp({
@@ -63,6 +69,7 @@ export function startTestApp(
     analysis,
     ...(options.clock ? { clock: options.clock } : {}),
     ...(options.ownerKey ? { ownerKey: options.ownerKey } : {}),
+    ...(options.expectedProcedure ? { expectedProcedure: options.expectedProcedure } : {}),
   });
   const ownerCookie = `${SESSION_COOKIE}=${proa.sessions.issue('proa-web')}`;
   const request = async (path: string, init?: RequestInit) =>

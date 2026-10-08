@@ -28,6 +28,8 @@ import {
 import { sourceKindOf, type Actor } from '../actor.ts';
 import { DomainError } from '../errors.ts';
 import { headFingerprints, type HeadFingerprints } from '../fingerprints.ts';
+import { requeueAfterLoss } from '../ingest.ts';
+import { modelOf } from '../judgements.ts';
 import { policy, type ProjectAccess } from '../policy.ts';
 import type { AssertionRecord, RelationRecord, StoredAssertion, Tx } from '../ports.ts';
 import {
@@ -112,6 +114,8 @@ async function recordDecision(
     linkedRelationId: d.linkedRelationId,
     fromFp: current.from ?? null,
     toFp: current.to ?? null,
+    fromHash: null,
+    toHash: null,
   });
   await tx.assertions.insert(assertion);
   const { relation: stored } = await refreshRelation(
@@ -205,6 +209,8 @@ async function acceptManual(
     linkedRelationId: linked,
     fromFp: current.from ?? null,
     toFp: current.to ?? null,
+    fromHash: null,
+    toHash: null,
   });
   const relation = await tx.relations.insert({
     ...target,
@@ -243,7 +249,7 @@ function decisionFields(body: Exclude<DecisionBody, { verdict: 'correct' }>): De
 
 export function reviewUseCases(deps: UseCaseDeps) {
   async function view(tx: Tx, projectId: ProjectId, r: RelationRecord): Promise<Relation> {
-    const [v] = await relationViews(tx, projectId, [r]);
+    const [v] = await relationViews(tx, projectId, [r], deps.expectedProcedure());
     if (!v) throw new Error('relation view missing');
     return v;
   }
@@ -395,7 +401,7 @@ export function reviewUseCases(deps: UseCaseDeps) {
             await recordDecision(tx, project.id, actor, r, histories.get(r.id) ?? [], fps, fields),
           );
         }
-        return { items: await relationViews(tx, project.id, decided) };
+        return { items: await relationViews(tx, project.id, decided, deps.expectedProcedure()) };
       });
     },
 
@@ -428,6 +434,8 @@ export function reviewUseCases(deps: UseCaseDeps) {
           linkedRelationId: null,
           fromFp: relation.fromFp,
           toFp: relation.toFp,
+          fromHash: null,
+          toHash: null,
         });
         await tx.assertions.insert(note);
         const stored = (await tx.assertions.listForRelations(project.id, [relation.id])).find(
@@ -548,7 +556,9 @@ export function reviewUseCases(deps: UseCaseDeps) {
 
     /**
      * `withdraw_proposal`: ends the caller's own live proposal; other
-     * principals' proposals and decisions stay.
+     * principals' proposals and decisions stay. A pipeline proposal is an
+     * agent judgement partner analyses may have skipped the pair for, so
+     * both endpoint models judge it again (`requeueAfterLoss`).
      *
      * @throws {DomainError} `conflict` without a live proposal of the caller
      */
@@ -583,6 +593,12 @@ export function reviewUseCases(deps: UseCaseDeps) {
           submissionId: null,
         };
         const stored = await withdrawStance(ctx, relation, own, null);
+        if (own.submissionId !== null) {
+          await requeueAfterLoss(tx, actor, project.id, [
+            modelOf(relation.fromRef),
+            modelOf(relation.toRef),
+          ]);
+        }
         return view(tx, project.id, stored);
       });
     },

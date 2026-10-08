@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { BulkAcceptDialog } from '../src/components/review/bulk-accept-dialog';
 import { nameUsage } from '../src/lib/generic-names';
 import { buildRefIndex, resolverOf } from '../src/lib/refs';
-import { fact, provenance, relation } from './support/fixtures';
+import { fact, noLink, provenance, relation } from './support/fixtures';
 import { findToast, json, renderWithQuery, stubApi, type Call } from './support/render';
 
 const PATH = '/api/v1/projects/demo/decisions';
@@ -381,6 +381,44 @@ describe('BulkAcceptDialog', () => {
     const [ambiguous] = within(call).getAllByTestId('generic-flag');
     expect(ambiguous!.dataset['flag']).toBe('ambiguous-target');
     expect(ambiguous!.textContent).toContain('„Process_Freigabe“ ist mehrfach definiert');
+
+    await user.click(screen.getByRole('button', { name: '1 annehmen' }));
+    await findToast('1 Relation angenommen');
+    expect((bodies(calls)[0] as BulkDecisionBody).items).toEqual([
+      { id: 'rel_01RECHNUNG', version: 2 },
+    ]);
+  });
+
+  it('flags every agent no-link on a pair and leaves it unchecked', async () => {
+    const long = `near-miss: ${'Die Ware ist kommissioniert, aber nicht versandbereit; '.repeat(5)}Ende.`;
+    const objected = [
+      pairs[0]!,
+      relation({
+        ...pairs[2]!,
+        noLinks: [
+          noLink({ id: 'nlk_01A', handle: 'agent:claude code', reason: long }),
+          noLink({ id: 'nlk_02B', handle: 'agent:codex', reason: '<b>kein</b> HTML' }),
+        ],
+      }),
+    ];
+    const { calls, user } = setup(undefined, objected);
+    await screen.findByRole('dialog');
+    expect(screen.getByRole('dialog').textContent).toContain(
+      'Paare ohne Zusammenhang laut einem Agenten',
+    );
+    expect(screen.getByTestId('bulk-summary').textContent).toBe('1 von 2 ausgewählt · 1 markiert');
+
+    const ware = row('rel_01WARE');
+    expect(ware.dataset['flagged']).toBe('true');
+    expect(within(ware).getByRole('checkbox').getAttribute('aria-checked')).toBe('false');
+    const flags = within(ware).getAllByTestId('generic-flag');
+    expect(flags.map((f) => f.dataset['flag'])).toEqual(['agent-no-link', 'agent-no-link']);
+    expect(flags[0]!.textContent).toMatch(
+      /^agent:claude code sieht keinen Zusammenhang: „near-miss: Die Ware .*…“$/,
+    );
+    expect(flags[0]!.textContent.length).toBeLessThan(220);
+    expect(flags[1]!.textContent).toBe('agent:codex sieht keinen Zusammenhang: „<b>kein</b> HTML“');
+    expect(ware.querySelector('b')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: '1 annehmen' }));
     await findToast('1 Relation angenommen');

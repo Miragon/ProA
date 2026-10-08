@@ -8,7 +8,14 @@ import {
   DecisionBody,
   INVALID_REASONS,
   MAX_SUBMISSION_RELATIONS,
+  MAX_UNCOVERED_PAIRS,
+  NO_LINK_INVALID_REASONS,
+  NoLinkId,
+  NoLinkItem,
+  NoLinkOutcome,
   NoteBody,
+  Relation,
+  SubmissionResult,
   ReleaseAnalysisBody,
   hasControlCharacters,
   ProposalOutcome,
@@ -81,6 +88,7 @@ describe('ids', () => {
     expect(isTypedId('mdl', a)).toBe(false);
     expect(ProjectId.safeParse(a).success).toBe(true);
     expect(newId('model').startsWith('mdl_')).toBe(true);
+    expect(NoLinkId.safeParse(newId('noLink')).success).toBe(true);
   });
 
   it('rejects timestamps outside the ULID range', () => {
@@ -471,6 +479,12 @@ describe('pipeline and review contracts (M2)', () => {
     for (const name of [
       'ClaimInput',
       'ClaimCandidate',
+      'ClaimJudged',
+      'ClaimSkip',
+      'NoLinkOutcome',
+      'RelationNoLink',
+      'SubmissionNoLinks',
+      'UncoveredPairs',
       'ClaimPartnerProcess',
       'Finding',
       'Engine',
@@ -527,6 +541,104 @@ describe('claim input (proa-claim/1)', () => {
     expect(bad({ partnerProcesses: { 'b/n#Q': { name: 1 } } })).toBe(false);
     expect(bad({ findings: [{ kind: 'dangling-throw', refs: [], detail: '' }] })).toBe(false);
   });
+
+  it('takes the current judgements and the skipped pairs (judge each pair once)', () => {
+    const input = {
+      ...base,
+      judged: [
+        { relation: 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3', origin: 'b/n', by: 'agent:x', mine: true },
+        {
+          type: 'message',
+          from: 'a/m#E',
+          to: 'b/n#C',
+          origin: 'a/m',
+          by: 'agent:y',
+          reason: 'no-evidence: nein',
+        },
+      ],
+      skip: [{ type: 'message', from: 'a/m#E', to: 'c/o#T', model: 'c/o', reason: 'claimed' }],
+    };
+    expect(ClaimInput.parse(input)).toEqual(input);
+    const bad = (extra: object) => ClaimInput.safeParse({ ...base, ...extra }).success;
+    expect(bad({ judged: [{ relation: 'rel_x', origin: 'b/n', by: 'agent:x' }] })).toBe(false);
+    expect(bad({ judged: [{ ...input.judged[0], mine: false }] })).toBe(false);
+    expect(bad({ skip: [{ ...input.skip[0], reason: 'later' }] })).toBe(false);
+    expect(bad({ skip: [{ ...input.skip[0], type: 'manual' }] })).toBe(false);
+  });
+});
+
+describe('no-links and submission results (judge each pair once)', () => {
+  it('takes an optional type, checked per item', () => {
+    expect(NoLinkItem.parse({ from: 'x', to: 'y' })).toEqual({ from: 'x', to: 'y', reason: '' });
+    expect(NoLinkItem.parse({ type: 'manual', from: 'x', to: 'y', reason: 'r' })).toMatchObject({
+      type: 'manual',
+    });
+    expect(NoLinkItem.safeParse({ type: 'x'.repeat(31), from: 'x', to: 'y' }).success).toBe(false);
+  });
+
+  it('lists every no-link outcome', () => {
+    expect(NoLinkOutcome.options).toEqual([
+      'stored',
+      'duplicate',
+      ...NO_LINK_INVALID_REASONS.map((r) => `invalid:${r}`),
+    ]);
+  });
+
+  it('parses results stored before no-links were validated, and the new fields', () => {
+    const old = {
+      taskId: 'ana_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+      submissionId: '6f1e1a4e-4b7a-4c8e-9f5a-1d2c3b4a5f60',
+      replayed: true,
+      items: [],
+      counts: { applied: 0, duplicate: 0, suppressed: 0, reopened: 0, invalid: 0 },
+      withdrawn: 0,
+    };
+    expect(SubmissionResult.parse(old)).toEqual(old);
+    const now = {
+      ...old,
+      noLinks: {
+        items: [{ index: 0, result: 'invalid:type-required' }],
+        counts: { stored: 0, duplicate: 0, invalid: 1 },
+      },
+      withdrawnNoLinks: 2,
+      uncovered: { count: 1, pairs: [{ type: 'trigger', from: 'a/m#E', to: 'b/n#S' }] },
+    };
+    expect(SubmissionResult.parse(now)).toEqual(now);
+    const pairs = Array.from({ length: MAX_UNCOVERED_PAIRS + 1 }, () => now.uncovered.pairs[0]);
+    expect(SubmissionResult.safeParse({ ...now, uncovered: { count: 51, pairs } }).success).toBe(
+      false,
+    );
+  });
+
+  it('gives every relation its live, current no-links', () => {
+    const relation = {
+      id: 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+      type: 'message',
+      from: 'a/m#E',
+      to: 'b/n#C',
+      status: 'proposed',
+      endpointState: 'ok',
+      tier: 'key',
+      confidence: 1,
+      version: 2,
+      attrs: {},
+      source: 'rule',
+      provenance: null,
+      noLinks: [
+        {
+          id: 'nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+          handle: 'agent:x',
+          origin: 'b/n',
+          reason: 'near-miss: anderes Ereignis',
+          at: '2026-10-08T08:00:00.000Z',
+        },
+      ],
+      updatedAt: '2026-10-08T08:00:00.000Z',
+    };
+    expect(Relation.parse(relation)).toEqual(relation);
+    const { noLinks: _noLinks, ...without } = relation;
+    expect(Relation.safeParse(without).success).toBe(false);
+  });
 });
 
 describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
@@ -582,6 +694,31 @@ describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
     expect(() =>
       RecordingLine.parse({ ...line, input: { ...line.input, summary: false } }),
     ).toThrow();
+  });
+
+  it('keeps the no-link type and takes the server’s no-link answers', () => {
+    const parsed = RecordingLine.parse({
+      ...line,
+      submission: {
+        ...line.submission,
+        noLinks: [{ type: 'message', from: 'a/m#E', to: 'b/n#C', reason: 'x: y' }],
+      },
+      result: {
+        ...line.result,
+        noLinks: {
+          items: [{ index: 0, result: 'stored' }],
+          counts: { stored: 1, duplicate: 0, invalid: 0 },
+        },
+        withdrawnNoLinks: 0,
+        uncovered: { count: 2 },
+      },
+    });
+    expect(parsed.submission.noLinks[0]?.type).toBe('message');
+    expect(parsed.result?.noLinks?.counts.stored).toBe(1);
+    // A recording keeps the uncovered count, not the pairs.
+    expect(parsed.result?.uncovered).toEqual({ count: 2 });
+    // Older lines have none of them.
+    expect(RecordingLine.parse(line).result).not.toHaveProperty('noLinks');
   });
 
   it('parses a line built from a stored submission: no claim input', () => {

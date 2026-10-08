@@ -315,6 +315,12 @@ describe('the simulation agent over MCP', () => {
       expect(lines).toHaveLength(models[project] ?? -1);
       expect(new Set(lines.map((l) => l.modelKey)).size).toBe(models[project]);
       expect(lines.every((l) => l.outcome === 'submitted' && l.task === undefined)).toBe(true);
+      // The claim input stays below 100 KB with the judgements of earlier tasks (judge each pair once).
+      for (const l of lines) {
+        expect(l.input && 'bytes' in l.input ? l.input.bytes : null, l.modelKey).toBeLessThan(
+          100 * 1024,
+        );
+      }
       await expect(text).toMatchFileSnapshot(`${RECORDINGS}/${rel}`);
     });
 

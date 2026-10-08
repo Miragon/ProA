@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 /**
  * Prefixes of ProA's typed ULIDs (CONCEPT §2). `prj`, `prn`, `agt`, `mdl`,
- * `rev`, `rel` and `ana` come from the concept; `inv`, `asr` and `sbm` are
- * ProA 2.0 additions for invitations, relation assertions and analysis
- * submissions.
+ * `rev`, `rel` and `ana` come from the concept; `inv`, `asr`, `sbm` and `nlk`
+ * are ProA 2.0 additions for invitations, relation assertions, analysis
+ * submissions and stored no-links.
  */
 export const ID_PREFIXES = {
   project: 'prj',
@@ -17,6 +17,7 @@ export const ID_PREFIXES = {
   invitation: 'inv',
   assertion: 'asr',
   submission: 'sbm',
+  noLink: 'nlk',
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;
@@ -64,6 +65,8 @@ export const SubmissionId = typedId(
   'Stored analysis submission id (`sbm_` + ULID); not the client-chosen `submissionId`.',
 );
 export type SubmissionId = TypedId<'sbm'>;
+export const NoLinkId = typedId('nlk', 'NoLinkId', 'Stored no-link id (`nlk_` + ULID).');
+export type NoLinkId = TypedId<'nlk'>;
 
 /**
  * Creates a new typed ULID: 48-bit millisecond timestamp plus 80 random bits,

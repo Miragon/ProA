@@ -46,6 +46,11 @@ export interface AppDeps {
    * presents as bearer on REST; `null`/absent: owner only via the session.
    */
   ownerKey?: string | null;
+  /**
+   * The procedure claims name; defaults to {@link relationsProcedure}. Tests
+   * inject another version to play a procedure release.
+   */
+  expectedProcedure?: () => DeclaredProcedure;
 }
 
 export interface ProaApp {
@@ -72,7 +77,7 @@ export function createProaApp(deps: AppDeps): ProaApp {
     analysis: deps.analysis ?? libraryAnalysis,
     clock: deps.clock ?? { now: () => new Date() },
     notifier: deps.notifier ?? deps.database.notifier,
-    expectedProcedure: relationsProcedure,
+    expectedProcedure: deps.expectedProcedure ?? relationsProcedure,
   });
   const sessions = deps.sessions ?? createSessionCodec(deps.config.sessionSecret ?? undefined);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });

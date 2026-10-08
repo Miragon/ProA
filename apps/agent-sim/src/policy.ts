@@ -18,13 +18,18 @@
  *   judged and found unrelated, recorded in `noLinks`;
  * - **not judged** for `compatible` candidates below `askAt` (type-compatible
  *   endpoints without lexical evidence; semantic judgement is what an LLM
- *   agent adds).
+ *   agent adds). The claim assigns no `compatible` pair, so these never
+ *   count as `uncovered`.
  *
- * The verdict depends on the score, never on the basis, so the same pair is
- * judged the same way in the tasks of both its models. Confidence is the
- * score rounded to two decimals; the rationale names the basis, the score
- * and both endpoints (label, kind, process, model); evidence is both refs.
- * The thresholds were set on the dev landscape (`nordwind-handel`) only.
+ * The verdict depends on the score, never on the basis, so a pair would be
+ * judged the same way in the tasks of both its models; since
+ * `proa-relations@0.2.0` the server leaves the pairs in `judged` and `skip`
+ * out of the candidates (judge each pair once), so only one of them judges
+ * it. Confidence is the score rounded to two decimals; the rationale names
+ * the basis, the score and both endpoints (label, kind, process, model);
+ * evidence is both refs. No-links carry the relation type the pair was
+ * judged for (the procedure requires it). The thresholds were set on the
+ * dev landscape (`nordwind-handel`) only.
  */
 import {
   MAX_QUESTION_CHARS,
@@ -64,7 +69,9 @@ export interface Proposal {
   question: string | null;
 }
 
+/** A typed pair judged unrelated, as sent in `submit_analysis` (`noLinks`). */
 export interface NoLink {
+  type: LinkType;
   from: string;
   to: string;
   reason: string;
@@ -262,7 +269,7 @@ export function decide(input: ClaimInput, options: PolicyOptions = DEFAULT_POLIC
   };
   const judgements: Judgement[] = [];
   const relations: Array<Proposal & { score: number }> = [];
-  const noLinks: Array<NoLink & { score: number; type: string }> = [];
+  const noLinks: Array<NoLink & { score: number }> = [];
   const seen = new Set<string>();
 
   for (const [type, from, to, basis, score] of input.candidates) {
@@ -287,12 +294,12 @@ export function decide(input: ClaimInput, options: PolicyOptions = DEFAULT_POLIC
     const b = endpoint(to, kinds.to);
     if (verdict === 'no-link') {
       noLinks.push({
+        type,
         from,
         to,
         // Short: no-links are numerous (the endpoints are in the refs).
         reason: `Score ${fmt(score)} below ${fmt(askAt)}: "${a.label}" and "${b.label}" share too little.`,
         score,
-        type,
       });
       continue;
     }
@@ -333,7 +340,7 @@ export function decide(input: ClaimInput, options: PolicyOptions = DEFAULT_POLIC
   );
   return {
     relations: kept.map(({ score: _score, ...p }) => p),
-    noLinks: keptNoLinks.map(({ score: _score, type: _type, ...n }) => n),
+    noLinks: keptNoLinks.map(({ score: _score, ...n }) => n),
     summary,
     judgements,
     counts,

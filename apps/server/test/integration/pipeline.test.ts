@@ -208,7 +208,7 @@ describe('claim', () => {
     expect(await stageOf('pipe', ORDER)).toBe('agent_working');
   });
 
-  it('renders the claim input: facts, candidate tuples, partners and relations', () => {
+  it('renders the claim input: facts, skipped pairs, partners and relations', () => {
     const input = claimed.input;
     expect(input.format).toBe('proa-claim/1');
     expect(input.model).toMatchObject({
@@ -233,19 +233,29 @@ describe('claim', () => {
       label: 'Auftrag erledigt',
       process: 'Process_Order',
     });
-    expect(input.candidates).toContainEqual([
-      'message',
-      O('Event_Shipped'),
-      B('Start_Shipped'),
-      'key',
-      1,
+    // Judge each pair once: the billing model is queued and its key sorts first, so its
+    // claim judges the key and lexical pairs both share; they are listed in `skip`, not as
+    // candidates (the candidate tuples themselves: the unit tests and claim-input-size).
+    expect(input.skip).toContainEqual({
+      type: 'message',
+      from: O('Event_Shipped'),
+      to: B('Start_Shipped'),
+      model: BILLING,
+      reason: 'queued',
+    });
+    expect(input.skip).toContainEqual({
+      type: 'trigger',
+      from: O('End_Done'),
+      to: B('Start_Manual'),
+      model: BILLING,
+      reason: 'queued',
+    });
+    // A `compatible` pair is nobody's assignment: it stays a candidate (the search space).
+    expect(input.candidates).toEqual([
+      ['message', O('Event_Shipped'), B('Event_Paid'), 'compatible', expect.any(Number)],
     ]);
-    expect(
-      input.candidates.some(
-        ([type, from, to]) =>
-          type === 'trigger' && from === O('End_Done') && to === B('Start_Manual'),
-      ),
-    ).toBe(true);
+    expect(input.skip).toHaveLength(2);
+    expect(input.judged).toBeUndefined();
     expect(input.partners[B('Start_Shipped')]).toMatchObject({
       kind: 'msg_catch',
       label: 'Ware versandbereit',
@@ -652,7 +662,10 @@ describe('supersession', () => {
     other = asAgent(t, (await t.createToken('super', ['proa:propose'])).secret);
   });
 
-  it('withdraws earlier pipeline proposals of the model that a new submission does not repeat', async () => {
+  // Judge each pair once (procedure 0.2.0): a requeue with unchanged facts keeps the current
+  // judgements; only those made on an older version of the model are withdrawn (before 0.2.0
+  // the requeue alone withdrew every proposal the new submission did not repeat).
+  it('withdraws the pipeline judgements touching the model that rest on an older version of it', async () => {
     const [c1] = await claim(agent, { modelKey: ORDER });
     await submit(
       agent,
@@ -671,17 +684,37 @@ describe('supersession', () => {
       rationale: 'payment received = Zahlung eingegangen',
     });
     expect(adHoc.status).toBe(200);
-    // A second analysis of the model (e.g. a procedure upgrade).
+    // A second analysis of the unchanged model: the current judgements stay.
     const owner = (path: string, init?: RequestInit) => t.asOwner(path, init);
-    await post(owner, '/api/v1/projects/super/analyses/requeue', { all: true });
+    await post(owner, '/api/v1/projects/super/analyses/requeue', { modelKeys: [ORDER] });
+    const [again] = await claim(other, { modelKey: ORDER });
+    expect(again?.input.judged).toHaveLength(2);
+    const kept = await submit(other, again?.taskId ?? '', submission(again as ClaimedAnalysis, []));
+    expect(kept.withdrawn).toBe(0);
+    // A new version of the model: its analysis withdraws what rests on the old one.
+    const changed: FakeModelSpec = {
+      ...order,
+      processes: [
+        {
+          ...order.processes[0]!,
+          elements: [
+            ...(order.processes[0]?.elements ?? []),
+            { kind: 'task', id: 'Task_Label', name: 'Etikett drucken' },
+          ],
+        },
+      ],
+    };
+    expect((await t.putModel('super', ORDER, fakeBpmn(changed))).status).toBe(200);
     const [c2] = await claim(other, { modelKey: ORDER });
+    expect(c2?.input.judged).toBeUndefined();
     const result = await submit(
       other,
       c2?.taskId ?? '',
       submission(c2 as ClaimedAnalysis, [item('trigger', O('End_Done'), B('Start_Manual'))]),
     );
     expect(result.items.map((i) => i.result)).toEqual(['applied']);
-    expect(result.withdrawn).toBe(1);
+    // The agent's two proposals on the old order model.
+    expect(result.withdrawn).toBe(2);
     expect(await relation('super', O('Event_Shipped'), B('Event_Paid'))).toBeUndefined();
     const obsolete = (await (
       await t.asOwner('/api/v1/projects/super/relations?status=obsolete')
@@ -867,7 +900,9 @@ describe('a late submit after the task failed', () => {
     });
   });
 
-  it('is refused when the model changed after the failure, even without a newer task', async () => {
+  // Judge each pair once: going back to analysed facts queues a task too (before 0.2.0 a
+  // revert to the last done task's facts queued none and the refusal named the change).
+  it('is refused when the model changed after the failure: the change queues a newer task', async () => {
     await t.createProject('stale2');
     await t.putModel('stale2', ORDER, fakeBpmn(order));
     const a = asAgent(t, (await t.createToken('stale2', ['proa:propose'])).secret);
@@ -890,7 +925,7 @@ describe('a late submit after the task failed', () => {
     const stale = await loseThreeLeases(a, 'stale2', ORDER);
     await a('/api/v1/analyses/pending'); // notices the expiry: the task fails
     expect(await stageOf('stale2', ORDER)).toBe('agent_failed');
-    // Back to the analysed facts (another layout): no new task is queued.
+    // Back to the analysed facts (another layout): a new task is queued.
     expect(
       (await t.putModel('stale2', ORDER, fakeBpmn({ ...order, layout: 'moved' }))).status,
     ).toBe(200);
@@ -898,7 +933,7 @@ describe('a late submit after the task failed', () => {
     expect(res.status).toBe(409);
     expect(await problemOf(res)).toMatchObject({
       code: 'task-cancelled',
-      detail: 'the model changed after the task failed',
+      detail: 'superseded by a newer analysis task of the model',
     });
   });
 });

@@ -215,6 +215,36 @@ describe('classifyProposal', () => {
     const rule = h(a(RULE, 'decision', { tier: 'rule', confidence: 1 }));
     expect(classifyProposal(rule, proposal())).toEqual({ effect: 'duplicate', record: false });
   });
+
+  it('is a duplicate of a pipeline proposal only with the same basis and procedure', () => {
+    const v1 = { id: 'proa-relations', version: '0.2.0' };
+    const own = h(a(AGENT, 'proposal', { tier: 'semantic', confidence: 0.8 })).map((x) => ({
+      ...x,
+      submissionId: 'sbm_1',
+      fromHash: 'hx1',
+      toHash: 'hy1',
+      declared: { procedure: v1 },
+    }));
+    const basis = (fromHash: string, procedure = v1) => ({
+      basis: { fromHash, toHash: 'hy1', procedure },
+    });
+    expect(classifyProposal(own, proposal(basis('hx1')))).toEqual({
+      effect: 'duplicate',
+      record: false,
+    });
+    // A re-judgement on a newer version of a model (a doc-only change keeps the fingerprints)
+    // or under another procedure is recorded: it carries the new basis.
+    expect(classifyProposal(own, proposal(basis('hx2')))).toEqual({
+      effect: 'applied',
+      record: true,
+    });
+    expect(classifyProposal(own, proposal(basis('hx1', { ...v1, version: '0.3.0' }))).effect).toBe(
+      'applied',
+    );
+    // An ad-hoc stance is no pipeline judgement: a pipeline repeat is recorded.
+    const adHoc = h(a(AGENT, 'proposal', { tier: 'semantic', confidence: 0.8 }));
+    expect(classifyProposal(adHoc, proposal(basis('hx1'))).effect).toBe('applied');
+  });
 });
 
 describe('recomputeStatus properties (random histories)', () => {

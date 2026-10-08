@@ -25,6 +25,7 @@ import type {
   MessageFlowInfo,
   ModelId,
   ModelStage,
+  NoLinkId,
   PrincipalId,
   ProcessInfo,
   ProjectFacts,
@@ -40,6 +41,7 @@ import type {
   SubmissionId,
   SubmissionResult,
   Tier,
+  TypedPair,
   Verdict,
 } from '@proa/contracts';
 import type { PairAssessment, PairQuery } from '@proa/relations';
@@ -179,6 +181,12 @@ export interface AssertionRecord {
   linkedRelationId: RelationId | null;
   fromFp: string | null;
   toFp: string | null;
+  /**
+   * Basis of a pipeline proposal (judge each pair once): the `facts_hash` of
+   * each endpoint's model as the judging agent saw it; `null` otherwise.
+   */
+  fromHash: string | null;
+  toHash: string | null;
 }
 
 /** An assertion as read back: with the principal's handle and the time it was recorded. */
@@ -213,6 +221,12 @@ export interface TaskDetail extends TaskRecord {
   lastError: string | null;
   /** Client-chosen id of the stored submission. */
   submissionId: string | null;
+  /** Seq of the latest `analysis.claimed` event: the state the claim input shows. */
+  claimedSeq: number | null;
+  /** The typed pairs the latest claim must judge; `null` when not claimed. */
+  assignment: TypedPair[] | null;
+  /** A judgement the claim relied on was withdrawn: the submit queues a follow-up. */
+  requeueAfter: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -249,6 +263,51 @@ export interface SubmissionRecord {
 export interface StoredSubmission extends SubmissionRecord {
   handle: string;
   createdAt: Date;
+}
+
+/** A no-link as stored (judge each pair once): an agent's judgement that a typed pair is unrelated. */
+export interface NoLinkRecord {
+  id: NoLinkId;
+  projectId: ProjectId;
+  type: TypedPair['type'];
+  fromRef: Ref;
+  toRef: Ref;
+  fromModel: string;
+  toModel: string;
+  /** Basis: the `facts_hash` of each endpoint's model as the judging agent saw it. */
+  fromHash: string;
+  toHash: string;
+  reason: string;
+  sourceKind: Exclude<SourceKind, 'rule'>;
+  principalId: PrincipalId;
+  clientId: string | null;
+  declared: { procedure: DeclaredProcedure; llmModel: string | null };
+  submissionId: SubmissionId;
+  /** The analysed model (origin). */
+  modelId: ModelId;
+  /** Seq of the submission's `analysis.done` event. */
+  seq: number;
+}
+
+/** A live no-link as read back. */
+export interface StoredNoLink extends NoLinkRecord {
+  handle: string;
+  /** Key of the origin model. */
+  origin: string;
+  /**
+   * Both basis hashes equal the head `facts_hash` of the endpoint models (a
+   * deleted model has none) and the declared procedure is the one asked for.
+   */
+  current: boolean;
+  createdAt: Date;
+}
+
+export interface NoLinkFilter {
+  /** No-links with an endpoint in this model. */
+  touchingModelKey?: string;
+  principalId?: PrincipalId;
+  /** No-links on these typed pairs. */
+  pairs?: readonly TypedPair[];
 }
 
 export interface EventInput {
@@ -368,6 +427,19 @@ export interface RevisionRepo {
     id: RevisionId,
   ): Promise<RevisionFactsRecord | null>;
   maxRev(projectId: ProjectId, modelId: ModelId): Promise<number>;
+  /** `facts_hash` of the head revision of every live model, by model key. */
+  headHashes(projectId: ProjectId): Promise<Map<string, string>>;
+  /**
+   * `facts_hash` of the revision of each model that was its head at event
+   * `seq` (the latest revision with a seq ≤ `seq`, unless the model was
+   * deleted after it and not revived by `seq`), by model key; models without
+   * one are missing.
+   */
+  hashesAt(
+    projectId: ProjectId,
+    modelKeys: readonly string[],
+    seq: number,
+  ): Promise<Map<string, string>>;
 }
 
 export interface FactRepo {
@@ -426,6 +498,7 @@ export interface TaskRepo {
     states: readonly TaskState[],
   ): Promise<TaskRecord | null>;
   insert(t: TaskRecord): Promise<void>;
+  /** `cancelled` also clears the assignment. */
   setState(
     projectId: ProjectId,
     id: AnalysisTaskId,
@@ -463,7 +536,16 @@ export interface TaskRepo {
    */
   claim(q: ClaimQuery): Promise<TaskDetail[]>;
   setLeaseHash(projectId: ProjectId, id: AnalysisTaskId, hash: string): Promise<void>;
-  /** Back to `queued`; the attempt is given back. */
+  /** Stores the seq of the claim's `analysis.claimed` event. */
+  setClaimedSeq(projectId: ProjectId, id: AnalysisTaskId, seq: number): Promise<void>;
+  /** Stores the pairs the claim must judge. */
+  setAssignment(
+    projectId: ProjectId,
+    id: AnalysisTaskId,
+    pairs: readonly TypedPair[],
+  ): Promise<void>;
+  setRequeueAfter(projectId: ProjectId, id: AnalysisTaskId): Promise<void>;
+  /** Back to `queued`; the attempt is given back, assignment and `requeueAfter` are cleared. */
   release(projectId: ProjectId, id: AnalysisTaskId, reason: string | null): Promise<void>;
   /** Claimable tasks per project: queued, or claimed with an expired lease and attempts left. */
   countClaimable(
@@ -476,6 +558,27 @@ export interface TaskRepo {
 export interface SubmissionRepo {
   insert(s: SubmissionRecord): Promise<void>;
   findByTask(projectId: ProjectId, taskId: AnalysisTaskId): Promise<StoredSubmission | null>;
+  /** The analysed model (key) of every stored submission: the origin of its proposals. */
+  originModels(projectId: ProjectId): Promise<Map<SubmissionId, string>>;
+}
+
+export interface NoLinkRepo {
+  insertMany(rows: readonly NoLinkRecord[]): Promise<void>;
+  /**
+   * Live no-links (without a withdrawal), oldest first, with `current`
+   * computed in SQL against the head revisions and `procedure`.
+   */
+  listLive(
+    projectId: ProjectId,
+    filter: NoLinkFilter,
+    procedure: DeclaredProcedure,
+  ): Promise<StoredNoLink[]>;
+  /** Ends live no-links (one withdrawal row each). */
+  withdraw(
+    projectId: ProjectId,
+    ids: readonly NoLinkId[],
+    by: { seq: number; principalId: PrincipalId; reason: string },
+  ): Promise<void>;
 }
 
 export interface FindingRepo {
@@ -502,6 +605,7 @@ export interface Tx {
   assertions: AssertionRepo;
   tasks: TaskRepo;
   submissions: SubmissionRepo;
+  noLinks: NoLinkRepo;
   findings: FindingRepo;
   events: EventRepo;
 }

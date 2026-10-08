@@ -31,7 +31,7 @@ import type {
   Tx,
 } from './ports.ts';
 import { derivedState, naturalKey, prepareAssertion, refreshRelation } from './relation-state.ts';
-import { classifyProposal, currentStances, type ProposalEffect } from './status.ts';
+import { classifyProposal, type ProposalEffect } from './status.ts';
 
 const LINK_TYPES: readonly string[] = ['call', 'message', 'signal', 'trigger'];
 
@@ -131,6 +131,11 @@ export interface ProposalContext {
   declared: Declared | null;
   /** The stored submission (pipeline), `null` for ad-hoc proposals. */
   submissionId: SubmissionId | null;
+  /**
+   * Pipeline proposals: the basis of a pair, the `facts_hash` of both
+   * endpoint models as the claim showed them (judge each pair once).
+   */
+  basisOf?: (from: Ref, to: Ref) => { fromHash: string; toHash: string };
 }
 
 export function endpointFingerprints(
@@ -156,6 +161,8 @@ export async function applyProposal(
   const fromFp = current.from ?? null;
   const toFp = current.to ?? null;
   const history = existing ? (ctx.histories.get(existing.id) ?? []) : [];
+  const basis = ctx.basisOf?.(p.from, p.to) ?? null;
+  const procedure = ctx.declared?.procedure ?? null;
 
   const { effect, record } = classifyProposal(history, {
     principalId: ctx.actor.principalId,
@@ -165,6 +172,7 @@ export async function applyProposal(
     question: p.question,
     fromFp,
     toFp,
+    ...(basis && procedure ? { basis: { ...basis, procedure } } : {}),
   });
   if (!record && existing) return { effect, relation: existing };
 
@@ -185,6 +193,8 @@ export async function applyProposal(
     linkedRelationId: null,
     fromFp,
     toFp,
+    fromHash: basis?.fromHash ?? null,
+    toHash: basis?.toHash ?? null,
   });
   const next = [...history, assertion];
   ctx.histories.set(target.id, next);
@@ -247,6 +257,8 @@ export async function withdrawStance(
       linkedRelationId: null,
       fromFp: current.from ?? null,
       toFp: current.to ?? null,
+      fromHash: null,
+      toHash: null,
     },
     by,
   );
@@ -267,9 +279,4 @@ export async function withdrawStance(
   );
   ctx.relations.set(naturalKey(stored.type, stored.fromRef, stored.toRef), stored);
   return stored;
-}
-
-/** The live pipeline proposals (from earlier submissions) of a relation. */
-export function livePipelineProposals(history: readonly AssertionRecord[]): AssertionRecord[] {
-  return currentStances(history).filter((a) => a.kind === 'proposal' && a.submissionId !== null);
 }

@@ -2,7 +2,14 @@
  * Relation status as a pure function of the assertion history (CONCEPT §2,
  * "Status"), and endpoint state from fingerprints.
  */
-import type { EndpointState, PrincipalId, RelationStatus, SourceKind, Tier } from '@proa/contracts';
+import type {
+  DeclaredProcedure,
+  EndpointState,
+  PrincipalId,
+  RelationStatus,
+  SourceKind,
+  Tier,
+} from '@proa/contracts';
 
 import type { AssertionKind, Verdict } from './ports.ts';
 
@@ -98,6 +105,15 @@ export function sameFingerprints(a: Fingerprints, b: Fingerprints): boolean {
   return a.fromFp === b.fromFp && a.toFp === b.toFp;
 }
 
+/** Same procedure id and version (`null`: none declared). */
+export function sameProcedure(
+  a: DeclaredProcedure | null | undefined,
+  b: DeclaredProcedure | null | undefined,
+): boolean {
+  if (!a || !b) return !a && !b;
+  return a.id === b.id && a.version === b.version;
+}
+
 /**
  * `recomputeStatus` (CONCEPT §2): the latest decision in force wins
  * ({@link decisionsInForce}), except that a newer proposal whose
@@ -177,6 +193,22 @@ export interface NewProposal extends Fingerprints {
   confidence: number;
   rationale: string;
   question: string | null;
+  /**
+   * A pipeline proposal's basis (judge each pair once): the endpoint models'
+   * `facts_hash` as the agent saw them and the declared procedure. Absent
+   * for ad-hoc proposals.
+   */
+  basis?: { fromHash: string; toHash: string; procedure: DeclaredProcedure };
+}
+
+/** What `classifyProposal` reads of an assertion besides {@link AssertionView}. */
+export interface ClassifiedAssertion extends AssertionView {
+  rationale: string | null;
+  question: string | null;
+  submissionId?: string | null;
+  fromHash?: string | null;
+  toHash?: string | null;
+  declared?: { procedure: DeclaredProcedure | null } | null;
 }
 
 /**
@@ -184,9 +216,11 @@ export interface NewProposal extends Fingerprints {
  * - `suppressed`: the current status rests on a human decision whose
  *   fingerprints equal the proposal's (a human already decided and nothing
  *   changed) — not recorded;
- * - `duplicate`: the proposer's own live proposal says the same, or the
- *   relation is accepted by the rule tier with these fingerprints — not
- *   recorded;
+ * - `duplicate`: the proposer's own live proposal says the same (for a
+ *   pipeline proposal: its own live pipeline proposal with the same basis
+ *   and procedure too, so a re-judgement on a newer version is recorded and
+ *   carries the new basis), or the relation is accepted by the rule tier
+ *   with these fingerprints — not recorded;
  * - `reopened`: recorded, and the rejected relation becomes `proposed`
  *   because an endpoint changed since the rejection;
  * - `applied`: recorded.
@@ -194,7 +228,7 @@ export interface NewProposal extends Fingerprints {
  * @param history the relation's assertions with their rationale and question (`[]` for a new relation)
  */
 export function classifyProposal(
-  history: readonly (AssertionView & { rationale: string | null; question: string | null })[],
+  history: readonly ClassifiedAssertion[],
   proposal: NewProposal,
 ): { effect: ProposalEffect; record: boolean } {
   const before = recomputeStatus(history);
@@ -221,7 +255,12 @@ export function classifyProposal(
     own.confidence === proposal.confidence &&
     (own.rationale ?? '') === proposal.rationale &&
     own.question === proposal.question &&
-    sameFingerprints(own, proposal)
+    sameFingerprints(own, proposal) &&
+    (proposal.basis === undefined ||
+      ((own.submissionId ?? null) !== null &&
+        own.fromHash === proposal.basis.fromHash &&
+        own.toHash === proposal.basis.toHash &&
+        sameProcedure(own.declared?.procedure, proposal.basis.procedure)))
   ) {
     return { effect: 'duplicate', record: false };
   }

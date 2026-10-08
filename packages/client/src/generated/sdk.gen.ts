@@ -485,7 +485,7 @@ export const addRelationNote = <ThrowOnError extends boolean = false>(
 /**
  * Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)
  *
- * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input. Empty when nothing is claimable.
+ * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction: the current agent judgements on pairs touching the model (`judged`) and the candidate pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates, accepted pairs and unchanged rejections aside, are the task’s assignment, and `compatible` candidates the search space for missing partners. Empty when nothing is claimable.
  */
 export const claimAnalyses = <ThrowOnError extends boolean = false>(
   options: Options<ClaimAnalysesData, ThrowOnError>,
@@ -519,7 +519,7 @@ export const getPendingAnalyses = <ThrowOnError extends boolean = false>(
 /**
  * Submit the result of a claimed task (idempotent by submissionId)
  *
- * Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per item `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`. Earlier pipeline proposals touching the model that the submission does not repeat are withdrawn. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).
+ * Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per relation `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`, per no-link `stored`, `duplicate` or `invalid:<reason>`, and the assigned pairs left unjudged (`uncovered`). Earlier pipeline proposals and no-links on pairs touching the model that were judged on another version of the model or under another procedure are withdrawn; current judgements stay. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).
  */
 export const submitAnalysis = <ThrowOnError extends boolean = false>(
   options: Options<SubmitAnalysisData, ThrowOnError>,

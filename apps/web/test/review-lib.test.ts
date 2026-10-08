@@ -25,7 +25,7 @@ import {
   reviewQueue,
   stageCounts,
 } from '../src/lib/review';
-import { assertion, fact, model, provenance, relation } from './support/fixtures';
+import { assertion, fact, model, noLink, provenance, relation } from './support/fixtures';
 
 const models = [
   model({ key: 'a', stage: 'waiting_for_review', openItems: 3 }),
@@ -371,6 +371,36 @@ describe('bulk accept flags', () => {
     expect(flags[0]!.detail.startsWith('Der Agent fragt nach: „Gilt das auch')).toBe(true);
     expect(flags[0]!.detail.endsWith('…“')).toBe(true);
     expect(flags[0]!.detail.length).toBeLessThan(200);
+  });
+
+  it('adds one flag per agent no-link, its reason cut for the preview', () => {
+    const long = `no-evidence: ${'Die Prozesse teilen nur das Wort Rechnung. '.repeat(8)}`;
+    const flags = bulkFlags(
+      relation({
+        id: 'rel_n',
+        from: 'a#T',
+        to: 'b#C',
+        attrs: { messageName: 'RechnungVersendet' },
+        provenance: provenance({ question: 'Auch bei Gutschriften?' }),
+        noLinks: [
+          noLink({ id: 'nlk_1', handle: 'agent:claude code', reason: long }),
+          noLink({ id: 'nlk_2', handle: 'agent:codex', reason: '  ' }),
+        ],
+      }),
+      none,
+      usage,
+    );
+    expect(flags.map((f) => [f.kind, f.text])).toEqual([
+      ['agent-question', 'Auch bei Gutschriften?'],
+      ['agent-no-link', 'nlk_1'],
+      ['agent-no-link', 'nlk_2'],
+    ]);
+    expect(
+      flags[1]!.detail.startsWith('agent:claude code sieht keinen Zusammenhang: „no-evidence: Die'),
+    ).toBe(true);
+    expect(flags[1]!.detail.endsWith('…“')).toBe(true);
+    expect(flags[1]!.detail.length).toBeLessThan(220);
+    expect(flags[2]!.detail).toBe('agent:codex sieht keinen Zusammenhang.');
   });
 
   it('adds an ambiguous call target, and nothing for a plain pair', () => {

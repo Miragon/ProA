@@ -423,6 +423,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         `Claims up to ${MAX_CLAIM} queued relations tasks (default 1), oldest first, in the projects where this token may propose (proa:propose); projectId and modelKey narrow it.`,
         'Each item has a leaseToken (keep it; shown once), a 15-minute lease without renewal, the procedure to follow and declare, and the input:',
         "the model's facts (message flows with their ends), candidates as [type, from, to, basis, score] tuples, the partner endpoints they name and their processes, the existing relations with human decisions (rejection reasons, hold notes and questions) and notes, and the project's findings touching the model.",
+        'Judge each pair once: judged lists the current agent judgements on pairs touching the model (link verdicts by relation id, no-links with their reason; mine: your own), skip the pairs a partner analysis judges; neither is repeated in candidates: the rule, key and lexical ones are your assignment, the compatible ones the search space for missing partners.',
         'Submit with submit_analysis, or hand the task back with release_analysis. No items: nothing to do.',
       ].join(' '),
       // A plain object at the root: the named schema would be a root `$ref`, which hides
@@ -441,9 +442,9 @@ export function createMcpServer(ctx: McpContext): McpServer {
       title: 'Submit an analysis',
       description: [
         'Submits the result of a claimed task (at most 1 MB): taskId and leaseToken from the claim, a fresh UUID as submissionId (replaying it returns the stored result), the declared procedure and llmModel,',
-        'relations (≤ 200; type, from, to, confidence 0–1, rationale ≤ 1,000 characters, evidence, optional question ≤ 500; no control characters except tab and line breaks) and noLinks.',
-        'Each item comes back as applied, duplicate, suppressed (a human already decided; nothing changed), reopened or invalid:<reason> (refs must exist, one end in the task model, types must fit the endpoints).',
-        'Earlier pipeline proposals touching the model that you do not repeat are withdrawn.',
+        'relations (≤ 200; type, from, to, confidence 0–1, rationale ≤ 1,000 characters, evidence, optional question ≤ 500; no control characters except tab and line breaks) and noLinks (≤ 500; type, from, to, reason).',
+        'Each relation comes back as applied, duplicate, suppressed (a human already decided; nothing changed), reopened or invalid:<reason> (refs must exist, one end in the task model, types must fit the endpoints); each no-link as stored, duplicate or invalid:<reason>; uncovered counts the assigned (rule, key and lexical) pairs you left unjudged.',
+        'Judgements on pairs touching the model made on another version of it or under another procedure are withdrawn; current judgements stay without repetition.',
         'Errors: lease-lost (claimed again, released, wrong token), task-cancelled (new revision), already-submitted.',
       ].join(' '),
       inputSchema: SubmitAnalysisBody.extend({ taskId: AnalysisTaskId }),

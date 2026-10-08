@@ -679,8 +679,13 @@ describe('agents never decide', () => {
       reviewUrl: 'http://localhost/projects/review/review',
     });
     expect((await find(O('Event_Shipped'), B('Event_Paid'))).status).toBe('proposed');
+    // Proposals and withdrawals (supersession records those under the proposer) only.
     const kinds = (await timeline(r)).map((a) => [a.kind, a.sourceKind]);
-    expect(kinds.filter(([kind, source]) => kind !== 'proposal' && source === 'agent')).toEqual([]);
+    expect(
+      kinds.filter(
+        ([kind, source]) => (kind === 'decision' || kind === 'note') && source === 'agent',
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -751,19 +756,22 @@ describe('a human who decided and later proposes the same relation', () => {
     expect(await pair()).toMatchObject({ status: 'accepted', endpointState: 'changed' });
 
     // The owner works the billing task and proposes the pair again: recorded, still accepted.
+    // Judge each pair once: the submission withdraws the agent's proposal, which rests on the
+    // old billing model (before 0.2.0 the agent's later re-analysis withdrew both).
     const own = await pipelineOf(owner, BILLING, [
       item('trigger', O('End_Done'), B('Start_Manual')),
     ]);
     expect(own.items.map((i) => [i.result, i.status])).toEqual([['applied', 'accepted']]);
+    expect(own.withdrawn).toBe(1);
     expect((await pair()).provenance).toMatchObject({ kind: 'decision', verdict: 'accept' });
 
-    // An agent re-analyses the billing model without the pair: the pipeline proposals
-    // touching it are withdrawn (supersession), the owner's acceptance stays.
+    // An agent re-analyses the unchanged billing model without the pair: the owner's current
+    // judgement stays, and so does the owner's acceptance.
     await post(owner, '/api/v1/projects/human-proposes/analyses/requeue', {
       modelKeys: [BILLING],
     });
     const again = await pipelineOf(bot, BILLING, []);
-    expect(again.withdrawn).toBe(2);
+    expect(again.withdrawn).toBe(0);
     expect(await pair()).toMatchObject({ status: 'accepted', endpointState: 'changed' });
     const history = (
       (await (
@@ -775,7 +783,6 @@ describe('a human who decided and later proposes the same relation', () => {
       ['decision', 'accept', 'human'],
       ['proposal', null, 'human'],
       ['withdrawal', null, 'agent'],
-      ['withdrawal', null, 'human'],
     ]);
   });
 });

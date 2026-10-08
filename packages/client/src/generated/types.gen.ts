@@ -508,6 +508,7 @@ export type Relation = {
   };
   source: SourceKind | null;
   provenance: RelationProvenance | null;
+  noLinks: Array<RelationNoLink>;
   updatedAt: Timestamp;
 };
 
@@ -579,6 +580,22 @@ export type DeclaredProcedure = {
   id: string;
   version: string;
 };
+
+/**
+ * An agent judgement that the pair is unrelated.
+ */
+export type RelationNoLink = {
+  id: NoLinkId;
+  handle: string;
+  origin: ModelKey;
+  reason: string;
+  at: Timestamp;
+};
+
+/**
+ * Stored no-link id (`nlk_` + ULID).
+ */
+export type NoLinkId = string;
 
 /**
  * A deterministic finding about the landscape.
@@ -820,6 +837,8 @@ export type ClaimInput = {
     [key: string]: ClaimPartnerProcess;
   };
   relations: Array<ClaimRelation>;
+  judged?: Array<ClaimJudged>;
+  skip?: Array<ClaimSkip>;
   findings?: Array<Finding>;
 };
 
@@ -905,6 +924,45 @@ export type ClaimDecision = {
 };
 
 /**
+ * A current agent judgement on a pair.
+ */
+export type ClaimJudged = ClaimJudgedLink | ClaimJudgedNoLink;
+
+/**
+ * A current link verdict on a pair (compact).
+ */
+export type ClaimJudgedLink = {
+  relation: RelationId;
+  origin: ModelKey;
+  by: string;
+  mine?: true;
+};
+
+/**
+ * A current no-link verdict on a pair (compact).
+ */
+export type ClaimJudgedNoLink = {
+  type: 'call' | 'message' | 'signal' | 'trigger';
+  from: Ref;
+  to: Ref;
+  origin: ModelKey;
+  by: string;
+  mine?: true;
+  reason: string;
+};
+
+/**
+ * A candidate pair a partner analysis judges.
+ */
+export type ClaimSkip = {
+  type: 'call' | 'message' | 'signal' | 'trigger';
+  from: Ref;
+  to: Ref;
+  model: ModelKey;
+  reason: 'claimed' | 'queued';
+};
+
+/**
  * Request body to claim analysis tasks.
  */
 export type ClaimAnalysisBody = {
@@ -944,6 +1002,9 @@ export type SubmissionResult = {
     invalid: number;
   };
   withdrawn: number;
+  noLinks?: SubmissionNoLinks;
+  withdrawnNoLinks?: number;
+  uncovered?: UncoveredPairs;
 };
 
 /**
@@ -954,6 +1015,55 @@ export type SubmissionItemResult = {
   result: ProposalOutcome;
   relationId: RelationId | null;
   status: RelationStatus | null;
+};
+
+/**
+ * Outcome of the no-links of a submission.
+ */
+export type SubmissionNoLinks = {
+  items: Array<{
+    index: number;
+    result: NoLinkOutcome;
+  }>;
+  counts: {
+    stored: number;
+    duplicate: number;
+    invalid: number;
+  };
+};
+
+/**
+ * Outcome of one no-link.
+ */
+export type NoLinkOutcome =
+  | 'stored'
+  | 'duplicate'
+  | 'invalid:type-not-allowed'
+  | 'invalid:malformed-ref'
+  | 'invalid:control-characters'
+  | 'invalid:outside-task-model'
+  | 'invalid:unknown-ref'
+  | 'invalid:type-mismatch'
+  | 'invalid:same-process'
+  | 'invalid:message-flow'
+  | 'invalid:type-required'
+  | 'invalid:also-proposed';
+
+/**
+ * Assigned pairs a submission left unjudged.
+ */
+export type UncoveredPairs = {
+  count: number;
+  pairs: Array<TypedPair>;
+};
+
+/**
+ * A typed pair of endpoints.
+ */
+export type TypedPair = {
+  type: 'call' | 'message' | 'signal' | 'trigger';
+  from: Ref;
+  to: Ref;
 };
 
 /**
@@ -987,6 +1097,7 @@ export type ProposalItem = {
  * A pair judged unrelated.
  */
 export type NoLinkItem = {
+  type?: string;
   from: string;
   to: string;
   reason?: string;

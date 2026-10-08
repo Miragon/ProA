@@ -8,8 +8,9 @@
  *   into another project;
  * - enumerations are `text` plus a CHECK constraint (no Postgres enums, which
  *   are awkward to migrate);
- * - `event`, `relation_assertion` and `analysis_submission` are append-only
- *   (trigger in migration 0001_append_only.sql).
+ * - `event`, `relation_assertion`, `analysis_submission`, `no_link` and
+ *   `no_link_withdrawal` are append-only (triggers in migrations
+ *   0001_append_only.sql and 0005_judge_once_triggers.sql).
  *
  * After changing this file run `pnpm --filter @proa/server db:generate` and
  * commit the new migration in `apps/server/drizzle/`.
@@ -34,10 +35,12 @@ import {
   type ProcessInfo,
   type RevisionSource,
   type SubmissionResult,
+  type TypedPair,
 } from '@proa/contracts';
 import { sql, type SQL } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   check,
   customType,
   doublePrecision,
@@ -84,6 +87,8 @@ export const ASSERTION_KINDS = values(AssertionKind.options);
 export const VERDICTS = ['accept', 'reject', 'hold'] as const;
 export const TASK_KINDS = ['relations'] as const;
 export const TASK_STATES = ['queued', 'claimed', 'done', 'failed', 'cancelled'] as const;
+export const LINK_TYPES = ['call', 'message', 'signal', 'trigger'] as const;
+export const JUDGING_SOURCE_KINDS = ['agent', 'human'] as const;
 
 export const project = pgTable('project', {
   id: text().primaryKey(),
@@ -373,6 +378,13 @@ export const relationAssertion = pgTable(
     linkedRelationId: text(),
     fromFp: text(),
     toFp: text(),
+    /**
+     * Basis of a pipeline proposal (judge each pair once): the `facts_hash`
+     * of each endpoint's model as the judging agent saw it; null for every
+     * other assertion and for proposals before procedure 0.2.0.
+     */
+    fromHash: text(),
+    toHash: text(),
     createdAt: createdAt(),
   },
   (t): PgTableExtraConfigValue[] => [
@@ -429,6 +441,16 @@ export const analysisTask = pgTable(
     leaseUntil: timestamptz(),
     attempts: integer().notNull().default(0),
     lastError: text(),
+    /** Seq of the latest `analysis.claimed` event: the project state the claim input shows. */
+    claimedSeq: seqColumn(),
+    /**
+     * The typed pairs the latest claim must judge (its candidates minus
+     * judged and skipped pairs); cleared when the task leaves `claimed`
+     * without a submission.
+     */
+    assignment: jsonb().$type<TypedPair[]>(),
+    /** A judgement this claim relied on was withdrawn: its submit queues a follow-up task. */
+    requeueAfter: boolean().notNull().default(false),
     /** Seq of the `analysis.queued` event; orders tasks of a model (created_at ties within a transaction). */
     seq: seqColumn().notNull(),
     createdAt: createdAt(),
@@ -484,6 +506,88 @@ export const analysisSubmission = pgTable(
       name: 'analysis_submission_task_fk',
       columns: [t.projectId, t.taskId],
       foreignColumns: [analysisTask.projectId, analysisTask.id],
+    }),
+  ],
+);
+
+/**
+ * No-links (judge each pair once): an agent's judgement that a typed pair is
+ * unrelated, stored from a submission with its basis (the `facts_hash` of
+ * both endpoint models as the agent saw them). Append-only; live while it
+ * has no `no_link_withdrawal` row.
+ */
+export const noLink = pgTable(
+  'no_link',
+  {
+    id: text().primaryKey(),
+    projectId: text().notNull(),
+    type: text({ enum: LINK_TYPES }).notNull(),
+    fromRef: text().notNull(),
+    toRef: text().notNull(),
+    /** Model keys of both endpoints (set on insert). */
+    fromModel: text().notNull(),
+    toModel: text().notNull(),
+    fromHash: text().notNull(),
+    toHash: text().notNull(),
+    reason: text().notNull(),
+    /** Derived from the credential (CONCEPT §6). */
+    sourceKind: text({ enum: JUDGING_SOURCE_KINDS }).notNull(),
+    principalId: text()
+      .notNull()
+      .references(() => principal.id),
+    clientId: text(),
+    declared: jsonb().$type<{ procedure: DeclaredProcedure; llmModel: string | null }>().notNull(),
+    submissionId: text().notNull(),
+    /** The analysed model (origin). */
+    modelId: text().notNull(),
+    /** Seq of the submission's `analysis.done` event. */
+    seq: seqColumn().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('no_link_project_id_unique').on(t.projectId, t.id),
+    unique('no_link_submission_pair_unique').on(t.submissionId, t.type, t.fromRef, t.toRef),
+    foreignKey({
+      name: 'no_link_submission_fk',
+      columns: [t.projectId, t.submissionId],
+      foreignColumns: [analysisSubmission.projectId, analysisSubmission.id],
+    }),
+    foreignKey({
+      name: 'no_link_model_fk',
+      columns: [t.projectId, t.modelId],
+      foreignColumns: [model.projectId, model.id],
+    }),
+    index('no_link_from_model_idx').on(t.projectId, t.fromModel),
+    index('no_link_to_model_idx').on(t.projectId, t.toModel),
+    index('no_link_pair_idx').on(t.projectId, t.fromRef, t.toRef),
+    index('no_link_principal_idx').on(t.projectId, t.principalId),
+    check('no_link_type_check', oneOf(t.type, LINK_TYPES)),
+    check('no_link_source_kind_check', oneOf(t.sourceKind, JUDGING_SOURCE_KINDS)),
+  ],
+);
+
+/** The end of a no-link (supersession, replacement, token revocation); append-only. */
+export const noLinkWithdrawal = pgTable(
+  'no_link_withdrawal',
+  {
+    noLinkId: text()
+      .primaryKey()
+      .references(() => noLink.id),
+    projectId: text().notNull(),
+    /** Seq of the event that caused it (`analysis.done`, `agent_token.revoked`). */
+    seq: seqColumn().notNull(),
+    /** Who caused it. */
+    principalId: text()
+      .notNull()
+      .references(() => principal.id),
+    reason: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'no_link_withdrawal_project_fk',
+      columns: [t.projectId, t.noLinkId],
+      foreignColumns: [noLink.projectId, noLink.id],
     }),
   ],
 );

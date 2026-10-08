@@ -86,9 +86,10 @@ describe('decide (sim-policy-1)', () => {
     );
   });
 
-  it('records judged pairs below askAt as no-links, never compatible ones', () => {
+  it('records judged pairs below askAt as typed no-links, never compatible ones', () => {
     expect(d.noLinks).toEqual([
       {
+        type: 'message',
         from: ORDERS.shipped,
         to: STOCK_LOW,
         reason: 'Score 0.31 below 0.50: "Order shipped" and "Stock low" share too little.',

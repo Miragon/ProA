@@ -289,6 +289,8 @@ describe('renderClaimInput', () => {
     linkedRelationId: null,
     fromFp: null,
     toFp: null,
+    fromHash: null,
+    toHash: null,
     handle: 'agent:x',
     createdAt: at,
     ...extra,

@@ -1,10 +1,11 @@
+import type { Relation } from '@proa/client';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ReviewDetails } from '../src/components/review/review-details';
 import { buildRefIndex, resolverOf } from '../src/lib/refs';
-import { assertion, fact, provenance, relation } from './support/fixtures';
+import { assertion, fact, noLink, provenance, relation } from './support/fixtures';
 import { renderWithRouter, stubApi } from './support/render';
 
 const HOSTILE =
@@ -86,12 +87,12 @@ const history = [
   }),
 ];
 
-async function setup(onEvidence = vi.fn()) {
+async function setup(onEvidence = vi.fn(), relationShown: Relation = rel) {
   stubApi({});
   await renderWithRouter(
     <ReviewDetails
       project="demo"
-      relation={rel}
+      relation={relationShown}
       assertions={history}
       resolve={resolve}
       modelKeys={new Set(['shop', 'billing'])}
@@ -127,6 +128,46 @@ describe('ReviewDetails', () => {
     expect(provenanceList.textContent).toContain('claude-sonnet-5-5');
     expect(provenanceList.textContent).toContain('82 %');
     expect(screen.getByText(/Version 4/)).toBeTruthy();
+    // no current no-link on the pair, no callout
+    expect(screen.queryByTestId('agent-no-links')).toBeNull();
+  });
+
+  it('shows agent no-links right after the question, with reasons as plain text', async () => {
+    await setup(
+      vi.fn(),
+      relation({
+        ...rel,
+        noLinks: [
+          noLink({
+            id: 'nlk_01FIRST',
+            handle: 'agent:claude code',
+            origin: 'billing',
+            reason: `no-evidence: ${HOSTILE}`,
+            at: '2026-10-06T14:30:00.000Z',
+          }),
+          noLink({ id: 'nlk_02SECOND', handle: 'agent:codex', origin: 'shop', reason: '' }),
+        ],
+      }),
+    );
+    const callout = screen.getByTestId('agent-no-links');
+    expect(within(callout).getByText('Kein Zusammenhang laut Agent')).toBeTruthy();
+    // right after the agent's question
+    expect(screen.getByTestId('agent-question').nextElementSibling).toBe(callout);
+    const entries = within(callout).getAllByTestId('agent-no-link');
+    expect(entries.map((e) => e.dataset['noLinkId'])).toEqual(['nlk_01FIRST', 'nlk_02SECOND']);
+
+    const [first, second] = entries;
+    expect(within(first!).getByText('agent:claude code')).toBeTruthy();
+    expect(within(first!).getByText('(Agent)')).toBeTruthy();
+    expect(first!.textContent).toContain('Analyse von billing');
+    expect(first!.textContent).toContain('06.10.2026');
+    const reason = within(first!).getByText(`no-evidence: ${HOSTILE}`);
+    expect(reason.hasAttribute('data-plain-text')).toBe(true);
+    expect(callout.querySelector('img, script, a, strong')).toBeNull();
+
+    expect(within(second!).getByText('agent:codex')).toBeTruthy();
+    expect(second!.textContent).toContain('Analyse von shop');
+    expect(second!.textContent).toContain('Ohne Begründung.');
   });
 
   it('makes evidence refs into known models clickable, other evidence stays text', async () => {

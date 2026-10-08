@@ -22,6 +22,7 @@ const GENERATE = 'stale: run `pnpm --filter @proa/procedures generate` and commi
  */
 const RELEASED: Readonly<Record<string, string>> = {
   '0.1.0': '870fd4add4ab13c3db0002b13df9d53ff3db008e3f60af490821e8864a72c32d',
+  '0.2.0': '11a9c0297e54790bc453f69870e2a9bee693b92cf50755c5a15a1739a3cf4349',
 };
 
 function relations(): Procedure {

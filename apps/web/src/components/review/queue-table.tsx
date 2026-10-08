@@ -5,6 +5,7 @@ import {
   FlagIcon,
   SearchCheckIcon,
   TriangleAlertIcon,
+  UnlinkIcon,
 } from 'lucide-react';
 
 import { TierBadge, TypeLabel } from '@/components/badges';
@@ -27,8 +28,9 @@ import { SOURCE_ICONS } from './provenance';
 /**
  * The review queue (CONCEPT §3): open proposals, and accepted relations
  * whose endpoint changed (to confirm again), highest confidence first, then
- * those that finish a model. "Prüfen" opens the review screen, which
- * walks the same queue with J/K.
+ * those that finish a model. An open agent question ("Frage") and agents'
+ * no-links on the pair ("Einwand") show next to the provenance. "Prüfen"
+ * opens the review screen, which walks the same queue with J/K.
  */
 export function QueueTable({
   project,
@@ -115,6 +117,20 @@ export function QueueTable({
                       <span className="inline-flex items-center gap-1 text-warning">
                         <CircleHelpIcon className="size-3.5" aria-hidden />
                         Frage
+                      </span>
+                    ) : null}
+                    {r.noLinks.length > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-warning"
+                        data-testid="queue-no-link"
+                        title={
+                          r.noLinks.length === 1
+                            ? 'Kein Zusammenhang laut Agent'
+                            : `Kein Zusammenhang laut Agent (${r.noLinks.length} Einwände)`
+                        }
+                      >
+                        <UnlinkIcon className="size-3.5" aria-hidden />
+                        Einwand
                       </span>
                     ) : null}
                     {finishes > 0 ? (

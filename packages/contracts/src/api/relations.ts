@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { Finding } from '../findings.ts';
-import { AssertionId, PrincipalId, RelationId, SubmissionId } from '../ids.ts';
+import { AssertionId, NoLinkId, PrincipalId, RelationId, SubmissionId } from '../ids.ts';
 import { ModelKey, Ref } from '../refs.ts';
 import {
   AssertionKind,
@@ -51,6 +51,26 @@ export const RelationProvenance = z
   .meta({ id: 'RelationProvenance', description: 'The assertion a relation status rests on.' });
 export type RelationProvenance = z.infer<typeof RelationProvenance>;
 
+/**
+ * A live, current no-link of an agent on a relation's typed pair (CONCEPT §3
+ * "judge each pair once"): an objection the reviewer sees next to the
+ * proposals. Current: judged on the head versions of both models under the
+ * procedure claims name now.
+ */
+export const RelationNoLink = z
+  .object({
+    id: NoLinkId,
+    /** Pseudonymous handle of the judging principal, e.g. `agent:claude code`. */
+    handle: z.string(),
+    /** The model whose analysis stored it. */
+    origin: ModelKey,
+    /** As the agent wrote it, `<code>: <sentence>`. */
+    reason: z.string(),
+    at: Timestamp,
+  })
+  .meta({ id: 'RelationNoLink', description: 'An agent judgement that the pair is unrelated.' });
+export type RelationNoLink = z.infer<typeof RelationNoLink>;
+
 /** A relation between two processes with its review state (CONCEPT §2). */
 export const Relation = z
   .object({
@@ -71,6 +91,8 @@ export const Relation = z
     /** Who the current status rests on: `rule`, `agent` or `human` (= `provenance.sourceKind`). */
     source: orNull(SourceKind),
     provenance: orNull(RelationProvenance),
+    /** Live, current agent no-links on the same `(type, from, to)`, oldest first. */
+    noLinks: z.array(RelationNoLink),
     updatedAt: Timestamp,
   })
   .meta({ id: 'Relation', description: 'A relation between two processes.' });

@@ -148,6 +148,50 @@ test('maps an MCP payload (defaults applied) verbatim, U+FFFD included', async (
   assert.equal(line.task, undefined);
 });
 
+test('maps typed no-links and the no-link outcomes, withdrawn no-links and the uncovered count in the recorder\'s key order', async () => {
+  const [, mcp] = await storedRun();
+  assert.ok(mcp);
+  const noLinks = (mcp.submission.payload['noLinks'] as Array<Record<string, unknown>>).map((n) => ({ ...n, type: 'message' }));
+  const pair = { type: 'signal', from: `${R}#End_RechnungsstellungAbgeschlossen`, to: `${P}#Start_InvoicingCompleted` } as const;
+  const stored: StoredAnalysis = {
+    ...mcp,
+    submission: {
+      ...mcp.submission,
+      payload: { ...mcp.submission.payload, noLinks },
+      result: {
+        // The stored result's keys in another order than a recording has them.
+        uncovered: { pairs: [{ to: pair.to, type: pair.type, from: pair.from }], count: 4 },
+        withdrawnNoLinks: 2,
+        noLinks: { counts: { invalid: 0, duplicate: 0, stored: 1 }, items: [{ result: 'stored', index: 0 }] },
+        ...mcp.submission.result,
+      },
+    },
+  };
+  const line = recordingLineOf(stored, { landscape: 'sample' });
+  assert.deepEqual(line.submission.noLinks, [
+    { type: 'message', from: `${A}#Task_AbsageSenden`, to: `${P}#Event_PaymentReceived`, reason: 'Absage ist keine Zahlung�' },
+  ]);
+  assert.deepEqual(Object.keys(line.submission.noLinks[0] ?? {}), ['type', 'from', 'to', 'reason']);
+  assert.equal(
+    JSON.stringify(line.result),
+    JSON.stringify({
+      replayed: false,
+      counts: { applied: 1, duplicate: 1, suppressed: 0, reopened: 0, invalid: 0 },
+      withdrawn: 1,
+      items: [
+        { index: 0, result: 'applied', status: 'proposed' },
+        { index: 1, result: 'duplicate', status: 'proposed' },
+      ],
+      noLinks: { items: [{ index: 0, result: 'stored' }], counts: { stored: 1, duplicate: 0, invalid: 0 } },
+      withdrawnNoLinks: 2,
+      // The count only, like the recorder: the pairs would bloat the recordings.
+      uncovered: { count: 4 },
+    }),
+  );
+  // An untyped no-link (before proa-relations@0.2.0) stays untyped.
+  assert.deepEqual(Object.keys(recordingLineOf(mcp, { landscape: 'sample' }).submission.noLinks[0] ?? {}), ['from', 'to', 'reason']);
+});
+
 test('takes the agent from the handle agent:<token name>, unless --agent names one', async () => {
   assert.equal(agentOf('agent:claude-desktop-1'), 'claude-desktop-1');
   assert.equal(agentOf('agent:claude code'), 'claude code');
@@ -408,12 +452,13 @@ test('eval:live writes the run, scores it and reports the live gate', async () =
     const report = JSON.parse(again.out) as {
       written: boolean;
       recordings: { path: string; lines: number }[];
-      runs: { file: string; overall: { recall: number } }[];
+      runs: { file: string; overall: { recall: number }; pairsJudgedTwice: number; uncovered: number | null }[];
       gates: { llmModel: string; status: string; runs: number; recall: number; baseline: { source: string; recall: number } }[];
     };
     assert.equal(report.written, true);
     assert.deepEqual(report.recordings, [{ path: rel, lines: 2 }]);
-    assert.deepEqual(report.runs.map((x) => [x.file, x.overall.recall]), [[rel, 0.6]]);
+    // No pair judged in both models' tasks; results before proa-relations@0.2.0 report no uncovered pairs.
+    assert.deepEqual(report.runs.map((x) => [x.file, x.overall.recall, x.pairsJudgedTwice, x.uncovered]), [[rel, 0.6, 0, null]]);
     assert.deepEqual(
       report.gates.map((g) => [g.llmModel, g.status, g.runs, g.recall, g.baseline.source, g.baseline.recall]),
       [['claude-opus-5-5', 'pass', 3, 0.6, 'agent-sim', 0.6]],

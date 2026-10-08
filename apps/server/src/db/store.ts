@@ -15,6 +15,7 @@ import {
   type ModelFacts,
   type ModelId,
   type ModelStage,
+  type NoLinkId,
   type PrincipalId,
   type ProjectId,
   type Ref,
@@ -52,6 +53,7 @@ import type {
   RelationRecord,
   RevisionRecord,
   StoredAssertion,
+  StoredNoLink,
   StoredSubmission,
   Store,
   TaskDetail,
@@ -156,6 +158,8 @@ const toAssertion = (r: AssertionRow, handle: string): StoredAssertion => ({
   linkedRelationId: r.linkedRelationId as RelationId | null,
   fromFp: r.fromFp,
   toFp: r.toFp,
+  fromHash: r.fromHash,
+  toHash: r.toHash,
   handle,
   createdAt: r.createdAt,
 });
@@ -332,10 +336,19 @@ function repos(db: Conn): Tx {
       leaseUntil: r.task.leaseUntil,
       lastError: r.task.lastError,
       submissionId: r.submissionId,
+      claimedSeq: r.task.claimedSeq,
+      assignment: r.task.assignment,
+      requeueAfter: r.task.requeueAfter,
       createdAt: r.task.createdAt,
       updatedAt: r.task.updatedAt,
     }));
   }
+
+  const noLinkFrom = alias(s.model, 'no_link_from_model');
+  const noLinkFromHead = alias(s.modelRevision, 'no_link_from_head');
+  const noLinkTo = alias(s.model, 'no_link_to_model');
+  const noLinkToHead = alias(s.modelRevision, 'no_link_to_head');
+  const noLinkOrigin = alias(s.model, 'no_link_origin');
 
   return {
     projects: {
@@ -597,6 +610,34 @@ function repos(db: Conn): Tx {
           );
         return rows[0]?.rev ?? 0;
       },
+      async headHashes(projectId) {
+        const rows = await db
+          .select({ key: s.model.key, factsHash: s.modelRevision.factsHash })
+          .from(s.model)
+          .innerJoin(s.modelRevision, liveHead)
+          .where(and(eq(s.model.projectId, projectId), isNull(s.model.deletedSeq)));
+        return new Map(rows.map((r) => [r.key, r.factsHash]));
+      },
+      async hashesAt(projectId, modelKeys, seq) {
+        if (modelKeys.length === 0) return new Map();
+        // The latest revision up to `seq`, unless a deletion followed it by
+        // `seq` (a revival always adds a revision, so none came between).
+        const result = await db.execute<{ key: string; facts_hash: string }>(sql`
+          select m.key, r.facts_hash
+          from ${s.model} m
+          join lateral (
+            select x.facts_hash, x.seq from ${s.modelRevision} x
+            where x.project_id = m.project_id and x.model_id = m.id and x.seq <= ${seq}
+            order by x.seq desc limit 1
+          ) r on true
+          where m.project_id = ${projectId} and m.key in ${[...new Set(modelKeys)]}
+            and not exists (
+              select 1 from ${s.event} e
+              where e.project_id = m.project_id and e.type = 'model.deleted'
+                and e.seq > r.seq and e.seq <= ${seq} and e.payload->>'modelId' = m.id
+            )`);
+        return new Map(result.rows.map((r) => [r.key, r.facts_hash]));
+      },
     },
 
     facts: {
@@ -785,6 +826,8 @@ function repos(db: Conn): Tx {
             state,
             updatedAt: sql`now()`,
             ...(lastError === undefined ? {} : { lastError }),
+            // A cancelled claim judges nothing any more.
+            ...(state === 'cancelled' ? { assignment: null } : {}),
           })
           .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
       },
@@ -839,7 +882,7 @@ function repos(db: Conn): Tx {
         if (projectIds.length === 0) return [];
         const rows = await db
           .update(s.analysisTask)
-          .set({ state: 'failed', lastError: reason, updatedAt: sql`now()` })
+          .set({ state: 'failed', lastError: reason, assignment: null, updatedAt: sql`now()` })
           .where(
             and(
               inArray(s.analysisTask.projectId, [...projectIds]),
@@ -900,6 +943,9 @@ function repos(db: Conn): Tx {
             leaseUntil: q.leaseUntil,
             leaseTokenHash: null,
             attempts: sql`${t.attempts} + 1`,
+            // The claim renders its input and assignment next; it sees every loss so far.
+            assignment: null,
+            requeueAfter: false,
             updatedAt: sql`now()`,
           })
           .where(inArray(t.id, claimable))
@@ -919,6 +965,24 @@ function repos(db: Conn): Tx {
           .set({ leaseTokenHash: hash })
           .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
       },
+      async setClaimedSeq(projectId, id, seq) {
+        await db
+          .update(s.analysisTask)
+          .set({ claimedSeq: seq })
+          .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
+      },
+      async setAssignment(projectId, id, pairs) {
+        await db
+          .update(s.analysisTask)
+          .set({ assignment: [...pairs] })
+          .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
+      },
+      async setRequeueAfter(projectId, id) {
+        await db
+          .update(s.analysisTask)
+          .set({ requeueAfter: true })
+          .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
+      },
       async release(projectId, id, reason) {
         await db
           .update(s.analysisTask)
@@ -928,6 +992,8 @@ function repos(db: Conn): Tx {
             leaseUntil: null,
             attempts: sql`greatest(${s.analysisTask.attempts} - 1, 0)`,
             lastError: reason,
+            assignment: null,
+            requeueAfter: false,
             updatedAt: sql`now()`,
           })
           .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
@@ -986,6 +1052,145 @@ function repos(db: Conn): Tx {
           handle: r.handle,
           createdAt: r.sub.createdAt,
         } satisfies StoredSubmission;
+      },
+      async originModels(projectId) {
+        const rows = await db
+          .select({ id: s.analysisSubmission.id, key: s.model.key })
+          .from(s.analysisSubmission)
+          .innerJoin(
+            s.analysisTask,
+            and(
+              eq(s.analysisTask.projectId, s.analysisSubmission.projectId),
+              eq(s.analysisTask.id, s.analysisSubmission.taskId),
+            ),
+          )
+          .innerJoin(
+            s.model,
+            and(
+              eq(s.model.projectId, s.analysisTask.projectId),
+              eq(s.model.id, s.analysisTask.modelId),
+            ),
+          )
+          .where(eq(s.analysisSubmission.projectId, projectId));
+        return new Map(rows.map((r) => [r.id as SubmissionId, r.key]));
+      },
+    },
+
+    noLinks: {
+      async insertMany(rows) {
+        for (const chunk of chunks(rows, INSERT_CHUNK)) await db.insert(s.noLink).values(chunk);
+      },
+      async listLive(projectId, filter, procedure) {
+        const nl = s.noLink;
+        const froms = filter.pairs ? [...new Set(filter.pairs.map((p) => p.from))] : undefined;
+        if (froms?.length === 0) return [];
+        const rows = await db
+          .select({
+            nl,
+            handle: s.principal.handle,
+            origin: noLinkOrigin.key,
+            // Current: both bases are the heads, and the procedure is the one asked for.
+            current: sql<boolean>`coalesce(
+              ${noLinkFromHead.factsHash} = ${nl.fromHash}
+              and ${noLinkToHead.factsHash} = ${nl.toHash}
+              and ${nl.declared}->'procedure'->>'id' = ${procedure.id}
+              and ${nl.declared}->'procedure'->>'version' = ${procedure.version}, false)`,
+          })
+          .from(nl)
+          .innerJoin(s.principal, eq(s.principal.id, nl.principalId))
+          .innerJoin(
+            noLinkOrigin,
+            and(eq(noLinkOrigin.projectId, nl.projectId), eq(noLinkOrigin.id, nl.modelId)),
+          )
+          .leftJoin(
+            noLinkFrom,
+            and(
+              eq(noLinkFrom.projectId, nl.projectId),
+              eq(noLinkFrom.key, nl.fromModel),
+              isNull(noLinkFrom.deletedSeq),
+            ),
+          )
+          .leftJoin(
+            noLinkFromHead,
+            and(
+              eq(noLinkFromHead.projectId, noLinkFrom.projectId),
+              eq(noLinkFromHead.id, noLinkFrom.headRevisionId),
+            ),
+          )
+          .leftJoin(
+            noLinkTo,
+            and(
+              eq(noLinkTo.projectId, nl.projectId),
+              eq(noLinkTo.key, nl.toModel),
+              isNull(noLinkTo.deletedSeq),
+            ),
+          )
+          .leftJoin(
+            noLinkToHead,
+            and(
+              eq(noLinkToHead.projectId, noLinkTo.projectId),
+              eq(noLinkToHead.id, noLinkTo.headRevisionId),
+            ),
+          )
+          .leftJoin(s.noLinkWithdrawal, eq(s.noLinkWithdrawal.noLinkId, nl.id))
+          .where(
+            and(
+              eq(nl.projectId, projectId),
+              isNull(s.noLinkWithdrawal.noLinkId),
+              filter.touchingModelKey === undefined
+                ? undefined
+                : or(
+                    eq(nl.fromModel, filter.touchingModelKey),
+                    eq(nl.toModel, filter.touchingModelKey),
+                  ),
+              filter.principalId === undefined ? undefined : eq(nl.principalId, filter.principalId),
+              froms === undefined ? undefined : inArray(nl.fromRef, froms),
+            ),
+          )
+          .orderBy(asc(nl.seq), asc(nl.id));
+        const wanted = filter.pairs
+          ? new Set(filter.pairs.map((p) => `${p.type}\u0000${p.from}\u0000${p.to}`))
+          : undefined;
+        return rows
+          .filter(
+            (r) => !wanted || wanted.has(`${r.nl.type}\u0000${r.nl.fromRef}\u0000${r.nl.toRef}`),
+          )
+          .map((r): StoredNoLink => ({
+            id: r.nl.id as NoLinkId,
+            projectId: r.nl.projectId as ProjectId,
+            type: r.nl.type,
+            fromRef: r.nl.fromRef as Ref,
+            toRef: r.nl.toRef as Ref,
+            fromModel: r.nl.fromModel,
+            toModel: r.nl.toModel,
+            fromHash: r.nl.fromHash,
+            toHash: r.nl.toHash,
+            reason: r.nl.reason,
+            sourceKind: r.nl.sourceKind,
+            principalId: r.nl.principalId as PrincipalId,
+            clientId: r.nl.clientId,
+            declared: r.nl.declared,
+            submissionId: r.nl.submissionId as SubmissionId,
+            modelId: r.nl.modelId as ModelId,
+            seq: r.nl.seq,
+            handle: r.handle,
+            origin: r.origin,
+            current: r.current,
+            createdAt: r.nl.createdAt,
+          }));
+      },
+      async withdraw(projectId, ids, by) {
+        for (const chunk of chunks(ids, INSERT_CHUNK)) {
+          await db.insert(s.noLinkWithdrawal).values(
+            chunk.map((id) => ({
+              noLinkId: id,
+              projectId,
+              seq: by.seq,
+              principalId: by.principalId,
+              reason: by.reason,
+            })),
+          );
+        }
       },
     },
 

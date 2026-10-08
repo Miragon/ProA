@@ -4,7 +4,7 @@
     {
       "name": "claim_analysis",
       "title": "Claim analysis tasks",
-      "description": "Claims up to 5 queued relations tasks (default 1), oldest first, in the projects where this token may propose (proa:propose); projectId and modelKey narrow it. Each item has a leaseToken (keep it; shown once), a 15-minute lease without renewal, the procedure to follow and declare, and the input: the model's facts (message flows with their ends), candidates as [type, from, to, basis, score] tuples, the partner endpoints they name and their processes, the existing relations with human decisions (rejection reasons, hold notes and questions) and notes, and the project's findings touching the model. Submit with submit_analysis, or hand the task back with release_analysis. No items: nothing to do.",
+      "description": "Claims up to 5 queued relations tasks (default 1), oldest first, in the projects where this token may propose (proa:propose); projectId and modelKey narrow it. Each item has a leaseToken (keep it; shown once), a 15-minute lease without renewal, the procedure to follow and declare, and the input: the model's facts (message flows with their ends), candidates as [type, from, to, basis, score] tuples, the partner endpoints they name and their processes, the existing relations with human decisions (rejection reasons, hold notes and questions) and notes, and the project's findings touching the model. Judge each pair once: judged lists the current agent judgements on pairs touching the model (link verdicts by relation id, no-links with their reason; mine: your own), skip the pairs a partner analysis judges; neither is repeated in candidates: the rule, key and lexical ones are your assignment, the compatible ones the search space for missing partners. Submit with submit_analysis, or hand the task back with release_analysis. No items: nothing to do.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -286,6 +286,18 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/$defs/ClaimRelation"
+                }
+              },
+              "judged": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ClaimJudged"
+                }
+              },
+              "skip": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ClaimSkip"
                 }
               },
               "findings": {
@@ -682,6 +694,124 @@
               "hold"
             ],
             "description": "Verdict of a decision."
+          },
+          "ClaimJudged": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ClaimJudgedLink"
+              },
+              {
+                "$ref": "#/$defs/ClaimJudgedNoLink"
+              }
+            ],
+            "description": "A current agent judgement on a pair."
+          },
+          "ClaimJudgedLink": {
+            "type": "object",
+            "properties": {
+              "relation": {
+                "$ref": "#/$defs/RelationId"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "by": {
+                "type": "string"
+              },
+              "mine": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "relation",
+              "origin",
+              "by"
+            ],
+            "additionalProperties": false,
+            "description": "A current link verdict on a pair (compact)."
+          },
+          "ClaimJudgedNoLink": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "call",
+                  "message",
+                  "signal",
+                  "trigger"
+                ]
+              },
+              "from": {
+                "$ref": "#/$defs/Ref"
+              },
+              "to": {
+                "$ref": "#/$defs/Ref"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "by": {
+                "type": "string"
+              },
+              "mine": {
+                "type": "boolean",
+                "const": true
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "from",
+              "to",
+              "origin",
+              "by",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "description": "A current no-link verdict on a pair (compact)."
+          },
+          "ClaimSkip": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "call",
+                  "message",
+                  "signal",
+                  "trigger"
+                ]
+              },
+              "from": {
+                "$ref": "#/$defs/Ref"
+              },
+              "to": {
+                "$ref": "#/$defs/Ref"
+              },
+              "model": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "claimed",
+                  "queued"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "from",
+              "to",
+              "model",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "description": "A candidate pair a partner analysis judges."
           },
           "Finding": {
             "type": "object",
@@ -1146,6 +1276,12 @@
                   }
                 ]
               },
+              "noLinks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/RelationNoLink"
+                }
+              },
               "updatedAt": {
                 "$ref": "#/$defs/Timestamp"
               }
@@ -1163,6 +1299,7 @@
               "attrs",
               "source",
               "provenance",
+              "noLinks",
               "updatedAt"
             ],
             "additionalProperties": false,
@@ -1398,6 +1535,41 @@
             "description": "RFC 3339 timestamp (UTC).",
             "example": "2026-10-06T12:00:00.000Z"
           },
+          "RelationNoLink": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/NoLinkId"
+              },
+              "handle": {
+                "type": "string"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Timestamp"
+              }
+            },
+            "required": [
+              "id",
+              "handle",
+              "origin",
+              "reason",
+              "at"
+            ],
+            "additionalProperties": false,
+            "description": "An agent judgement that the pair is unrelated."
+          },
+          "NoLinkId": {
+            "type": "string",
+            "pattern": "^nlk_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "Stored no-link id (`nlk_` + ULID).",
+            "example": "nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+          },
           "Finding": {
             "type": "object",
             "properties": {
@@ -1567,7 +1739,7 @@
     {
       "name": "get_procedure",
       "title": "Get procedure",
-      "description": "The analysis instructions an agent follows, by id. Available: proa-relations@0.1.0.",
+      "description": "The analysis instructions an agent follows, by id. Available: proa-relations@0.2.0.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1898,6 +2070,12 @@
                   }
                 ]
               },
+              "noLinks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/RelationNoLink"
+                }
+              },
               "updatedAt": {
                 "$ref": "#/$defs/Timestamp"
               }
@@ -1915,6 +2093,7 @@
               "attrs",
               "source",
               "provenance",
+              "noLinks",
               "updatedAt"
             ],
             "additionalProperties": false,
@@ -2156,6 +2335,48 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "RFC 3339 timestamp (UTC).",
             "example": "2026-10-06T12:00:00.000Z"
+          },
+          "RelationNoLink": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/NoLinkId"
+              },
+              "handle": {
+                "type": "string"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Timestamp"
+              }
+            },
+            "required": [
+              "id",
+              "handle",
+              "origin",
+              "reason",
+              "at"
+            ],
+            "additionalProperties": false,
+            "description": "An agent judgement that the pair is unrelated."
+          },
+          "NoLinkId": {
+            "type": "string",
+            "pattern": "^nlk_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "Stored no-link id (`nlk_` + ULID).",
+            "example": "nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+          },
+          "ModelKey": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*$",
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "example": "finanzen/rechnungsstellung"
           }
         }
       },
@@ -2348,6 +2569,12 @@
                   }
                 ]
               },
+              "noLinks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/RelationNoLink"
+                }
+              },
               "updatedAt": {
                 "$ref": "#/$defs/Timestamp"
               }
@@ -2365,6 +2592,7 @@
               "attrs",
               "source",
               "provenance",
+              "noLinks",
               "updatedAt"
             ],
             "additionalProperties": false,
@@ -2606,6 +2834,48 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "RFC 3339 timestamp (UTC).",
             "example": "2026-10-06T12:00:00.000Z"
+          },
+          "RelationNoLink": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/NoLinkId"
+              },
+              "handle": {
+                "type": "string"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Timestamp"
+              }
+            },
+            "required": [
+              "id",
+              "handle",
+              "origin",
+              "reason",
+              "at"
+            ],
+            "additionalProperties": false,
+            "description": "An agent judgement that the pair is unrelated."
+          },
+          "NoLinkId": {
+            "type": "string",
+            "pattern": "^nlk_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "Stored no-link id (`nlk_` + ULID).",
+            "example": "nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+          },
+          "ModelKey": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*$",
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "example": "finanzen/rechnungsstellung"
           }
         }
       },
@@ -3118,6 +3388,12 @@
                   }
                 ]
               },
+              "noLinks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/RelationNoLink"
+                }
+              },
               "updatedAt": {
                 "$ref": "#/$defs/Timestamp"
               }
@@ -3135,6 +3411,7 @@
               "attrs",
               "source",
               "provenance",
+              "noLinks",
               "updatedAt"
             ],
             "additionalProperties": false,
@@ -3376,6 +3653,48 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "RFC 3339 timestamp (UTC).",
             "example": "2026-10-06T12:00:00.000Z"
+          },
+          "RelationNoLink": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/NoLinkId"
+              },
+              "handle": {
+                "type": "string"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Timestamp"
+              }
+            },
+            "required": [
+              "id",
+              "handle",
+              "origin",
+              "reason",
+              "at"
+            ],
+            "additionalProperties": false,
+            "description": "An agent judgement that the pair is unrelated."
+          },
+          "NoLinkId": {
+            "type": "string",
+            "pattern": "^nlk_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "Stored no-link id (`nlk_` + ULID).",
+            "example": "nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+          },
+          "ModelKey": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*$",
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "example": "finanzen/rechnungsstellung"
           }
         }
       },
@@ -3470,7 +3789,7 @@
     {
       "name": "submit_analysis",
       "title": "Submit an analysis",
-      "description": "Submits the result of a claimed task (at most 1 MB): taskId and leaseToken from the claim, a fresh UUID as submissionId (replaying it returns the stored result), the declared procedure and llmModel, relations (≤ 200; type, from, to, confidence 0–1, rationale ≤ 1,000 characters, evidence, optional question ≤ 500; no control characters except tab and line breaks) and noLinks. Each item comes back as applied, duplicate, suppressed (a human already decided; nothing changed), reopened or invalid:<reason> (refs must exist, one end in the task model, types must fit the endpoints). Earlier pipeline proposals touching the model that you do not repeat are withdrawn. Errors: lease-lost (claimed again, released, wrong token), task-cancelled (new revision), already-submitted.",
+      "description": "Submits the result of a claimed task (at most 1 MB): taskId and leaseToken from the claim, a fresh UUID as submissionId (replaying it returns the stored result), the declared procedure and llmModel, relations (≤ 200; type, from, to, confidence 0–1, rationale ≤ 1,000 characters, evidence, optional question ≤ 500; no control characters except tab and line breaks) and noLinks (≤ 500; type, from, to, reason). Each relation comes back as applied, duplicate, suppressed (a human already decided; nothing changed), reopened or invalid:<reason> (refs must exist, one end in the task model, types must fit the endpoints); each no-link as stored, duplicate or invalid:<reason>; uncovered counts the assigned (rule, key and lexical) pairs you left unjudged. Judgements on pairs touching the model made on another version of it or under another procedure are withdrawn; current judgements stay without repetition. Errors: lease-lost (claimed again, released, wrong token), task-cancelled (new revision), already-submitted.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3629,6 +3948,10 @@
           "NoLinkItem": {
             "type": "object",
             "properties": {
+              "type": {
+                "type": "string",
+                "maxLength": 30
+              },
               "from": {
                 "type": "string",
                 "maxLength": 1000
@@ -3717,6 +4040,17 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "noLinks": {
+            "$ref": "#/$defs/SubmissionNoLinks"
+          },
+          "withdrawnNoLinks": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "uncovered": {
+            "$ref": "#/$defs/UncoveredPairs"
           }
         },
         "required": [
@@ -3815,6 +4149,139 @@
               "obsolete"
             ],
             "description": "Review status of a relation."
+          },
+          "SubmissionNoLinks": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "result": {
+                      "$ref": "#/$defs/NoLinkOutcome"
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "result"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "counts": {
+                "type": "object",
+                "properties": {
+                  "stored": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "duplicate": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "invalid": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "stored",
+                  "duplicate",
+                  "invalid"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "items",
+              "counts"
+            ],
+            "additionalProperties": false,
+            "description": "Outcome of the no-links of a submission."
+          },
+          "NoLinkOutcome": {
+            "type": "string",
+            "enum": [
+              "stored",
+              "duplicate",
+              "invalid:type-not-allowed",
+              "invalid:malformed-ref",
+              "invalid:control-characters",
+              "invalid:outside-task-model",
+              "invalid:unknown-ref",
+              "invalid:type-mismatch",
+              "invalid:same-process",
+              "invalid:message-flow",
+              "invalid:type-required",
+              "invalid:also-proposed"
+            ],
+            "description": "Outcome of one no-link."
+          },
+          "UncoveredPairs": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "pairs": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/TypedPair"
+                }
+              }
+            },
+            "required": [
+              "count",
+              "pairs"
+            ],
+            "additionalProperties": false,
+            "description": "Assigned pairs a submission left unjudged."
+          },
+          "TypedPair": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "call",
+                  "message",
+                  "signal",
+                  "trigger"
+                ]
+              },
+              "from": {
+                "$ref": "#/$defs/Ref"
+              },
+              "to": {
+                "$ref": "#/$defs/Ref"
+              }
+            },
+            "required": [
+              "type",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false,
+            "description": "A typed pair of endpoints."
+          },
+          "Ref": {
+            "type": "string",
+            "maxLength": 456,
+            "pattern": "^([a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*)#([A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*)$",
+            "description": "Reference to a BPMN element: `<model_key>#<element_id>`, or `<model_key>#<process_id>` for a process.",
+            "example": "vertrieb/auftragsabwicklung#Event_WareVersandbereit"
           }
         }
       },
@@ -4058,6 +4525,12 @@
               }
             ]
           },
+          "noLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/RelationNoLink"
+            }
+          },
           "updatedAt": {
             "$ref": "#/$defs/Timestamp"
           }
@@ -4075,6 +4548,7 @@
           "attrs",
           "source",
           "provenance",
+          "noLinks",
           "updatedAt"
         ],
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4316,6 +4790,48 @@
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "RFC 3339 timestamp (UTC).",
             "example": "2026-10-06T12:00:00.000Z"
+          },
+          "RelationNoLink": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/NoLinkId"
+              },
+              "handle": {
+                "type": "string"
+              },
+              "origin": {
+                "$ref": "#/$defs/ModelKey"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/$defs/Timestamp"
+              }
+            },
+            "required": [
+              "id",
+              "handle",
+              "origin",
+              "reason",
+              "at"
+            ],
+            "additionalProperties": false,
+            "description": "An agent judgement that the pair is unrelated."
+          },
+          "NoLinkId": {
+            "type": "string",
+            "pattern": "^nlk_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "Stored no-link id (`nlk_` + ULID).",
+            "example": "nlk_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+          },
+          "ModelKey": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*(?:\\/[a-z0-9]+(?:-[a-z0-9]+)*)*$",
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "example": "finanzen/rechnungsstellung"
           }
         }
       },
