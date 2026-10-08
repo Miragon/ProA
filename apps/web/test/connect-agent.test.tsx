@@ -206,8 +206,9 @@ describe('ConnectAgent', () => {
     const user = userEvent.setup();
     renderWithQuery(<ConnectAgent project="demo" origin={ORIGIN} />);
     await user.click(screen.getByRole('button', { name: 'Token erstellen' }));
-    expect(await findToast('Token nicht erstellt')).toBeTruthy();
-    expect(screen.getByText(/only the owner on an interactive client/)).toBeTruthy();
+    // Within the toast: the live region announces the same text a second time.
+    const toast = await findToast('Token nicht erstellt');
+    expect(toast.textContent).toContain('only the owner on an interactive client');
     expect(screen.queryByTestId('created-secret')).toBeNull();
   });
 });
