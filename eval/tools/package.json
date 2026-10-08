@@ -2,8 +2,11 @@
   "name": "@proa/eval-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Spec format, BPMN generator and validator for the ProA eval corpus",
+  "description": "Spec format, BPMN generator and validator for the ProA eval corpus; eval:candidates, eval:replay and eval:live",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -21,11 +24,13 @@
     "lint": "eslint .",
     "typecheck": "tsc",
     "candidates": "node src/candidates.ts",
-    "replay": "node src/replay.ts"
+    "replay": "node src/replay.ts",
+    "live": "node src/live.ts"
   },
   "dependencies": {
     "@proa/bpmn-facts": "workspace:0.0.0",
     "@proa/contracts": "workspace:0.0.0",
+    "@proa/procedures": "workspace:0.0.0",
     "@proa/relations": "workspace:0.0.0",
     "bpmn-moddle": "10.3.1",
     "bpmnlint": "11.14.0",

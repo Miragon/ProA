@@ -125,6 +125,7 @@ describe('proa seed', () => {
   });
 
   it('reuses an existing project and can issue an agent token', async () => {
+    const tokenNames: string[] = [];
     const api = fakeApi({
       'GET /api/v1/projects/nordwind-handel': () => json(PROJECT),
       'POST /api/v1/projects/nordwind-handel/imports': async (req) => {
@@ -139,8 +140,9 @@ describe('proa seed', () => {
         });
       },
       'GET /api/v1/projects/nordwind-handel/landscape': () => json(LANDSCAPE),
-      'POST /api/v1/projects/nordwind-handel/agent-tokens': () =>
-        json(
+      'POST /api/v1/projects/nordwind-handel/agent-tokens': async (req) => {
+        tokenNames.push(((await req.json()) as { name: string }).name);
+        return json(
           {
             id: 'agt_1',
             name: 'seed',
@@ -153,10 +155,12 @@ describe('proa seed', () => {
             secret: `proa_at_${'a'.repeat(49)}`,
           },
           201,
-        ),
+        );
+      },
     });
     const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
     expect(await runCli(['seed', 'nordwind-handel', '--issue-tokens', '--json'], t.io)).toBe(0);
+    expect(tokenNames).toEqual(['seed']);
     const [result] = JSON.parse(t.out()) as [
       { created: boolean; import: { counts: Record<string, number> }; token: { secret: string } },
     ];
@@ -166,6 +170,130 @@ describe('proa seed', () => {
     expect(api.seen.filter((s) => s.method === 'POST' && s.path === '/api/v1/projects')).toEqual(
       [],
     );
+  });
+
+  it('--project seeds one landscape into a project of that key; --token-name names the token', async () => {
+    const created: unknown[] = [];
+    const tokens: unknown[] = [];
+    const run = 'nordwind-handel-claude-desktop-1';
+    const api = fakeApi({
+      [`GET /api/v1/projects/${run}`]: () => problem(404, 'not-found', 'no such project'),
+      'POST /api/v1/projects': async (req) => {
+        const body = (await req.json()) as { key: string; name: string };
+        created.push(body);
+        return json({ ...PROJECT, ...body }, 201);
+      },
+      [`POST /api/v1/projects/${run}/imports`]: async (req) => {
+        const files = (await req.formData()).getAll('files') as File[];
+        return json({
+          files: files.map((f) => ({
+            path: f.name,
+            modelKey: null,
+            outcome: 'created',
+            problem: null,
+          })),
+        });
+      },
+      [`GET /api/v1/projects/${run}/landscape`]: () => json(LANDSCAPE),
+      [`POST /api/v1/projects/${run}/agent-tokens`]: async (req) => {
+        const body = (await req.json()) as { name: string };
+        tokens.push(body);
+        return json(
+          {
+            id: 'agt_2',
+            name: body.name,
+            prefix: 'bbbbbbbb',
+            scopes: ['proa:read', 'proa:propose'],
+            expiresAt: '',
+            revokedAt: null,
+            lastUsedAt: null,
+            createdAt: '',
+            secret: `proa_at_${'b'.repeat(49)}`,
+          },
+          201,
+        );
+      },
+    });
+    const argv = ['seed', 'nordwind-handel', '--project', run, '--issue-tokens'];
+    const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    expect(await runCli([...argv, '--token-name', 'claude-desktop-1', '--json'], t.io)).toBe(0);
+    expect(t.err()).toBe('');
+    expect(created).toEqual([{ key: run, name: `Nordwind Handel GmbH (${run})` }]);
+    expect(tokens).toEqual([
+      { name: 'claude-desktop-1', scopes: ['proa:read', 'proa:propose'], expiresInDays: 90 },
+    ]);
+    const [result] = JSON.parse(t.out()) as [Record<string, unknown>];
+    expect(result).toMatchObject({
+      project: run,
+      landscape: 'nordwind-handel',
+      created: true,
+      token: { name: 'claude-desktop-1' },
+    });
+    // Nothing but the named project was touched.
+    expect(api.seen.every((s) => s.path === '/api/v1/projects' || s.path.includes(run))).toBe(true);
+
+    const text = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    expect(await runCli(argv, text.io)).toBe(0);
+    expect(text.out()).toContain(`${run} (landscape nordwind-handel): project created`);
+    expect(text.out()).toContain('Agent token "seed"');
+  });
+
+  it('warns when --project names an existing project', async () => {
+    const api = fakeApi({
+      'GET /api/v1/projects/run-1': () => json({ ...PROJECT, key: 'run-1' }),
+      'POST /api/v1/projects/run-1/imports': async (req) => {
+        const files = (await req.formData()).getAll('files') as File[];
+        return json({
+          files: files.map((f) => ({
+            path: f.name,
+            modelKey: null,
+            outcome: 'unchanged',
+            problem: null,
+          })),
+        });
+      },
+      'GET /api/v1/projects/run-1/landscape': () => json(LANDSCAPE),
+    });
+    const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    expect(await runCli(['seed', '_sample', '--project', 'run-1'], t.io)).toBe(0);
+    expect(t.out()).toContain('run-1 (landscape sample): project exists');
+    expect(t.err()).toContain('project run-1 already existed; use a fresh project per live run');
+  });
+
+  it('refuses --project and --token-name misuse before touching the server', async () => {
+    const cases: [string[], RegExp][] = [
+      [['seed', '--project', 'run-1'], /--project seeds exactly one landscape/],
+      [['seed', 'nordwind-handel', '_sample', '--project', 'run-1'], /exactly one landscape/],
+      [
+        ['seed', 'nordwind-handel', '--project', 'Run_1'],
+        /invalid project key "Run_1": must be a lowercase slug/,
+      ],
+      [['seed', 'nordwind-handel', '--project', 'x'.repeat(65)], /invalid project key/],
+      [
+        ['seed', 'nordwind-handel', '--token-name', 'claude-1'],
+        /--token-name needs --issue-tokens/,
+      ],
+      [
+        ['seed', 'nordwind-handel', '--issue-tokens', '--token-name', 'a\u0007b'],
+        /invalid token name/,
+      ],
+      [['seed', 'nordwind-handel', '--issue-tokens', '--token-name', ''], /invalid token name/],
+    ];
+    for (const [argv, message] of cases) {
+      const api = fakeApi({});
+      const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+      expect(await runCli(argv, t.io), argv.join(' ')).toBe(1);
+      expect(t.err()).toMatch(message);
+      expect(api.seen).toEqual([]);
+    }
+  });
+
+  it('documents --project and --token-name in seed --help', async () => {
+    const t = testIo();
+    expect(await runCli(['seed', '--help'], t.io)).toBe(0);
+    expect(t.out()).toContain('-p, --project <key>');
+    expect(t.out()).toContain('--token-name <name>');
+    expect(t.out()).toContain('(default seed)');
   });
 });
 

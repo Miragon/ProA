@@ -13,6 +13,9 @@
  * --no-record-ids` mode, and the files must equal the committed recordings
  * in `eval/recordings` (regenerate after an intended change with
  * `pnpm --filter @proa/server exec vitest run test/integration/agent-sim.test.ts -u`).
+ * `eval:live`'s reader, run against the same server afterwards, must build
+ * the recorder's lines from the stored submissions alone (all but the claim
+ * input, which the server does not keep).
  */
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -36,6 +39,7 @@ import {
   type RelationAssertionList,
   type RelationPage,
 } from '@proa/contracts';
+import { buildRecordings, fetchStoredAnalyses } from '@proa/eval-tools';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { libraryAnalysis } from '../../src/analysis.ts';
@@ -310,6 +314,33 @@ describe('the simulation agent over MCP', () => {
       expect(new Set(lines.map((l) => l.modelKey)).size).toBe(models[project]);
       expect(lines.every((l) => l.outcome === 'submitted' && l.task === undefined)).toBe(true);
       await expect(text).toMatchFileSnapshot(`${RECORDINGS}/${rel}`);
+    });
+
+    it(`${project}: eval:live builds the recorder's lines from the stored submissions (input aside)`, async () => {
+      // As eval:live reads a live run: over REST with the run's agent token.
+      const stored = await fetchStoredAnalyses({
+        url: server.url,
+        token: tokens[project]?.secret ?? '',
+        project,
+      });
+      expect(stored).toHaveLength(models[project] ?? -1);
+      const built = buildRecordings(stored, { landscape: project });
+      // One file, at the recorder's path (agent from the token name, declared procedure and model).
+      expect(built).toHaveLength(1);
+      const [live] = built;
+      const recorded = (await readFile(path.join(recordDir, live?.path ?? ''), 'utf8'))
+        .trimEnd()
+        .split('\n')
+        .map((l) => {
+          const { input, ...line } = JSON.parse(l) as RecordingLine;
+          expect(input).toBeDefined();
+          return line;
+        })
+        .sort((a, b) => (a.modelKey < b.modelKey ? -1 : a.modelKey > b.modelKey ? 1 : 0));
+      expect(live?.lines).toEqual(recorded);
+      // Byte for byte, in the recorder's key order.
+      expect(live?.text).toBe(recorded.map((l) => `${JSON.stringify(l)}\n`).join(''));
+      for (const line of live?.lines ?? []) RecordingLine.parse(line);
     });
   }
 

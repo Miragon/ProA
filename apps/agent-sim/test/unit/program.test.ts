@@ -78,7 +78,7 @@ describe('proa-agent-sim', () => {
     const line = RecordingLine.parse(JSON.parse(await readFile(file, 'utf8')));
     expect(line.llmModel).toBe('policy x');
     expect(line.task).toBeUndefined();
-    expect('summary' in line.input && line.input.summary).toBe(true);
+    expect(line.input).toMatchObject({ summary: true });
     // proposeAt 0.9 / askAt 0.75: the 0.8 pair becomes a question, the 0.58 pair a no-link.
     expect(line.submission.relations.map((r) => [r.confidence, r.question !== null])).toEqual([
       [1, false],

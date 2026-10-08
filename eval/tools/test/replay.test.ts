@@ -88,6 +88,12 @@ test('scores the fixture recording of _sample exactly', async () => {
   assert.deepEqual(s.noLinks.byClass, { must_link: 1, may_link: 0, must_not_link: 0, unlisted: 1, same_process: 0 });
   assert.equal(s.noLinks.pairs, 2);
   assert.deepEqual(s.noLinks.onMustLink.map((e) => e.tags), [['de-en']]);
+
+  // fixture-agent is a live run (not agent-sim): its must_not_link pair at 0.85 fails the live gate.
+  assert.deepEqual(
+    report.liveGate.map((g) => [g.procedure, g.landscape, g.status, g.runs, g.mustNotLinkHighConfidence, g.baseline.source]),
+    [['proa-relations@0.0.1', 'sample', 'fail', 1, 1, 'none']],
+  );
 });
 
 test('renders a deterministic report', async () => {
@@ -100,7 +106,17 @@ test('renders a deterministic report', async () => {
     /\| proa-relations@0\.0\.1 \/ fixture-agent \/ fixture-model \/ sample \| dev \| 2 \| 5 \| 60\.0 % \| 60\.0 % \| 60\.0 % \| 80\.0 % \| 1 \(1\) \| 2 \| 2 \| 3 \|/,
   );
   assert.match(md, /- `trigger` finance\/payment-collection#End_InvoicePaid → finance\/payment-collection#Event_InvoiceSent \(confidence 0\.85; near-miss, self-link\)/);
-  assert.match(renderReplayMarkdown({ recordings: [] }), /_No recordings\._/);
+  assert.match(renderReplayMarkdown({ recordings: [], liveGate: [] }), /_No recordings\._/);
+  assert.match(
+    md,
+    /## Live gate\n\n.*\n\n\| Procedure \/ landscape \|.*\n.*\n\| proa-relations@0\.0\.1 \/ sample \| dev \| fail \| 1 \| 60\.0 % \| 60\.0 % \| 60\.0 % \| n\/a \| none \| 1 \|\n/,
+  );
+  assert.match(md, /- proa-relations@0\.0\.1 \/ sample: fail: 1 must_not_link pair proposed with confidence ≥ 0\.8 \(in 1 of 1 run\); 1 of 3 runs; no baseline/);
+  const onlySim = renderReplayMarkdown({
+    recordings: report.recordings.map((r) => ({ ...r, agent: 'agent-sim' })),
+    liveGate: [],
+  });
+  assert.match(onlySim, /## Live gate\n\n.*\n\n_No live runs yet\._\n/);
 });
 
 test('scores the committed recordings of the simulation agent', async () => {
@@ -118,6 +134,11 @@ test('scores the committed recordings of the simulation agent', async () => {
     assert.ok((s.withRules.recall ?? 0) >= (s.overall.recall ?? 0), s.file);
     assert.ok(s.questions.pairs > 0, s.file);
   }
+  // The live gate covers exactly the groups with live runs.
+  assert.deepEqual(
+    report.liveGate.map((g) => `${g.procedure} ${g.landscape}`),
+    [...new Set(report.recordings.filter((r) => r.agent !== 'agent-sim').map((r) => `${r.procedure} ${r.landscape}`))].sort(),
+  );
   // The committed report is up to date (regenerate with `pnpm eval:replay`).
   const committed = await readFile(fileURLToPath(new URL('../../reports/replay.md', import.meta.url)), 'utf8');
   assert.equal(committed, renderReplayMarkdown(report));

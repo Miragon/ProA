@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getLandscape, type CreatedAgentToken, type Landscape } from '@proa/client';
-import { ProjectKey } from '@proa/contracts';
+import { CreateAgentTokenBody, ProjectKey } from '@proa/contracts';
 import { parse as parseYaml } from 'yaml';
 
 import { call, createApi, type Api } from '../api.ts';
@@ -100,6 +100,8 @@ export async function findLandscapes(
 
 export interface SeedResult {
   project: string;
+  /** Key of the seeded landscape (the project key unless `--project` named another). */
+  landscape: string;
   name: string;
   created: boolean;
   import: ImportSummary;
@@ -115,28 +117,45 @@ function summarize(l: Landscape): Pick<SeedResult, 'models' | 'relations' | 'fin
   return { models: l.models.length, relations, findings: l.findings.length };
 }
 
-/** Seeds one landscape into the project of the same key. */
+/** Name of the agent token `--issue-tokens` creates unless `--token-name` gives one. */
+export const SEED_TOKEN_NAME = 'seed';
+
+export interface SeedTarget {
+  /**
+   * Project key to seed into (default: the landscape's key); such a project
+   * is named `<landscape name> (<key>)`.
+   */
+  project?: string;
+  /** Create a read+propose agent token with this name. */
+  tokenName?: string;
+}
+
+/** Seeds one landscape into the project of the same key, or into `target.project`. */
 export async function seedLandscape(
   api: Api,
   landscape: CorpusLandscape,
-  issueToken: boolean,
+  target: SeedTarget = {},
 ): Promise<SeedResult> {
-  const { project, created } = await ensureProject(api, landscape.key, landscape.name);
-  const summary = await importDirectory(api, landscape.key, path.join(landscape.dir, 'models'));
+  const key = target.project ?? landscape.key;
+  const name = target.project ? `${landscape.name} (${target.project})` : landscape.name;
+  const { project, created } = await ensureProject(api, key, name);
+  const summary = await importDirectory(api, key, path.join(landscape.dir, 'models'));
   const view = await call(
     api,
-    `read the landscape of ${landscape.key}`,
-    getLandscape({ client: api.client, path: { project: landscape.key } }),
+    `read the landscape of ${key}`,
+    getLandscape({ client: api.client, path: { project: key } }),
   );
-  const token = issueToken
-    ? await createToken(api, landscape.key, {
-        name: 'seed',
-        scopes: [...DEFAULT_SCOPES],
-        expiresInDays: 90,
-      })
-    : null;
+  const token =
+    target.tokenName !== undefined
+      ? await createToken(api, key, {
+          name: target.tokenName,
+          scopes: [...DEFAULT_SCOPES],
+          expiresInDays: 90,
+        })
+      : null;
   return {
-    project: landscape.key,
+    project: key,
+    landscape: landscape.key,
     name: project.name,
     created,
     import: summary,
@@ -148,37 +167,88 @@ export async function seedLandscape(
 export interface SeedOptions extends CredentialOptions {
   url: string;
   corpus?: string;
+  /** Seed exactly one landscape into a project with this key (e.g. a fresh project per live run). */
+  project?: string;
   issueTokens?: boolean;
+  /** Name of the issued tokens (with `issueTokens`); default {@link SEED_TOKEN_NAME}. */
+  tokenName?: string;
   json?: boolean;
   verbose?: boolean;
+}
+
+/**
+ * Checks the options that do not need the corpus or the server.
+ *
+ * @throws {CliError} for `--project` without exactly one landscape or with an invalid key, and
+ *   for `--token-name` without `--issue-tokens` or with an invalid name
+ */
+export function checkSeedOptions(names: readonly string[], opts: SeedOptions): void {
+  if (opts.project !== undefined) {
+    if (names.length !== 1) {
+      throw new CliError(
+        `--project seeds exactly one landscape; name it, e.g. proa seed nordwind-handel --project ${opts.project}`,
+      );
+    }
+    const key = ProjectKey.safeParse(opts.project);
+    if (!key.success) {
+      throw new CliError(
+        `invalid project key ${JSON.stringify(opts.project)}: ${key.error.issues[0]?.message ?? 'not a project key'}`,
+      );
+    }
+  }
+  if (opts.tokenName !== undefined) {
+    if (opts.issueTokens !== true) throw new CliError('--token-name needs --issue-tokens');
+    const name = CreateAgentTokenBody.shape.name.safeParse(opts.tokenName);
+    if (!name.success) {
+      throw new CliError(
+        `invalid token name ${JSON.stringify(opts.tokenName)}: 1–100 characters, no control characters`,
+      );
+    }
+  }
 }
 
 /**
  * `proa seed [landscape...]`: creates one project per eval landscape
  * (default: every scored landscape of `eval/corpus`) and imports its models
  * as the owner. Re-running it is safe: existing projects are reused and
- * unchanged models stay unchanged.
+ * unchanged models stay unchanged. `--project <key>` seeds one landscape
+ * into a project with another key (a fresh project per live run, CONCEPT
+ * §7); `--issue-tokens` creates a read+propose agent token per project,
+ * named `--token-name` (default `seed`; the name is the agent segment of
+ * `eval:live` recordings).
  */
 export async function seedCommand(
   io: CliIo,
   names: readonly string[],
   opts: SeedOptions,
 ): Promise<void> {
+  checkSeedOptions(names, opts);
   const corpus = opts.corpus ? path.resolve(io.cwd, opts.corpus) : DEFAULT_CORPUS;
   const landscapes = await findLandscapes(corpus, names);
   const api = createApi(io, opts.url, await ownerCredential(io, opts));
+  const target: SeedTarget = {
+    ...(opts.project !== undefined ? { project: opts.project } : {}),
+    ...(opts.issueTokens ? { tokenName: opts.tokenName ?? SEED_TOKEN_NAME } : {}),
+  };
   const results: SeedResult[] = [];
   let failed = 0;
   for (const l of landscapes) {
-    const r = await seedLandscape(api, l, opts.issueTokens === true);
+    const r = await seedLandscape(api, l, target);
     results.push(r);
     failed += r.import.counts.failed;
+    if (opts.project !== undefined && !r.created) {
+      io.stderr(`proa: project ${r.project} already existed; use a fresh project per live run\n`);
+    }
     if (opts.json) continue;
     const rel = Object.entries(r.relations)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([s, n]) => `${n} ${s}`)
       .join(', ');
-    io.stdout(`${r.project} (${r.name}): project ${r.created ? 'created' : 'exists'}\n`);
+    const head =
+      r.landscape === r.project
+        ? `${r.project} (${r.name})`
+        : `${r.project} (landscape ${r.landscape})`;
+    io.stdout(`${head}: project ${r.created ? 'created' : 'exists'}\n`);
     if (opts.verbose) io.stdout(formatImport(r.import));
     else {
       const c = r.import.counts;

@@ -584,6 +584,16 @@ describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
     ).toThrow();
   });
 
+  it('parses a line built from a stored submission: no claim input', () => {
+    const { input: _input, ...stored } = line;
+    const parsed = RecordingLine.parse(stored);
+    expect(parsed.input).toBeUndefined();
+    expect(parsed.submission.relations).toHaveLength(1);
+    expect(recordingPath(parsed)).toBe(recordingPath(RecordingLine.parse(line)));
+    // Still the same format: an input, if present, must be one.
+    expect(() => RecordingLine.parse({ ...stored, input: null })).toThrow();
+  });
+
   it('lays recordings out as <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl', () => {
     expect(recordingPath(RecordingLine.parse(line))).toBe(
       'proa-relations@0.0.1/agent-sim/sim-policy-1/nordwind-handel.jsonl',

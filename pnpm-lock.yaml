@@ -134,6 +134,9 @@ importers:
       '@proa/agent-sim':
         specifier: workspace:0.0.0
         version: link:../agent-sim
+      '@proa/eval-tools':
+        specifier: workspace:0.0.0
+        version: link:../../eval/tools
       '@testcontainers/postgresql':
         specifier: 12.2.0
         version: 12.2.0
@@ -237,6 +240,9 @@ importers:
       '@proa/contracts':
         specifier: workspace:0.0.0
         version: link:../../packages/contracts
+      '@proa/procedures':
+        specifier: workspace:0.0.0
+        version: link:../../packages/procedures
       '@proa/relations':
         specifier: workspace:0.0.0
         version: link:../../packages/relations

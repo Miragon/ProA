@@ -132,6 +132,34 @@ describe('proa seed', () => {
     }
     expect((await status()).projects.map((p) => p.seq)).toEqual(before.projects.map((p) => p.seq));
   });
+
+  it('--project seeds a fresh project per live run; its token carries --token-name', async () => {
+    const r = await proa([
+      'seed',
+      '_sample',
+      '--project',
+      'sample-run-1',
+      '--issue-tokens',
+      '--token-name',
+      'claude-code-1',
+      '--json',
+    ]);
+    expect(r.err).toBe('');
+    expect(r.code).toBe(0);
+    const [result] = JSON.parse(r.out) as [{ token: { secret: string } }];
+    expect(result).toMatchObject({
+      project: 'sample-run-1',
+      landscape: 'sample',
+      name: 'sample (sample-run-1)',
+      created: true,
+      models: 3,
+      token: { name: 'claude-code-1' },
+    });
+    // The token's handle is what eval:live records as the agent.
+    const asAgent = await status({ PROA_TOKEN: result.token.secret });
+    expect(asAgent.me).toMatchObject({ kind: 'service', handle: 'agent:claude-code-1' });
+    expect(asAgent.projects.map((p) => p.key)).toEqual(['sample-run-1']);
+  });
 });
 
 describe('proa import', () => {

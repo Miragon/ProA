@@ -1,0 +1,76 @@
+{
+  "id": "sbm_01JAKKKKKKKKKKKKKKKKKKKK01",
+  "taskId": "ana_01JAKKKKKKKKKKKKKKKKKKKK01",
+  "submissionId": "3f6b8f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+  "principalId": "prn_01JAKKKKKKKKKKKKKKKKKKKK01",
+  "handle": "agent:claude-desktop-1",
+  "clientId": "agt_01JAKKKKKKKKKKKKKKKKKKKK01",
+  "procedure": {
+    "id": "proa-relations",
+    "version": "0.0.0"
+  },
+  "llmModel": "claude-opus-5-5",
+  "payload": {
+    "submissionId": "3f6b8f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+    "procedure": {
+      "id": "proa-relations",
+      "version": "0.0.0"
+    },
+    "llmModel": "claude-opus-5-5",
+    "relations": [
+      {
+        "type": "message",
+        "from": "vertrieb/auftragsabwicklung#Event_WareVersandbereit",
+        "to": "finanzen/rechnungsstellung#Start_WareVersandbereit",
+        "confidence": 0.97
+      },
+      {
+        "type": "message",
+        "from": "vertrieb/auftragsabwicklung#End_WareVersandbereit",
+        "to": "finanzen/rechnungsstellung#Start_WareVersandbereit",
+        "confidence": 0.6,
+        "question": "Ist das Ende „Ware versandbereit“ ein Sender?"
+      },
+      {
+        "type": "manual",
+        "from": "vertrieb/auftragsabwicklung#Task_AbsageSenden",
+        "to": "finance/payment-collection#Event_PaymentReceived",
+        "confidence": 0.5
+      }
+    ]
+  },
+  "result": {
+    "taskId": "ana_01JAKKKKKKKKKKKKKKKKKKKK01",
+    "submissionId": "3f6b8f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+    "replayed": false,
+    "items": [
+      {
+        "index": 0,
+        "result": "applied",
+        "relationId": "rel_01JAKKKKKKKKKKKKKKKKKKKK01",
+        "status": "proposed"
+      },
+      {
+        "index": 1,
+        "result": "applied",
+        "relationId": "rel_01JAKKKKKKKKKKKKKKKKKKKK02",
+        "status": "proposed"
+      },
+      {
+        "index": 2,
+        "result": "invalid:type-not-allowed",
+        "relationId": null,
+        "status": null
+      }
+    ],
+    "counts": {
+      "invalid": 1,
+      "applied": 2,
+      "reopened": 0,
+      "duplicate": 0,
+      "suppressed": 0
+    },
+    "withdrawn": 0
+  },
+  "createdAt": "2026-10-08T10:00:00.000Z"
+}

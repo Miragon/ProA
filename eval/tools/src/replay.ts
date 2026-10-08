@@ -7,8 +7,9 @@
 // Reads eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl,
 // scores each file against eval/corpus/<landscape>/expected.yaml (precision,
 // recall and F1 overall, per relation type and tag; must_not_link hits;
-// questions; no-links) and writes eval/reports/replay.{md,json}. It reports
-// and gates nothing: exit 1 only if a recording cannot be read or names a
+// questions; no-links), evaluates the live gate (live-gate.ts) and writes
+// eval/reports/replay.{md,json}. It only reports (eval:live enforces the
+// live gate): exit 1 only if a recording cannot be read or names a
 // landscape the corpus does not have.
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,10 +19,10 @@ import { parseArgs } from 'node:util';
 import { REPORTS_DIR } from './candidates.ts';
 import { CORPUS_DIR } from './corpus.ts';
 import { runLandscape, type LandscapeRun } from './landscape.ts';
+import { formatLiveGate, liveGates } from './live-gate.ts';
 import { RECORDINGS_DIR, landscapeDir, loadRecordings } from './recordings.ts';
-import { renderReplayMarkdown, type ReplayReport } from './replay-report.ts';
+import { renderReplayMarkdown, scoreLine, type ReplayReport } from './replay-report.ts';
 import { scoreRecording } from './replay-score.ts';
-import { formatRatio } from './score.ts';
 
 /** Scores every recording below `recordingsDir`, sorted by path. */
 export async function replay(
@@ -39,7 +40,7 @@ export async function replay(
     }
     recordings.push(scoreRecording(f, run));
   }
-  return { recordings };
+  return { recordings, liveGate: liveGates(recordings) };
 }
 
 async function main(): Promise<number> {
@@ -58,15 +59,10 @@ async function main(): Promise<number> {
     console.error(`eval:replay: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
-  for (const s of report.recordings) {
-    console.log(
-      `${s.file}: ${s.tasks.lines} tasks, ${s.pairs} pairs; precision ${formatRatio(s.overall.precision)}, ` +
-        `recall ${formatRatio(s.overall.recall)} (∪ rules ${formatRatio(s.withRules.recall)}), ` +
-        `F1 ${formatRatio(s.overall.f1)}; must_not_link ${s.mustNotLinkHits.length} ` +
-        `(${s.mustNotLinkHighConfidence} at ≥ 0.8); ${s.questions.pairs} questions`,
-    );
-  }
+  for (const s of report.recordings) console.log(scoreLine(s));
   if (report.recordings.length === 0) console.log('no recordings');
+  for (const g of report.liveGate) console.log(formatLiveGate(g));
+  if (report.liveGate.length === 0) console.log('live gate: no live runs yet');
   if (!values['no-write']) {
     await mkdir(values.out, { recursive: true });
     await writeFile(path.join(values.out, 'replay.md'), renderReplayMarkdown(report));

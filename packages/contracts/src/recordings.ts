@@ -18,16 +18,18 @@ import { ProjectKey } from './api/projects.ts';
  * landscape at
  * `eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl`,
  * one {@link RecordingLine} per analysed task (claim input + submission +
- * result). The simulation agent (`apps/agent-sim`) writes them;
- * `eval:replay` (`eval/tools`) scores the submissions against
- * `expected.yaml`.
+ * result). The simulation agent (`apps/agent-sim`) writes them as it works;
+ * `eval:live` (`eval/tools`) builds them from the submissions a live project
+ * stored (without the claim input); `eval:replay` scores the submissions
+ * against `expected.yaml`.
  */
 export const RECORDING_FORMAT = 'proa-recording/1';
 
 /**
  * A claim input reduced to its counts (`--record-input summary`): keeps
- * committed recordings small; the full input is in the server's task
- * history and can be recorded with `--record-input full`.
+ * committed recordings small. The server does not store claim inputs (it
+ * renders them at claim time), so only the agent that claimed can record
+ * the full input (`--record-input full`).
  */
 export const ClaimInputSummary = z.object({
   format: z.literal(CLAIM_INPUT_FORMAT),
@@ -69,12 +71,16 @@ export type RecordedResult = z.infer<typeof RecordedResult>;
 
 export const RecordingLine = z.object({
   format: z.literal(RECORDING_FORMAT),
-  /** Project key; equals the landscape name when seeded from `eval/corpus`. */
+  /**
+   * The corpus landscape (`sample` for `_sample`): the project key when the
+   * project was seeded under the landscape's name, else what `eval:live
+   * --landscape` names.
+   */
   landscape: ProjectKey,
   modelKey: ModelKey,
   /** Revision number of the analysed head. */
   rev: z.number().int().min(1),
-  /** Agent name, e.g. `agent-sim`. */
+  /** Agent name, e.g. `agent-sim`; for a live run the agent token's name (`claude-desktop-1`). */
   agent: z.string().min(1).max(100),
   procedure: DeclaredProcedure,
   llmModel: z.string().nullable(),
@@ -87,7 +93,12 @@ export const RecordingLine = z.object({
       submissionId: z.string().nullable(),
     })
     .optional(),
-  input: z.union([ClaimInputSummary, ClaimInput]),
+  /**
+   * The claim input as the agent received it, or its summary. Absent when the
+   * line was built from a stored submission (`eval:live`): the server keeps
+   * no claim inputs.
+   */
+  input: z.union([ClaimInputSummary, ClaimInput]).optional(),
   submission: RecordedSubmission,
   /** `submitted`: the server answered `result`; `dry-run`: released unsubmitted; `failed`: `problem`. */
   outcome: z.enum(['submitted', 'dry-run', 'failed']),

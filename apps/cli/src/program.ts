@@ -5,7 +5,7 @@ import { Command, CommanderError } from 'commander';
 import { healthCommand } from './commands/health.ts';
 import { importCommand } from './commands/import.ts';
 import { mcpCommand } from './commands/mcp.ts';
-import { seedCommand } from './commands/seed.ts';
+import { SEED_TOKEN_NAME, seedCommand } from './commands/seed.ts';
 import { statusCommand } from './commands/status.ts';
 import {
   DEFAULT_SCOPES,
@@ -139,13 +139,28 @@ export function buildProgram(io: CliIo = processIo): Command {
     )
     .argument('[landscape...]', 'landscape names, e.g. nordwind-handel stadtwerke-auental')
     .option('--corpus <dir>', 'corpus directory (default: eval/corpus of this checkout)')
+    .option(
+      '-p, --project <key>',
+      'seed exactly one landscape into a project with this key, named "<landscape name> (<key>)" (a fresh project per live run)',
+    )
     .option('--issue-tokens', 'also create a read+propose agent token per project')
+    .option(
+      '--token-name <name>',
+      `name of the tokens --issue-tokens creates (default ${SEED_TOKEN_NAME}); eval:live records under it`,
+    )
     .option('--verbose', 'list every imported file')
     .option('--json', 'print JSON')
     .action(
       (
         landscapes: string[],
-        opts: { corpus?: string; issueTokens?: boolean; verbose?: boolean; json?: boolean },
+        opts: {
+          corpus?: string;
+          project?: string;
+          issueTokens?: boolean;
+          tokenName?: string;
+          verbose?: boolean;
+          json?: boolean;
+        },
       ) => seedCommand(io, landscapes, { ...globals(), ...opts }),
     );
 
