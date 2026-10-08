@@ -282,23 +282,23 @@ Scope:
    tables `no_link` and `no_link_withdrawal`) and 0005 (append-only triggers, `claimed_seq`
    backfill).
 2. **Assignment at the claim.** The input is rendered under the project lock; each unjudged,
-   unsettled `rule`, `key` or `lexical` candidate pair goes to exactly one claim (a partner's live
-   claim that holds it, else the queued partner whose key sorts first, else this one), stored as the
-   task's assignment. The claim input gains `judged` (current judgements, any agent) and `skip`
+   unsettled `rule`, `key` or `lexical` candidate pair and each such relation (whatever its pair's
+   basis, not with a missing end) goes to exactly one claim (a partner's live claim that holds it,
+   else the queued partner whose key sorts first, else this one), stored as the task's assignment. The claim input gains `judged` (current judgements, any agent) and `skip`
    (pairs a partner judges), optional within `proa-claim/1`; `candidates` leaves both out, which kept
    the input below 100 KB (82.0 and 75.5 KB with every task claimed at once, 92.9 KB with LLM-sized
-   judgements). `compatible` candidates are the search space, never assigned.
+   judgements). `compatible` candidates that are no relation are the search space, never assigned.
 3. **Submissions.** Typed no-links with per-item outcomes (`stored`, `duplicate`,
    `invalid:<reason>`, `NO_LINK_INVALID_REASONS`); supersession only of judgements made on another
    version of the model or under another procedure, so current ones stay without repetition; a
    `duplicate` needs the same basis; the same principal and origin replace their own earlier
    judgement on a pair, other judgements coexist; `uncovered` reports assigned pairs left without a
-   verdict.
+   verdict. An agent's confirmation of a held pair is recorded as its judgement (the hold stays).
 4. **Queueing.** A task is queued when the head's facts differ from the previous head's and on a
    revive; a token revocation or `withdraw_proposal` that loses a pipeline judgement queues both
    endpoint models (or sets `requeue_after` on a claimed task).
-5. **Review.** `Relation.noLinks` (current no-links on the pair; storing or withdrawing one moves
-   the relation's version), the review screen's callout "Kein Zusammenhang laut Agent", the bulk
+5. **Review.** `Relation.noLinks` (current no-links on the pair; storing or withdrawing one, or a
+   new `facts_hash` of a model it touches, moves the relation's version), the review screen's callout "Kein Zusammenhang laut Agent", the bulk
    flag `agent-no-link` (the pair starts unchecked) and "Einwand" in the queue. This answers open
    question 1 below.
 6. **Procedure text** (`relations.md` `0.2.0`, skill and plugin regenerated, its hash in
@@ -316,14 +316,25 @@ Scope:
    `eval:replay` reports `pairsJudgedTwice` and `uncovered` ([eval/README.md](../../eval/README.md#recordings-and-evalreplay)).
 
 Verified without a model ([DEVELOPMENT.md](DEVELOPMENT.md#judge-each-pair-once-proa-relations020-2026-10-08)):
-all gates; `judge-once.test.ts` (21 integration tests: sequential and concurrent claims, release,
-lease expiry, uploads between claims, disagreements, doc-only change, revert, delete and revive, a
-procedure release, revocation, `withdraw_proposal`, no-link outcomes, `uncovered`, old results, a
-bulk decision after a no-link) and its unit counterpart; the claim-input size test with every task
-claimed at once and with LLM-sized judgements; the web review e2e with a no-link. The dev runs of
-`0.2.0`: [Dev-run numbers](#dev-run-numbers). Remaining double work, by design: a `compatible`
-pair that two concurrent partner searches both examine, re-claims after a lease expired, and
-candidate-cap drift between two claims.
+all gates; `judge-once.test.ts` (26 integration tests: sequential and concurrent claims, release,
+lease expiry, uploads between claims, a relation on a compatible pair under concurrent claims,
+disagreements, doc-only change, revert, delete and revive, a procedure release, a held pair across
+a release, revocation, `withdraw_proposal`, no-link outcomes, `uncovered` (also after a failure),
+old results, a bulk decision after a no-link and after a revert) and its unit counterpart; the
+claim-input size test with every task claimed at once and with LLM-sized judgements; the web review
+e2e with a no-link. The dev runs of `0.2.0`: [Dev-run numbers](#dev-run-numbers). Remaining double
+work, by design: a `compatible` pair that two concurrent partner searches both examine, re-claims
+after a lease expired, and candidate-cap drift between two claims.
+
+Review fixes after `3f087c9`, before `0.2.0` was published (the version stays; its text and
+pinned hash changed; the dev runs above used the earlier text):
+[DEVELOPMENT.md](DEVELOPMENT.md#judge-each-pair-once-review-fixes-2026-10-08). Relations in
+neither `judged` nor `skip` are assigned like systematic candidates (§4 "your pairs" is exactly the
+stored assignment); an agent's confirmation of a held pair is recorded as its judgement (§10); a
+no-link answered `duplicate` also replaces the caller's own proposal from the model's earlier
+analysis; a failed task keeps its assignment, so a late submit reports `uncovered`; a new
+`facts_hash` moves the version of relations whose no-links it touches; the web revoke dialog names
+the 0.2.0 consequences.
 
 ## Out of scope
 

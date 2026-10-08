@@ -48,7 +48,7 @@ and code are in English.
 | Item | State |
 |---|---|
 | `develop` | 1.x platform overhaul (squash `eb3539b`). Protected by ruleset "main": PRs only, **squash merges only**, linear history, **signed commits**, no bypass actors, no required checks yet. |
-| `claude/proa-2` | 2.0 work, pushed. Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0). |
+| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs. |
 | PR #2 | Draft, base `develop`, CI (`ci-2.yml`: typecheck/lint/test, docker image + compose live check) green. **Merge only with the owner's explicit OK.** |
 | 1.x tree | `backend/`, `frontend/`, `pom.xml`, `mvnw*`, `.mvn/`, `Dockerfile`, `eclipse-formatter.xml`, `Makefile`, `scripts/`, `docker-compose.yml`, `.githooks/` and the 1.x workflows (`backend-tests.yml`, `frontend-checks.yml`, `deploy.yml`, `release.yml`) are still present and **must not be modified** on this branch. The cut-over PR removes them (CONCEPT §9). |
 | Tags/releases | None in ProA yet. Plan: tag `v1.3.0` on `eb3539b` + branch `maintenance/1.x` + 1.x image **right before the cut-over merge** (owner decision), not now. |
@@ -106,9 +106,11 @@ the simulation agent; every MCP tool declares `anthropic/maxResultSizeChars` so 
 passes large claim inputs inline; the plugin carries no MCP server. For decision 17: an agent
 judgement (pipeline proposal or stored no-link) carries a basis (both models' `facts_hash` at the
 claim plus the procedure) and is current while it holds; the claim assigns each unjudged `rule`,
-`key` or `lexical` candidate pair to exactly one task and lists current judgements (`judged`) and
-partner-assigned pairs (`skip`) instead of repeating them as candidates (that kept the input below
-100 KB); `compatible` candidates stay the search space, never assigned; a submission withdraws only
+`key` or `lexical` candidate pair and each open relation (whatever its basis) to exactly one task
+and lists current judgements (`judged`) and partner-assigned pairs (`skip`) instead of repeating
+them as candidates (that kept the input below 100 KB); other `compatible` candidates stay the
+search space; an agent's confirmation of a held pair is recorded as its judgement (the hold stays
+in force); a submission withdraws only
 judgements made on another version of its model; judgements of different principals or origins
 coexist, so disagreements reach the reviewer; recordings keep the `uncovered` count, not the pairs.
 This answers the former open questions "Supersession scope" and "No-links in review".

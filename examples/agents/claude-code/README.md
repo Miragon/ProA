@@ -52,7 +52,7 @@ Then, in the session:
 `--allowedTools "mcp__proa__*"` approves ProA's tools for this session (otherwise Claude Code
 asks before every call). `MAX_MCP_OUTPUT_TOKENS` raises Claude Code's MCP output limit for builds
 that do not read the `anthropic/maxResultSizeChars` ProA's tools declare: claim inputs reach
-about 80 KB, and a result moved to a file is out of reach with `--tools ""`. Claude Code's system prompt names the exact model id, which the agent
+about 90 KB, and a result moved to a file is out of reach with `--tools ""`. Claude Code's system prompt names the exact model id, which the agent
 declares as `llmModel`. When the conversation gets long, Claude Code compacts it; the skill tells
 the agent to load the procedure again with `get_procedure` afterwards. For a clean context per
 task, use `/clear` between batches or the headless script.

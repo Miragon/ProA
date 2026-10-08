@@ -679,8 +679,10 @@ task's model), `unknown-ref` (not a head fact), `type-mismatch` (the ends cannot
 caller's identical live proposal, for a pipeline item one from an earlier submission with the same
 basis and procedure; a rule acceptance with the same fingerprints; or an earlier item of the same
 submission), `suppressed` (the status rests on a human decision with the same endpoint
-fingerprints; nothing is recorded) or `reopened` (recorded, and a rejection becomes `proposed`
-because an endpoint changed). The server computes the tier (`createPairAssessor` of
+fingerprints; nothing is recorded; a pipeline proposal under a human hold is the exception: it is
+the agent's judgement on the held pair, recorded as `applied` unless it repeats its own on the same
+basis, `duplicate`, while the hold stays in force) or `reopened` (recorded, and a rejection becomes
+`proposed` because an endpoint changed). The server computes the tier (`createPairAssessor` of
 `@proa/relations`: `key`, `lexical`, `semantic`); `source_kind`, principal and client come from the
 credential, procedure and LLM model are only declared; a recorded pipeline proposal stores its
 basis (`relation_assertion.from_hash`, `to_hash`, [judge each pair once](#judge-each-pair-once)).
@@ -704,15 +706,17 @@ missing (rows from before 0.2.0), or it was made under another procedure than cl
 Judgements stale only on the partner's side are left to the partner's analysis, and current ones
 stay, so a requeue with unchanged facts and procedure withdraws nothing. Proposals are withdrawn
 under their proposer with the new submission as reason, no-links by a withdrawal row stamped with
-the `analysis.done` seq. Same principal, same origin: a new no-link of the caller replaces the
-caller's own proposal on that typed pair from an earlier analysis of this model, and a new proposal
-or no-link replaces the caller's own no-link from there; other principals' judgements, and the
+the `analysis.done` seq. Same principal, same origin: a valid no-link item of the caller (stored,
+or `duplicate` of its current no-link from another model's analysis) replaces the caller's own
+proposal on that typed pair from an earlier analysis of this model, and a new proposal or a stored
+no-link replaces the caller's own no-link from there; other principals' judgements, and the
 caller's from another model's analysis (one token for all models), stay beside it, so
 disagreements stay visible. Rule-tier and ad-hoc proposals stay, and human decisions keep the
 status (a held relation stays held). The result counts `withdrawn` and `withdrawnNoLinks`, and
 `uncovered` reports the pairs of the task's stored assignment that are left without a judgement
 (no valid proposal item, no stored or duplicate no-link, no live current judgement): the count and
-the first 50 (`MAX_UNCOVERED_PAIRS`); nothing is queued for them. A task whose claim relied on a
+the first 50 (`MAX_UNCOVERED_PAIRS`), also for a late submit after the task failed (failing keeps
+the assignment); nothing is queued for them. A task whose claim relied on a
 judgement withdrawn meanwhile (`analysis_task.requeue_after`, see revoking a token below) queues a
 follow-up task for its model when it is submitted. The submission is stored with the request
 as received (REST) or the parsed arguments (MCP), without the lease token and with U+0000 (which
@@ -736,10 +740,15 @@ never change the status and reach the next claim input. Every relation carries `
 procedure and model, tier, confidence, rationale, question, label) and, since 0.2.0, `noLinks`:
 the live, current agent no-links on the same `(type, from, to)` (`{id, handle, origin, reason,
 at}`, oldest first; one batched query per list, currency computed in SQL). Storing or
-withdrawing a no-link moves the version of the relation on its pair, so a bulk decision prepared
-before answers 409. `GET …/assertions` is the full timeline. Decision memory: a rejection stays
+withdrawing a no-link moves the version of the relation on its pair, and so does a new head
+`facts_hash` of a model (ingest, delete) for every relation on the pair of a live no-link touching
+it, since currency may flip either way (a revert makes an older no-link current again); so a bulk
+decision prepared before answers 409. A procedure release only ends currency (no objection
+appears) and moves nothing. `GET …/assertions` is the full timeline. Decision memory: a rejection stays
 while proposals repeat the same endpoint fingerprints (`suppressed`), turns `endpointState:
 changed` when an endpoint changes, and is reopened by the next proposal with the new fingerprints.
+A hold stays the decision in force while agents confirm the held pair in submissions (recorded as
+their judgement, so partner analyses skip it).
 Stances are per principal, but a human's latest decision stays in force when the same human later
 proposes the relation (working the pipeline over REST) or that proposal is withdrawn
 (`decisionsInForce` in `status.ts`); only another decision replaces it. An accepted relation whose
@@ -764,7 +773,8 @@ its two models. Let a token expire instead if its proposals should stay for revi
 `@proa/bpmn-facts`; migration 0003 backfills older revisions from the `<definitions>` tag);
 relations created by any path return the database's `updatedAt` (`relations.insert` returns the
 stored row), and a relation's `version` moves with every new assertion (since 0.2.0 also with
-every stored or withdrawn no-link on its pair), so a bulk decision on a stale view fails;
+every stored or withdrawn no-link on its pair and with every new `facts_hash` of a model that one
+of its live no-links touches), so a bulk decision on a stale view fails;
 `dangling-throw`/`unmatched-catch` findings are hidden once a proposed, accepted or held relation
 connects that endpoint (`GET …/findings`, the landscape).
 
@@ -798,17 +808,22 @@ judged once per change of its models (`src/domain/judgements.ts`, pure; CONCEPT 
   procedure is the one claims name now; rows from before 0.2.0 have no basis and are never current.
   A model-level hash covers documentation and message flows, so a documentation change re-judges
   the model's pairs, and a procedure release plus a requeue re-judges every pair once.
-- **Assignment at the claim.** Each candidate pair of basis `rule`, `key` or `lexical` without a
-  current judgement and without a settling decision (accepted, or rejected with unchanged
-  endpoints; held pairs are judged again) goes to exactly one analysis: (1) the partner model's
-  claimed task, if its lease is live, its stored assignment holds the pair and its claim saw this
-  model as it is now: `skip` `claimed` (also for a pair that is `compatible` here); (2) else the
-  partner's queued task, if its model key sorts first and its own assigned candidates hold the pair:
-  `skip` `queued`; (3) else this claim. Intra-model pairs always stay with the claim. The claim's
-  pairs are stored as its assignment (`analysis_task.assignment`: cleared on release, cancel and
-  failure, replaced by a re-claim), which rule 1 and `uncovered` read.
-- **`compatible` candidates** are nobody's assignment and never `uncovered`: they are the search
-  space for missing partners; a verdict on one lists the pair in later claims' `judged`.
+- **Assignment at the claim.** Each candidate pair of basis `rule`, `key` or `lexical`, and each
+  relation touching the model whatever its pair's basis (`isAssignedRelation`: not `manual`, not
+  obsolete, no missing end; a `compatible` candidate or no candidate at all), without a current
+  judgement and without a settling decision (accepted, or rejected with unchanged endpoints; held
+  pairs are judged, and a confirmation is recorded as a judgement while the hold stays) goes to
+  exactly one analysis: (1) the partner model's claimed task, if its lease is live, its stored
+  assignment holds the pair and its claim saw this model as it is now: `skip` `claimed` (also for a
+  pair that is `compatible` here); (2) else the partner's queued task, if its model key sorts first
+  and its own assigned pairs (candidates and relations) hold the pair: `skip` `queued`; (3) else
+  this claim. Intra-model pairs always stay with the claim. The claim's pairs are stored as its
+  assignment (`analysis_task.assignment`: cleared on release and cancel, kept on failure for a late
+  submit's `uncovered`, replaced by a re-claim), which rule 1 and `uncovered` read. This is exactly
+  procedure §4 "your pairs".
+- **`compatible` candidates** that are no relation are nobody's assignment and never `uncovered`:
+  they are the search space for missing partners; a verdict on one lists the pair in later claims'
+  `judged`.
 - **Re-analysis** is queued when the new head's facts differ from the previous head's (a revert
   too) and on a revive ([Conventions](#conventions)), and after a lost judgement (revoking a token,
   `withdraw_proposal`); every current judgement is skipped there, so it stays cheap.
@@ -1869,7 +1884,8 @@ and 10):
    U+0000 as U+FFFD.
 6. One token could take all 200 long-poll slots. Now at most 8 waits per caller (principal).
 7. Revoking a token now withdraws its live proposals and hands its claimed tasks back (CONCEPT
-   §6); the revoke dialog says so.
+   §6); the revoke dialog says so (since 0.2.0 it also names the withdrawn no-links and the models
+   it judged, which wait for an agent again).
 8. Accepted relations whose endpoint changed kept models in "Wartet auf Prüfung" but were in no
    list, and "Annehmen" was disabled. Now they are in the queue and the tab count ("Angenommen,
    Endpunkt geändert") and can be accepted again ("Erneut annehmen").
@@ -2052,3 +2068,45 @@ uncovered; live gate `pass` in that harness (details in
 Not verified: the owner's clients with `0.2.0`, the image with
 this commit (`up --build`; the owner's `proa2` stack was not touched, so migrations 0004 and 0005
 have not run on its data), and `ci-2.yml` on GitHub.
+
+### Judge each pair once: review fixes (2026-10-08)
+
+A review of `7126f0b` and `3f087c9` confirmed six defects; fixed before `0.2.0` was published, so
+the version stays and its text and pinned hash (`RELEASED` in `plugin.test.ts`) changed; skill and
+plugin regenerated. The `0.2.0` dev runs above used the earlier text.
+
+1. **Relations outside the assigned candidates** were judged by both endpoint analyses under
+   concurrent claims (a relation on a `compatible` pair, or on no candidate at all). `planClaim`
+   now takes the relations touching the model (`isAssignedRelation`: not `manual`, not obsolete,
+   not settled, no missing end) as assigned pairs under rules 1–3, and a `compatible` candidate
+   that is such a relation counts as assigned; rule 2's partner pair sets include them too. They
+   land in the stored assignment, so partners skip them and `uncovered` counts them; procedure §4
+   "your pairs" is exactly the assignment.
+2. **A confirmed held pair** left no judgement (`suppressed`, not recorded, while supersession
+   withdrew the agent's older stance), so every later claim assigned it again. A pipeline proposal
+   on a relation whose decision in force is a human hold with the same fingerprints now goes
+   through the own-stance duplicate check and is recorded otherwise (`applied`); the status stays
+   `held` (`decisionsInForce`). Ad-hoc proposals and human acceptances and rejections stay
+   `suppressed`. Procedure §10 and §11 say so.
+3. **A no-link answered `duplicate`** (the caller's current no-link from another model's analysis)
+   did not replace the caller's own proposal from this model's earlier analysis; the replacement
+   now uses every valid no-link item, stored or duplicate.
+4. **A late submit after the task failed** reported `uncovered: 0`, because failing cleared the
+   assignment. `failExpired` keeps it (claims read only queued and claimed tasks).
+5. **`Relation.noLinks` could change without a version move** (a revert makes an older no-link
+   current again). Ingest and model deletion move the version of every relation on the pair of a
+   live no-link touching a model whose `facts_hash` changed (`touchNoLinkRelations`).
+6. **The web revoke dialog** now names the 0.2.0 consequences (proposals and no-links withdrawn,
+   its tasks and the models it judged queued again, decisions stay, let the token expire instead).
+
+Tests: `judge-once.test.ts` gained five integration tests (a relation on a compatible pair under
+two concurrent claims and in one claim call, a held pair across a procedure release, the duplicate
+no-link, a late submit after the failure, the revert and a bulk decision), the unit tests cover
+relation pairs in `planClaim`, `isAssignedRelation` and `classifyProposal` under a hold;
+`review.test.ts` expects a recorded confirmation of a held item; the web test checks the dialog
+text. MCP tool descriptions (`claim_analysis`, `submit_analysis`), the OpenAPI descriptions and
+the client were regenerated. Gates on the final tree: `pnpm format:check`, `pnpm -r typecheck`,
+`pnpm -r lint` (dependency-cruiser clean), `CI=1 pnpm -r test` (server 802, web 116, agent-sim
+37, contracts 42, procedures 22, eval/tools 57), `pnpm eval:candidates` (pass, report unchanged)
+and `pnpm eval:replay` twice (reports unchanged: the simulation agent's recordings are reproduced
+byte for byte, 0 pairs judged twice, 0 uncovered).
