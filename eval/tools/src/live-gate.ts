@@ -2,18 +2,20 @@
 // the recordings of live runs? A pure function over replay scores, shared by
 // eval:live (exit 1 on `fail`) and the "Live gate" section of eval:replay.
 //
-// Recordings are grouped by procedure `<id>@<version>` and landscape. The
-// live runs of a group are its recordings of every agent but `agent-sim`:
-// one file per run, since every run works a fresh project under its own
-// agent token, whose name is the agent segment. A group
+// The live runs are the recordings of every agent but `agent-sim`: one file
+// per run, since every run works a fresh project under its own agent token,
+// whose name is the agent segment. They are grouped by procedure
+// `<id>@<version>`, landscape and declared `llmModel` (the gate is per pinned
+// model). A group
 // - fails if any run proposes a must_not_link pair with confidence ≥ 0.8, or
 //   if the mean recall of its runs is more than 5 points below the baseline;
 // - else is incomplete with fewer than 3 runs or without a baseline;
 // - else passes.
 // The baseline is the mean recall of the live runs of the highest earlier
-// version (x.y.z) of the same procedure on that landscape, else the
-// `agent-sim` recording of the same version. Recall is `overall.recall`:
-// the agent's proposals, without the rule tier's acceptances.
+// version (x.y.z) of the same procedure on that landscape with the same
+// `llmModel`, else the `agent-sim` recordings of the same version on that
+// landscape (whatever their model). Recall is `overall.recall`: the agent's
+// proposals, without the rule tier's acceptances.
 import { HIGH_CONFIDENCE, type ReplayScore } from './replay-score.ts';
 import { formatRatio } from './score.ts';
 
@@ -48,9 +50,9 @@ export interface LiveRun {
 
 export interface LiveBaseline {
   /**
-   * `previous-version`: the live runs of the highest earlier version;
-   * `agent-sim`: the simulation agent's recording of the same version;
-   * `none`: neither exists.
+   * `previous-version`: the live runs of the highest earlier version with
+   * the same `llmModel`; `agent-sim`: the simulation agent's recordings of
+   * the same version (any model); `none`: neither exists.
    */
   source: 'previous-version' | 'agent-sim' | 'none';
   /** `<id>@<version>` of the baseline recordings. */
@@ -66,6 +68,8 @@ export interface LiveGate {
   /** `<id>@<version>`. */
   procedure: string;
   landscape: string;
+  /** The declared model of the runs (the `<llmModel>` path segment). */
+  llmModel: string;
   split: 'dev' | 'holdout';
   status: LiveGateStatus;
   /** Live runs (recordings of agents other than `agent-sim`). */
@@ -125,12 +129,17 @@ function liveRun(s: LiveGateInput): LiveRun {
   };
 }
 
-function baselineOf(procedure: string, landscape: string, scores: readonly LiveGateInput[]): LiveBaseline {
+/** The group a live run counts in: procedure version, landscape and declared model. */
+type GroupKey = Pick<LiveGateInput, 'procedure' | 'landscape' | 'llmModel'>;
+
+function baselineOf(group: GroupKey, scores: readonly LiveGateInput[]): LiveBaseline {
+  const { procedure, landscape, llmModel } = group;
   const { id, version } = splitProcedure(procedure);
-  // Live runs of the highest earlier version of the same procedure on this landscape.
+  // Live runs of the highest earlier version of the same procedure on this landscape, with this model.
+  const peerRun = (s: LiveGateInput): boolean => s.landscape === landscape && s.llmModel === llmModel && isLiveRun(s);
   let previous: string | null = null;
   for (const s of scores) {
-    if (s.landscape !== landscape || !isLiveRun(s)) continue;
+    if (!peerRun(s)) continue;
     const other = splitProcedure(s.procedure);
     if (other.id !== id) continue;
     const older = compareVersions(other.version, version);
@@ -148,7 +157,7 @@ function baselineOf(procedure: string, landscape: string, scores: readonly LiveG
   });
   if (previous !== null) {
     const p = previous;
-    return pick('previous-version', p, scores.filter((s) => s.procedure === p && s.landscape === landscape && isLiveRun(s)));
+    return pick('previous-version', p, scores.filter((s) => s.procedure === p && peerRun(s)));
   }
   const sims = scores.filter((s) => s.procedure === procedure && s.landscape === landscape && !isLiveRun(s));
   if (sims.length > 0) return pick('agent-sim', procedure, sims);
@@ -156,16 +165,16 @@ function baselineOf(procedure: string, landscape: string, scores: readonly LiveG
 }
 
 /**
- * The live gate of every procedure version and landscape with at least one
- * live run, sorted by procedure and landscape. `scores` are all recordings
- * known (live runs, the simulation agent's, earlier versions'); the
- * baseline comes from them.
+ * The live gate of every procedure version, landscape and declared model
+ * with at least one live run, sorted by procedure, landscape and model.
+ * `scores` are all recordings known (live runs, the simulation agent's,
+ * earlier versions'); the baseline comes from them.
  */
 export function liveGates(scores: readonly LiveGateInput[]): LiveGate[] {
   const groups = new Map<string, LiveGateInput[]>();
   for (const s of scores) {
     if (!isLiveRun(s)) continue;
-    const key = `${s.procedure}\n${s.landscape}`;
+    const key = `${s.procedure}\n${s.landscape}\n${s.llmModel}`;
     const group = groups.get(key);
     if (group) group.push(s);
     else groups.set(key, [s]);
@@ -176,7 +185,7 @@ export function liveGates(scores: readonly LiveGateInput[]): LiveGate[] {
     if (!first) continue;
     const live = runs.map(liveRun).sort((a, b) => byString(a.file, b.file));
     const recall = mean(live.map((r) => r.recall));
-    const baseline = baselineOf(first.procedure, first.landscape, scores);
+    const baseline = baselineOf(first, scores);
     const recallDelta = recall !== null && baseline.recall !== null ? recall - baseline.recall : null;
     const highConfidence = live.reduce((n, r) => n + r.mustNotLinkHighConfidence, 0);
 
@@ -197,12 +206,15 @@ export function liveGates(scores: readonly LiveGateInput[]): LiveGate[] {
     const gaps: string[] = [];
     if (live.length < MIN_LIVE_RUNS) gaps.push(`${live.length} of ${MIN_LIVE_RUNS} runs`);
     if (baseline.source === 'none') {
-      gaps.push('no baseline: no live runs of an earlier version and no agent-sim recording of this version');
+      gaps.push(
+        'no baseline: no live runs of an earlier version with this llmModel and no agent-sim recording of this version',
+      );
     }
 
     gates.push({
       procedure: first.procedure,
       landscape: first.landscape,
+      llmModel: first.llmModel,
       split: first.split,
       status: failures.length > 0 ? 'fail' : gaps.length > 0 ? 'incomplete' : 'pass',
       runs: live.length,
@@ -216,7 +228,14 @@ export function liveGates(scores: readonly LiveGateInput[]): LiveGate[] {
       liveRuns: live,
     });
   }
-  return gates.sort((a, b) => byString(a.procedure, b.procedure) || byString(a.landscape, b.landscape));
+  return gates.sort(
+    (a, b) => byString(a.procedure, b.procedure) || byString(a.landscape, b.landscape) || byString(a.llmModel, b.llmModel),
+  );
+}
+
+/** The group of a gate: `<procedure>@<version> / <landscape> / <llmModel>`. */
+export function gateLabel(g: Pick<LiveGate, 'procedure' | 'landscape' | 'llmModel'>): string {
+  return `${g.procedure} / ${g.landscape} / ${g.llmModel}`;
 }
 
 /** Where the baseline comes from, e.g. `agent-sim proa-relations@0.1.0`, or `none`. */
@@ -234,7 +253,7 @@ export function formatLiveGate(g: LiveGate): string {
       ? 'no baseline'
       : `baseline ${formatRatio(g.baseline.recall)} from ${baselineLabel(g.baseline)}`;
   const head =
-    `live gate ${g.procedure} / ${g.landscape} (${g.split}): ${g.status === 'pass' ? 'pass' : g.status.toUpperCase()}; ` +
+    `live gate ${gateLabel(g)} (${g.split}): ${g.status === 'pass' ? 'pass' : g.status.toUpperCase()}; ` +
     `${g.runs} ${g.runs === 1 ? 'run' : 'runs'}, precision ${formatRatio(g.precision)}, recall ${formatRatio(g.recall)} ` +
     `(${baseline}), F1 ${formatRatio(g.f1)}; must_not_link at ≥ ${HIGH_CONFIDENCE}: ${g.mustNotLinkHighConfidence}`;
   return [head, ...g.reasons.map((r) => `  - ${r}`)].join('\n');

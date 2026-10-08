@@ -2,7 +2,9 @@
 // stored submissions to recording lines (fixtures under fixtures/live: a raw
 // REST payload and an MCP payload with defaults applied), the REST reader
 // against a fake server, and the command end to end on the `_sample`
-// landscape.
+// landscape: the gate per declared model, the warnings (several files, a
+// replaced file) and the exit codes (1 for a failing gate or a runtime error,
+// 2 for a usage error).
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -48,6 +50,11 @@ function declaring(stored: StoredAnalysis[], version: string): StoredAnalysis[] 
     const procedure = { ...s.submission.procedure, version };
     return { ...s, submission: { ...s.submission, procedure, payload: { ...s.submission.payload, procedure } } };
   });
+}
+
+/** The stored submission declaring `llmModel` instead. */
+function withModel(s: StoredAnalysis, llmModel: string): StoredAnalysis {
+  return { ...s, submission: { ...s.submission, llmModel, payload: { ...s.submission.payload, llmModel } } };
 }
 
 test('maps a raw REST payload: defaults filled in, result without ids, no input', async () => {
@@ -373,9 +380,15 @@ test('eval:live writes the run, scores it and reports the live gate', async () =
     assert.match(r.out, new RegExp(`^${path.join('rec', rel).replaceAll('.', '\\.')}: 2 tasks from project ${PROJECT}$`, 'm'));
     // Proposals: 3 must_link found of 5, 1 must_not_link (0.6), the manual item invalid.
     assert.match(r.out, /: 2 tasks, 4 pairs; precision 75\.0 %, recall 60\.0 % \(∪ rules 80\.0 %\), F1 66\.7 %; must_not_link 1 \(0 at ≥ 0\.8\)/);
-    assert.match(r.out, new RegExp(`live gate proa-relations@${version.replaceAll('.', '\\.')} / sample \\(dev\\): INCOMPLETE; 1 run`));
+    assert.match(
+      r.out,
+      new RegExp(`live gate proa-relations@${version.replaceAll('.', '\\.')} / sample / claude-opus-5-5 \\(dev\\): INCOMPLETE; 1 run`),
+    );
     assert.match(r.out, /- 1 of 3 runs\n/);
-    assert.match(r.out, /- no baseline: no live runs of an earlier version and no agent-sim recording of this version/);
+    assert.match(
+      r.out,
+      /- no baseline: no live runs of an earlier version with this llmModel and no agent-sim recording of this version/,
+    );
     const text = await readFile(path.join(dir, 'rec', rel), 'utf8');
     assert.deepEqual(
       parseRecording(rel, text).lines.map((l) => l.modelKey),
@@ -387,26 +400,45 @@ test('eval:live writes the run, scores it and reports the live gate', async () =
       const more = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--agent', agent], server, dir);
       assert.equal(more.code, 0, more.err);
     }
+    // Recording the same project again writes the same bytes: no warning.
     const again = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--json'], server, dir);
     assert.equal(again.code, 0, again.err);
+    assert.equal(again.err, '');
     const report = JSON.parse(again.out) as {
       written: boolean;
       recordings: { path: string; lines: number }[];
       runs: { file: string; overall: { recall: number } }[];
-      gates: { status: string; runs: number; recall: number; baseline: { source: string; recall: number } }[];
+      gates: { llmModel: string; status: string; runs: number; recall: number; baseline: { source: string; recall: number } }[];
     };
     assert.equal(report.written, true);
     assert.deepEqual(report.recordings, [{ path: rel, lines: 2 }]);
     assert.deepEqual(report.runs.map((x) => [x.file, x.overall.recall]), [[rel, 0.6]]);
     assert.deepEqual(
-      report.gates.map((g) => [g.status, g.runs, g.recall, g.baseline.source, g.baseline.recall]),
-      [['pass', 3, 0.6, 'agent-sim', 0.6]],
+      report.gates.map((g) => [g.llmModel, g.status, g.runs, g.recall, g.baseline.source, g.baseline.recall]),
+      [['claude-opus-5-5', 'pass', 3, 0.6, 'agent-sim', 0.6]],
+    );
+
+    // A run with another model is a gate of its own, with the sim baseline; the first model's gate is not shown.
+    const other = await fakeServer(declaring(await storedRun(), version).map((s) => withModel(s, 'claude-sonnet-5-5')));
+    const sonnet = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--agent', 'claude-code-1'], other, dir);
+    assert.equal(sonnet.code, 0, sonnet.err);
+    assert.match(sonnet.out, / \/ sample \/ claude-sonnet-5-5 \(dev\): INCOMPLETE; 1 run, .*\(baseline 60\.0 % from agent-sim /);
+    assert.doesNotMatch(sonnet.out, /claude-opus-5-5 \(dev\)/);
+    // The simulation agent's recording is the baseline of both models' gates, so recording it shows both.
+    const sim = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--agent', 'agent-sim', '--json'], server, dir);
+    assert.equal(sim.code, 0, sim.err);
+    assert.deepEqual(
+      (JSON.parse(sim.out) as { gates: { llmModel: string; status: string }[] }).gates.map((g) => [g.llmModel, g.status]),
+      [
+        ['claude-opus-5-5', 'pass'],
+        ['claude-sonnet-5-5', 'incomplete'],
+      ],
     );
     // The console names no pairs (holdout runs must not leak ground truth).
     assert.doesNotMatch(again.out, /#/);
     assert.deepEqual(
       (await readdir(path.join(dir, 'rec', `proa-relations@${version}`))).sort(),
-      ['agent-sim', 'claude-desktop-1', 'claude-desktop-2', 'claude-desktop-3'],
+      ['agent-sim', 'claude-code-1', 'claude-desktop-1', 'claude-desktop-2', 'claude-desktop-3'],
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -436,7 +468,56 @@ test('eval:live exits 1 when the live gate fails, and writes nothing with --no-w
   }
 });
 
-test('eval:live warns about another declared procedure version and refuses bad usage', async () => {
+test('eval:live warns when the project gives several files, and when it replaces a file with other content', async () => {
+  assert.ok(current);
+  const version = current.version;
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proa-live-'));
+  try {
+    const [rest, mcp] = declaring(await storedRun(), version);
+    assert.ok(rest && mcp);
+    const prefix = `proa-relations@${version}/claude-desktop-1`;
+
+    // Two declared models in one project: two files, each counted as a run of its model's gate.
+    const mixed = await live(
+      ['--project', PROJECT, '--landscape', 'sample', '--no-write'],
+      await fakeServer([rest, withModel(mcp, 'claude-sonnet-5-5')]),
+      dir,
+    );
+    assert.equal(mixed.code, 0, mixed.err);
+    assert.equal(
+      mixed.err,
+      `eval:live: warning: project ${PROJECT} gives 2 recording files, one per declared procedure, agent and llmModel:\n` +
+        `  ${prefix}/claude-opus-5-5/sample.jsonl\n` +
+        `  ${prefix}/claude-sonnet-5-5/sample.jsonl\n` +
+        '  One run should declare one llmModel and one procedure under one agent token: the live gate counts every file as a run.\n',
+    );
+    assert.match(mixed.out, / \/ sample \/ claude-opus-5-5 \(dev\): INCOMPLETE; 1 run/);
+    assert.match(mixed.out, / \/ sample \/ claude-sonnet-5-5 \(dev\): INCOMPLETE; 1 run/);
+    // One model: one file, no warning.
+    const single = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec'], await fakeServer([rest, mcp]), dir);
+    assert.equal(single.code, 0, single.err);
+    assert.equal(single.err, '');
+
+    // The same file with other content (the run went on, or another project under the same name): replaced, with a note.
+    const summary = { ...mcp, submission: { ...mcp.submission, payload: { ...mcp.submission.payload, summary: 'Anders.' } } };
+    const file = path.join('rec', prefix, 'claude-opus-5-5', 'sample.jsonl');
+    const before = await readFile(path.join(dir, file), 'utf8');
+    const replaced = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec'], await fakeServer([rest, summary]), dir);
+    assert.equal(replaced.code, 0, replaced.err);
+    assert.equal(replaced.err, `eval:live: replacing ${file} (2 lines before, 2 now)\n`);
+    const after = await readFile(path.join(dir, file), 'utf8');
+    assert.notEqual(after, before);
+    assert.match(after, /"summary":"Anders\."/);
+    // With --no-write nothing is replaced, so there is nothing to say.
+    const dry = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--no-write'], await fakeServer([rest, mcp]), dir);
+    assert.equal(dry.err, '');
+    assert.equal(await readFile(path.join(dir, file), 'utf8'), after);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('eval:live warns about another declared procedure version; usage errors exit 2, runtime errors 1', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'proa-live-'));
   try {
     const server = await fakeServer(); // the fixtures declare proa-relations@0.0.0
@@ -447,23 +528,48 @@ test('eval:live warns about another declared procedure version and refuses bad u
       new RegExp(`warning: the run declared proa-relations@0\\.0\\.0; the current procedure is proa-relations@${current?.version.replaceAll('.', '\\.') ?? ''}`),
     );
 
-    const cases: Array<[string[], Record<string, string>, RegExp]> = [
+    // Usage errors: exit 2 with the usage text, before any request.
+    const usage: Array<[string[], Record<string, string>, RegExp]> = [
       [[], {}, /--project is required/],
       [['--project', PROJECT, '--landscape', 'sample'], { PROA_TOKEN: '' }, /--token or PROA_TOKEN/],
       [['--project', PROJECT], {}, /project sample-run-1 is not named after a corpus landscape; name the landscape .* --landscape/],
       [['--project', PROJECT, '--landscape', 'atlantis'], {}, /no landscape atlantis in /],
       [['--project', PROJECT, '--landscape', 'sample', '--bogus'], {}, /Unknown option '--bogus'/],
-      [['--project', PROJECT, '--landscape', 'sample', '--token', 'proa_at_wrong'], {}, /401 unauthorized/],
     ];
-    for (const [argv, env, message] of cases) {
+    for (const [argv, env, message] of usage) {
+      const seen = server.seen.length;
       const r = await live(argv, server, dir, env);
-      assert.equal(r.code, 1, argv.join(' '));
+      assert.equal(r.code, 2, argv.join(' '));
       assert.match(r.err, message);
       assert.match(r.err, /^eval:live: /);
+      assert.match(r.err, /\n\nusage: pnpm eval:live --project <key>/);
+      assert.equal(server.seen.length, seen, argv.join(' '));
     }
+
+    // Runtime errors: exit 1, no usage text.
+    const [rest, mcp] = await storedRun();
+    assert.ok(rest && mcp);
+    const { relations: _relations, ...payload } = rest.submission.payload;
+    const broken = await fakeServer([{ ...rest, submission: { ...rest.submission, payload } }, mcp]);
+    const unreachable: FakeServer = { fetch: () => Promise.reject(new TypeError('fetch failed')), seen: [] };
+    const runtime: Array<[string[], FakeServer, RegExp]> = [
+      [['--token', 'proa_at_wrong'], server, /401 unauthorized/],
+      [['--project', 'other'], server, /GET \/projects\/other\/analyses\?state=done&limit=200: 404 not-found/],
+      [[], unreachable, /cannot reach ProA at http:\/\/proa\.test \(fetch failed\)/],
+      [[], broken, /task ana_01JAKKKKKKKKKKKKKKKKKKKK01: the stored payload is no submission \(relations: /],
+    ];
+    for (const [extra, at, message] of runtime) {
+      const r = await live(['--project', PROJECT, '--landscape', 'sample', '--no-write', ...extra], at, dir);
+      assert.equal(r.code, 1, extra.join(' '));
+      assert.match(r.err, message);
+      assert.match(r.err, /^eval:live: /);
+      assert.doesNotMatch(r.err, /usage:/);
+    }
+
     const help = await live(['--help'], server, dir);
     assert.equal(help.code, 0);
     assert.match(help.out, /^usage: pnpm eval:live --project <key>/);
+    assert.match(help.out, /Exit codes: 0 .*, 1 .*\n.*, 2 a usage error\./);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

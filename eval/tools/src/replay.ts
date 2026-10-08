@@ -7,7 +7,8 @@
 // Reads eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl,
 // scores each file against eval/corpus/<landscape>/expected.yaml (precision,
 // recall and F1 overall, per relation type and tag; must_not_link hits;
-// questions; no-links), evaluates the live gate (live-gate.ts) and writes
+// questions; no-links), evaluates the live gate (live-gate.ts; one gate per
+// procedure version, landscape and declared llmModel) and writes
 // eval/reports/replay.{md,json}. It only reports (eval:live enforces the
 // live gate): exit 1 only if a recording cannot be read or names a
 // landscape the corpus does not have.

@@ -93,8 +93,8 @@ test('scores the fixture recording of _sample exactly', async () => {
 
   // fixture-agent is a live run (not agent-sim): its must_not_link pair at 0.85 fails the live gate.
   assert.deepEqual(
-    report.liveGate.map((g) => [g.procedure, g.landscape, g.status, g.runs, g.mustNotLinkHighConfidence, g.baseline.source]),
-    [['proa-relations@0.0.1', 'sample', 'fail', 1, 1, 'none']],
+    report.liveGate.map((g) => [g.procedure, g.landscape, g.llmModel, g.status, g.runs, g.mustNotLinkHighConfidence, g.baseline.source]),
+    [['proa-relations@0.0.1', 'sample', 'fixture-model', 'fail', 1, 1, 'none']],
   );
 });
 
@@ -111,9 +111,12 @@ test('renders a deterministic report', async () => {
   assert.match(renderReplayMarkdown({ recordings: [], liveGate: [] }), /_No recordings\._/);
   assert.match(
     md,
-    /## Live gate\n\n.*\n\n\| Procedure \/ landscape \|.*\n.*\n\| proa-relations@0\.0\.1 \/ sample \| dev \| fail \| 1 \| 60\.0 % \| 60\.0 % \| 60\.0 % \| n\/a \| none \| 1 \|\n/,
+    /## Live gate\n\n.*\n\n\| Procedure \/ landscape \/ llmModel \|.*\n.*\n\| proa-relations@0\.0\.1 \/ sample \/ fixture-model \| dev \| fail \| 1 \| 60\.0 % \| 60\.0 % \| 60\.0 % \| n\/a \| none \| 1 \|\n/,
   );
-  assert.match(md, /- proa-relations@0\.0\.1 \/ sample: fail: 1 must_not_link pair proposed with confidence ≥ 0\.8 \(in 1 of 1 run\); 1 of 3 runs; no baseline/);
+  assert.match(
+    md,
+    /- proa-relations@0\.0\.1 \/ sample \/ fixture-model: fail: 1 must_not_link pair proposed with confidence ≥ 0\.8 \(in 1 of 1 run\); 1 of 3 runs; no baseline/,
+  );
   const onlySim = renderReplayMarkdown({
     recordings: report.recordings.map((r) => ({ ...r, agent: 'agent-sim' })),
     liveGate: [],
@@ -140,10 +143,14 @@ test('scores the committed recordings of the simulation agent', async () => {
     assert.ok((s.withRules.recall ?? 0) >= (s.overall.recall ?? 0), s.file);
     assert.ok(s.questions.pairs > 0, s.file);
   }
-  // The live gate covers exactly the groups with live runs.
+  // The live gate covers exactly the groups (procedure, landscape, model) with live runs.
   assert.deepEqual(
-    report.liveGate.map((g) => `${g.procedure} ${g.landscape}`),
-    [...new Set(report.recordings.filter((r) => r.agent !== 'agent-sim').map((r) => `${r.procedure} ${r.landscape}`))].sort(),
+    report.liveGate.map((g) => `${g.procedure} ${g.landscape} ${g.llmModel}`),
+    [
+      ...new Set(
+        report.recordings.filter((r) => r.agent !== 'agent-sim').map((r) => `${r.procedure} ${r.landscape} ${r.llmModel}`),
+      ),
+    ].sort(),
   );
   // The committed report is up to date (regenerate with `pnpm eval:replay`).
   const committed = await readFile(fileURLToPath(new URL('../../reports/replay.md', import.meta.url)), 'utf8');

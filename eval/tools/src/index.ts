@@ -21,6 +21,7 @@ export {
   SIM_AGENT,
   compareVersions,
   formatLiveGate,
+  gateLabel,
   liveGates,
   splitProcedure,
   type LiveBaseline,

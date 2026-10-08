@@ -1,13 +1,13 @@
 // Renders eval:replay scores as Markdown (eval/reports/replay.md).
 // Deterministic: no timestamps, stable order.
 import type { ExpectedRelation } from './landscape.ts';
-import { MAX_RECALL_DROP, MIN_LIVE_RUNS, SIM_AGENT, baselineLabel, type LiveGate } from './live-gate.ts';
+import { MAX_RECALL_DROP, MIN_LIVE_RUNS, SIM_AGENT, baselineLabel, gateLabel, type LiveGate } from './live-gate.ts';
 import { formatRatio } from './score.ts';
 import { HIGH_CONFIDENCE, type Metrics, type PairClass, type ProposedPair, type ReplayScore } from './replay-score.ts';
 
 export interface ReplayReport {
   recordings: ReplayScore[];
-  /** The live gate of every procedure version and landscape with live runs (`liveGates`). */
+  /** The live gate of every procedure version, landscape and declared model with live runs (`liveGates`). */
   liveGate: LiveGate[];
 }
 
@@ -128,12 +128,13 @@ function liveGateSection(gates: readonly LiveGate[]): string {
   const parts: string[] = [];
   parts.push('## Live gate');
   parts.push(
-    `Per procedure version and landscape, over the live runs (every agent but \`${SIM_AGENT}\`, one recording per ` +
-      `run): **fail** if a run proposes a must_not_link pair with confidence ≥ ${HIGH_CONFIDENCE} or the mean recall ` +
-      `is more than ${MAX_RECALL_DROP * 100} points below the baseline (the mean recall of the live runs of the ` +
-      `highest earlier version of the procedure on that landscape, else the \`${SIM_AGENT}\` recording of the same ` +
-      `version); else **incomplete** with fewer than ${MIN_LIVE_RUNS} runs or without a baseline; else **pass**. ` +
-      'Recall and precision are the proposals\' (without the rule tier), averaged over the runs.',
+    `Per procedure version, landscape and declared llmModel, over the live runs (every agent but ` +
+      `\`${SIM_AGENT}\`, one recording per run): **fail** if a run proposes a must_not_link pair with confidence ` +
+      `≥ ${HIGH_CONFIDENCE} or the mean recall is more than ${MAX_RECALL_DROP * 100} points below the baseline (the ` +
+      'mean recall of the live runs of the highest earlier version of the procedure on that landscape with the same ' +
+      `llmModel, else the \`${SIM_AGENT}\` recordings of the same version, whatever their model); else ` +
+      `**incomplete** with fewer than ${MIN_LIVE_RUNS} runs or without a baseline; else **pass**. Recall and ` +
+      "precision are the proposals' (without the rule tier), averaged over the runs.",
   );
   if (gates.length === 0) {
     parts.push('_No live runs yet._');
@@ -142,7 +143,7 @@ function liveGateSection(gates: readonly LiveGate[]): string {
   parts.push(
     table(
       [
-        'Procedure / landscape',
+        'Procedure / landscape / llmModel',
         'split',
         'status',
         'runs',
@@ -154,7 +155,7 @@ function liveGateSection(gates: readonly LiveGate[]): string {
         `must_not_link ≥ ${HIGH_CONFIDENCE}`,
       ],
       gates.map((g) => [
-        `${g.procedure} / ${g.landscape}`,
+        gateLabel(g),
         g.split,
         g.status,
         g.runs,
@@ -169,7 +170,7 @@ function liveGateSection(gates: readonly LiveGate[]): string {
   );
   const reasons = gates
     .filter((g) => g.reasons.length > 0)
-    .map((g) => `- ${g.procedure} / ${g.landscape}: ${g.status}: ${g.reasons.join('; ')}`);
+    .map((g) => `- ${gateLabel(g)}: ${g.status}: ${g.reasons.join('; ')}`);
   if (reasons.length > 0) parts.push(reasons.join('\n'));
   return parts.join('\n\n');
 }

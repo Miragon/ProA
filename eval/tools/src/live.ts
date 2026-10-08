@@ -12,10 +12,13 @@
 // <out>/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl (each file
 // afresh; the agent is the token name, the declared procedure and model come
 // from the submissions), scores them with the eval:replay scorer and prints
-// the live gate (live-gate.ts) of the procedure versions on that landscape,
-// counting the other recordings in <out>. Exit codes: 0 when every gate
-// passes or is incomplete, 1 when a gate fails or on any error.
-import { mkdir, writeFile } from 'node:fs/promises';
+// the live gates (live-gate.ts) the new files count in, as a run or as the
+// baseline, counting the other recordings in <out>. It warns when the project
+// gives more than one file (the gate counts each as a run) and when it
+// replaces a file with other content. Exit codes: 0 when every gate passes or
+// is incomplete, 1 when a gate fails or on a runtime error (server
+// unreachable, 401/404, invalid data), 2 on a usage error.
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -46,6 +49,9 @@ in eval/recordings and checks the live gate.
   --corpus <dir>        corpus directory (default: eval/corpus)
   --no-write            score and check without writing
   --json                print JSON
+
+Exit codes: 0 every gate passes or is incomplete, 1 a gate fails or a runtime
+error (server unreachable, 401/404, invalid data), 2 a usage error.
 `;
 
 export interface LiveIo {
@@ -65,7 +71,11 @@ export const processIo: LiveIo = {
   fetch: (input, init) => globalThis.fetch(input, init),
 };
 
+/** A wrong call: exit code 2, with the usage text. */
 class UsageError extends Error {}
+
+/** Exit code of a usage error, as `proa-agent-sim` and `run-headless.sh` have it. */
+const USAGE_EXIT = 2;
 
 /** What `--json` prints per recording: the numbers, not the pairs (no ground truth on the console). */
 function runSummary(s: ReplayScore) {
@@ -88,16 +98,32 @@ function runSummary(s: ReplayScore) {
   };
 }
 
-/** Runs eval:live; returns the exit code and never throws. */
+/**
+ * Runs eval:live; returns the exit code (0: every gate passes or is
+ * incomplete, 1: a gate fails or a runtime error, 2: usage) and never throws.
+ */
 export async function runLive(argv: readonly string[], io: LiveIo = processIo): Promise<number> {
   try {
     return await live(argv, io);
   } catch (err) {
     io.stderr(`eval:live: ${err instanceof Error ? err.message : String(err)}\n`);
-    if (err instanceof UsageError) io.stderr(`\n${USAGE}`);
-    return 1;
+    if (!(err instanceof UsageError)) return 1;
+    io.stderr(`\n${USAGE}`);
+    return USAGE_EXIT;
   }
 }
+
+/** The file's current content; null if it does not exist. */
+async function readIfExists(file: string): Promise<string | null> {
+  try {
+    return await readFile(file, 'utf8');
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
+const lineCount = (text: string): number => text.split('\n').filter((l) => l.trim() !== '').length;
 
 function parseOptions(argv: readonly string[]) {
   try {
@@ -161,10 +187,27 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
     }
   }
 
+  // One run is one file: several declared models, agents or procedures split it, and the gate counts each.
+  if (built.length > 1) {
+    io.stderr(
+      `eval:live: warning: project ${project} gives ${built.length} recording files, one per declared procedure, ` +
+        `agent and llmModel:\n${built.map((b) => `  ${b.path}\n`).join('')}` +
+        '  One run should declare one llmModel and one procedure under one agent token: ' +
+        'the live gate counts every file as a run.\n',
+    );
+  }
+
   const files: RecordingFile[] = built.map((b) => parseRecording(b.path, b.text));
   if (!values['no-write']) {
     for (const b of built) {
       const file = path.join(out, b.path);
+      // Re-recording a finished or longer run of the same project is legitimate; say so all the same.
+      const before = await readIfExists(file);
+      if (before !== null && before !== b.text) {
+        io.stderr(
+          `eval:live: replacing ${path.relative(io.cwd, file)} (${lineCount(before)} lines before, ${b.lines.length} now)\n`,
+        );
+      }
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, b.text);
     }
@@ -182,8 +225,10 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
     .map((f) => scoreRecording(f, run));
   const builtPaths = new Set(files.map((f) => f.path));
   const runs = scores.filter((s) => builtPaths.has(s.file));
-  const procedures = new Set(files.map((f) => f.procedure));
-  const gates: LiveGate[] = liveGates(scores).filter((g) => procedures.has(g.procedure));
+  // The gates the new files count in: as a live run of the group, or as its baseline.
+  const gates: LiveGate[] = liveGates(scores).filter(
+    (g) => g.liveRuns.some((r) => builtPaths.has(r.file)) || g.baseline.files.some((f) => builtPaths.has(f)),
+  );
 
   if (values.json) {
     io.stdout(
@@ -207,7 +252,7 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
     }
     for (const s of runs) io.stdout(`${scoreLine(s)}\n`);
     for (const g of gates) io.stdout(`${formatLiveGate(g)}\n`);
-    if (gates.length === 0) io.stdout('live gate: no live runs (only agent-sim recordings)\n');
+    if (gates.length === 0) io.stdout('live gate: none (the recorded files are neither live runs nor the baseline of one)\n');
   }
   return gates.some((g) => g.status === 'fail') ? 1 : 0;
 }
