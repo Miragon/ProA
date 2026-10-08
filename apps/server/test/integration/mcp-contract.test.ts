@@ -204,6 +204,10 @@ describe('tools/list', () => {
     if (procedure) {
       expect(text).toBe(renderPipelineWrapper(procedure, { kind: 'fixed', projectId: 'contract' }));
       expect(text.endsWith(procedure.text)).toBe(true);
+      // The skill's rule for a claim that names another release holds in the prompt too.
+      expect(text).toContain(
+        `- The procedure below is ${procedure.id}@${procedure.version}. If a claim names another procedure or version, call get_procedure`,
+      );
     }
     expect(text).toMatch(/exact model id as llmModel/);
     expect(text).toMatch(/get_procedure\(\{id: "proa-relations"\}\) again/);

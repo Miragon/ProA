@@ -54,10 +54,13 @@ async function main(): Promise<number> {
     );
   }
   if (!values['no-write']) {
-    await mkdir(values.out, { recursive: true });
-    await writeFile(path.join(values.out, 'candidates.md'), renderMarkdown(report));
-    await writeFile(path.join(values.out, 'candidates.json'), `${JSON.stringify(report, null, 2)}\n`);
-    console.log(`report: ${path.relative(process.cwd(), path.join(values.out, 'candidates.md'))}`);
+    // Relative to where pnpm was started (INIT_CWD, the repository root), like eval:live and eval:replay.
+    const cwd = process.env['INIT_CWD'] ?? process.cwd();
+    const out = path.resolve(cwd, values.out);
+    await mkdir(out, { recursive: true });
+    await writeFile(path.join(out, 'candidates.md'), renderMarkdown(report));
+    await writeFile(path.join(out, 'candidates.json'), `${JSON.stringify(report, null, 2)}\n`);
+    console.log(`report: ${path.relative(cwd, path.join(out, 'candidates.md'))}`);
   }
   console.log(`eval:candidates: ${report.pass ? 'pass' : 'FAIL'}`);
   return report.pass ? 0 : 1;

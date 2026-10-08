@@ -2,7 +2,7 @@
 # Works the ProA analysis pipeline with Claude Code in headless mode: one fresh
 # `claude -p "/proa:relations <project> <batch-size>"` per batch, so every
 # batch starts with a clean context, until GET /api/v1/analyses/pending reports
-# no claimable task, a batch makes no progress, or max-batches is reached.
+# no claimable task, a batch fails or makes no progress, or max-batches is reached.
 # Every batch runs in an empty temporary directory outside the checkout, with
 # ProA's MCP server as its only tools and the plugin from this checkout, and
 # writes its JSON result to the log directory. See README.md next to this file.
@@ -20,7 +20,8 @@ Usage: run-headless.sh [--allow-api-billing] <project> <model> [batch-size] [max
 Environment:
   PROA_TOKEN           the run's agent token (proa_at_…), required
   PROA_URL             ProA origin (default http://127.0.0.1:7400)
-  PROA_LOG_DIR         where the JSON results go (default: a new directory under $TMPDIR)
+  PROA_LOG_DIR         where the JSON results go; must not hold batch-*.json from an
+                       earlier run (default: a new directory under $TMPDIR)
   PROA_MAX_BUDGET_USD  optional spending cap per batch (claude --max-budget-usd)
 
 claude -p uses ANTHROPIC_API_KEY whenever it is set, ahead of your Claude
@@ -69,7 +70,9 @@ for cmd in claude curl node; do
 done
 
 url=${PROA_URL:-http://127.0.0.1:7400}
-url=${url%/}
+while [[ $url == */ ]]; do url=${url%/}; done
+# mcp.json appends /mcp to ${PROA_URL} as is (//mcp is a 404): claude gets the same origin.
+export PROA_URL=$url
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 checkout=$(cd "$here/../../.." && pwd)
 plugin_dir=$checkout/plugins/proa
@@ -78,11 +81,15 @@ mcp_config=$here/mcp.json
 tmp=${TMPDIR:-/tmp}
 tmp=${tmp%/}
 
+log_dir=${PROA_LOG_DIR:-$(mktemp -d "$tmp/proa-headless-$project-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")}
+mkdir -p "$log_dir"
+# The batches are numbered from 1 and the cost adds up every batch-*.json here.
+if compgen -G "$log_dir/batch-*.json" >/dev/null; then
+  die "$log_dir already holds batch results from an earlier run; set PROA_LOG_DIR to a new or empty directory"
+fi
 # An empty working directory outside the checkout: Claude Code finds no
 # CLAUDE.md, .mcp.json or project settings there, and nothing leads to eval/.
 workdir=$(mktemp -d "$tmp/proa-agent.XXXXXX")
-log_dir=${PROA_LOG_DIR:-$tmp/proa-headless-$project-$(date -u +%Y%m%dT%H%M%SZ)}
-mkdir -p "$log_dir"
 
 finish() {
   rm -rf "$workdir"
@@ -120,13 +127,14 @@ pending() {
       });'
 }
 
-# One line on a claude -p JSON result.
+# One line on a claude -p JSON result; fails unless the result is a success.
 summarize() {
   # shellcheck disable=SC2016 # JavaScript, not shell
   node -e '
     const r = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
     const cost = typeof r.total_cost_usd === "number" ? r.total_cost_usd.toFixed(4) : "?";
     console.log(`${r.subtype}${r.is_error ? " (error)" : ""}, ${r.num_turns} turns, ~${cost} USD`);
+    process.exitCode = r.subtype === "success" && !r.is_error ? 0 : 1;
   ' "$1"
 }
 
@@ -142,9 +150,11 @@ while ((before > 0)); do
   batch=$((batch + 1))
   log=$log_dir/batch-$(printf '%03d' "$batch").json
   echo "batch $batch: /proa:relations $project $batch_size"
+  [[ -d $workdir ]] || die "the temporary directory $workdir disappeared; not starting batch $batch elsewhere"
   status=0
   (
-    cd "$workdir"
+    # set -e does not apply on the left of ||: never fall back to the caller's directory.
+    cd "$workdir" || exit 2
     # ProA's tools declare anthropic/maxResultSizeChars, so claim inputs (up to about 80 KB)
     # reach the model inline; the token limit is raised as well for builds that predate it.
     export MAX_MCP_OUTPUT_TOKENS=${MAX_MCP_OUTPUT_TOKENS:-100000}
@@ -159,14 +169,25 @@ while ((before > 0)); do
       --no-session-persistence \
       ${budget:+--max-budget-usd "$budget"}
   ) </dev/null >"$log" || status=$?
-  if [[ -s $log ]]; then
-    echo "  $(summarize "$log" 2>/dev/null || echo "no JSON result, see $log")"
+  ok=true
+  summary=$(summarize "$log" 2>/dev/null) || ok=false
+  echo "  ${summary:-no JSON result, see $log}"
+  if ((status != 0)); then
+    ok=false
+    echo "  claude exited with status $status (see $log)" >&2
   fi
-  ((status == 0)) || echo "  claude exited with status $status (see $log)" >&2
   after=$(pending) || die "$unreachable"
   echo "  pending: $before -> $after"
+  # A batch that died after claiming leaves its task leased, which also lowers the
+  # pending count: only a successful batch counts as progress.
+  if [[ $ok != true ]]; then
+    echo "stopped: batch $batch failed; see $log" >&2
+    echo "  a task it claimed stays leased for up to 15 minutes, and that attempt counts (3 expired leases fail a task); check the run before you start the script again" >&2
+    exit 1
+  fi
   if ((after >= before)); then
     echo "stopped: batch $batch made no progress (pending $before -> $after); see $log" >&2
+    echo "  did the proa MCP server connect (PROA_URL, PROA_TOKEN)?" >&2
     exit 1
   fi
   before=$after

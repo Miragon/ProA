@@ -4,6 +4,7 @@
 name: relations
 description: "Find relations (call, message, signal, trigger) between BPMN processes in a ProA project: claim analysis tasks over the proa MCP server one at a time, judge the candidate pairs and submit proposals and no-links for human review."
 argument-hint: "[project] [max-tasks]"
+disable-model-invocation: true
 ---
 
 Work the ProA analysis pipeline, following the procedure below.
@@ -13,6 +14,7 @@ Arguments (`[project] [max-tasks]`, both optional): $ARGUMENTS
 - max-tasks: the second argument, a whole number from 1 to 100. Stop after that many tasks (submitted or released) or when claim_analysis returns no items, whichever comes first; without it, stop when it returns no items. Then report what you did.
 - If an argument is not valid, stop before claiming and say why.
 - Declare your exact model id as llmModel in every submit_analysis call: the API model id you run as (as your system prompt or the user names it), never a product name, an alias or a guess. Declare the procedure id and version the claim names.
+- The procedure below is proa-relations@0.1.0. If a claim names another procedure or version, call get_procedure({id: "<the claim's procedure id>"}) before working that task and follow the returned text instead (the server expects that one); still declare what the claim names.
 - If you cannot finish a task, hand it back with release_analysis instead of letting the lease expire.
 - After your context was summarized or compacted, call get_procedure({id: "proa-relations"}) again before the next task and follow the reloaded text: a summary is not the procedure.
 

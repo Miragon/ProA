@@ -1,7 +1,7 @@
 /**
  * The wrappers around a pipeline procedure (CONCEPT §7): the MCP prompt
  * `work_pipeline` and the Claude Code skill `/proa:relations` add only the
- * scope (project, number of tasks), the model declaration and the rule to
+ * scope (project, number of tasks), the model declaration and the rules to
  * re-load the procedure, then embed its text verbatim. Both render through
  * {@link renderPipelineWrapper}, so they cannot drift apart; a test compares
  * the committed skill with {@link renderSkill}.
@@ -29,6 +29,8 @@ export function renderPipelineWrapper(procedure: Procedure, scope: PipelineScope
   return [
     ...(scope.kind === 'fixed' ? fixedScope(scope.projectId, scope.maxTasks) : argumentScope()),
     '- Declare your exact model id as llmModel in every submit_analysis call: the API model id you run as (as your system prompt or the user names it), never a product name, an alias or a guess. Declare the procedure id and version the claim names.',
+    // An installed skill is a copy of one release; the claim names the release the server expects.
+    `- The procedure below is ${procedure.id}@${procedure.version}. If a claim names another procedure or version, call get_procedure({id: "<the claim's procedure id>"}) before working that task and follow the returned text instead (the server expects that one); still declare what the claim names.`,
     '- If you cannot finish a task, hand it back with release_analysis instead of letting the lease expire.',
     `- After your context was summarized or compacted, call get_procedure({id: "${procedure.id}"}) again before the next task and follow the reloaded text: a summary is not the procedure.`,
     '',
@@ -94,6 +96,9 @@ export function renderSkill(procedure: Procedure): string {
     // JSON strings are valid YAML double-quoted scalars.
     `description: ${JSON.stringify(procedure.description ?? procedure.title)}`,
     `argument-hint: ${JSON.stringify(SKILL_ARGUMENT_HINT)}`,
+    // The model cannot start the claim/submit loop on its own (CONCEPT §7: users start agents),
+    // like the MCP prompt work_pipeline; a typed `/proa:<name>` (also `claude -p`) still runs it.
+    'disable-model-invocation: true',
     '---',
     '',
     renderPipelineWrapper(procedure, { kind: 'arguments' }),

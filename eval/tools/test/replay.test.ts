@@ -1,8 +1,9 @@
 // Tests for eval:replay (src/replay.ts, recordings.ts, replay-score.ts,
 // replay-report.ts) on a fixture recording of `_sample` with known answers,
-// and on the committed recordings in eval/recordings.
+// on the committed recordings in eval/recordings, and of the command: its
+// paths and exit codes.
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,7 @@ import { getProcedure } from '@proa/procedures';
 import { CORPUS_DIR } from '../src/corpus.ts';
 import { RecordingError, landscapeDir, loadRecordings, parseRecording } from '../src/recordings.ts';
 import { renderReplayMarkdown } from '../src/replay-report.ts';
-import { replay } from '../src/replay.ts';
+import { USAGE, replay, runReplay, type ReplayIo } from '../src/replay.ts';
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/recordings', import.meta.url));
 const FIXTURE_FILE = 'proa-relations@0.0.1/fixture-agent/fixture-model/sample.jsonl';
@@ -186,6 +187,53 @@ test('finds landscapes by name or as _<name>, and nothing in a missing directory
     const line = (await readFile(path.join(FIXTURES, FIXTURE_FILE), 'utf8')).split('\n')[0] ?? '';
     await writeFile(file, `${line.replace('"landscape":"sample"', '"landscape":"atlantis"')}\n`);
     await assert.rejects(replay(dir, CORPUS_DIR), /no landscape atlantis/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+async function runIn(cwd: string, argv: string[]): Promise<{ code: number; out: string; err: string }> {
+  const out: string[] = [];
+  const err: string[] = [];
+  const io: ReplayIo = { stdout: (t) => out.push(t), stderr: (t) => err.push(t), cwd };
+  const code = await runReplay(argv, io);
+  return { code, out: out.join(''), err: err.join('') };
+}
+
+test('eval:replay resolves relative paths against the base directory; a named recordings directory must exist', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proa-replay-'));
+  try {
+    // The base directory is INIT_CWD (the repository root under pnpm), not eval/tools.
+    await cp(FIXTURES, path.join(dir, 'rec'), { recursive: true });
+    const corpus = path.relative(dir, CORPUS_DIR);
+    const r = await runIn(dir, ['--recordings', 'rec', '--corpus', corpus, '--out', 'out']);
+    assert.equal(r.code, 0, r.err);
+    assert.equal(r.err, '');
+    assert.match(r.out, new RegExp(`^${FIXTURE_FILE.replaceAll('.', '\\.')}: 2 tasks, 5 pairs;`, 'm'));
+    assert.match(r.out, /\nreport: out\/replay\.md\n$/);
+    assert.equal(await readFile(path.join(dir, 'out', 'replay.md'), 'utf8'), renderReplayMarkdown(await replay(FIXTURES, CORPUS_DIR)));
+
+    // A named directory that does not exist (or is a file) is a usage error, not an empty report.
+    for (const missing of ['nope', 'out/replay.md']) {
+      const none = await runIn(dir, ['--recordings', missing, '--out', 'out2']);
+      assert.equal(none.code, 2, missing);
+      assert.equal(none.err, `eval:replay: no recordings directory ${path.join(dir, missing)}\n\n${USAGE}`);
+      assert.equal(none.out, '');
+    }
+    const bogus = await runIn(dir, ['--bogus']);
+    assert.equal(bogus.code, 2);
+    assert.match(bogus.err, /^eval:replay: Unknown option '--bogus'/);
+    await assert.rejects(readdir(path.join(dir, 'out2')), /ENOENT/);
+
+    // A recording that cannot be scored: exit 1, without the usage text.
+    const file = path.join(dir, 'bad', 'proa-relations@0.0.1/fixture-agent/fixture-model/atlantis.jsonl');
+    await mkdir(path.dirname(file), { recursive: true });
+    const line = (await readFile(path.join(FIXTURES, FIXTURE_FILE), 'utf8')).split('\n')[0] ?? '';
+    await writeFile(file, `${line.replace('"landscape":"sample"', '"landscape":"atlantis"')}\n`);
+    const bad = await runIn(dir, ['--recordings', 'bad', '--corpus', corpus, '--no-write']);
+    assert.equal(bad.code, 1);
+    assert.match(bad.err, /^eval:replay: no landscape atlantis in /);
+    assert.doesNotMatch(bad.err, /usage:/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

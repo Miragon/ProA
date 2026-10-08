@@ -33,7 +33,8 @@ the start prompt below tells it to (the procedure contains the whole loop).
 
 1. Open a **new chat** per batch (a fresh context), pick the model, and paste
    [`start-prompt.de.md`](start-prompt.de.md) with the placeholders filled in:
-   - `{{PROJEKT}}`: the project key, e.g. `nordwind-handel`;
+   - `{{PROJEKT}}`: the run's project key from step 1, e.g. `nordwind-handel-cd-1` (the project
+     the token was issued for; never the projects the Quickstart seeded, such as `nordwind-handel`);
    - `{{MODELL_ID}}`: the exact API model id of the model you picked, e.g. `claude-opus-5-5`
      (Claude Desktop shows a product name; the agent declares this id as `llmModel`);
    - `{{ANZAHL}}`: the batch size, e.g. `5`.

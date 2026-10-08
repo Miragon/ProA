@@ -238,26 +238,35 @@ describe('proa seed', () => {
     expect(text.out()).toContain('Agent token "seed"');
   });
 
-  it('warns when --project names an existing project', async () => {
+  it('refuses an existing --project before importing or issuing a token', async () => {
+    const imported: string[] = [];
     const api = fakeApi({
       'GET /api/v1/projects/run-1': () => json({ ...PROJECT, key: 'run-1' }),
+      // Served, so a missing guard would import new models and issue a token.
       'POST /api/v1/projects/run-1/imports': async (req) => {
         const files = (await req.formData()).getAll('files') as File[];
+        imported.push(...files.map((f) => f.name));
         return json({
           files: files.map((f) => ({
             path: f.name,
             modelKey: null,
-            outcome: 'unchanged',
+            outcome: 'created',
             problem: null,
           })),
         });
       },
       'GET /api/v1/projects/run-1/landscape': () => json(LANDSCAPE),
+      'POST /api/v1/projects/run-1/agent-tokens': () => json({}, 201),
     });
     const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
-    expect(await runCli(['seed', '_sample', '--project', 'run-1'], t.io)).toBe(0);
-    expect(t.out()).toContain('run-1 (landscape sample): project exists');
-    expect(t.err()).toContain('project run-1 already existed; use a fresh project per live run');
+    const argv = ['seed', 'nordwind-handel', '--project', 'run-1', '--issue-tokens', '--json'];
+    expect(await runCli([...argv, '--token-name', 'claude-code-1'], t.io)).toBe(1);
+    expect(t.err()).toContain(
+      'project run-1 already exists; a live run needs a fresh project: pick another key (nothing was imported, no token was issued)',
+    );
+    expect(t.out()).toBe('');
+    expect(imported).toEqual([]);
+    expect(api.seen.map((s) => `${s.method} ${s.path}`)).toEqual(['GET /api/v1/projects/run-1']);
   });
 
   it('refuses --project and --token-name misuse before touching the server', async () => {

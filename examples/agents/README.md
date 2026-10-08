@@ -27,7 +27,10 @@ model.
   so), and the procedure id and version the claim names.
 - **Start agents outside the checkout**, with ProA's MCP tools only where the client allows it
   (`--tools ""` in Claude Code, `tools: []` in the SDK, no other connectors in Claude Desktop):
-  `eval/` holds the ground truth, including the holdout landscape.
+  `eval/` holds the ground truth, including the holdout landscape. The directory alone does not
+  keep an agent out of `eval/`: Codex has no counterpart to `--tools ""` and its sandbox does not
+  restrict reads, so it can read the checkout by absolute path; run it on the holdout only where
+  the checkout cannot be read ([Codex](codex/README.md#not-isolated-from-the-checkout)).
 - **Long runs:** a fresh context per batch (headless script, SDK worker, a new chat in Claude
   Desktop) keeps the procedure in full view; within one session the agent reloads it with
   `get_procedure` after its context was summarized.

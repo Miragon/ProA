@@ -2,11 +2,11 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { getLandscape, type CreatedAgentToken, type Landscape } from '@proa/client';
+import { getLandscape, getProject, type CreatedAgentToken, type Landscape } from '@proa/client';
 import { CreateAgentTokenBody, ProjectKey } from '@proa/contracts';
 import { parse as parseYaml } from 'yaml';
 
-import { call, createApi, type Api } from '../api.ts';
+import { call, callOrNull, createApi, type Api } from '../api.ts';
 import { ownerCredential, type CredentialOptions } from '../credentials.ts';
 import { CliError } from '../errors.ts';
 import type { CliIo } from '../io.ts';
@@ -167,7 +167,10 @@ export async function seedLandscape(
 export interface SeedOptions extends CredentialOptions {
   url: string;
   corpus?: string;
-  /** Seed exactly one landscape into a project with this key (e.g. a fresh project per live run). */
+  /**
+   * Seed exactly one landscape into a new project with this key (a fresh
+   * project per live run); an existing project is refused.
+   */
   project?: string;
   issueTokens?: boolean;
   /** Name of the issued tokens (with `issueTokens`); default {@link SEED_TOKEN_NAME}. */
@@ -212,10 +215,13 @@ export function checkSeedOptions(names: readonly string[], opts: SeedOptions): v
  * (default: every scored landscape of `eval/corpus`) and imports its models
  * as the owner. Re-running it is safe: existing projects are reused and
  * unchanged models stay unchanged. `--project <key>` seeds one landscape
- * into a project with another key (a fresh project per live run, CONCEPT
+ * into a new project with another key (a fresh project per live run, CONCEPT
  * §7); `--issue-tokens` creates a read+propose agent token per project,
  * named `--token-name` (default `seed`; the name is the agent segment of
  * `eval:live` recordings).
+ *
+ * @throws {CliError} if the `--project` project exists, before any import or
+ *   token request: imports cannot be undone, and a reused project mixes runs
  */
 export async function seedCommand(
   io: CliIo,
@@ -226,6 +232,18 @@ export async function seedCommand(
   const corpus = opts.corpus ? path.resolve(io.cwd, opts.corpus) : DEFAULT_CORPUS;
   const landscapes = await findLandscapes(corpus, names);
   const api = createApi(io, opts.url, await ownerCredential(io, opts));
+  if (opts.project !== undefined) {
+    const existing = await callOrNull(
+      api,
+      `look up project ${opts.project}`,
+      getProject({ client: api.client, path: { project: opts.project } }),
+    );
+    if (existing) {
+      throw new CliError(
+        `project ${opts.project} already exists; a live run needs a fresh project: pick another key (nothing was imported, no token was issued)`,
+      );
+    }
+  }
   const target: SeedTarget = {
     ...(opts.project !== undefined ? { project: opts.project } : {}),
     ...(opts.issueTokens ? { tokenName: opts.tokenName ?? SEED_TOKEN_NAME } : {}),
@@ -236,9 +254,6 @@ export async function seedCommand(
     const r = await seedLandscape(api, l, target);
     results.push(r);
     failed += r.import.counts.failed;
-    if (opts.project !== undefined && !r.created) {
-      io.stderr(`proa: project ${r.project} already existed; use a fresh project per live run\n`);
-    }
     if (opts.json) continue;
     const rel = Object.entries(r.relations)
       .sort(([a], [b]) => a.localeCompare(b))

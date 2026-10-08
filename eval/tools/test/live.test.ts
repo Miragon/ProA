@@ -2,9 +2,10 @@
 // stored submissions to recording lines (fixtures under fixtures/live: a raw
 // REST payload and an MCP payload with defaults applied), the REST reader
 // against a fake server, and the command end to end on the `_sample`
-// landscape: the gate per declared model, the warnings (several files, a
-// replaced file) and the exit codes (1 for a failing gate or a runtime error,
-// 2 for a usage error).
+// landscape: the gate per declared model, the warnings (several tokens,
+// several files, a replaced file) and the exit codes (1 for a failing gate or
+// a runtime error, 2 for a usage error, analyses of models the landscape does
+// not have among them).
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -372,7 +373,7 @@ test('eval:live writes the run, scores it and reports the live gate', async () =
   const dir = await mkdtemp(path.join(os.tmpdir(), 'proa-live-'));
   try {
     const server = await fakeServer(declaring(await storedRun(), version));
-    // Relative --out resolves against the caller's directory (INIT_CWD), not eval/tools.
+    // Relative --out resolves against the base directory (INIT_CWD: the repository root under pnpm), not eval/tools.
     const r = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec'], server, dir);
     assert.equal(r.err, '');
     assert.equal(r.code, 0);
@@ -512,6 +513,76 @@ test('eval:live warns when the project gives several files, and when it replaces
     const dry = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--no-write'], await fakeServer([rest, mcp]), dir);
     assert.equal(dry.err, '');
     assert.equal(await readFile(path.join(dir, file), 'utf8'), after);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('eval:live warns when the project was worked under several tokens, also with --agent', async () => {
+  assert.ok(current);
+  const version = current.version;
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proa-live-'));
+  try {
+    const [rest, mcp] = declaring(await storedRun(), version);
+    assert.ok(rest && mcp);
+    const second = (s: StoredAnalysis, handle: string): StoredAnalysis => ({
+      ...s,
+      submission: { ...s.submission, principalId: 'prn_01JAKKKKKKKKKKKKKKKKKKKK02', handle },
+    });
+    const prefix = `proa-relations@${version}`;
+    const tokens = (agent: string) =>
+      `eval:live: warning: project ${PROJECT} was worked under 2 tokens (agent:claude-code-9, agent:claude-desktop-1)${agent}: ` +
+      'one run is one agent token in a fresh project; do not commit it.\n';
+
+    // Two token names: two files, so both warnings.
+    const named = await fakeServer([rest, second(mcp, 'agent:claude-code-9')]);
+    const split = await live(['--project', PROJECT, '--landscape', 'sample', '--no-write'], named, dir);
+    assert.equal(split.code, 0, split.err);
+    assert.equal(
+      split.err,
+      tokens('') +
+        `eval:live: warning: project ${PROJECT} gives 2 recording files, one per declared procedure, agent and llmModel:\n` +
+        `  ${prefix}/claude-code-9/claude-opus-5-5/sample.jsonl\n` +
+        `  ${prefix}/claude-desktop-1/claude-opus-5-5/sample.jsonl\n` +
+        '  One run should declare one llmModel and one procedure under one agent token: the live gate counts every file as a run.\n',
+    );
+
+    // --agent files them as one run: one file, and the warning all the same.
+    const merged = await live(['--project', PROJECT, '--landscape', 'sample', '--out', 'rec', '--agent', 'claude-code-1'], named, dir);
+    assert.equal(merged.code, 0, merged.err);
+    assert.equal(merged.err, tokens(', which --agent claude-code-1 records as one run'));
+    assert.deepEqual(await readdir(path.join(dir, 'rec', prefix)), ['claude-code-1']);
+
+    // Two tokens of one name give one file too.
+    const sameName = await fakeServer([rest, second(mcp, 'agent:claude-desktop-1')]);
+    const one = await live(['--project', PROJECT, '--landscape', 'sample', '--no-write'], sameName, dir);
+    assert.equal(one.code, 0, one.err);
+    assert.equal(
+      one.err,
+      `eval:live: warning: project ${PROJECT} was worked under 2 tokens (agent:claude-desktop-1, agent:claude-desktop-1): ` +
+        'one run is one agent token in a fresh project; do not commit it.\n',
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('eval:live refuses analyses of models the landscape does not have, and writes nothing', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'proa-live-'));
+  try {
+    // The fixtures analysed two models of _sample; of its three, nordwind-handel has finanzen/rechnungsstellung only.
+    const r = await live(['--project', PROJECT, '--landscape', 'nordwind-handel', '--out', 'rec'], await fakeServer(), dir);
+    assert.equal(r.code, 2, r.err);
+    assert.match(
+      r.err,
+      new RegExp(
+        `^eval:live: project ${PROJECT} has analyses of 2 models not in landscape nordwind-handel ` +
+          `\\(${P}, ${A}\\); name the landscape the project was seeded from with --landscape\n`,
+      ),
+    );
+    assert.match(r.err, /\n\nusage: pnpm eval:live --project <key>/);
+    assert.equal(r.out, '');
+    await assert.rejects(readdir(path.join(dir, 'rec')), /ENOENT/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

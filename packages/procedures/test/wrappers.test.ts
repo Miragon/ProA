@@ -39,6 +39,10 @@ describe('renderPipelineWrapper', () => {
     expect(text).toContain('exact model id as llmModel in every submit_analysis call');
     expect(text).toContain('release_analysis');
     expect(text).toContain('call get_procedure({id: "proa-sample"}) again');
+    expect(text).toContain(
+      '- The procedure below is proa-sample@1.2.3. If a claim names another procedure or version, call get_procedure({id: "<the claim\'s procedure id>"}) before working that task and follow the returned text instead',
+    );
+    expect(text).toContain('still declare what the claim names.');
     expect(text).toContain('Procedure proa-sample@1.2.3:\n\n# Sample');
     expect(text.endsWith(`\n${procedure.text}`)).toBe(true);
   });
@@ -59,8 +63,11 @@ describe('renderPipelineWrapper', () => {
     expect(text).toContain('claim_analysis({projectId: "<project>", max: 1})');
     expect(text).toContain('claim_analysis({max: 1})');
     expect(text).toContain(`a whole number from 1 to ${MAX_PIPELINE_TASKS}`);
-    // The common rules are the same lines as in the MCP prompt.
+    // The common rules are the same lines as in the MCP prompt, the version rule among them.
     const common = renderPipelineWrapper(procedure, { kind: 'fixed' }).split('\n').slice(3);
+    expect(
+      common.some((line) => line.startsWith('- The procedure below is proa-sample@1.2.3.')),
+    ).toBe(true);
     expect(text.endsWith(common.join('\n'))).toBe(true);
   });
 });
@@ -70,10 +77,17 @@ describe('renderSkill', () => {
     const skill = renderSkill(procedure);
     expect(skill.startsWith('---\n# Generated from packages/procedures/sample.md by')).toBe(true);
     const fields = frontmatter(skill);
-    expect([...fields.keys()]).toEqual(['name', 'description', 'argument-hint']);
+    expect([...fields.keys()]).toEqual([
+      'name',
+      'description',
+      'argument-hint',
+      'disable-model-invocation',
+    ]);
     expect(fields.get('name')).toBe('sample');
     expect(JSON.parse(fields.get('description') ?? '')).toBe('Says "hi": twice');
     expect(JSON.parse(fields.get('argument-hint') ?? '')).toBe('[project] [max-tasks]');
+    // Only users start the claim/submit loop; the model cannot invoke the skill.
+    expect(fields.get('disable-model-invocation')).toBe('true');
     expect(skill).toContain(`---\n\n${renderPipelineWrapper(procedure, { kind: 'arguments' })}\n`);
     expect(skill.endsWith('\n')).toBe(true);
     expect(skillPath(procedure)).toBe('plugins/proa/skills/sample/SKILL.md');

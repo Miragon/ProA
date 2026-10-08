@@ -21,7 +21,11 @@ instead.
 ## What each task gets
 
 - **Connection:** only ProA's MCP server (`mcpServers.proa`: HTTP `PROA_URL/mcp` with
-  `Authorization: Bearer $PROA_TOKEN`, `alwaysLoad`), `strictMcpConfig`.
+  `Authorization: Bearer ${PROA_TOKEN}`, `alwaysLoad`), `strictMcpConfig`. The SDK hands this
+  config to the Claude Code child on its command line (`--mcp-config <JSON>`), which `ps` shows
+  to other local users, so the header is the literal placeholder, as in
+  [`claude-code/mcp.json`](../claude-code/mcp.json); Claude Code expands it from the `env` the
+  worker passes, and the token never appears on a command line.
 - **Tools:** no built-in tools (`tools: []`: no files, shell or web), `allowedTools:
   ["mcp__proa__*"]`, `permissionMode: "dontAsk"` (anything else is denied).
 - **Settings:** `settingSources: []` (no `~/.claude`, no project `CLAUDE.md` or `.mcp.json`), a
@@ -33,7 +37,9 @@ instead.
 - **Limits:** `--max-turns` (default 80) and `--max-budget-usd` per task.
 
 Each finished task prints one JSON line (`subtype`, `isError`, `turns`, `costUsd` =
-`total_cost_usd`, an estimate, `durationMs`, `result`); the worker stops on `--once` when nothing
+`total_cost_usd`, an estimate, `durationMs`, `result`), also one that ended in an error result
+such as `error_max_turns` or `error_max_budget_usd` (its cost counts towards the estimated total,
+and it counts as no progress); the worker stops on `--once` when nothing
 is pending, after `--max-tasks`, after three tasks in a row without progress (an error, or the
 pending count did not go down), or on Ctrl-C.
 
@@ -46,8 +52,14 @@ install it on its own (outside the checkout, so nothing lands in the repository)
 cp -R examples/agents/agent-sdk /tmp/proa-agent-sdk && cd /tmp/proa-agent-sdk
 npm install
 export PROA_TOKEN=proa_at_…  ANTHROPIC_API_KEY=sk-ant-…   # PROA_URL defaults to http://127.0.0.1:7400
-node src/worker.ts --project nordwind-handel --model claude-sonnet-5-5 --once
+node src/worker.ts --project nordwind-handel-sdk-1 --model claude-sonnet-5-5 --once
 ```
+
+`--project` names the project of the agent token. As for the other setups, a run whose result is
+recorded gets a fresh project and its own token
+([rules for every run](../README.md#rules-for-every-run)), for example `proa seed nordwind-handel
+--project nordwind-handel-sdk-1 --issue-tokens --token-name agent-sdk-1`; the projects the
+Quickstart seeded (`nordwind-handel`, …) already hold the simulation agent's proposals.
 
 `package.json` pins the direct dependencies exactly (the SDK and its peers
 `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, `zod`); without a lockfile, transitive
@@ -59,7 +71,7 @@ optional dependency, so do not install with `--omit=optional`.
 ```sh
 docker build -t proa-agent-sdk-worker examples/agents/agent-sdk
 docker run --rm --network host -e PROA_TOKEN -e ANTHROPIC_API_KEY \
-  proa-agent-sdk-worker --project nordwind-handel --model claude-sonnet-5-5
+  proa-agent-sdk-worker --project nordwind-handel-sdk-1 --model claude-sonnet-5-5
 ```
 
 ProA's local mode accepts only `localhost`, `127.0.0.1` and `[::1]` as `Host` (403 otherwise,
@@ -75,4 +87,10 @@ refused.
   `ANTHROPIC_API_KEY`.
 - `--once` against a fake pending endpoint with nothing pending stops without starting a query;
   a rejected token stops with the 401.
+- With a fake Claude Code executable (`pathToClaudeCodeExecutable`, set in a test copy only): the
+  child's `--mcp-config` carries `Bearer ${PROA_TOKEN}`, not the token, and its environment
+  carries `PROA_TOKEN`; a task that ends in `error_max_budget_usd` (exit 1 after the result)
+  prints its JSON line and its cost counts; three such tasks in a row stop the worker with exit 1.
+  That Claude Code expands `${PROA_TOKEN}` in `--mcp-config` JSON was checked with Claude Code
+  2.1.293 and 2.1.294 against a local server that logs the header.
 - Not verified: a run with a model (it needs an API key).

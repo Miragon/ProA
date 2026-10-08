@@ -89,11 +89,16 @@ if (!process.env['ANTHROPIC_API_KEY']) {
   fail('set ANTHROPIC_API_KEY: the Agent SDK bills an Anthropic API key, never a claude.ai login');
 }
 
-/** The connection the agent gets: ProA's MCP server and nothing else. */
+/**
+ * The connection the agent gets: ProA's MCP server and nothing else. The SDK hands
+ * this config to the Claude Code child on its command line (`--mcp-config <JSON>`),
+ * which other local users can read, so the header holds the placeholder
+ * `${PROA_TOKEN}`, not the token: Claude Code expands it from the child's `env`.
+ */
 const proa: McpHttpServerConfig = {
   type: 'http',
   url: `${url}/mcp`,
-  headers: { Authorization: `Bearer ${token}` },
+  headers: { Authorization: 'Bearer ${PROA_TOKEN}' },
   // ProA's tools up front, not behind tool search (the built-in tools are off).
   alwaysLoad: true,
 };
@@ -159,6 +164,7 @@ async function runTask(): Promise<SDKResultMessage | null> {
     // reach the model inline; the token limit is raised as well for builds that predate it.
     env: {
       ...process.env,
+      PROA_TOKEN: token,
       MAX_MCP_OUTPUT_TOKENS: process.env['MAX_MCP_OUTPUT_TOKENS'] ?? '100000',
     },
     systemPrompt: {
@@ -173,15 +179,22 @@ async function runTask(): Promise<SDKResultMessage | null> {
   try {
     const run = query({ prompt: await instructions(), options });
     let result: SDKResultMessage | null = null;
-    for await (const message of run) {
-      if (message.type === 'system' && message.subtype === 'init') {
-        const status = message.mcp_servers.find((s) => s.name === 'proa')?.status ?? 'missing';
-        if (status === 'failed' || status === 'needs-auth' || status === 'missing') {
-          run.close();
-          throw new Error(`MCP server proa is ${status} (PROA_URL, PROA_TOKEN?)`);
+    try {
+      for await (const message of run) {
+        if (message.type === 'system' && message.subtype === 'init') {
+          const status = message.mcp_servers.find((s) => s.name === 'proa')?.status ?? 'missing';
+          if (status === 'failed' || status === 'needs-auth' || status === 'missing') {
+            run.close();
+            throw new Error(`MCP server proa is ${status} (PROA_URL, PROA_TOKEN?)`);
+          }
         }
+        if (message.type === 'result') result = message;
       }
-      if (message.type === 'result') result = message;
+    } catch (err) {
+      // After an error result (error_max_turns, error_max_budget_usd, is_error, …) Claude
+      // Code exits non-zero, and the SDK fails the iterator once it has yielded the result
+      // ("Claude Code returned an error result"). Keep the result: its line and its cost count.
+      if (result === null || stop.signal.aborted) throw err;
     }
     return result;
   } finally {

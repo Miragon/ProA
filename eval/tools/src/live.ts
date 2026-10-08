@@ -13,11 +13,15 @@
 // afresh; the agent is the token name, the declared procedure and model come
 // from the submissions), scores them with the eval:replay scorer and prints
 // the live gates (live-gate.ts) the new files count in, as a run or as the
-// baseline, counting the other recordings in <out>. It warns when the project
-// gives more than one file (the gate counts each as a run) and when it
-// replaces a file with other content. Exit codes: 0 when every gate passes or
-// is incomplete, 1 when a gate fails or on a runtime error (server
-// unreachable, 401/404, invalid data), 2 on a usage error.
+// baseline, counting the other recordings in <out>. It refuses analyses of
+// models the landscape does not have (a wrong --landscape), and warns when the
+// project was worked under more than one token (also with --agent, which files
+// them as one run), when it gives more than one file (the gate counts each as
+// a run) and when it replaces a file with other content. Relative paths
+// resolve against INIT_CWD, the repository root for `pnpm eval:live`. Exit
+// codes: 0 when every gate passes or is incomplete, 1 when a gate fails or on
+// a runtime error (server unreachable, 401/404, invalid data), 2 on a usage
+// error.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -58,7 +62,10 @@ export interface LiveIo {
   stdout(text: string): void;
   stderr(text: string): void;
   env: Readonly<Record<string, string | undefined>>;
-  /** Base of relative paths: where `pnpm eval:live` was started (`INIT_CWD`), not eval/tools. */
+  /**
+   * Base of relative paths: pnpm's INIT_CWD, which is the repository root for
+   * `pnpm eval:live` wherever in the checkout it is started; not eval/tools.
+   */
   cwd: string;
   fetch: typeof globalThis.fetch;
 }
@@ -175,6 +182,17 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
 
   const stored = await fetchStoredAnalyses({ url, token, project, fetch: io.fetch });
   if (stored.length === 0) throw new Error(`project ${project} has no done analyses yet`);
+  // The analysed models must be the landscape's: another landscape's name would file the run under it.
+  const run = await runLandscape(dir);
+  const landscapeModels = new Set(run.facts.models.map((m) => m.modelKey));
+  const foreign = [...new Set(stored.map((s) => s.modelKey))].filter((k) => !landscapeModels.has(k)).sort();
+  if (foreign.length > 0) {
+    throw new UsageError(
+      `project ${project} has analyses of ${foreign.length} ${foreign.length === 1 ? 'model' : 'models'} ` +
+        `not in landscape ${landscape} (${foreign.slice(0, 3).join(', ')}${foreign.length > 3 ? ', …' : ''}); ` +
+        'name the landscape the project was seeded from with --landscape',
+    );
+  }
   const built = buildRecordings(stored, { landscape, ...(values.agent !== undefined ? { agent: values.agent } : {}) });
 
   // The declared procedure should be the one this checkout serves.
@@ -185,6 +203,17 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
     else if (current.version !== version) {
       io.stderr(`eval:live: warning: the run declared ${name}; the current procedure is ${current.id}@${current.version}\n`);
     }
+  }
+
+  // One run is one agent token. Several give several files, or one under --agent or a shared token name.
+  const tokens = new Map(stored.map((s) => [s.submission.principalId, s.submission.handle]));
+  if (tokens.size > 1) {
+    io.stderr(
+      `eval:live: warning: project ${project} was worked under ${tokens.size} tokens ` +
+        `(${[...tokens.values()].sort().join(', ')})` +
+        (values.agent !== undefined ? `, which --agent ${values.agent} records as one run` : '') +
+        ': one run is one agent token in a fresh project; do not commit it.\n',
+    );
   }
 
   // One run is one file: several declared models, agents or procedures split it, and the gate counts each.
@@ -218,7 +247,6 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
   const byPath = new Map<string, RecordingFile>();
   for (const f of await loadRecordings(out)) byPath.set(f.path, f);
   for (const f of files) byPath.set(f.path, f);
-  const run = await runLandscape(dir);
   const scores = [...byPath.values()]
     .filter((f) => f.landscape === landscape && ids.has(splitProcedure(f.procedure).id))
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))

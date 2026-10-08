@@ -159,6 +159,22 @@ describe('proa seed', () => {
     const asAgent = await status({ PROA_TOKEN: result.token.secret });
     expect(asAgent.me).toMatchObject({ kind: 'service', handle: 'agent:claude-code-1' });
     expect(asAgent.projects.map((p) => p.key)).toEqual(['sample-run-1']);
+
+    // A second run under the same key is refused before anything changes.
+    const before = (await status()).projects.find((p) => p.key === 'sample-run-1');
+    const again = await proa([
+      'seed',
+      'nordwind-handel',
+      '--project',
+      'sample-run-1',
+      '--issue-tokens',
+    ]);
+    expect(again.code).toBe(1);
+    expect(again.err).toContain('project sample-run-1 already exists');
+    const after = (await status()).projects.find((p) => p.key === 'sample-run-1');
+    expect(after).toMatchObject({ models: 3, seq: before?.seq });
+    const tokens = await proa(['token', 'list', '-p', 'sample-run-1', '--json']);
+    expect((JSON.parse(tokens.out) as unknown[]).length).toBe(1);
   });
 });
 

@@ -141,7 +141,7 @@ export function buildProgram(io: CliIo = processIo): Command {
     .option('--corpus <dir>', 'corpus directory (default: eval/corpus of this checkout)')
     .option(
       '-p, --project <key>',
-      'seed exactly one landscape into a project with this key, named "<landscape name> (<key>)" (a fresh project per live run)',
+      'seed exactly one landscape into a new project with this key, named "<landscape name> (<key>)" (a fresh project per live run; an existing one is refused)',
     )
     .option('--issue-tokens', 'also create a read+propose agent token per project')
     .option(
