@@ -344,7 +344,8 @@ export type ClaimSkip = z.infer<typeof ClaimSkip>;
  *   no-link whose basis equals both models' heads and the procedure claims
  *   name) on a pair touching the model, any origin and principal, the
  *   claimant's own included ({@link ClaimJudged}); sorted by pair, then
- *   origin and principal; left out when there is none;
+ *   link before no-link, then origin, handle and id; left out when there is
+ *   none;
  * - `skip`: the candidate pairs without a current judgement that a partner
  *   model's analysis judges ({@link ClaimSkip}); left out when there is
  *   none. The remaining `rule`, `key` and `lexical` candidates are this

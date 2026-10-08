@@ -423,7 +423,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
         `Claims up to ${MAX_CLAIM} queued relations tasks (default 1), oldest first, in the projects where this token may propose (proa:propose); projectId and modelKey narrow it.`,
         'Each item has a leaseToken (keep it; shown once), a 15-minute lease without renewal, the procedure to follow and declare, and the input:',
         "the model's facts (message flows with their ends), candidates as [type, from, to, basis, score] tuples, the partner endpoints they name and their processes, the existing relations with human decisions (rejection reasons, hold notes and questions) and notes, and the project's findings touching the model.",
-        'Judge each pair once: judged lists the current agent judgements on pairs touching the model (link verdicts by relation id, no-links with their reason; mine: your own), skip the pairs a partner analysis judges; neither is repeated in candidates: the rule, key and lexical ones are your assignment, the compatible ones the search space for missing partners.',
+        'Judge each pair once: judged lists the current agent judgements on pairs touching the model (link verdicts by relation id, no-links with their reason; mine: your own), skip the pairs a partner analysis judges; neither is repeated in candidates: the rule, key and lexical ones are your assignment (except pairs a human decision or the rule tier settled), the compatible ones the search space for missing partners.',
         'Submit with submit_analysis, or hand the task back with release_analysis. No items: nothing to do.',
       ].join(' '),
       // A plain object at the root: the named schema would be a root `$ref`, which hides

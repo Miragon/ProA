@@ -20,8 +20,9 @@ model.
   propose.
 - **One fresh project and one agent token per run.** Seed the project from the corpus, name the
   token after the run (`claude-code-1`, `claude-desktop-2`, …): the token name becomes the agent
-  segment of the run's recording. Never reuse a project across runs: a submission withdraws other
-  principals' pipeline proposals it does not repeat, and earlier proposals bias the claim input.
+  segment of the run's recording. Never reuse a project across runs: a run's judgements stay
+  current, so a second run in the same project would skip every pair the first one judged (judge
+  each pair once) and measure almost nothing.
 - **The agent declares its exact model id** as `llmModel` (the wrappers and the start prompt say
   so), and the procedure id and version the claim names.
 - **Start agents outside the checkout**, with ProA's MCP tools only where the client allows it

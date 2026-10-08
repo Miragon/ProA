@@ -5,11 +5,21 @@ Branch: `claude/proa-2` (up to date with `origin/claude/proa-2`) ·
 Spec: [CONCEPT.md](CONCEPT.md) §7 · Setups: [examples/agents](../../examples/agents/README.md) ·
 Reference: [DEVELOPMENT.md](DEVELOPMENT.md)
 
-The owner's guide to the live runs of the relations procedure `proa-relations@0.1.0`
+The owner's guide to the live runs of the relations procedure `proa-relations@0.2.0`
 ([`packages/procedures/relations.md`](../../packages/procedures/relations.md)): an LLM agent
 (Claude Code or Claude Desktop on your Claude subscription) works a fresh project seeded from the
 eval corpus, `pnpm eval:live` records what it submitted and scores it, and the live gate decides
 over three runs per landscape and model. ProA holds no API key and runs no model; every run is yours.
+
+**What `0.2.0` changes for you** (it replaced `0.1.0`, which never had a live run;
+[judge each pair once](M3-RELATIONS-PROCEDURE.md#procedure-020-judge-each-pair-once)): each pair is
+judged in one task only. Agents no longer repeat what a partner task proposed: a claim lists the
+current judgements on its model's pairs in `judged` and the pairs a partner task judges in `skip`,
+and neither appears among its candidates, so later tasks of a run are cheaper. Every submission
+result reports `uncovered`, the assigned pairs the agent left without a verdict (it should be 0;
+nothing is queued for them). Agents' no-links are typed and visible in the review: as "Einwand" in
+the queue, in the review screen and as a flag in the bulk dialog
+([step 7](#7-review-the-proposals-optional)). The run itself works as before.
 
 The first run takes about 30 minutes of your time (steps 1, 2, 3a and 5); the agent's working time
 on the 31 tasks comes on top (in the dev runs 1–3 minutes per task; with batches of 5 in one
@@ -26,7 +36,8 @@ http://127.0.0.1:7400 ([Quickstart](DEVELOPMENT.md#quickstart-docker)).
 | Claude Code, headless and interactive (step 3a) | plugin and marketplace pass `claude plugin validate --strict` (Claude Code 2.1.294); a test compares the committed skill with the procedure; `run-headless.sh`: `bash -n`, shellcheck, dry runs against a fake server and a fake `claude` (a run to the end, failed batches, no progress, a reused `PROA_LOG_DIR`, a vanished temporary directory, `PROA_URL` with a trailing slash) | a run with a model, including that `claude -p "/proa:relations …"` expands the skill and that the agent has ProA's tools with `--tools ""` |
 | Claude Desktop (step 3b) | CI's live check starts the Docker entry the way Claude Desktop does (absolute command, launchd-like environment) | the app, the start prompt, a run with a model |
 | `eval:live` and the live gate (step 5) | unit tests (REST and MCP payloads, one gate per declared model, the 0.8 rule, the 5-point boundary, the baseline choice, the warnings for several tokens, several files and a replaced file, the refusal of analyses of models outside the landscape, the exit codes); the server test `agent-sim.test.ts` rebuilds the simulation agent's recording byte for byte (input aside) from the stored submissions; a seeded `nordwind-handel` project worked by the simulation agent and read by `eval:live` gave the committed recording again (input aside, agent renamed) and `FAIL` (3 must_not_link at ≥ 0.8, as the simulation agent has; 2026-10-08) | a recording of an LLM run |
-| The procedure against a model (dev run) | three dev runs on `nordwind-handel` with Claude Sonnet 5.5 subagents of the implementing session, through the real MCP tools: precision 100 %, recall 78.6 % (∪ rule tier 100 %), 0 must_not_link, 0 invalid items in every run ([M3-RELATIONS-PROCEDURE](M3-RELATIONS-PROCEDURE.md#dev-run-numbers)) | Claude Desktop and Claude Code as clients, other models, the holdout |
+| Judge each pair once (`0.2.0`) | integration tests against real PostgreSQL (assignment at the claim, `judged` and `skip`, supersession, no-link outcomes, `uncovered`, losses); the simulation agent's runs judge no pair twice with unchanged scores; the review e2e with a no-link in queue, bulk dialog and review screen | a run with a model |
+| The procedure against a model (dev run) | three dev runs of `0.1.0` on `nordwind-handel` with Claude Sonnet 5.5 subagents of the implementing session, through the real MCP tools: precision 100 %, recall 78.6 % (∪ rule tier 100 %), 0 must_not_link, 0 invalid items in every run ([M3-RELATIONS-PROCEDURE](M3-RELATIONS-PROCEDURE.md#dev-run-numbers)) | Claude Desktop and Claude Code as clients, other models, the holdout |
 
 ## 0. Before you start
 
@@ -38,13 +49,13 @@ http://127.0.0.1:7400 ([Quickstart](DEVELOPMENT.md#quickstart-docker)).
   `claude-desktop-2`, … The name becomes the handle `agent:<name>` and the agent segment of the
   recording.
 - **One client with one model** works every task of the project until nothing is left.
-- **One recording**, `eval/recordings/proa-relations@0.1.0/<token name>/<llmModel>/<landscape>.jsonl`,
+- **One recording**, `eval/recordings/proa-relations@0.2.0/<token name>/<llmModel>/<landscape>.jsonl`,
   written by `pnpm eval:live` from the submissions the project stored.
 
 Never reuse a project across runs:
 
-1. A submission withdraws the live pipeline proposals of *any* principal touching the task's model
-   that it does not repeat (supersession), so a second agent changes the first one's proposals.
+1. Each pair is judged once: the claims list the first agent's current judgements in `judged` and
+   leave those pairs out of the candidates, so a second agent would judge almost nothing.
 2. The claim input contains the relations touching the model with their proposals and decisions:
    earlier proposals bias the next agent.
 3. A worked project has nothing left to claim, and `eval:live` reads every done analysis of the
@@ -79,6 +90,7 @@ characters.
 cd ~/Code/ai-plattform/ProA
 git switch claude/proa-2 && git pull --ff-only && pnpm install
 grep -c maxResultSizeChars apps/server/src/mcp/server.ts # 1 or more: the M3 server
+grep -m1 '^version:' packages/procedures/relations.md   # version: 0.2.0
 echo "${ANTHROPIC_API_KEY:+ANTHROPIC_API_KEY is set}"    # prints an empty line
 ```
 
@@ -89,18 +101,19 @@ docker compose -p proa2 -f docker/compose.yaml up -d --build --wait   # or: pnpm
 curl -s http://127.0.0.1:7400/health
 # {"status":"ok","version":"2.0.0-alpha.0","db":"ok"}
 docker compose -p proa2 -f docker/compose.yaml exec proa grep -m1 '^version:' /app/packages/procedures/relations.md
-# version: 0.1.0
+# version: 0.2.0
 docker compose -p proa2 -f docker/compose.yaml exec proa grep -c maxResultSizeChars /app/apps/server/src/mcp/server.ts
 # 1 or more: the image has the M3 server
 ```
 
 The image carries the procedure: `get_procedure` serves it, the claim names it as the expected
 procedure, `work_pipeline` embeds it. Until the rebuild, the container serves the procedure of the
-commit it was built from. In a connected client, `get_procedure` answers `version: "0.1.0"`,
-`status: "released"`, and its tool description lists `proa-relations@0.1.0`. The rebuilt MCP
-server also declares `anthropic/maxResultSizeChars` on its tools: Claude Code otherwise saves a
-tool result above 50,000 characters to a file and shows the model only its path, which an agent
-without built-in tools cannot read, and claim inputs reach about 80 KB.
+commit it was built from. In a connected client, `get_procedure` answers `version: "0.2.0"`,
+`status: "released"`, and its tool description lists `proa-relations@0.2.0`. The rebuild also
+applies the database migrations of `0.2.0` (no-links, the judgement basis) to the existing
+projects. The rebuilt MCP server also declares `anthropic/maxResultSizeChars` on its tools: Claude
+Code otherwise saves a tool result above 50,000 characters to a file and shows the model only its
+path, which an agent without built-in tools cannot read, and claim inputs reach about 90 KB.
 
 The volumes stay: projects, tokens and the owner key survive the rebuild. The projects seeded
 earlier (`nordwind-handel`, `stadtwerke-auental`, `sample`, the e2e projects) keep the simulation
@@ -297,7 +310,7 @@ Use `claude-desktop-<n>` and `<landscape>-cd-<n>` in [step 2](#2-seed-a-run-proj
 
 ```sh
 pnpm eval:live --project "$RUN_PROJECT" --landscape "$LANDSCAPE" --no-write
-# proa-relations@0.1.0/claude-desktop-1/claude-sonnet-5-5/nordwind-handel.jsonl (not written): 5 tasks from project nordwind-handel-cd-1
+# proa-relations@0.2.0/claude-desktop-1/claude-sonnet-5-5/nordwind-handel.jsonl (not written): 5 tasks from project nordwind-handel-cd-1
 ```
 
 The third path segment is the declared `llmModel` (`none` if the agent declared none); the review
@@ -348,8 +361,9 @@ run project before that: human decisions go into the claim input of the tasks st
 - **Erneut einplanen** (the requeue) is in the web UI: the requeue route needs `proa:write` or
   the owner, run tokens lack it, and the CLI has no requeue command. It cancels a task whose
   lease expired and queues a new one.
-- Do not revoke the run's token to free its tasks: revoking withdraws every proposal of the run,
-  and going on needs a new token, that is another agent name and another recording.
+- Do not revoke the run's token to free its tasks: revoking withdraws every proposal and no-link
+  of the run and queues their models again, and going on needs a new token, that is another agent
+  name and another recording.
 
 ## 5. Record and score
 
@@ -364,16 +378,17 @@ PROA_TOKEN=$(node -p 'require(process.argv[1])[0].token.secret' "$RUN_FILE") \
 `--landscape` is needed because the run's key is no landscape name. `eval:live` reads the
 project's done analyses and their stored submissions over REST (`--url`/`PROA_URL`, default
 http://127.0.0.1:7400), writes
-`eval/recordings/proa-relations@0.1.0/<token name>/<llmModel>/<landscape>.jsonl` afresh (one line
-per task: declared procedure and model, the submission, the server's result per item; no claim
-input, which the server does not keep), scores it with the `eval:replay` scorer together with the
-other recordings of the procedure on that landscape, and prints the live gate of the run's model.
-`--no-write` scores without writing, `--json` prints the numbers as JSON, `--agent <name>` overrides the agent segment.
+`eval/recordings/proa-relations@0.2.0/<token name>/<llmModel>/<landscape>.jsonl` afresh (one line
+per task: declared procedure and model, the submission, the server's result per item and per
+no-link with the `uncovered` count; no claim input, which the server does not keep), scores it with
+the `eval:replay` scorer together with the other recordings of the procedure on that landscape, and
+prints the live gate of the run's model. `--no-write` scores without writing, `--json` prints the
+numbers as JSON, `--agent <name>` overrides the agent segment.
 
 ```text
-eval/recordings/proa-relations@0.1.0/claude-code-1/claude-sonnet-5-5/nordwind-handel.jsonl: 31 tasks from project nordwind-handel-cc-1
-proa-relations@0.1.0/claude-code-1/claude-sonnet-5-5/nordwind-handel.jsonl: 31 tasks, … pairs; precision … %, recall … % (∪ rules … %), F1 … %; must_not_link … (… at ≥ 0.8); … questions
-live gate proa-relations@0.1.0 / nordwind-handel / claude-sonnet-5-5 (dev): INCOMPLETE; 1 run, precision … %, recall … % (baseline 78.6 % from agent-sim proa-relations@0.1.0), F1 … %; must_not_link at ≥ 0.8: 0
+eval/recordings/proa-relations@0.2.0/claude-code-1/claude-sonnet-5-5/nordwind-handel.jsonl: 31 tasks from project nordwind-handel-cc-1
+proa-relations@0.2.0/claude-code-1/claude-sonnet-5-5/nordwind-handel.jsonl: 31 tasks, … pairs; precision … %, recall … % (∪ rules … %), F1 … %; must_not_link … (… at ≥ 0.8); … questions; … judged twice, … uncovered
+live gate proa-relations@0.2.0 / nordwind-handel / claude-sonnet-5-5 (dev): INCOMPLETE; 1 run, precision … %, recall … % (baseline 78.6 % from agent-sim proa-relations@0.2.0), F1 … %; must_not_link at ≥ 0.8: 0
   - 1 of 3 runs
 ```
 
@@ -382,7 +397,10 @@ live gate proa-relations@0.1.0 / nordwind-handel / claude-sonnet-5-5 (dev): INCO
 2. The run: precision, recall and F1 of the agent's valid proposals against `expected.yaml` (an
    item answered `invalid:<reason>` is no proposal), recall with the rule tier's acceptances
    (∪ rules), must_not_link proposals and how many of them at confidence ≥ 0.8, proposals with a
-   question for the reviewer.
+   question for the reviewer; then the double work: pairs judged (proposed or no-linked) in the
+   tasks of more than one model, which judge each pair once keeps near 0 (concurrent partner
+   searches can still meet on a pair), and `uncovered`, the assigned pairs the agent left without a
+   verdict (0 when it judged everything it was given).
 3. The live gate of the procedure version on that landscape for the declared model, over every
    live run in `eval/recordings` with that `llmModel` (every agent but `agent-sim`, one file per
    run, whatever the client); a run with another model has a gate of its own:
@@ -395,30 +413,32 @@ live gate proa-relations@0.1.0 / nordwind-handel / claude-sonnet-5-5 (dev): INCO
 
 The baseline is the mean recall of the live runs of the highest earlier version of the procedure
 on that landscape with the same `llmModel`, else the `agent-sim` recording of the same version
-(whatever its model). `proa-relations@0.1.0` has no earlier live runs, so the baseline of every
-model is the simulation agent's 78.6 % on `nordwind-handel`: the mean recall of a model's live
-runs must stay at 73.6 % or above. Recall and precision are those of the proposals, without the
-rule tier. Exit 1 also for a runtime error (ProA unreachable, 401, 404, no done analyses, invalid
-data); exit 2 for a usage error (unknown option, no `--project` or token, a landscape not in the
-corpus, analyses of models the landscape does not have), which prints the usage and writes
-nothing.
+(whatever its model). No earlier version of the procedure has live runs (`0.1.0` never had one),
+so the baseline of every model is the simulation agent's 78.6 % on `nordwind-handel`: the mean
+recall of a model's live runs must stay at 73.6 % or above. Recall and precision are those of the
+proposals, without the rule tier. Exit 1 also for a runtime error (ProA unreachable, 401, 404, no
+done analyses, invalid data); exit 2 for a usage error (unknown option, no `--project` or token, a
+landscape not in the corpus, analyses of models the landscape does not have), which prints the usage
+and writes nothing.
 
 A warning `eval:live: warning: the run declared proa-relations@…; the current procedure is
-proa-relations@0.1.0` means the container served another procedure than the checkout: rebuild
+proa-relations@0.2.0` means the container served another procedure than the checkout: rebuild
 ([step 1](#1-rebuild-the-stack)) and do not commit that recording.
 
-Numbers of the dev runs (Sonnet 5.5 subagents, `nordwind-handel`): `31 tasks, 39 pairs; precision
-100.0 %, recall 78.6 % (∪ rules 100.0 %), F1 88.0 %; must_not_link 0 (0 at ≥ 0.8); 6 questions` in
-each of three runs. A run of yours that ends far below this on the dev landscape points to a
-setup problem (tools, truncated claim inputs, a summarized procedure) rather than the procedure.
+Numbers of the dev runs of `0.1.0` (Sonnet 5.5 subagents, `nordwind-handel`): `31 tasks, 39 pairs;
+precision 100.0 %, recall 78.6 % (∪ rules 100.0 %), F1 88.0 %; must_not_link 0 (0 at ≥ 0.8); 6
+questions` in each of three runs. The dev runs of `0.2.0` gave the same scores, and additionally
+`8–10 judged twice, 0–2 uncovered` (under `0.1.0`: about 150 judged twice). A run of yours that
+ends far below this on the dev landscape points to a setup problem (tools, truncated claim inputs, a
+summarized procedure) rather than the procedure.
 
 **Commit** the recording together with the regenerated reports (CI regenerates
 `eval/reports/replay.{md,json}` and fails on a diff):
 
 ```sh
 pnpm eval:replay
-git add "eval/recordings/proa-relations@0.1.0/$RUN_AGENT" eval/reports/replay.md eval/reports/replay.json
-git commit -m "Live run $RUN_AGENT on $LANDSCAPE (proa-relations@0.1.0)"
+git add "eval/recordings/proa-relations@0.2.0/$RUN_AGENT" eval/reports/replay.md eval/reports/replay.json
+git commit -m "Live run $RUN_AGENT on $LANDSCAPE (proa-relations@0.2.0)"
 ```
 
 `eval:replay` rescores every recording and writes the "Live gate" section of `replay.md` (and
@@ -469,7 +489,10 @@ Holdout rules:
 
 Once the run is recorded, its proposals wait in the run project's inbox:
 http://127.0.0.1:7400/projects/nordwind-handel-cc-1/review, each with the agent's rationale,
-evidence, question and provenance (`agent:claude-code-1`, the declared procedure and model). Accept,
+evidence, question and provenance (`agent:claude-code-1`, the declared procedure and model). Where
+the agent judged a pair unrelated, typically a key-tier proposal of the rule tier with a generic
+name, the queue shows "Einwand", the review screen the callout "Kein Zusammenhang laut Agent" with
+its reason, and the bulk dialog flags the pair and leaves it unchecked. Accept,
 reject, hold, correct and bulk accept per tier as in
 [Review in the web UI](DEVELOPMENT.md#review-in-the-web-ui-m2). Reviewing does not affect the eval:
 `eval:live` reads the stored submissions, and the scores compare them with `expected.yaml`, not with
@@ -478,8 +501,11 @@ your decisions. Before the run is complete, do not review ([step 4](#4-watch-pro
 ## 8. Clean up
 
 Record ([step 5](#5-record-and-score)) and review ([step 7](#7-review-the-proposals-optional))
-first. Revoking a token withdraws every open proposal of the run (decisions stay), hands its
-claimed tasks back, and `eval:live` then needs the owner key instead of the revoked token.
+first. You need not revoke at all: the token works for its run project only and expires after 90
+days. Revoking a token withdraws every open proposal and no-link of the run (decisions stay),
+hands its claimed tasks back and queues every model whose pairs the run judged again (they show
+"Wartet auf Agent"; the recording is unaffected, since `eval:live` reads done analyses only), and
+`eval:live` then needs the owner key instead of the revoked token.
 
 ```sh
 docker compose -p proa2 -f docker/compose.yaml exec proa proa token list --project "$RUN_PROJECT"
@@ -513,9 +539,10 @@ PROA_TOKEN=$(docker compose -p proa2 -f docker/compose.yaml exec -T proa cat /va
 | The agent has no ProA tools (with `--tools ""` it has nothing else) | `PROA_TOKEN` was not exported in the shell that started Claude Code (`mcp.json` reads it from the environment), ProA is down (`curl -s http://127.0.0.1:7400/health`), or `mcp.json` lost `"alwaysLoad": true`, which loads ProA's tools at session start instead of deferring them behind tool search. `/mcp` shows the server's state. Headless, tools outside `mcp__proa__*` are denied (`--permission-mode dontAsk`). |
 | Claude Code: the agent says a tool result was saved to a file, or works without the claim input | Claude Code moved a large result (claim input, model XML) to a file, which an agent with `--tools ""` cannot read. Rebuild the stack ([step 1](#1-rebuild-the-stack)): its tools declare `anthropic/maxResultSizeChars`; and start Claude Code with `MAX_MCP_OUTPUT_TOKENS=100000` as in step 3a. A run with such tasks measures the setup, not the procedure: stop it and start over in a fresh project; do not commit it. |
 | Claude Desktop lists `proa` as failed | Usually `command` is not absolute, or the container `proa2-proa-1` is not running (`docker ps`); also check that the config file is valid JSON. Try the entry by hand: `PROA_TOKEN=… /usr/local/bin/docker exec -i -e PROA_TOKEN proa2-proa-1 proa mcp` must wait for input instead of exiting. See [Connect Claude Desktop](DEVELOPMENT.md#connect-claude-desktop). |
-| Context limit: a Claude Desktop chat ends at its length limit; Claude Code compacts | A claim input is up to 80.1 KB (`nordwind-handel`) or 74.8 KB (`stadtwerke-auental`), the procedure about 27 KB. Lower the batch size (`{{ANZAHL}}`, the script's batch size, `/proa:relations <project> <n>`). After a compaction the skill and the start prompt make the agent reload the procedure with `get_procedure`. A task claimed in a cut-off chat comes back after its lease ([step 4](#4-watch-progress)). |
+| Context limit: a Claude Desktop chat ends at its length limit; Claude Code compacts | A claim input is up to about 93 KB (measured: 82.0 KB on `nordwind-handel` and 75.5 KB on `stadtwerke-auental` with every task claimed at once, 92.9 KB with LLM-sized judgements in `judged`), the procedure about 33 KB. Lower the batch size (`{{ANZAHL}}`, the script's batch size, `/proa:relations <project> <n>`). After a compaction the skill and the start prompt make the agent reload the procedure with `get_procedure`. A task claimed in a cut-off chat comes back after its lease ([step 4](#4-watch-progress)). |
 | Usage limit of your subscription reached | The client stops mid-batch; the claimed task cannot be released and comes back when its lease expires (the attempt counts; after 3 lost leases: Agent gescheitert → Erneut einplanen). Headless: `claude exited with status …`, then `stopped: batch … failed`, exit 1. When the limit resets, run the same command again or open a new chat; the run continues where it stopped. Do not switch the model to go on. |
-| The agent reports items `invalid:<reason>` | The server refused those items (`message-flow`, `same-process`, `unknown-ref`, `outside-task-model`, `type-mismatch`, …; [Submissions](DEVELOPMENT.md#analysis-pipeline-and-review-m2)) and stored the rest. Invalid items are no proposals for the eval. Let the run go on: correcting the agent mid-run changes what is measured. Note the reasons for procedure work on the dev landscape (`eval:live --json` gives `invalid` per run). A refused submission as a whole (`Input validation error: …`, 422, 413) stored nothing; the procedure has the agent fix and resubmit, or release the task. |
+| The agent reports items `invalid:<reason>` | The server refused those items (`message-flow`, `same-process`, `unknown-ref`, `outside-task-model`, `type-mismatch`, …; for no-links also `type-required` and `also-proposed`; [Submissions](DEVELOPMENT.md#analysis-pipeline-and-review-m2)) and stored the rest. Invalid items are no proposals for the eval. Let the run go on: correcting the agent mid-run changes what is measured. Note the reasons for procedure work on the dev landscape (`eval:live --json` gives `invalid` per run). A refused submission as a whole (`Input validation error: …`, 422, 413) stored nothing; the procedure has the agent fix and resubmit, or release the task. |
+| The agent reports `uncovered` above 0 | It left pairs of its assignment without a verdict (call budget, lease, a skipped candidate). Nothing is queued for them: nobody judges them until one of their models changes, and a link among them is missing from the run's recall. Let the run go on; note it for procedure work on the dev landscape. |
 | `stopped: batch … failed; see <log>` | `claude` exited non-zero, or its JSON result is missing, not a `success` (`error_max_turns`, `error_max_budget_usd`, …) or has `is_error`: read `subtype` and `result` in that log. A task the batch claimed stays leased for up to 15 minutes, and that attempt counts (3 expired leases fail a task, [step 4](#4-watch-progress)). Fix the cause (usage limit, budget, connection), check the run, then start the script again; with `PROA_LOG_DIR` set, name a new directory. |
 | `stopped: batch … made no progress (pending … -> …)` | The batch succeeded, but the pending count did not go down: read its `result` in the log directory. Usually the agent had no ProA tools (did the proa MCP server connect? `PROA_URL`, `PROA_TOKEN`; see the row on missing tools above) or handed its tasks back. |
 | `eval:live: project … is not named after a corpus landscape; …` | Add `--landscape nordwind-handel` (or `stadtwerke-auental`). |
@@ -523,5 +550,5 @@ PROA_TOKEN=$(docker compose -p proa2 -f docker/compose.yaml exec -T proa cat /va
 | `eval:live: project … has analyses of N models not in landscape …; name the landscape the project was seeded from with --landscape` (exit 2) | `--landscape` (`$LANDSCAPE`) names another landscape than the one the project was seeded from. Nothing was written: set it right and record again. |
 | `eval:live: warning: project … was worked under N tokens (…)` | More than one agent token submitted in the project (also two tokens of one name): that is no run, whatever the files. Do not commit it; `--agent` does not fix it. Start the run again in a fresh project ([step 2](#2-seed-a-run-project)). |
 | `eval:live: warning: project … gives 2 recording files, …` (several files for one run) | The tasks declared different `llmModel`s or procedure versions; the gate would count each file as a run: do not commit ([step 3b](#3b-claude-desktop)). (Several tokens give several files too, with the warning above.) |
-| The run's token has the wrong name (the recording's agent segment) | Record again with `--agent <name>`, but first delete the file `eval:live` already wrote under the token name (`eval/recordings/proa-relations@0.1.0/<token name>/<llmModel>/<landscape>.jsonl`; if it replaced a committed run's file, `git checkout -- <file>` instead): the gate counts it as another run. |
+| The run's token has the wrong name (the recording's agent segment) | Record again with `--agent <name>`, but first delete the file `eval:live` already wrote under the token name (`eval/recordings/proa-relations@0.2.0/<token name>/<llmModel>/<landscape>.jsonl`; if it replaced a committed run's file, `git checkout -- <file>` instead): the gate counts it as another run. |
 | `eval:live: replacing <file> (n lines before, m now)` | The recording file existed with other content and was overwritten: fine when you record the same run again after it went on; if another run used the same token name, model and landscape, restore its file (`git checkout -- <file>`, if committed) and record this run again with `--agent <new name>`. |

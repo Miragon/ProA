@@ -117,13 +117,15 @@ simulation agent records the project key, so it works projects seeded under the
 landscape's name), the model and its revision, agent, declared procedure and LLM model,
 optionally the task ids and the claim input (in full or as counts), the
 submission as sent (relations with confidence, rationale, evidence and question;
-no-links; summary) without its lease token, and the server's outcome per item.
-Two writers produce them:
+no-links with their type; summary) without its lease token, and the server's
+outcome per item; since `proa-relations@0.2.0` also per no-link, with the
+withdrawn no-links and the number of `uncovered` pairs (the count, not the
+pairs). Two writers produce them:
 
 - the LLM-free simulation agent (`apps/agent-sim`,
   `pnpm agent-sim --record eval/recordings …`, see `docs/proa-2/DEVELOPMENT.md`)
   records as it works, claim input included; the committed ones under
-  `proa-relations@0.1.0/agent-sim/sim-policy-1/` are reproduced byte for byte
+  `proa-relations@0.2.0/agent-sim/sim-policy-1/` are reproduced byte for byte
   by the server test `apps/server/test/integration/agent-sim.test.ts`;
 - `pnpm eval:live` (below) builds them afterwards from the submissions a live
   project stored. The server keeps no claim inputs, so these lines have no
@@ -138,7 +140,14 @@ false positives; may_link is neutral), recall (of the proposals, and of the
 proposals ∪ the rule tier's accepted calls, which agents leave alone) and F1,
 overall, per relation type and per tag; the must_not_link hits with confidence
 and question; unlisted proposals; missed must_link pairs; questions and no-links
-per class; and the [live gate](#the-live-gate) per procedure version,
+per class (a no-link the server answered `invalid:<reason>` is none; results
+before `proa-relations@0.2.0` have no no-link outcomes, so all of theirs count);
+the double work of judge each pair once: `pairsJudgedTwice`, the distinct
+`(from, to)` pairs judged (a valid proposal or no-link) in the lines of more
+than one model, and `uncovered`, the sum of the results' `uncovered` counts
+(`–` for results before `0.2.0`, which have none), also at the end of each
+console line (`; N judged twice, M uncovered`, the latter only when
+reported); and the [live gate](#the-live-gate) per procedure version,
 landscape and declared model. `--recordings <dir>`, `--corpus <dir>` and
 `--out <dir>` (default `eval/recordings`, `eval/corpus`, `eval/reports`) take
 other directories, `--no-write` writes nothing; relative paths resolve against
@@ -148,6 +157,12 @@ not exist is a usage error, while an absent `eval/recordings` just has no
 recordings. It is deterministic and enforces nothing: it exits 1 only for an
 unreadable recording or an unknown landscape, 2 on a usage error. CI regenerates the report and
 requires no diff, so new recordings are committed together with the report.
+
+The simulation agent under `proa-relations@0.2.0`: `nordwind-handel` 48 pairs,
+precision 73.3 %, recall 78.6 %, F1 75.9 %, must_not_link 12 (3 at ≥ 0.8);
+`stadtwerke-auental` 52 pairs, 64.0 %, 80.0 %, 71.1 %, 11 (2); no pair judged
+twice and none uncovered. These are the scores of `0.1.0`, under which it judged
+154 and 121 pairs twice.
 
 ## Live runs and eval:live
 
@@ -172,9 +187,11 @@ pnpm eval:replay
 Against a server started from the checkout, step 1 is
 `pnpm seed nordwind-handel --project … --issue-tokens --token-name …`.
 
-- **One fresh project per run.** A submission withdraws the pipeline proposals
-  of other principals that it does not repeat, and earlier proposals appear in
-  the next claim input, so a reused project mixes runs and biases them.
+- **One fresh project per run.** Each pair is judged once: the claims list an
+  earlier run's current judgements in `judged` and leave those pairs out of the
+  candidates, so a second agent would judge almost nothing, and earlier
+  proposals appear in the next claim input, so a reused project mixes runs and
+  biases them.
   `proa seed --project` refuses a project that already exists (exit 1, before
   any import or token request).
 - **One token name per run.** The token name becomes the agent segment of the
@@ -202,14 +219,15 @@ Against a server started from the checkout, step 1 is
 `--url`/`PROA_URL` (default `http://127.0.0.1:7400`): every `done` analysis
 (all pages), its stored submission, and once per model the revisions, to map
 the revision id to its number. Each line has outcome `submitted`, the server's
-result without ids, no task ids and no input; the agent is the token name from
-the submitter's handle `agent:<name>`, and procedure and model are what the
-submissions declared. Lines are sorted by model key, then submission time, so
-reading the same project again writes the same bytes. eval:live warns when the
-declared procedure is not the one this checkout serves, scores the new files
-together with the other recordings of that procedure and landscape in `--out`,
-and prints one line per run and the live gates the new files count in, as a
-run or as the baseline (procedure version, landscape and model).
+result without ids (with the no-link outcomes and the `uncovered` count where
+the server answered them), no task ids and no input; the agent is the token
+name from the submitter's handle `agent:<name>`, and procedure and model are
+what the submissions declared. Lines are sorted by model key, then submission
+time, so reading the same project again writes the same bytes. eval:live warns
+when the declared procedure is not the one this checkout serves, scores the
+new files together with the other recordings of that procedure and landscape in
+`--out`, and prints one line per run and the live gates the new files count
+in, as a run or as the baseline (procedure version, landscape and model).
 
 | Option | |
 |---|---|

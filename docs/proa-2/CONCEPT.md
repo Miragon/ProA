@@ -10,7 +10,7 @@ ProA 2.0 is a headless store for process landscapes. It holds BPMN models, the f
 2. **Code computes facts, agents judge, humans decide.**
 3. **Postgres is the record; files are for exchange.** BPMN comes in, OKF goes out, and nothing flows both ways.
 4. **One model is one BPMN file with a stable key.** Collaborations are never split.
-5. **Append-only history, authorization in the domain.** Revisions, facts, assertions, submissions and events never change. Every use case checks access, and composite foreign keys back the checks up.
+5. **Append-only history, authorization in the domain.** Revisions, facts, assertions, submissions, no-links and events never change. Every use case checks access, and composite foreign keys back the checks up.
 6. **The agent is the operator's choice.** ProA ships no runner and holds no LLM credentials; whoever runs the agent brings model, credentials and compute.
 7. **Every part earns its place:** one deployable, one queue table, one event table, five packages. The eval corpus is the spec for procedures.
 
@@ -27,7 +27,7 @@ ProA 2.0 is a headless store for process landscapes. It holds BPMN models, the f
 | Revision | `rev_`, holding immutable bytes |
 | Fact | `(revision, kind, element_id)` |
 | Relation | `rel_`, plus the natural key `(type, from_ref, to_ref)` |
-| Assertion, submission | append-only; submissions stored verbatim |
+| Assertion, submission, no-link | append-only; submissions stored verbatim; a no-link (`nlk_`, an agent's judgement that a typed pair is unrelated) ends with a withdrawal row |
 | Analysis task | `ana_` |
 | Event | `(project, seq)`; both change feed and audit log |
 
@@ -62,11 +62,11 @@ Endpoints lie in different processes; start and end events inside embedded subpr
 
 **Unambiguous call (auto-accept).** A call is unambiguous when all three hold: (1) the target is a constant, i.e. C7 `calledElement="invoice-check"` or C8 `<zeebe:calledElement processId="invoice-check"/>`, not an expression such as C7 `${target}` or C8 `processId="=target"`; (2) exactly one process in the project's head revisions has that id; (3) that process is not the calling process. Version, binding and tenant attributes (C7 `calledElementBinding`, `calledElementVersion`, `calledElementTenantId`; C8 `bindingType`, `versionTag`) are kept as relation attributes and do not change the target. Everything else becomes a proposal or a finding: no match gives `unresolved-call`; two or more matches give proposals to every candidate plus `duplicate-process-id`; an expression gives `dynamic-call`, and agents may propose candidates; a match only by file stem or label is a proposal. Identical message or signal names are never auto-accepted, because names get reused and one throw may legitimately reach several catches; they arrive as `key`-tier proposals that a reviewer can accept in bulk per tier.
 
-**Assertions** record kind and verdict; `source_kind` (`human`, `agent`, `rule`) with the authenticated principal and client; the declared procedure version and LLM model; the server-computed tier (`key`, `lexical`, `semantic`, `manual`); confidence, rationale and evidence; both endpoint fingerprints.
+**Assertions** record kind and verdict; `source_kind` (`human`, `agent`, `rule`) with the authenticated principal and client; the declared procedure version and LLM model; the server-computed tier (`key`, `lexical`, `semantic`, `manual`); confidence, rationale and evidence; both endpoint fingerprints; for a pipeline proposal also its basis, the `facts_hash` of both endpoint models as the agent saw them (§3, judge each pair once). **No-links** record the typed pair, the reason, the same provenance and basis, and the analysed model as origin.
 
 **Status.** `recomputeStatus` is a pure function. The latest decision wins, except that a newer proposal whose fingerprints differ from those stored with a rejection reopens the relation as `proposed`. Without a decision, a live proposal means `proposed`; otherwise the relation is `obsolete` and hidden. Human verdicts are `accept`, `reject` and `hold` ("vormerken": a note is required, a question and a label are optional). A held relation has status `held`: it is still open, leaves the review inbox for its own list, appears in agents' claim input, and a later accept or reject replaces the hold.
 
-**Endpoint state** (`ok`, `changed`, `missing`) is recomputed on every ingest and delete; an accepted relation with an endpoint not `ok` is an open item (re-anchoring in R2). A task submission for model M withdraws earlier live agent proposals touching M that it does not repeat; ad-hoc proposals stay.
+**Endpoint state** (`ok`, `changed`, `missing`) is recomputed on every ingest and delete; an accepted relation with an endpoint not `ok` is an open item (re-anchoring in R2). A task submission for model M withdraws the live agent judgements (pipeline proposals and no-links, any agent) touching M that were made on another version of M or under another procedure; current ones stay without repetition (§3), and ad-hoc proposals stay.
 
 **PostgreSQL sketch** (Drizzle). Child rows carry `project_id`, with composite foreign keys `(project_id, x_id) → parent(project_id, id)`.
 
@@ -84,25 +84,29 @@ relation(id, project_id, type, from_ref, to_ref, status, endpoint_state, tier, c
          unique(project_id, type, from_ref, to_ref))
 relation_assertion(id, project_id, relation_id, seq, kind, verdict, source_kind, principal_id, client_id,
          declared jsonb, submission_id, tier, confidence, rationale, evidence jsonb, from_fp, to_fp,
-         check(not (kind = 'decision' and source_kind = 'agent')))
+         from_hash, to_hash, check(not (kind = 'decision' and source_kind = 'agent')))
 analysis_task(id, project_id, model_id, revision_id, kind, facts_hash,
          state in ('queued','claimed','done','failed','cancelled'),
-         lease_token_hash, claimed_by, lease_until, attempts, last_error, created_at)
+         lease_token_hash, claimed_by, lease_until, attempts, last_error, created_at,
+         claimed_seq, assignment jsonb, requeue_after)
   unique (model_id, kind) where state in ('queued','claimed')
 analysis_submission(id, project_id, task_id unique, principal_id, declared jsonb, payload jsonb, result jsonb, seq)
+no_link(id, project_id, type, from_ref, to_ref, from_model, to_model, from_hash, to_hash, reason, source_kind,
+         principal_id, client_id, declared jsonb, submission_id, model_id, seq)
+no_link_withdrawal(no_link_id pk, project_id, seq, principal_id, reason)
 event(project_id, seq, type, principal_id, client_id, subject_ref, payload jsonb, at, pk(project_id, seq))
 ```
 
-`seq` comes from `UPDATE project SET last_seq = last_seq + 1 RETURNING last_seq` in the writing transaction, which serializes writes per project and keeps `seq` dense for cursors. A trigger blocks UPDATE and DELETE on `event`. The policy limits rule decisions to `call` relations.
+`seq` comes from `UPDATE project SET last_seq = last_seq + 1 RETURNING last_seq` in the writing transaction, which serializes writes per project and keeps `seq` dense for cursors. Triggers block UPDATE and DELETE on `event` and the other append-only tables. The policy limits rule decisions to `call` relations.
 
 ## 3. Analysis pipeline
 
 **Ingest** is one transaction: reject DOCTYPE/ENTITY; parse the XML (422 on failure; limits 5 MB per file, 25 MB per import, 50k elements); extract the facts; run the rules; recompute `endpoint_state`; queue a task if needed; write the events.
 
-A `relations` task is queued when the head's `facts_hash` differs from that of the model's last `done` task. Candidates are computed in both directions, so a change to one model never re-queues the others.
+A `relations` task is queued when the new head's `facts_hash` differs from the previous head's (a revert too, since partners may have judged against the other version meanwhile), and for a new or revived model. Candidates are computed in both directions, so a change to one model never re-queues the others: its re-analysis judges their shared pairs again.
 
 ```
- new head, facts_hash ≠ last done ─┐          requeue (editor)
+ new head, facts_hash ≠ prev head ─┐          requeue (editor), lost judgement
                                    ▼               │
                    ┌──────────► queued ◄───────────┘
    release / lease │               │ claim (lease 15 min, attempts+1)
@@ -132,20 +136,27 @@ The stage shows in `GET /projects/{p}/models?stage=` and MCP `list_processes`; h
 
 **Claim and lease:**
 - `claim_analysis({projectId?, modelKey?, max ≤ 5})` is one `UPDATE … WHERE id IN (SELECT … ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT n)` over queued tasks and expired leases with fewer than 3 attempts, in projects where the caller is at least `editor`; `modelKey` narrows it to one model. It sets a hashed lease token, `lease_until = now() + 15 min` and `attempts + 1`; expired tasks with 3 attempts become `failed` in the same transaction, so no cron job is needed.
-- The claim returns `{taskId, leaseToken, leaseUntil, procedure: {id, version}, input}`. The `input` (≤ ~100 KB) holds the head facts, candidates in both directions (key tier, top 5 lexical matches per endpoint, up to 30 more compatible endpoints) and existing relations, including human rejections, held items, their notes and answered questions. M3 added optional fields within `proa-claim/1`, so older inputs still parse: the ends (`from`, `to`) of message flows inside the file, the documentation of partner endpoints and of their processes (`partnerProcesses`), both cut to 300 characters like the model's own, and the project's visible findings with a ref in the model (`findings`). The largest corpus input grew from 68.7 to 80.1 KB. XML only comes through `get_model_xml`.
+- The claim returns `{taskId, leaseToken, leaseUntil, procedure: {id, version}, input}`. The `input` (≤ ~100 KB) holds the head facts, candidates in both directions (key tier, top 5 lexical matches per endpoint, up to 30 more compatible endpoints) and existing relations, including human rejections, held items, their notes and answered questions. M3 added optional fields within `proa-claim/1`, so older inputs still parse: the ends (`from`, `to`) of message flows inside the file, the documentation of partner endpoints and of their processes (`partnerProcesses`), both cut to 300 characters like the model's own, the project's visible findings with a ref in the model (`findings`), and, with judge each pair once (below), `judged` and `skip`; a pair in either list is left out of the candidates. The largest corpus input grew from 68.7 to 80.1 KB with M3 and is 82.0 KB with every task claimed at once (92.9 KB with LLM-sized judgements in `judged`). The input is rendered in the claim transaction under the project lock. XML only comes through `get_model_xml`.
 - No renew; `release_analysis` requeues. A late submit passes if token and principal match and the task was not re-claimed or cancelled (else 409 `lease-lost` or `task-cancelled`). A different second submission gets 409 `already-submitted`; replaying a `submissionId` returns the stored result.
 
 ```jsonc
 { "taskId": "ana_…", "leaseToken": "…", "submissionId": "<uuid>",
-  "procedure": {"id": "proa-relations", "version": "0.1.0"}, "llmModel": "claude-sonnet-5-5",
+  "procedure": {"id": "proa-relations", "version": "0.2.0"}, "llmModel": "claude-sonnet-5-5",
   "relations": [{"type": "message", "from": "order/handle#Evt_shipped", "to": "billing/invoice#Start_shipped",
                  "confidence": 0.82, "rationale": "…", "evidence": ["order/handle#Evt_shipped"], "question": null}],
-  "noLinks": [{"from": "…", "to": "…", "reason": "…"}], "summary": "≤500 chars", "costUsd": 0.12 }
+  "noLinks": [{"type": "message", "from": "…", "to": "…", "reason": "no-evidence: …"}], "summary": "≤500 chars", "costUsd": 0.12 }
 ```
 
-**Validation.** Every ref must exist in the head facts (no hallucinated elements); one endpoint lies in the task's model; types fit endpoint kinds; confidence is in [0, 1]; rationales ≤ 1,000 and questions ≤ 500 characters; ≤ 200 relations. Each item comes back as `applied`, `duplicate`, `suppressed` (a human already decided and the fingerprints are unchanged), `reopened` or `invalid:<reason>`. Payloads are stored verbatim for the eval, and reviewers can bulk-reject a whole submission.
+**Validation.** Every ref must exist in the head facts (no hallucinated elements); one endpoint lies in the task's model; types fit endpoint kinds; confidence is in [0, 1]; rationales ≤ 1,000 and questions ≤ 500 characters; ≤ 200 relations and ≤ 500 no-links. Each item comes back as `applied`, `duplicate`, `suppressed` (a human already decided and the fingerprints are unchanged), `reopened` or `invalid:<reason>`; each no-link (typed: without a `type` the server takes the one type the ends fit) as `stored`, `duplicate` or `invalid:<reason>`. Payloads are stored verbatim for the eval, and reviewers can bulk-reject a whole submission.
 
-**Requeue.** A new revision with a changed `facts_hash` cancels the open task and queues a new one. Same facts, or another model's change, only update `endpoint_state`. A deleted model turns partner relations `missing` (open items). An extractor change runs `proa reindex`, and a procedure upgrade uses `POST …/analyses/requeue {modelKeys | all}`.
+**Judge each pair once** (procedure `proa-relations@0.2.0`; the owner's requirement of 2026-10-08: no work may happen twice, also with several agents):
+- An agent judgement is a live pipeline proposal or a live no-link. Its basis is the `facts_hash` of both endpoint models as the agent saw them at its claim, plus the declared procedure; it is current while both models and the procedure are unchanged.
+- The claim assigns each `rule`, `key` and `lexical` candidate pair without a current judgement or a settling decision (accepted, or rejected with unchanged endpoints) to exactly one analysis: a partner's live claim that holds it, else the partner's queued task if its key sorts first and the pair is among its candidates, else this claim, which stores it as its assignment. The input lists the current judgements on the model's pairs (`judged`, any agent, the claimant's own included) and the pairs a partner judges (`skip`). `compatible` candidates are nobody's assignment, only the search space for missing partners.
+- A submission withdraws the judgements made on another version of its model or under another procedure; current ones stay without repetition, and a duplicate needs the same basis. A new judgement of the same principal in an analysis of the same model replaces its earlier one on the pair; other judgements coexist, so disagreements stay visible: reviewers see current no-links on the relation (`Relation.noLinks`), in the review screen and as a flag in the bulk dialog. `uncovered` reports assigned pairs left without a verdict; nothing is queued for them.
+- A judgement lost outside an analysis (a revoked token, `withdraw_proposal`) queues both endpoint models again, or makes a claimed task queue a follow-up when it is submitted.
+- Double work that remains: a `compatible` pair that two concurrent partner searches both examine, re-claims after a lease expired, and candidate-cap drift between two claims (the pair then stays unjudged until one of its models changes).
+
+**Requeue.** A new revision with a changed `facts_hash` cancels the open task and queues a new one. Same facts, or another model's change, only update `endpoint_state`; a lost judgement queues its models (above). A deleted model turns partner relations `missing` (open items). An extractor change runs `proa reindex`, and a procedure upgrade uses `POST …/analyses/requeue {modelKeys | all}`.
 
 ## 4. Where the truth lives: store vs Git/OKF
 
@@ -281,7 +292,7 @@ Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come th
 
 ## 7. Agents and procedures
 
-**Procedures** are the analysis instructions, written once in `packages/procedures/*.md` with frontmatter `id`, `version`, `title`, `status` and an optional one-line `description` (e.g. `proa-relations@0.1.0`, released with M3). Each calls a deterministic tool first and judges only what code cannot decide.
+**Procedures** are the analysis instructions, written once in `packages/procedures/*.md` with frontmatter `id`, `version`, `title`, `status` and an optional one-line `description` (e.g. `proa-relations@0.2.0`: `0.1.0` was released with M3, `0.2.0` replaced it before any live run to judge each pair once). Each calls a deterministic tool first and judges only what code cannot decide.
 
 | Procedure | Output | Suggested model |
 |---|---|---|
@@ -295,6 +306,7 @@ Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come th
 - The prompt `work_pipeline({projectId?, maxTasks?})` (`maxTasks` a whole number from 1 to 100, passed as a string like every prompt argument) and the Claude Code skill `/proa:relations [project] [max-tasks]` render through one helper, `renderPipelineWrapper` in `@proa/procedures`, so they cannot drift apart. It adds only the scope (project, number of tasks), the rule to declare the exact model id as `llmModel`, the version rule (if a claim names another procedure or version than the embedded one, load the claim's with `get_procedure` and follow it, while declaring what the claim names), `release_analysis` instead of an expiring lease and a reload with `get_procedure` after the context was summarized, then embeds the procedure verbatim. The prompts `analyze_model` (v1: one model) and `review_landscape` (R1, read-only) come later.
 - The Claude Code plugin `plugins/proa/` holds the skill as `skills/relations/SKILL.md`. `pnpm --filter @proa/procedures generate` writes it from `relations.md` and sets the plugin version to the procedure version; a test in `pnpm test` (so in CI) fails while either lags behind, and generation refuses procedure text that Claude Code would expand in a skill (`$ARGUMENTS`, `$<digit>`, `${CLAUDE_…}`, `` !`command` ``). The skill sets `disable-model-invocation: true`, so only a user starts it. A released version's skill never changes (a test pins its sha256), because installs from a Git-hosted marketplace stay at their version until it changes and runs are recorded under `<id>@<version>`; `--plugin-dir` and a marketplace added from a local checkout load the current files. The plugin carries no MCP server: the connection is configured separately, so the tools keep the names `mcp__proa__*`. The repository is the plugin's marketplace (`.claude-plugin/marketplace.json`, `claude plugin install proa@proa`).
 - **Language:** agents write `rationale`, `question`, the no-link `reason` and `summary` in German, because the review UI is German; refs, element ids, message and signal names and quoted labels stay verbatim. A per-project language setting is deferred (R1).
+- **Judge each pair once** (`proa-relations@0.2.0`, §3): an agent judges its pairs (the `rule`, `key` and `lexical` candidates and relations in neither `judged` nor `skip`, except settled ones) and every other pair it examines, `compatible` candidates and partner-search hits included, each with a proposal or a typed no-link, so partner tasks skip them; it leaves `judged` and `skip` pairs alone and contradicts a `judged` verdict only with concrete evidence, by a judgement of its own. The `0.1.0` rule "repeat every pair you still support" is gone.
 
 **Deterministic library (no LLM):** `@proa/bpmn-facts`; `@proa/relations` (normalization, compatibility matrix, rule tier, candidate scoring by token Jaccard plus a label-length-relative Levenshtein distance, German and English stopwords, a short synonym list); R1 lint rules such as `dangling-throw` and `unresolved-call`.
 
@@ -325,7 +337,7 @@ Each entry has `type`, `from`, `to`, `expect` (`must_link`, `must_not_link` or `
 | `eval:replay` | every PR, no LLM | precision, recall and F1 per type and tag, from recordings; the committed report must match a fresh run; it shows the live gate but enforces nothing |
 | live | by the owner before a procedure release, with Claude Desktop or Claude Code on the owner's subscription (owner decision 13, [HANDOFF.md](HANDOFF.md) §4); one fresh project and agent token per run, the token name is the recording's agent; 3 runs per landscape on a pinned model (the declared `llmModel`); `eval:live` exits 1 on fail | per procedure version, landscape and declared `llmModel`, over its live runs (any agent but `agent-sim`): **fail** if a run proposes a `must_not_link` pair at confidence ≥ 0.8, or the mean recall is more than 5 points below the baseline (the mean recall of the live runs of the highest earlier x.y.z version on that landscape with the same `llmModel`, else the `agent-sim` recordings of the same version, whatever their model); else **incomplete** with fewer than 3 runs or no baseline; else **pass** |
 
-Recall here is the proposals' (`overall`, without the rule tier's acceptances), averaged over the runs that have one; exactly 5 points below the baseline passes. Fail is checked first, so a single run can fail a version on its model. Runs with another model form a gate of their own and never mix into a model's means; runs of different clients with the same `llmModel` do. A project is never reused across runs: a submission withdraws other principals' pipeline proposals it does not repeat, and earlier proposals would bias the claim input.
+Recall here is the proposals' (`overall`, without the rule tier's acceptances), averaged over the runs that have one; exactly 5 points below the baseline passes. Fail is checked first, so a single run can fail a version on its model. Runs with another model form a gate of their own and never mix into a model's means; runs of different clients with the same `llmModel` do. A project is never reused across runs: its claims list an earlier run's current judgements in `judged` and leave those pairs out of the candidates (§3), so a second agent would judge almost nothing, and earlier proposals would bias the claim input.
 
 **Seed cases:** one per 1.x weakness ("Order received" ≠ "Order rejected", "prüfen" = "pruefen", timer end ≠ message start, subprocess events stay inside, DE/EN pairs); rewritten XXE tests; 5 describe cases (R1); an anonymized holdout landscape. Decision memory is covered by Postgres integration tests.
 
@@ -400,7 +412,7 @@ Starting point (checked 2026-10-05): the remote has only `develop` and no tags o
 ## 11. Deferred on purpose
 
 - **Versioning:** project versions, branches, named tags and a diff view (later one `landscape_tag(project_id, name, seq)` table), the landscape "as of seq".
-- **Pipeline:** neighbour rechecks, priorities, lease renewal, a judgment cache, `agent_run` bookkeeping, minimum procedure versions, a runner shipped with ProA.
+- **Pipeline:** neighbour rechecks, priorities, lease renewal, a judgment cache beyond judging each pair once per change of its models (§3), `agent_run` bookkeeping, minimum procedure versions, a runner shipped with ProA.
 - **Relations and content:** cross-project relations, external placeholders, error/escalation/link/compensation relations, DMN refs, fuzzy data-store matching, agent findings, comments, embeddings, runtime data.
 - **Sync and export:** linked Git sync, OKF restore, foreign OKF, the Web Modeler, `messages/`, `findings/` and `log.md` in the export.
 - **Platform and auth:** stdio MCP, MCP subscriptions, an authorization server or OAuth proxy in ProA, Keycloak CIMD while experimental, Enterprise-Managed Authorization (ID-JAG), token exchange, DPoP/mTLS, WorkOS API keys, personal user tokens (`proa-cli` uses device flow), row-level security, a shared multi-tenant instance.

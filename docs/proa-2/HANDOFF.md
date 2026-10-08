@@ -21,13 +21,15 @@ and code are in English.
 - **Done:** concept (ADR-0004), test landscapes + eval toolchain, **M1** (skeleton: facts, rules,
   server, REST, MCP, local mode, CLI, web), **M2** (analysis pipeline, agent proposals, human
   review, simulation agent, `eval:replay`), **M4 preparation** (value chain concept + golden data),
-  **M3 code** (the released procedure `proa-relations@0.1.0`, claim input additions, the Claude
-  Code plugin `plugins/proa`, reference setups in `examples/agents`, `proa seed --project`,
-  `eval:live` and the live gate; dev-landscape validation with Sonnet: 3 runs, precision 100 %,
-  no must_not_link).
-- **Next:** the **owner's live runs** (`docs/proa-2/M3-LIVE-RUNS.md`: 3 runs per landscape incl.
-  the holdout), then **M4** (value chain / Wertschöpfungskette with `@miragon/value-chain-*`
-  0.3.0).
+  **M3 code** (the released procedure, claim input additions, the Claude Code plugin
+  `plugins/proa`, reference setups in `examples/agents`, `proa seed --project`, `eval:live` and
+  the live gate; dev-landscape validation of `0.1.0` with Sonnet: 3 runs, precision 100 %, no
+  must_not_link), and **judge each pair once** (procedure `proa-relations@0.2.0`, the owner's
+  requirement that no work happens twice: each pair is judged in one task, no-links are stored and
+  shown to reviewers).
+- **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
+  runs per landscape incl. the holdout), then **M4** (value chain / Wertschöpfungskette with
+  `@miragon/value-chain-*` 0.3.0).
 
 ## 2. Read in this order
 
@@ -46,7 +48,7 @@ and code are in English.
 | Item | State |
 |---|---|
 | `develop` | 1.x platform overhaul (squash `eb3539b`). Protected by ruleset "main": PRs only, **squash merges only**, linear history, **signed commits**, no bypass actors, no required checks yet. |
-| `claude/proa-2` | 2.0 work, pushed. Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs. |
+| `claude/proa-2` | 2.0 work, pushed. Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0). |
 | PR #2 | Draft, base `develop`, CI (`ci-2.yml`: typecheck/lint/test, docker image + compose live check) green. **Merge only with the owner's explicit OK.** |
 | 1.x tree | `backend/`, `frontend/`, `pom.xml`, `mvnw*`, `.mvn/`, `Dockerfile`, `eclipse-formatter.xml`, `Makefile`, `scripts/`, `docker-compose.yml`, `.githooks/` and the 1.x workflows (`backend-tests.yml`, `frontend-checks.yml`, `deploy.yml`, `release.yml`) are still present and **must not be modified** on this branch. The cut-over PR removes them (CONCEPT §9). |
 | Tags/releases | None in ProA yet. Plan: tag `v1.3.0` on `eb3539b` + branch `maintenance/1.x` + 1.x image **right before the cut-over merge** (owner decision), not now. |
@@ -89,6 +91,9 @@ and code are in English.
 15. **Order:** M2 → **M3** → **M4** (value chain). The process network map follows later (R1).
 16. **No Agent SDK for now** (2026-10-08): models are evaluated through MCP with local agents
     (Claude Code, Claude Desktop, Codex); the reference worker was removed (git history keeps it).
+17. **No work twice** (2026-10-08): no pair may be judged twice, also with several agents. Done
+    as "judge each pair once" in `proa-relations@0.2.0` (`M3-RELATIONS-PROCEDURE.md`, CONCEPT §3),
+    released before any live run, so the owner's runs use `0.2.0`.
 
 **Taken during M3 by the implementing agent (the owner may overrule; details in
 `M3-RELATIONS-PROCEDURE.md`):** agents write rationales, questions, no-link reasons and summaries
@@ -98,7 +103,15 @@ fields within `proa-claim/1`); every live run uses a **fresh project and its own
 name = recording agent); the live gate is evaluated **per procedure version, landscape and
 declared model** (3 runs each), against the previous version's live runs on that model or else
 the simulation agent; every MCP tool declares `anthropic/maxResultSizeChars` so Claude Code
-passes large claim inputs inline; the plugin carries no MCP server.
+passes large claim inputs inline; the plugin carries no MCP server. For decision 17: an agent
+judgement (pipeline proposal or stored no-link) carries a basis (both models' `facts_hash` at the
+claim plus the procedure) and is current while it holds; the claim assigns each unjudged `rule`,
+`key` or `lexical` candidate pair to exactly one task and lists current judgements (`judged`) and
+partner-assigned pairs (`skip`) instead of repeating them as candidates (that kept the input below
+100 KB); `compatible` candidates stay the search space, never assigned; a submission withdraws only
+judgements made on another version of its model; judgements of different principals or origins
+coexist, so disagreements reach the reviewer; recordings keep the `uncovered` count, not the pairs.
+This answers the former open questions "Supersession scope" and "No-links in review".
 
 ## 5. What exists (2.0 workspace)
 
@@ -108,7 +121,7 @@ passes large claim inputs inline; the plugin carries no MCP server.
 | `packages/client` | hey-api client generated from the OpenAPI document (drift test) |
 | `packages/bpmn-facts` | C7/C8 fact extraction, hostile-XML protection, `FACTS_VERSION` |
 | `packages/relations` | rule tier (unambiguous calls, key-tier proposals, findings), candidates for agents, 1.x baseline, pair assessor |
-| `packages/procedures` | the released procedure `proa-relations@0.1.0` (`relations.md`), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
+| `packages/procedures` | the released procedure `proa-relations@0.2.0` (`relations.md`; judge each pair once), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
 | `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
 | `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
 | `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review |
@@ -117,7 +130,7 @@ passes large claim inputs inline; the plugin carries no MCP server.
 | `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP |
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
 | `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate |
-| `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.1.0`; the owner's live runs go here too) and generated reports incl. the live gate |
+| `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.2.0`; the owner's live runs go here too) and generated reports incl. the live gate, pairs judged twice and uncovered pairs |
 | `eval/value-chains` | golden value chains + expected placements for both landscapes (M4) |
 | `docker/` | `compose.yaml` (project `proa2`: PostgreSQL 17 on 127.0.0.1:55432, ProA on 127.0.0.1:7400) and `Dockerfile` |
 | `.github/workflows/ci-2.yml` | 2.0 CI (path-filtered; 1.x workflows untouched) |
@@ -137,6 +150,10 @@ calls are rule-accepted, so recall ∪ rule tier is 100 %), F1 **88.0 %**, **0**
 questions, all on may_link pairs, 0 invalid items. The sim agent (73.3 % / 78.6 % / 75.9 %, 3
 must_not_link at ≥ 0.8) is beaten on precision at equal recall. These runs are **not** committed
 as recordings and do not count for the live gate: the holdout and the owner's clients are untested.
+`0.2.0` keeps the sim agent's scores and judges no pair twice (under `0.1.0` it judged 154 and 121
+pairs twice). Three LLM dev runs of `0.2.0` (Sonnet 5.5, concurrent claims) kept precision
+100 %, recall 78.6 % and 0 must_not_link, and judged 8–10 pairs twice instead of about 150, with
+40 instead of 78 proposal items (`M3-RELATIONS-PROCEDURE.md`, dev-run numbers).
 
 ## 6. Run and verify
 
@@ -168,10 +185,11 @@ are running with nordwind deployed. An owner key from a source-run dev server ex
 
 ### M3 – the owner's live runs (next)
 
-The code, procedure, plugin, reference setups and tooling are done (`M3-RELATIONS-PROCEDURE.md`).
-What remains needs the owner's Claude subscription:
+The code, procedure (`proa-relations@0.2.0`, judge each pair once), plugin, reference setups and
+tooling are done (`M3-RELATIONS-PROCEDURE.md`). What remains needs the owner's Claude subscription:
 
-1. Follow `docs/proa-2/M3-LIVE-RUNS.md`: rebuild the stack, seed a fresh project per run
+1. Follow `docs/proa-2/M3-LIVE-RUNS.md`: rebuild the stack (it applies migrations 0004/0005 of
+   `0.2.0` to the existing data), seed a fresh project per run
    (`proa seed nordwind-handel --project … --issue-tokens --token-name …`), run Claude Code
    (`examples/agents/claude-code/run-headless.sh`) or Claude Desktop (start prompt), then
    `pnpm eval:live` and commit the recording. Three runs per landscape and model, then the holdout
@@ -180,9 +198,12 @@ What remains needs the owner's Claude subscription:
    in `claude -p` with `--tools ""`, Claude Code honouring `anthropic/maxResultSizeChars`, MCP
    prompts in Claude Desktop, the Desktop start prompt, Codex.
 3. Afterwards: decide the M3 open questions (§8), mark the procedure's live gate in
-   `M3-RELATIONS-PROCEDURE.md`, and only then change the procedure as `0.1.1`/`0.2.0` (a released
+   `M3-RELATIONS-PROCEDURE.md`, and only then change the procedure as `0.2.1`/`0.3.0` (a released
    version's skill never changes; regenerate it with `pnpm --filter @proa/procedures generate` and
-   add its hash to `RELEASED`, §9).
+   add its hash to `RELEASED`, §9). Judge each pair once leaves some double work by design
+   (`compatible` pairs two concurrent partner searches both examine, re-claims after a lease
+   expired, candidate-cap drift; DEVELOPMENT.md "Judge each pair once"): revisit it if the live runs'
+   "judged twice" or `uncovered` numbers are not near 0.
 
 ### M4 – value chain (after M3)
 
@@ -215,10 +236,8 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | 1.x | How long does `maintenance/1.x` get fixes? Were 1.x versions snapshots or as-is/to-be variants? | CONCEPT §12 |
 | First users | UI upload or Git/bpmiq.yml repos? Decides whether folder/bpmiq.yml import moves earlier. | CONCEPT §12 |
 | Shared-name flag | The bulk dialog flags 20–22 of 33 key-tier pairs (names used by >2 processes), incl. legitimate broadcasts. Keep, or flag only names with several senders? | M2 web stage |
-| Supersession scope | A submission withdraws the live pipeline proposals of **any** agent touching the task's model that it does not repeat (decisions stay, versions move; rule-tier and ad-hoc proposals stay). The procedure tells agents to repeat what they support. Keep, or limit to the submitting principal? | M2 backend, M3 |
-| No-links in review | Agents record rejected pairs as `noLinks` (with coded German reasons), but reviewers never see them; a rule-tier key proposal the agent rejects (e.g. a generic name) stays bulk-acceptable at 1.0. Show agent no-links on the relation / in the bulk dialog? | M3 |
 | `correct` on a typed pair | Correcting towards a pair that already has a key-tier proposal creates a second, manual relation. Offer "accept the existing proposal instead"? | M2 e2e |
-| Revoking a token | Revoking now withdraws that token's open proposals (CONCEPT §6). Confirm. | M2 fix |
+| Revoking a token | Revoking now withdraws that token's open proposals and no-links (CONCEPT §6) and, since `0.2.0`, queues the models whose pairs it judged again. Confirm. | M2 fix, 0.2.0 |
 | Message-name matching | Names match ignoring separators (`Zahlung_Eingegangen` = `ZahlungEingegangen`). Confirm. | M1 relations |
 | Local session | `POST /api/v1/session` is open to any local process (fine single-user, not on shared machines). Add a one-time login link later? | M1 integrate |
 | Value chain | Six questions with defaults: archived copies (`@outside` vs. superseded flag), one home step per process, step renames send placements to re-confirm, org units as owners vs. performers, one vs. several chains per project, kinds by colour until a step category exists. | M4-VALUE-CHAIN.md §11 |
@@ -256,7 +275,8 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
   never deletes the old one: remove it by hand). The `0.1.0` hash is the skill after the review
   fixes (version rule, `disable-model-invocation`), which changed it before any live run without
   a new version; a Git-hosted install made before them keeps the older 0.1.0 skill (the owner's
-  runs use `--plugin-dir`, which loads the current files).
+  runs use `--plugin-dir`, which loads the current files). `0.2.0` (judge each pair once) is the
+  current release, with its own hash; its sim recordings replaced the `0.1.0` folder.
 - **Large MCP results:** Claude Code saves tool results above 50,000 characters to a file unless
   the tool declares `anthropic/maxResultSizeChars` (ProA's tools do); with `--tools ""` an agent
   could not read that file. Keep the declaration on new tools.
