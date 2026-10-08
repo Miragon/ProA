@@ -31,6 +31,7 @@ import type { Actor } from '../actor.ts';
 import { renderClaimInput, type ClaimModel } from '../claim-input.ts';
 import { decodeCursor, toPage } from '../cursor.ts';
 import { DomainError } from '../errors.ts';
+import { visibleFindings } from '../findings.ts';
 import { headFingerprints } from '../fingerprints.ts';
 import { cancelTask, queueTask } from '../ingest.ts';
 import { leaseTokenHash, newLeaseToken, sameLeaseHash } from '../lease.ts';
@@ -277,6 +278,8 @@ export function analysisUseCases(deps: UseCaseDeps) {
             const histories = byRelation<StoredAssertion>(
               await tx.assertions.listForProject(projectId),
             );
+            // As `GET …/findings` lists them; the input keeps those touching the model.
+            const findings = visibleFindings(await tx.findings.list(projectId), relations);
             for (const { task, token, project } of group) {
               const model = await claimModel(tx, task);
               const input = renderClaimInput({
@@ -285,6 +288,7 @@ export function analysisUseCases(deps: UseCaseDeps) {
                 candidates: deps.analysis.candidates(projectFacts, task.modelKey),
                 relations: relations.filter((r) => touches(r, task.modelKey)),
                 histories,
+                findings,
               });
               result.push({
                 taskId: task.id,

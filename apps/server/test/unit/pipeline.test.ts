@@ -5,7 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { Fact, ProjectFacts } from '@proa/contracts';
+import { ClaimInput, type Fact, type Finding, type ProjectFacts, type Ref } from '@proa/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { createNotifier } from '../../src/db/notifications.ts';
@@ -183,6 +183,14 @@ describe('renderClaimInput', () => {
             keyRaw: 'Start',
             scope: 'subprocess',
           }),
+          // A message flow from the throw to another pool of the same file.
+          fact('a/m', 'F', {
+            kind: 'message_flow',
+            processId: null,
+            label: '',
+            keyRaw: 'Msg',
+            attrs: { sourceRef: 'a/m#E', targetRef: 'a/m#Pool_Bank', messageName: 'Msg' },
+          }),
         ],
         messageFlows: [],
       },
@@ -199,6 +207,13 @@ describe('renderClaimInput', () => {
           },
         ],
         facts: [
+          fact('b/n', 'Q', {
+            kind: 'process',
+            processId: 'Q',
+            label: 'Pool B',
+            keyRaw: 'Q',
+            attrs: { documentation: 'q'.repeat(301) },
+          }),
           // One element, two facts: the message catch is the partner of a message candidate.
           fact('b/n', 'C', {
             kind: 'sig_catch',
@@ -213,12 +228,28 @@ describe('renderClaimInput', () => {
             label: 'Got',
             keyRaw: 'Msg',
             processId: 'Q',
+            attrs: { documentation: 'Wartet auf die Nachricht.' },
           }),
         ],
         messageFlows: [],
       },
+      {
+        // A partner whose process has neither a name nor documentation.
+        modelKey: 'c/o',
+        factsVersion: '1',
+        processes: [
+          { ref: 'c/o#R', processId: 'R', name: null, participantName: null, isExecutable: true },
+        ],
+        facts: [fact('c/o', 'T', { kind: 'msg_catch', eventDef: 'message', processId: 'R' })],
+        messageFlows: [],
+      },
     ],
   };
+  const finding = (kind: Finding['kind'], ...refs: Ref[]): Finding => ({
+    kind,
+    refs,
+    detail: kind,
+  });
   const relation: RelationRecord = {
     id: 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
     projectId: 'prj_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
@@ -282,6 +313,7 @@ describe('renderClaimInput', () => {
         score: 0.123456,
         signals: {},
       },
+      { type: 'message', from: 'a/m#E', to: 'c/o#T', basis: 'compatible', score: 0.1, signals: {} },
     ],
     relations: [relation],
     histories: new Map([
@@ -307,6 +339,13 @@ describe('renderClaimInput', () => {
         ],
       ],
     ]),
+    // Any order; only those with a ref in a/m stay.
+    findings: [
+      finding('unmatched-catch', 'b/n#C'),
+      finding('duplicate-process-id', 'a/m#P', 'c/o#P'),
+      finding('unresolved-call', 'b/n#K'),
+      finding('dangling-throw', 'a/m#E'),
+    ],
   });
 
   it('renders facts compactly: defaults left out, documentation cut', () => {
@@ -328,6 +367,15 @@ describe('renderClaimInput', () => {
         scope: 'subprocess',
         process: 'P',
       },
+      // Collaboration level: no process, but the ends of the flow.
+      {
+        ref: 'a/m#F',
+        kind: 'message_flow',
+        label: '',
+        key: 'Msg',
+        from: 'a/m#E',
+        to: 'a/m#Pool_Bank',
+      },
     ]);
     expect(input.model).toEqual({
       key: 'a/m',
@@ -343,6 +391,7 @@ describe('renderClaimInput', () => {
     expect(input.candidates).toEqual([
       ['message', 'a/m#E', 'b/n#C', 'key', 1],
       ['message', 'a/m#E', 'b/n#C2', 'compatible', 0.1235],
+      ['message', 'a/m#E', 'c/o#T', 'compatible', 0.1],
     ]);
     expect(input.partners).toEqual({
       'b/n#C': {
@@ -352,8 +401,51 @@ describe('renderClaimInput', () => {
         key: 'Msg',
         process: 'b/n#Q',
         processName: 'Pool B',
+        doc: 'Wartet auf die Nachricht.',
       },
+      'c/o#T': { kind: 'msg_catch', eventDef: 'message', label: 'T', process: 'c/o#R' },
     });
+  });
+
+  it('describes the process of every partner endpoint, documentation cut', () => {
+    expect(input.partnerProcesses).toEqual({
+      'b/n#Q': { name: 'Pool B', doc: `${'q'.repeat(299)}…` },
+      'c/o#R': {},
+    });
+    expect(Object.keys(input.partnerProcesses ?? {})).toEqual(['b/n#Q', 'c/o#R']);
+  });
+
+  it('lists the findings with a ref in the model, sorted by kind and refs', () => {
+    expect(input.findings).toEqual([
+      finding('dangling-throw', 'a/m#E'),
+      finding('duplicate-process-id', 'a/m#P', 'c/o#P'),
+    ]);
+  });
+
+  it('leaves the additions out when there is nothing to say', () => {
+    const bare = renderClaimInput({
+      model: {
+        key: 'c/o',
+        name: null,
+        revisionId: 'rev_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+        rev: 1,
+        engine: null,
+        processes: projectFacts.models[2]?.processes ?? [],
+      },
+      projectFacts,
+      candidates: [],
+      relations: [],
+      histories: new Map(),
+      findings: [finding('dangling-throw', 'a/m#E'), finding('unmatched-catch', 'c/o2#T')],
+    });
+    expect(bare.facts).toEqual([
+      { ref: 'c/o#T', kind: 'msg_catch', eventDef: 'message', label: 'T', process: 'R' },
+    ]);
+    expect(bare.partners).toEqual({});
+    expect(bare).not.toHaveProperty('partnerProcesses');
+    expect(bare).not.toHaveProperty('findings');
+    expect(ClaimInput.parse(bare)).toEqual(bare);
+    expect(ClaimInput.parse(input)).toEqual(input);
   });
 
   it('shows the human decision, the agent’s open question and the notes', () => {

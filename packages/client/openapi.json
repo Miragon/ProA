@@ -2270,10 +2270,22 @@
               "$ref": "#/components/schemas/ClaimEndpoint"
             }
           },
+          "partnerProcesses": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ClaimPartnerProcess"
+            }
+          },
           "relations": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ClaimRelation"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Finding"
             }
           }
         },
@@ -2310,6 +2322,12 @@
           },
           "process": {
             "$ref": "#/components/schemas/ElementId"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
           },
           "doc": {
             "type": "string"
@@ -2374,6 +2392,9 @@
           },
           "processName": {
             "type": "string"
+          },
+          "doc": {
+            "type": "string"
           }
         },
         "required": [
@@ -2382,6 +2403,18 @@
           "process"
         ],
         "description": "An endpoint in another model (compact)."
+      },
+      "ClaimPartnerProcess": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "doc": {
+            "type": "string"
+          }
+        },
+        "description": "A process of another model (compact)."
       },
       "ClaimRelation": {
         "type": "object",

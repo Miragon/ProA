@@ -816,7 +816,11 @@ export type ClaimInput = {
   partners: {
     [key: string]: ClaimEndpoint;
   };
+  partnerProcesses?: {
+    [key: string]: ClaimPartnerProcess;
+  };
   relations: Array<ClaimRelation>;
+  findings?: Array<Finding>;
 };
 
 /**
@@ -830,6 +834,8 @@ export type ClaimFact = {
   key?: string;
   scope?: FactScope;
   process?: ElementId;
+  from?: Ref;
+  to?: Ref;
   doc?: string;
 };
 
@@ -855,6 +861,15 @@ export type ClaimEndpoint = {
   scope?: FactScope;
   process: Ref;
   processName?: string;
+  doc?: string;
+};
+
+/**
+ * A process of another model (compact).
+ */
+export type ClaimPartnerProcess = {
+  name?: string;
+  doc?: string;
 };
 
 /**

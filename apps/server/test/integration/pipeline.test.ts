@@ -251,6 +251,12 @@ describe('claim', () => {
       process: B('Process_Billing'),
       processName: 'Rechnungsstellung',
     });
+    expect(input.partnerProcesses?.[B('Process_Billing')]).toEqual({ name: 'Rechnungsstellung' });
+    expect(Object.keys(input.partnerProcesses ?? {}).sort()).toEqual(
+      [...new Set(Object.values(input.partners).map((p) => p.process))].sort(),
+    );
+    // The key proposal answers the throw: no finding touches the model.
+    expect(input.findings).toBeUndefined();
     // The rule tier's key proposal touches the model.
     expect(input.relations).toEqual([
       expect.objectContaining({
@@ -267,6 +273,11 @@ describe('claim', () => {
   it('never hands out a claimed task twice, and stops at max', async () => {
     const rest = await claim(agentB, { max: 5 });
     expect(rest.map((c) => c.modelKey)).toEqual([BILLING, PAYMENT]);
+    // Each input carries the project's findings touching its model.
+    expect(rest.map((c) => c.input.findings?.map((f) => [f.kind, ...f.refs]))).toEqual([
+      [['unmatched-catch', B('Event_Paid')]],
+      [['dangling-throw', P('Event_Received')]],
+    ]);
     expect(await claim(agentA, { max: 5 })).toEqual([]);
     const pending = (await (await agentA('/api/v1/analyses/pending')).json()) as PendingAnalyses;
     expect(pending.total).toBe(0);

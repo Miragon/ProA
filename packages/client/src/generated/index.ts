@@ -75,6 +75,7 @@ export type {
   ClaimEndpoint,
   ClaimFact,
   ClaimInput,
+  ClaimPartnerProcess,
   ClaimRelation,
   ClaimResult,
   ClientOptions,

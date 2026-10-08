@@ -14,10 +14,12 @@ import {
   type ClaimEndpoint,
   type ClaimFact,
   type ClaimInput,
+  type ClaimPartnerProcess,
   type ClaimRelation,
   type Engine,
   type Fact,
   type FactKind,
+  type Finding,
   type ProcessInfo,
   type ProjectFacts,
   type RevisionId,
@@ -46,6 +48,11 @@ export interface ClaimInputSource {
   relations: readonly RelationRecord[];
   /** Assertions per relation id, any order. */
   histories: ReadonlyMap<string, readonly StoredAssertion[]>;
+  /**
+   * The project's findings as clients see them (`visibleFindings`), any
+   * order; the input keeps those with a ref in the model.
+   */
+  findings: readonly Finding[];
 }
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
@@ -54,8 +61,17 @@ function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
-function compactFact(f: Fact): ClaimFact {
+/** Deterministic, never `localeCompare` (its result depends on the runtime's ICU data). */
+const compareStrings = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/** `bpmn:documentation` cut to {@link CLAIM_DOC_CHARS}, or nothing. */
+function docOf(f: Fact): { doc?: string } {
   const doc = f.attrs.documentation;
+  return doc ? { doc: truncate(doc, CLAIM_DOC_CHARS) } : {};
+}
+
+function compactFact(f: Fact): ClaimFact {
+  const { sourceRef, targetRef } = f.attrs;
   return {
     ref: f.ref,
     kind: f.kind,
@@ -64,14 +80,17 @@ function compactFact(f: Fact): ClaimFact {
     ...(f.keyRaw === '' || f.keyRaw === f.label ? {} : { key: f.keyRaw }),
     ...(f.scope === 'process' ? {} : { scope: f.scope }),
     ...(f.processId === null ? {} : { process: f.processId }),
-    ...(doc ? { doc: truncate(doc, CLAIM_DOC_CHARS) } : {}),
+    ...(f.kind === 'message_flow' && sourceRef !== undefined ? { from: sourceRef } : {}),
+    ...(f.kind === 'message_flow' && targetRef !== undefined ? { to: targetRef } : {}),
+    ...docOf(f),
   };
 }
 
 /**
  * Renders the input of a `relations` task: the model's head facts, the
- * candidates as tuples, the partner endpoints they name, and the existing
- * relations with human decisions, questions and notes.
+ * candidates as tuples, the partner endpoints they name and their
+ * processes, the existing relations with human decisions, questions and
+ * notes, and the findings touching the model.
  */
 export function renderClaimInput(src: ClaimInputSource): ClaimInput {
   const { model } = src;
@@ -89,6 +108,7 @@ export function renderClaimInput(src: ClaimInputSource): ClaimInput {
     }
     for (const p of m.processes) processNames.set(p.ref, p.name ?? p.participantName);
   }
+  const processFact = (ref: string) => factsByRef.get(ref)?.find((f) => f.kind === 'process');
 
   const partners: Record<string, ClaimEndpoint> = {};
   const addPartner = (ref: string, kinds: readonly FactKind[] | null) => {
@@ -107,6 +127,7 @@ export function renderClaimInput(src: ClaimInputSource): ClaimInput {
       ...(c.scope === undefined ? {} : { scope: c.scope }),
       process: processRef as ClaimEndpoint['process'],
       ...(processName ? { processName } : {}),
+      ...(c.doc === undefined ? {} : { doc: c.doc }),
     };
   };
 
@@ -156,6 +177,27 @@ export function renderClaimInput(src: ClaimInputSource): ClaimInput {
     };
   });
 
+  const partnerProcesses: Record<string, ClaimPartnerProcess> = {};
+  const processRefs = [...new Set(Object.values(partners).map((p) => p.process))];
+  for (const ref of processRefs.sort(compareStrings)) {
+    const name = processNames.get(ref);
+    const fact = processFact(ref);
+    partnerProcesses[ref] = {
+      ...(name ? { name } : {}),
+      ...(fact ? docOf(fact) : {}),
+    };
+  }
+
+  const findings = src.findings
+    .filter((f) => f.refs.some((ref) => ref.startsWith(prefix)))
+    .sort(
+      (a, b) =>
+        compareStrings(a.kind, b.kind) ||
+        compareStrings(a.refs.join(' '), b.refs.join(' ')) ||
+        compareStrings(a.detail, b.detail),
+    )
+    .map((f) => ({ kind: f.kind, refs: [...f.refs], detail: f.detail }));
+
   return {
     format: CLAIM_INPUT_FORMAT,
     model: {
@@ -173,7 +215,9 @@ export function renderClaimInput(src: ClaimInputSource): ClaimInput {
     facts: (own?.facts ?? []).map(compactFact),
     candidates,
     partners,
+    ...(processRefs.length > 0 ? { partnerProcesses } : {}),
     relations,
+    ...(findings.length > 0 ? { findings } : {}),
   };
 }
 

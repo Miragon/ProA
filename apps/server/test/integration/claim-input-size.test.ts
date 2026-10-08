@@ -2,7 +2,8 @@
  * The claim input stays small (CONCEPT §3: "≤ ~100 KB"; M2 item 2): both
  * scored corpus landscapes are imported with the real libraries, every task
  * is claimed, and every input is checked against the contract and measured
- * as the agent receives it (UTF-8 JSON).
+ * as the agent receives it (UTF-8 JSON). Prints only sizes and counts, never
+ * the content of a model's input.
  */
 import { ClaimInput, ClaimedAnalysis } from '@proa/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -89,5 +90,33 @@ describe.each(LANDSCAPES)('claim input of every model of %s', (landscape) => {
         }
       }
     }
+  });
+
+  it('gives message flows their ends, partners their processes, and only the model’s findings', () => {
+    const seen = { messageFlows: 0, partnerDocs: 0, processDocs: 0, findings: 0 };
+    for (const item of claimed.get(landscape) ?? []) {
+      const { input } = item;
+      for (const f of input.facts.filter((x) => x.kind === 'message_flow')) {
+        expect(
+          [f.from, f.to].every((r) => r?.startsWith(`${item.modelKey}#`)),
+          f.ref,
+        ).toBe(true);
+        seen.messageFlows++;
+      }
+      expect(Object.keys(input.partnerProcesses ?? {}).sort(), item.modelKey).toEqual(
+        [...new Set(Object.values(input.partners).map((p) => p.process))].sort(),
+      );
+      seen.partnerDocs += Object.values(input.partners).filter((p) => p.doc).length;
+      seen.processDocs += Object.values(input.partnerProcesses ?? {}).filter((p) => p.doc).length;
+      for (const f of input.findings ?? []) {
+        expect(
+          f.refs.some((r) => r.startsWith(`${item.modelKey}#`)),
+          `${item.modelKey} ${f.kind}`,
+        ).toBe(true);
+        seen.findings++;
+      }
+    }
+    // Both landscapes exercise every addition.
+    for (const [what, n] of Object.entries(seen)) expect(n, what).toBeGreaterThan(0);
   });
 });

@@ -4,6 +4,7 @@ import {
   ApiProblem,
   BulkDecisionBody,
   Candidate,
+  ClaimInput,
   DecisionBody,
   INVALID_REASONS,
   MAX_SUBMISSION_RELATIONS,
@@ -470,6 +471,8 @@ describe('pipeline and review contracts (M2)', () => {
     for (const name of [
       'ClaimInput',
       'ClaimCandidate',
+      'ClaimPartnerProcess',
+      'Finding',
       'Engine',
       'RelationProvenance',
       'RelationAssertion',
@@ -483,6 +486,46 @@ describe('pipeline and review contracts (M2)', () => {
     ).toMatchObject({
       anyOf: expect.arrayContaining([{ type: 'null' }]) as unknown,
     });
+  });
+});
+
+describe('claim input (proa-claim/1)', () => {
+  const base = {
+    format: 'proa-claim/1',
+    model: {
+      key: 'a/m',
+      name: null,
+      revisionId: 'rev_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+      rev: 1,
+      engine: null,
+      processes: [{ processId: 'P', name: null, participantName: null }],
+    },
+    facts: [{ ref: 'a/m#E', kind: 'msg_throw', eventDef: 'message', label: 'E', process: 'P' }],
+    candidates: [['message', 'a/m#E', 'b/n#C', 'compatible', 0.5]],
+    partners: { 'b/n#C': { kind: 'msg_catch', label: 'C', process: 'b/n#Q' } },
+    relations: [],
+  };
+
+  it('still parses an input without the later additions', () => {
+    expect(ClaimInput.parse(base)).toEqual(base);
+  });
+
+  it('takes message-flow ends, partner and process documentation, and findings', () => {
+    const input = {
+      ...base,
+      facts: [
+        ...base.facts,
+        { ref: 'a/m#F', kind: 'message_flow', label: '', from: 'a/m#E', to: 'a/m#Pool' },
+      ],
+      partners: { 'b/n#C': { ...base.partners['b/n#C'], doc: 'Wartet.' } },
+      partnerProcesses: { 'b/n#Q': { name: 'Q', doc: 'Prozess Q.' }, 'c/o#R': {} },
+      findings: [{ kind: 'dangling-throw', refs: ['a/m#E'], detail: 'nobody catches E' }],
+    };
+    expect(ClaimInput.parse(input)).toEqual(input);
+    const bad = (extra: object) => ClaimInput.safeParse({ ...base, ...extra }).success;
+    expect(bad({ facts: [{ ...base.facts[0], from: 'not a ref' }] })).toBe(false);
+    expect(bad({ partnerProcesses: { 'b/n#Q': { name: 1 } } })).toBe(false);
+    expect(bad({ findings: [{ kind: 'dangling-throw', refs: [], detail: '' }] })).toBe(false);
   });
 });
 

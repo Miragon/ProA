@@ -136,6 +136,8 @@ describe('MCP /mcp with an agent token', () => {
       // Read tools are read-only; pipeline and proposal tools write but never destroy.
       expect(tool.annotations?.readOnlyHint, tool.name).toBe(READ_TOOLS.includes(tool.name));
       expect(tool.annotations?.destructiveHint, tool.name).toBe(false);
+      // A `$ref` root hides the parameters from clients that read only `properties`.
+      expect(tool.inputSchema['$ref'], tool.name).toBeUndefined();
       // A `$ref` root would make the SDK wrap results as { result: … }.
       if (tool.name !== 'decide_relation') {
         expect(tool.outputSchema?.type, tool.name).toBe('object');
@@ -144,6 +146,12 @@ describe('MCP /mcp with an agent token', () => {
       const required = (tool.inputSchema as { required?: string[] }).required ?? [];
       if (WITHOUT_PROJECT.includes(tool.name)) {
         expect(required, tool.name).not.toContain('projectId');
+        // The instructions say which of them take no projectId and which an optional one.
+        expect(MCP_INSTRUCTIONS, tool.name).toContain(tool.name);
+        expect(
+          Object.keys(tool.inputSchema.properties ?? {}).includes('projectId'),
+          tool.name,
+        ).toBe(tool.name === 'claim_analysis');
       } else {
         expect(required, tool.name).toContain('projectId');
       }

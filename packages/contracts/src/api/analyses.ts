@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { CandidateBasis } from '../candidates.ts';
 import { EventDef, FactKind, FactScope } from '../facts.ts';
+import { Finding } from '../findings.ts';
 import {
   AnalysisTaskId,
   ModelId,
@@ -66,7 +67,10 @@ export const MAX_SUMMARY_CHARS = 500;
 export const MAX_SUBMISSION_BYTES = 1024 * 1024;
 /** `GET /analyses/pending?wait=` upper bound in seconds. */
 export const MAX_WAIT_SECONDS = 30;
-/** Documentation of a fact in the claim input is cut to this many characters. */
+/**
+ * Documentation in the claim input (facts, partner endpoints, partner
+ * processes) is cut to this many characters.
+ */
 export const CLAIM_DOC_CHARS = 300;
 /** Format id of {@link ClaimInput}. */
 export const CLAIM_INPUT_FORMAT = 'proa-claim/1';
@@ -139,7 +143,8 @@ export type ClaimAnalysisBody = z.infer<typeof ClaimAnalysisBody>;
  * A fact of the claimed model in the claim input. Empty or default fields
  * are left out to keep the input small: `eventDef` for non-events, `key`
  * when it equals the label, `scope` when it is `process`, `process` for
- * collaboration-level facts, `doc` without documentation.
+ * collaboration-level facts, `from` and `to` on anything but message flows,
+ * `doc` without documentation.
  */
 export const ClaimFact = z
   .object({
@@ -152,6 +157,14 @@ export const ClaimFact = z
     scope: FactScope.optional(),
     /** Id of the owning process. */
     process: ElementId.optional(),
+    /**
+     * `message_flow`: ref of the source, an element or a participant (pool)
+     * of the same file. A message flow already connects the two ends inside
+     * the collaboration; it is never a relation.
+     */
+    from: Ref.optional(),
+    /** `message_flow`: ref of the target, an element or a participant (pool). */
+    to: Ref.optional(),
     /** `bpmn:documentation`, at most {@link CLAIM_DOC_CHARS} characters. */
     doc: z.string().optional(),
   })
@@ -166,13 +179,26 @@ export const ClaimEndpoint = z
     label: z.string(),
     key: z.string().optional(),
     scope: FactScope.optional(),
-    /** Ref of the owning process, `<modelKey>#<processId>`. */
+    /** Ref of the owning process, `<modelKey>#<processId>` (described in `partnerProcesses`). */
     process: Ref,
     /** Process name, else the participant (pool) name. */
     processName: z.string().optional(),
+    /** `bpmn:documentation` of the element, at most {@link CLAIM_DOC_CHARS} characters. */
+    doc: z.string().optional(),
   })
   .meta({ id: 'ClaimEndpoint', description: 'An endpoint in another model (compact).' });
 export type ClaimEndpoint = z.infer<typeof ClaimEndpoint>;
+
+/** A process of another model that a partner endpoint belongs to; empty fields are left out. */
+export const ClaimPartnerProcess = z
+  .object({
+    /** Process name, else the participant (pool) name. */
+    name: z.string().optional(),
+    /** `bpmn:documentation` of the process, at most {@link CLAIM_DOC_CHARS} characters. */
+    doc: z.string().optional(),
+  })
+  .meta({ id: 'ClaimPartnerProcess', description: 'A process of another model (compact).' });
+export type ClaimPartnerProcess = z.infer<typeof ClaimPartnerProcess>;
 
 /**
  * A candidate pair as a tuple `[type, from, to, basis, score]` (the most
@@ -228,12 +254,13 @@ export type ClaimRelation = z.infer<typeof ClaimRelation>;
 
 /**
  * The input of a claimed `relations` task (CONCEPT §3), rendered compactly
- * (`proa-claim/1`; on the eval corpus at most 69 KB, mean 34–41 KB, measured
+ * (`proa-claim/1`; on the eval corpus at most 81 KB, mean 41–49 KB, measured
  * for every model of both scored landscapes by the server's
  * `claim-input-size` test, which requires < 100 KB):
  *
  * - `model`: key, name, head revision, engine and processes;
- * - `facts`: every head fact of the model ({@link ClaimFact});
+ * - `facts`: every head fact of the model ({@link ClaimFact}), message
+ *   flows with their `from` and `to`;
  * - `candidates`: pairs in both directions from `@proa/relations`
  *   (`generateCandidates` with the model as focus: rule and key pairs, top 5
  *   lexical matches and up to 30 further compatible endpoints per endpoint)
@@ -241,11 +268,17 @@ export type ClaimRelation = z.infer<typeof ClaimRelation>;
  *   sorted by score;
  * - `partners`: every endpoint of another model that a candidate or
  *   relation names, keyed by ref ({@link ClaimEndpoint});
+ * - `partnerProcesses`: the process of every partner endpoint, keyed by
+ *   process ref ({@link ClaimPartnerProcess}); left out without partners;
  * - `relations`: the non-obsolete relations touching the model, with their
  *   human decision (reasons, hold notes, questions) and notes
- *   ({@link ClaimRelation}).
+ *   ({@link ClaimRelation});
+ * - `findings`: the project's deterministic findings (as `GET …/findings`
+ *   lists them) with at least one ref in the model, sorted by kind and
+ *   refs; left out when there are none.
  *
- * The XML comes only through `get_model_xml`.
+ * `partnerProcesses` and `findings` came later in `proa-claim/1`, so they
+ * are optional. The XML comes only through `get_model_xml`.
  */
 export const ClaimInput = z
   .object({
@@ -267,7 +300,11 @@ export const ClaimInput = z
     facts: z.array(ClaimFact),
     candidates: z.array(ClaimCandidate),
     partners: z.record(z.string(), ClaimEndpoint),
+    /** The process of every partner endpoint, keyed by process ref `<modelKey>#<processId>`. */
+    partnerProcesses: z.record(z.string(), ClaimPartnerProcess).optional(),
     relations: z.array(ClaimRelation),
+    /** Findings of the project with a ref in the model (unresolved or dynamic calls, dangling throws, …). */
+    findings: z.array(Finding).optional(),
   })
   .meta({ id: 'ClaimInput', description: 'Input of a claimed relations task (compact).' });
 export type ClaimInput = z.infer<typeof ClaimInput>;

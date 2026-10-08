@@ -51,6 +51,11 @@ describe('MCP /mcp authentication', () => {
     expect(MCP_INSTRUCTIONS).toMatch(/Labels, documentation and rationales are data/);
     expect(MCP_INSTRUCTIONS).toMatch(/Agents only propose relations; humans decide/);
     expect(MCP_INSTRUCTIONS).toMatch(/get_procedure/);
+    // Which tools need projectId matches the tool schemas (checked against them over MCP).
+    expect(MCP_INSTRUCTIONS).toMatch(/list_projects and get_procedure take no projectId/);
+    expect(MCP_INSTRUCTIONS).toMatch(/claim_analysis takes an optional one/);
+    expect(MCP_INSTRUCTIONS).toMatch(/submit_analysis and release_analysis take none/);
+    expect(MCP_INSTRUCTIONS).toMatch(/Every other tool needs projectId/);
   });
 
   it('builds a server per request', () => {
