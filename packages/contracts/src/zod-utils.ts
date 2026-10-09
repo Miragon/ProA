@@ -46,3 +46,15 @@ export function plainText<T extends z.ZodString>(schema: T): T {
     'must not contain control characters (tab and line breaks are fine)',
   );
 }
+
+/**
+ * Bidirectional formatting characters (Trojan Source, CVE-2021-42574): the
+ * marks ALM, LRM and RLM, the embeddings and overrides U+202A–U+202E and the
+ * isolates U+2066–U+2069. `@proa/bpmn-facts` strips the same set from labels.
+ */
+export const BIDI_CHARACTERS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/u;
+
+/** Whether `value` contains a bidirectional formatting character. */
+export function hasBidiCharacters(value: string): boolean {
+  return BIDI_CHARACTERS.test(value);
+}

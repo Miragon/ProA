@@ -6,9 +6,9 @@
  * tombstones), and human decisions (accept, reject, hold, correct), manual
  * placements and notes, all written inside the caller's transaction, which
  * holds `tx.projects.lockForWrite`. The validation of agent items (process in
- * the head facts, limits, evidence) and the tier matchers come with S2's
- * contracts; these functions take validated input but refuse a step
- * generation that is not live and an `@outside` proposal without a reason.
+ * the head facts, limits, evidence; `items.ts`) and the tier matchers
+ * (`tiers.ts`) run before; these functions take validated input but refuse a
+ * step generation that is not live and an `@outside` proposal without a reason.
  * Nothing is auto-accepted.
  */
 import {
@@ -54,7 +54,7 @@ import { OUTSIDE } from './steps.ts';
  * `baseline-prefix/1`, or a shared name stem, which an equal `name_norm`
  * is), else `semantic`, and always `semantic` for `@outside`. A step whose
  * `link` names the process yields the rule tier's key proposal; it does not
- * make an agent's proposal `lexical`. S2 supplies the matchers.
+ * make an agent's proposal `lexical`. `tiers.ts` supplies the matcher.
  */
 export function placementTier(x: {
   sourceKind: SourceKind;
@@ -91,6 +91,13 @@ export interface PlacementContext {
    * never touch them.
    */
   proposer?: { sourceKind: 'rule'; principalId: PrincipalId };
+  /**
+   * Whom the `placement.endpoint_changed` events of this context's writes
+   * name. Omitted: the writer (the proposer, or who caused a withdrawal). The
+   * rule tier's run inside a chain save names the saving human: the save moved
+   * the endpoint, as in S1's refresh after a revision.
+   */
+  endpointCause?: { principalId: PrincipalId; clientId: string | null };
 }
 
 /** The principal, source kind and client a context's proposals are recorded with. */
@@ -209,8 +216,7 @@ export async function applyPlacementProposal(
     await ctx.tx.placementAssertions.insert(assertion);
     ({ placement } = await refreshPlacement(ctx.tx, ctx.projectId, existing, next, current, {
       touched: true,
-      principalId: source.principalId,
-      clientId: source.clientId,
+      ...(ctx.endpointCause ?? { principalId: source.principalId, clientId: source.clientId }),
     }));
   } else {
     placement = await ctx.tx.placements.insert({
@@ -309,7 +315,7 @@ export async function withdrawPlacementStance(
     ctx,
     placement,
     history,
-    by ?? { principalId: stance.principalId, clientId: stance.clientId },
+    by ?? ctx.endpointCause ?? { principalId: stance.principalId, clientId: stance.clientId },
   );
 }
 

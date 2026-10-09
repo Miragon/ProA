@@ -219,11 +219,13 @@ Rejected relations are exported on purpose, so offline agents do not propose the
 | `/projects/{p}/imports` | POST ≤ 50 files, outcome per file |
 | `/projects/{p}/landscape`, `…/relations[/{rel}]` | GET; POST to propose or add a manual relation |
 | `…/relations/{rel}/decision` (`accept`, `reject`, `hold`), `…/decisions` | POST; bulk needs ids, versions and `expectedCount` |
+| `/projects/{p}/value-chains[/{key}]`, `…/{key}/content` (`If-Match: "r<rev>"`, `If-None-Match: *`, `?dryRun=true`), `…/revisions[/{rev}/content]`, `…/steps/{id}`, `…/findings`, `…/unplaced-processes` (M4) | GET, POST, PUT, DELETE (writes: humans only) |
+| `…/value-chains/{key}/placements[/{plc}]`, `…/{plc}/decision`, `…/placements/decisions`, `…/{plc}/notes`, `…/{plc}/assertions`, `…/{plc}/proposal` (M4) | GET; POST to propose or add a manual placement; decisions, bulk and notes by humans; DELETE own proposal |
 | `/projects/{p}/eval-export` | GET (R1) |
 | `/analyses/claim`, `/analyses/{a}/submission\|release`, `/analyses/pending?wait=30` | POST, POST, GET |
 | `/projects/{p}/analyses[/requeue]`, `…/events?after=&wait=30` | GET/POST, GET long-poll |
 
-Problem types: 422 `validation-failed`, `bpmn-invalid`; 404 `not-found` (also for ids from other projects); 403 `insufficient-scope`, `human-decision-required`; 409 `lease-lost`, `task-cancelled`, `already-submitted`.
+Problem types: 422 `validation-failed`, `bpmn-invalid`, `value-chain-invalid` (with per-element `violations`), `value-chain-unsupported-version`; 404 `not-found` (also for ids from other projects); 403 `insufficient-scope`, `human-decision-required`; 409 `lease-lost`, `task-cancelled`, `already-submitted`; 412 `precondition-failed`, `revision-conflict` (with `headRev`); 428 `precondition-required` (a value chain save without `If-Match`).
 
 **MCP** is stateless Streamable HTTP on `/mcp`. In v1 (local mode, §6) every client sends an agent token as bearer, and the `proa mcp` command bridges stdio-only clients such as Claude Desktop to it. Server mode (R1) adds OAuth discovery on `/mcp` and `/mcp/bearer` without it. With the 2.x SDK it speaks 2026-07-28 and negotiates 2025-11-25 and older; the 1.32 fallback tops out at 2025-11-25. The lease travels in tool arguments, so no session state is needed. Every tool except `list_projects`, `get_procedure` and the pipeline tools requires `projectId`. `claim_analysis` takes it optionally, and `submit_analysis` and `release_analysis` identify the task by `taskId` and `leaseToken`. Read tools carry `readOnlyHint`.
 
@@ -232,11 +234,12 @@ Problem types: 422 `validation-failed`, `bpmn-invalid`; 404 `not-found` (also fo
 | `list_projects`, `list_processes` (with `stage`), `get_process`, `get_model_xml`, `get_relations`, `which_processes_use`, `find_unlinked_events`, `get_procedure` | read | MVP |
 | `claim_analysis`, `submit_analysis`, `release_analysis` | propose | MVP |
 | `get_landscape`, `propose_relation`, `withdraw_proposal` | read, propose | v1 |
+| `get_value_chain`, `get_value_chain_document`, `list_unplaced_processes`, `propose_placement`, `withdraw_placement_proposal` | read, propose | M4 (S2) |
 | `put_model` (≤ 1 MB), `requeue_analysis`, `impact_of`, `trace_landscape_path`, `get_findings` | write, read | R1 |
 
-There is no decide tool; an attempt returns `human-decision-required` with the review URL. Prompts and `instructions`: §7. Resources: `proa://projects/{p}/models/{key}.bpmn` and `…/landscape.json`.
+There is no decide tool; an attempt returns `human-decision-required` with the review URL (the stubs `decide_relation` and `decide_placement` exist only to say so). Prompts and `instructions`: §7. Resources: `proa://projects/{p}/models/{key}.bpmn` and `…/landscape.json`.
 
-**Events:** `model.revised|deleted`, `analysis.queued|claimed|done|failed`, `relation.proposed|decided|endpoint_changed`, `member.changed`, `agent_token.created|revoked`. Long-polls wait on Postgres `LISTEN`; webhooks will read the same table.
+**Events:** `model.revised|deleted`, `analysis.queued|claimed|done|failed`, `relation.proposed|decided|endpoint_changed`, `value_chain.created|revised|deleted`, `placement.proposed|withdrawn|decided|noted|endpoint_changed` (M4), `member.changed`, `agent_token.created|revoked`. Long-polls wait on Postgres `LISTEN`; webhooks will read the same table.
 
 ## 6. Auth and authorization
 

@@ -1,6 +1,7 @@
 import { OpenAPIRegistry, OpenApiGeneratorV31 } from '@asteasolutions/zod-to-openapi';
 
 import { apiRoutes } from './api/routes.ts';
+import { ValueChainViolation } from './api/value-chains.ts';
 import { Candidate } from './candidates.ts';
 import { ProjectFacts } from './facts.ts';
 import { DerivedRelation } from './relations.ts';
@@ -32,12 +33,15 @@ export function buildOpenApiDocument(options: OpenApiOptions = {}): OpenApiDocum
   });
   for (const route of Object.values(apiRoutes)) registry.registerPath(route);
   // Library-level schemas that no route returns yet, so the client has their
-  // types. They are named by their `.meta({ id })`; `registry.register()` would
+  // types (a value chain violation is a member of the `value-chain-invalid`
+  // problem). They are named by their `.meta({ id })`; `registry.register()` would
   // need zod's prototype extended with `.openapi()`, which contracts avoids.
-  const extraSchemas = [Candidate, DerivedRelation, ProjectFacts].map((schema) => ({
-    type: 'schema' as const,
-    schema,
-  }));
+  const extraSchemas = [Candidate, DerivedRelation, ProjectFacts, ValueChainViolation].map(
+    (schema) => ({
+      type: 'schema' as const,
+      schema,
+    }),
+  );
 
   return new OpenApiGeneratorV31([...registry.definitions, ...extraSchemas]).generateDocument({
     openapi: '3.1.0',

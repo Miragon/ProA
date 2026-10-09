@@ -3,12 +3,20 @@
  * each scope vs a token of another project vs no credential, for read,
  * write and admin use cases; foreign ids answer 404.
  */
-import type { ModelPage, ProjectPage, PutModelResult, RelationPage } from '@proa/contracts';
+import type {
+  ModelPage,
+  PostPlacementsResult,
+  ProjectPage,
+  PutModelResult,
+  RelationPage,
+} from '@proa/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { generateOwnerKey } from '../../src/auth/owner-key.ts';
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { fakeBpmn, type FakeModelSpec } from '../support/fake-analysis.ts';
+import { chain, chainPath } from '../support/value-chain.ts';
 
 let database: TestDatabase;
 let t: TestApp;
@@ -24,13 +32,15 @@ const caller: FakeModelSpec = {
 };
 const callee: FakeModelSpec = { processes: [{ id: 'Process_B', name: 'B' }] };
 
-type Who = 'owner' | 'read' | 'propose' | 'write' | 'other' | 'anonymous';
+type Who = 'owner' | 'ownerKey' | 'read' | 'propose' | 'write' | 'other' | 'anonymous';
+const ownerKey = generateOwnerKey();
 const secrets: Partial<Record<Who, string>> = {};
 let ids: { model: string; revision: string; relation: string; token: string };
 let foreign: { model: string; revision: string; relation: string; token: string };
 
 async function as(who: Who, path: string, init: RequestInit = {}): Promise<Response> {
   if (who === 'owner') return t.asOwner(path, init);
+  if (who === 'ownerKey') return t.asToken(ownerKey, path, init);
   if (who === 'anonymous') return t.request(path, init);
   const secret = secrets[who];
   if (!secret) throw new Error(`no token for ${who}`);
@@ -55,7 +65,7 @@ async function seed(project: string): Promise<typeof ids> {
 
 beforeAll(async () => {
   database = await createTestDatabase();
-  t = startTestApp(database);
+  t = startTestApp(database, { ownerKey });
   await t.createProject('p');
   await t.createProject('q');
   ids = await seed('p');
@@ -391,5 +401,210 @@ describe('review (proa:review: a user on an interactive client)', () => {
       method: 'DELETE',
     });
     expect(withdraw.status).toBe(status);
+  });
+});
+
+describe('value chain and placements (M4: read, propose, review)', () => {
+  const steps = [
+    { id: 'step-a', name: 'Anfrage' },
+    { id: 'step-b', name: 'Bearbeitung' },
+  ];
+  const doc = chain({ steps, sequence: [['step-a', 'step-b']] });
+  let placement = '';
+  let foreignPlacement = '';
+
+  const body = (method: string, value: unknown, headers: Record<string, string> = {}) => ({
+    method,
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(value),
+  });
+
+  async function setUpChain(project: string): Promise<string> {
+    const res = await t.asOwner(
+      chainPath(project, '/content'),
+      body('PUT', doc, { 'if-none-match': '*' }),
+    );
+    expect(res.status).toBe(201);
+    const placed = (await (
+      await t.asOwner(
+        chainPath(project, '/placements'),
+        body('POST', {
+          kind: 'manual',
+          step: 'step-a',
+          process: 'a/caller#Process_A',
+          rationale: 'x',
+        }),
+      )
+    ).json()) as PostPlacementsResult;
+    if (placed.kind !== 'manual') throw new Error('not manual');
+    return placed.placement.id;
+  }
+
+  beforeAll(async () => {
+    placement = await setUpChain('p');
+    foreignPlacement = await setUpChain('q');
+  });
+
+  const readRoutes = () => [
+    '/api/v1/projects/p/value-chains',
+    chainPath('p'),
+    chainPath('p', '/content'),
+    chainPath('p', '/revisions'),
+    chainPath('p', '/revisions/1/content'),
+    chainPath('p', '/steps/step-a'),
+    chainPath('p', '/unplaced-processes'),
+    chainPath('p', '/findings'),
+    chainPath('p', '/placements'),
+    chainPath('p', `/placements/${placement}`),
+    chainPath('p', `/placements/${placement}/assertions`),
+  ];
+
+  /** The review routes with a request each (the owner's would succeed or answer 409/422). */
+  const reviewRequests = (): [string, RequestInit][] => [
+    ['/api/v1/projects/p/value-chains', body('POST', { key: 'main', name: 'Neu' })],
+    [chainPath('p'), { method: 'DELETE' }],
+    [chainPath('p', '/content'), body('PUT', doc, { 'if-match': '"r1"' })],
+    [
+      chainPath('p', '/placements'),
+      body('POST', {
+        kind: 'manual',
+        step: 'step-b',
+        process: 'b/callee#Process_B',
+        rationale: 'x',
+      }),
+    ],
+    [chainPath('p', `/placements/${placement}/decision`), body('POST', { verdict: 'accept' })],
+    [
+      chainPath('p', '/placements/decisions'),
+      body('POST', { verdict: 'accept', items: [{ id: placement, version: 1 }], expectedCount: 1 }),
+    ],
+    [chainPath('p', `/placements/${placement}/notes`), body('POST', { text: 'Antwort' })],
+  ];
+
+  it.each<[Who, number]>([
+    ['owner', 200],
+    ['ownerKey', 200],
+    ['read', 200],
+    ['propose', 200],
+    ['write', 200],
+    ['other', 404],
+    ['anonymous', 401],
+  ])('reads as %s → %i', async (who, status) => {
+    for (const path of readRoutes()) {
+      const res = await as(who, path);
+      expect(res.status, `${who} GET ${path}`).toBe(status);
+    }
+  });
+
+  it.each<[Who, number, string]>([
+    ['read', 403, 'insufficient-scope'],
+    ['write', 403, 'insufficient-scope'],
+    ['other', 404, 'not-found'],
+    ['anonymous', 401, 'unauthorized'],
+  ])('proposing and withdrawing need proa:propose: %s → %i %s', async (who, status, code) => {
+    const propose = await as(
+      who,
+      chainPath('p', '/placements'),
+      body('POST', {
+        kind: 'propose',
+        placements: [
+          { step: 'step-b', process: 'b/callee#Process_B', confidence: 0.5, rationale: 'x' },
+        ],
+      }),
+    );
+    expect(propose.status).toBe(status);
+    expect(await propose.json()).toMatchObject({ code });
+    const withdraw = await as(who, chainPath('p', `/placements/${placement}/proposal`), {
+      method: 'DELETE',
+    });
+    expect(withdraw.status).toBe(status);
+  });
+
+  it.each<Who>(['propose', 'owner', 'ownerKey'])(
+    '%s proposes and withdraws its own proposal',
+    async (who) => {
+      const proposed = await as(
+        who,
+        chainPath('p', '/placements'),
+        body('POST', {
+          kind: 'propose',
+          // b/callee was deleted above; a/caller stays.
+          placements: [
+            { step: 'step-b', process: 'a/caller#Process_A', confidence: 0.5, rationale: who },
+          ],
+        }),
+      );
+      expect(proposed.status).toBe(200);
+      const result = (await proposed.json()) as PostPlacementsResult;
+      expect(result.kind === 'propose' && result.items[0]?.result).toBe('applied');
+      const id = result.kind === 'propose' ? (result.items[0]?.placementId ?? '') : '';
+      const withdrawn = await as(who, chainPath('p', `/placements/${id}/proposal`), {
+        method: 'DELETE',
+      });
+      expect(withdrawn.status).toBe(200);
+    },
+  );
+
+  it.each<[Who, number, string]>([
+    ['read', 403, 'human-decision-required'],
+    ['propose', 403, 'human-decision-required'],
+    ['write', 403, 'human-decision-required'],
+    ['other', 404, 'not-found'],
+    ['anonymous', 401, 'unauthorized'],
+  ])(
+    'chain writes, decisions, manual placements and notes are human: %s → %i %s',
+    async (who, status, code) => {
+      for (const [path, init] of reviewRequests()) {
+        const res = await as(who, path, init);
+        expect(res.status, `${who} ${init.method ?? 'GET'} ${path}`).toBe(status);
+        const problem = (await res.json()) as { code: string; reviewUrl?: string };
+        expect(problem.code).toBe(code);
+        if (code === 'human-decision-required') {
+          expect(problem.reviewUrl, path).toMatch(/^http:\/\/localhost\/projects\/p\/value-chain/);
+        }
+      }
+    },
+  );
+
+  it('lets the owner session and the owner key write and decide', async () => {
+    const note = await as(
+      'ownerKey',
+      chainPath('p', `/placements/${placement}/notes`),
+      body('POST', { text: 'CLI' }),
+    );
+    expect(note.status).toBe(201);
+    const unchanged = await as(
+      'ownerKey',
+      chainPath('p', '/content'),
+      body('PUT', doc, { 'if-match': '"r1"' }),
+    );
+    expect(unchanged.status).toBe(200);
+    const decided = await as(
+      'owner',
+      chainPath('p', `/placements/${placement}/decision`),
+      body('POST', { verdict: 'accept' }),
+    );
+    expect(decided.status).toBe(200);
+    const created = await as(
+      'ownerKey',
+      '/api/v1/projects/p/value-chains',
+      body('POST', { key: 'main', name: 'X' }),
+    );
+    expect(created.status).toBe(409);
+  });
+
+  it('answers 404 for a placement of another project', async () => {
+    for (const path of [
+      chainPath('p', `/placements/${foreignPlacement}`),
+      chainPath('p', `/placements/${foreignPlacement}/assertions`),
+    ]) {
+      expect((await as('owner', path)).status, path).toBe(404);
+    }
+    const decide = await as(
+      'owner',
+      chainPath('p', `/placements/${foreignPlacement}/decision`),
+      body('POST', { verdict: 'accept' }),
+    );
+    expect(decide.status).toBe(404);
   });
 });

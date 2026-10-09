@@ -3,7 +3,8 @@
  * 17) driven by the CLI — `proa seed`, `import`, `token`, `status` — and
  * `proa mcp` spawned as a child process the way Claude Desktop starts it,
  * spoken to over stdio with the official SDK client (initialize, tools/list,
- * tools/call list_processes) in the 2025-11-25 and the 2026-07-28 revision.
+ * tools/call list_processes) in the 2025-11-25 and the 2026-07-28 revision,
+ * and `proa value-chain push|pull` with the golden dev chain.
  */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -296,5 +297,82 @@ describe('agent tokens and the MCP bridge', () => {
     const client = new Client({ name: 'revoked-e2e', version: '0' });
     clients.push(client);
     await expect(client.connect(bridge(agentSecret))).rejects.toThrow(/rejected the agent token/);
+  });
+});
+
+describe('proa value-chain', () => {
+  const golden = path.join(REPO_ROOT, 'eval/value-chains/nordwind-handel/value-chain.vc.json');
+
+  it('pushes the golden dev chain (r1), finds it unchanged and pulls it back byte for byte', async () => {
+    const created = await proa(['value-chain', 'push', golden, '-p', 'nordwind-handel', '--json']);
+    expect(created.err).toBe('');
+    expect(created.code).toBe(0);
+    expect(JSON.parse(created.out)).toMatchObject({
+      dryRun: false,
+      outcome: 'created',
+      valueChain: { key: 'main', headRev: 1 },
+    });
+
+    const again = await proa(['value-chain', 'push', golden, '-p', 'nordwind-handel']);
+    expect(again.code).toBe(0);
+    expect(again.out).toBe('nordwind-handel: value chain unchanged r1\n');
+
+    const token = await proa([
+      'token',
+      'create',
+      '-p',
+      'nordwind-handel',
+      '--name',
+      'e2e-chain',
+      '--scopes',
+      'proa:read',
+      '--json',
+    ]);
+    const { secret } = JSON.parse(token.out) as { secret: string };
+    const out = path.join(dir, 'pulled.vc.json');
+    const pulled = await proa(['value-chain', 'pull', '-p', 'nordwind-handel', '-o', out], {
+      PROA_TOKEN: secret,
+    });
+    expect(pulled.code).toBe(0);
+    expect(pulled.err).toMatch(/^r1 [0-9a-f]{64}\n$/);
+    expect(await readFile(out)).toEqual(await readFile(golden));
+
+    // Agents never edit the chain: the CLI refuses an agent token before any request.
+    const refused = await proa(['value-chain', 'push', golden, '-p', 'nordwind-handel'], {
+      PROA_TOKEN: secret,
+    });
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain('agents never edit the value chain');
+
+    // An edit of the pulled file saves only on the revision it came from (--base r1).
+    const edited = path.join(dir, 'edited.vc.json');
+    const doc = JSON.parse(await readFile(out, 'utf8')) as { meta: { name: string } };
+    await writeFile(edited, JSON.stringify({ ...doc, meta: { name: `${doc.meta.name} (2)` } }));
+    const unbased = await proa(['value-chain', 'push', edited, '-p', 'nordwind-handel']);
+    expect(unbased.code).toBe(1);
+    expect(unbased.err).toContain('pass --base with the revision your file comes from');
+    const based = await proa([
+      'value-chain',
+      'push',
+      edited,
+      '-p',
+      'nordwind-handel',
+      '--base',
+      'r1',
+    ]);
+    expect(based.err).toBe('');
+    expect(based.code).toBe(0);
+    expect(based.out).toContain('nordwind-handel: value chain revised r2 (from r1)');
+    const stale = await proa([
+      'value-chain',
+      'push',
+      golden,
+      '-p',
+      'nordwind-handel',
+      '--base',
+      'r1',
+    ]);
+    expect(stale.code).toBe(1);
+    expect(stale.err).toContain('the value chain is at r2; pull first');
   });
 });

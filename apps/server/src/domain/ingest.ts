@@ -4,7 +4,8 @@
  * extracted before the transaction (CPU only); everything else is ONE
  * transaction: store revisions and facts → run the rule tier over the head
  * facts → record relation assertions → recompute endpoint state → move the
- * version of relations whose no-links may change currency → queue analysis
+ * version of relations whose no-links may change currency → refresh the
+ * value chain's placements and its rule proposals (M4) → queue analysis
  * tasks → append events.
  */
 import { createHash } from 'node:crypto';
@@ -33,6 +34,7 @@ import type {
   Tx,
 } from './ports.ts';
 import { recomputeProject } from './recompute.ts';
+import { syncValueChainAfterModels } from './value-chain/sync.ts';
 
 export interface IngestFile {
   /** Model key, already validated. */
@@ -150,6 +152,8 @@ export async function ingest(
         changed.filter((c) => c.previousFactsHash !== c.revision.factsHash).map((c) => c.model.key),
         deps.expectedProcedure(),
       );
+      // Placements follow the head processes (endpoint state, rule proposals).
+      await syncValueChainAfterModels(tx, project.id, rulesPrincipalId);
       for (const c of changed) {
         await queueAnalysis(tx, actor, project.id, c.model, c.revision, c.previousFactsHash);
       }
@@ -372,8 +376,10 @@ export async function cancelTask(
  * Deletes a model (CONCEPT §3): marks it deleted, cancels its open task,
  * and recomputes rules and endpoint states, so partner relations turn
  * `missing`; the relations on the pairs of its live no-links move their
- * version. Revisions and facts stay (append-only history); uploading the
- * key again revives the model with a new revision.
+ * version. On the value chain, placements of its processes turn `missing`
+ * and the rule tier's proposals of them are withdrawn (M4). Revisions and
+ * facts stay (append-only history); uploading the key again revives the
+ * model with a new revision.
  *
  * @throws {DomainError} `not-found` for unknown, deleted or foreign models
  */
@@ -408,5 +414,6 @@ export async function deleteModel(
     });
     // Its no-links are no longer current (the relations also turn `missing`).
     await touchNoLinkRelations(tx, project.id, [model.key], deps.expectedProcedure());
+    await syncValueChainAfterModels(tx, project.id, rulesPrincipalId);
   });
 }

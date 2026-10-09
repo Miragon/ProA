@@ -22,6 +22,8 @@ export * from './api/landscape.ts';
 export * from './api/agent-tokens.ts';
 export * from './api/analyses.ts';
 export * from './api/review.ts';
+export * from './api/value-chains.ts';
+export * from './api/placements.ts';
 export * from './api/routes.ts';
 export * from './openapi.ts';
 export * from './zod-utils.ts';

@@ -3,6 +3,21 @@ import { describe, expect, it } from 'vitest';
 import {
   ApiProblem,
   BulkDecisionBody,
+  BulkPlacementDecisionBody,
+  CreateValueChainBody,
+  PLACEMENT_INVALID_REASONS,
+  PlacementDecisionBody,
+  PlacementItem,
+  PlacementOutcome,
+  PlacementTier,
+  PostPlacementsBody,
+  VALUE_CHAIN_FINDING_KINDS,
+  VALUE_CHAIN_VIOLATIONS,
+  ValueChainFinding,
+  ValueChainFindingKind,
+  ValueChainViolation,
+  hasBidiCharacters,
+  valueChainPath,
   Candidate,
   ClaimInput,
   DecisionBody,
@@ -751,5 +766,234 @@ describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
     );
     expect(recordingSegment('claude code / sonnet')).toBe('claude-code-sonnet');
     expect(recordingSegment('..')).toBe('none');
+  });
+});
+
+describe('value chain and placement contracts (M4)', () => {
+  it('maps the new problem codes to their statuses', () => {
+    expect(PROBLEMS['value-chain-invalid'].status).toBe(422);
+    expect(PROBLEMS['value-chain-unsupported-version'].status).toBe(422);
+    expect(PROBLEMS['revision-conflict'].status).toBe(412);
+    expect(PROBLEMS['precondition-required'].status).toBe(428);
+    expect(createProblem('revision-conflict', 'stale', { headRev: 3 })).toMatchObject({
+      type: 'urn:proa:problem:revision-conflict',
+      status: 412,
+      headRev: 3,
+    });
+  });
+
+  it('finds bidirectional formatting characters', () => {
+    for (const c of ['\u061C', '\u200E', '\u200F', '\u202A', '\u202E', '\u2066', '\u2069']) {
+      expect(hasBidiCharacters(`a${c}b`), c.codePointAt(0)?.toString(16)).toBe(true);
+    }
+    expect(hasBidiCharacters('Qualitätsprüfung')).toBe(false);
+  });
+
+  it('lists every invalid placement reason as an outcome, in check order', () => {
+    expect(PlacementOutcome.options).toEqual([
+      'applied',
+      'duplicate',
+      'suppressed',
+      'reopened',
+      ...PLACEMENT_INVALID_REASONS.map((r) => `invalid:${r}`),
+    ]);
+    expect(PLACEMENT_INVALID_REASONS[0]).toBe('malformed-step');
+    expect(PLACEMENT_INVALID_REASONS.at(-1)).toBe('too-many-steps');
+    expect(VALUE_CHAIN_VIOLATIONS.slice(0, 3)).toEqual(['not-json', 'not-an-object', 'schema']);
+    expect(
+      ValueChainViolation.safeParse({
+        reason: 'reserved-id',
+        elementId: '@x',
+        connectionId: null,
+        path: 'elements.0.id',
+        detail: 'reserved',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('never gives a placement the rule tier', () => {
+    expect(PlacementTier.options).toEqual(['key', 'lexical', 'semantic', 'manual']);
+  });
+
+  it('creates a chain from exactly one of name and content', () => {
+    const doc = { schemaVersion: 1, meta: { name: 'K' }, elements: [], connections: [] };
+    expect(CreateValueChainBody.safeParse({ key: 'main', name: 'Kette' }).success).toBe(true);
+    expect(CreateValueChainBody.safeParse({ key: 'main', content: doc }).success).toBe(true);
+    expect(CreateValueChainBody.safeParse({ key: 'main', name: 'K', content: doc }).success).toBe(
+      false,
+    );
+    expect(CreateValueChainBody.safeParse({ key: 'main' }).success).toBe(false);
+    expect(CreateValueChainBody.safeParse({ key: 'Main', name: 'K' }).success).toBe(false);
+    expect(CreateValueChainBody.safeParse({ key: 'main', name: 'a\u0000' }).success).toBe(false);
+  });
+
+  it('checks a placement item’s shape only; the limits are per item', () => {
+    const parsed = PlacementItem.parse({ step: 'x'.repeat(500), process: 'nope', confidence: 7 });
+    expect(parsed).toEqual({
+      step: 'x'.repeat(500),
+      process: 'nope',
+      confidence: 7,
+      rationale: '',
+      evidence: [],
+      question: null,
+    });
+    expect(
+      PlacementItem.safeParse({ step: 'x'.repeat(1001), process: 'a#b', confidence: 1 }).success,
+    ).toBe(false);
+    expect(PostPlacementsBody.safeParse({ kind: 'propose', placements: [] }).success).toBe(false);
+    expect(
+      PostPlacementsBody.safeParse({
+        kind: 'propose',
+        placements: Array.from({ length: 201 }, () => ({
+          step: 's',
+          process: 'a#b',
+          confidence: 1,
+        })),
+      }).success,
+    ).toBe(false);
+    expect(
+      PostPlacementsBody.safeParse({ kind: 'manual', step: 's', process: 'a/b#P', rationale: ' ' })
+        .success,
+    ).toBe(false);
+    expect(
+      PostPlacementsBody.parse({
+        kind: 'propose',
+        placements: [{ step: 's', process: 'a#b', confidence: 1 }],
+      }),
+    ).toMatchObject({ procedure: null, llmModel: null });
+  });
+
+  it('validates placement decisions by verdict, correct with a step', () => {
+    expect(PlacementDecisionBody.safeParse({ verdict: 'accept' }).success).toBe(true);
+    expect(PlacementDecisionBody.safeParse({ verdict: 'reject' }).success).toBe(false);
+    expect(
+      PlacementDecisionBody.safeParse({ verdict: 'hold', note: 'n', question: 'q?' }).success,
+    ).toBe(true);
+    expect(PlacementDecisionBody.safeParse({ verdict: 'correct', note: 'n' }).success).toBe(false);
+    expect(
+      PlacementDecisionBody.safeParse({ verdict: 'correct', step: 'step-a', note: 'n' }).success,
+    ).toBe(true);
+  });
+
+  it('needs reasons and notes in bulk placement decisions, and ids with versions', () => {
+    const item = { id: 'plc_01J9Z3N4X5Q6R7S8T9V0W1X2Y3', version: 1 };
+    expect(
+      BulkPlacementDecisionBody.safeParse({ verdict: 'accept', items: [item], expectedCount: 1 })
+        .success,
+    ).toBe(true);
+    expect(
+      BulkPlacementDecisionBody.safeParse({ verdict: 'reject', items: [item], expectedCount: 1 })
+        .success,
+    ).toBe(false);
+    expect(
+      BulkPlacementDecisionBody.safeParse({ verdict: 'hold', items: [item], expectedCount: 1 })
+        .success,
+    ).toBe(false);
+    expect(
+      BulkPlacementDecisionBody.safeParse({
+        verdict: 'accept',
+        question: 'q',
+        items: [item],
+        expectedCount: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      BulkPlacementDecisionBody.safeParse({
+        verdict: 'accept',
+        items: [{ id: 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3', version: 1 }],
+        expectedCount: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      BulkPlacementDecisionBody.safeParse({
+        verdict: 'accept',
+        tier: 'rule',
+        items: [item],
+        expectedCount: 1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('builds value chain paths for reviewUrl', () => {
+    expect(valueChainPath('nordwind-handel')).toBe('/projects/nordwind-handel/value-chain');
+    expect(valueChainPath('p', { placementId: 'plc_1' })).toBe(
+      '/projects/p/value-chain?placement=plc_1',
+    );
+    expect(valueChainPath('p', { elementId: 'step a' })).toBe(
+      '/projects/p/value-chain/steps/step%20a',
+    );
+  });
+
+  it('documents the value chain routes with their problems and names their components', () => {
+    const doc = buildOpenApiDocument();
+    const content = doc.paths?.['/api/v1/projects/{project}/value-chains/{key}/content'];
+    expect(Object.keys(content?.put?.responses ?? {})).toEqual([
+      '200',
+      '201',
+      '401',
+      '403',
+      '404',
+      '412',
+      '413',
+      '415',
+      '422',
+      '428',
+    ]);
+    expect(JSON.stringify(content?.put?.responses?.['412'])).toMatch(/revision-conflict/);
+    expect(JSON.stringify(content?.put?.responses?.['422'])).toMatch(
+      /value-chain-invalid.*value-chain-unsupported-version/,
+    );
+    expect(Object.keys(content?.get?.responses ?? {})).toContain('304');
+    const decision =
+      doc.paths?.['/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/decision']
+        ?.post;
+    expect(Object.keys(decision?.responses ?? {})).toEqual(
+      expect.arrayContaining(['409', '412', '422']),
+    );
+    const operations = Object.values(apiRoutes).filter((r) =>
+      (r.tags as readonly string[]).includes('value-chains'),
+    );
+    // 18 of S2's core plus `getValueChainFindings`.
+    expect(operations).toHaveLength(19);
+    const schemas = Object.keys(doc.components?.schemas ?? {});
+    for (const name of [
+      'ValueChain',
+      'ValueChainDetail',
+      'ValueChainStep',
+      'ValueChainImpact',
+      'SaveValueChainResult',
+      'ValueChainViolation',
+      'Placement',
+      'PlacementItem',
+      'PlacementOutcome',
+      'PostPlacementsBody',
+      'PostPlacementsResult',
+      'BulkPlacementDecisionBody',
+      'UnplacedProcess',
+      'ValueChainStepDetail',
+      'ValueChainFinding',
+      'ValueChainFindingList',
+    ]) {
+      expect(schemas, name).toContain(name);
+    }
+  });
+
+  it('keeps value chain findings apart from the relation findings', () => {
+    expect(ValueChainFindingKind.options).toEqual([...VALUE_CHAIN_FINDING_KINDS]);
+    for (const kind of VALUE_CHAIN_FINDING_KINDS) {
+      expect(FindingKind.safeParse(kind).success, kind).toBe(false);
+    }
+    const finding = {
+      kind: 'process-without-step',
+      elementId: null,
+      process: 'finanzen/mahnwesen#P_Mahn',
+      link: null,
+      state: 'proposed',
+      calledFrom: [{ elementId: 'step-fakt', process: 'vertrieb/auftrag#P_Auftrag' }],
+      detail: 'No accepted placement.',
+    };
+    expect(ValueChainFinding.parse(finding)).toEqual(finding);
+    expect(ValueChainFinding.safeParse({ ...finding, state: 'accepted' }).success).toBe(false);
+    expect(ValueChainFinding.safeParse({ ...finding, process: 'kein-ref' }).success).toBe(false);
   });
 });

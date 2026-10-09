@@ -15,7 +15,7 @@ import { leaseTokenHash, newLeaseToken, sameLeaseHash } from '../../src/domain/l
 import type { PairAssessment, RelationRecord, StoredAssertion } from '../../src/domain/ports.ts';
 import { validateProposal, type ProposalDraft } from '../../src/domain/proposals.ts';
 import { jsonBytes, storablePayload } from '../../src/domain/payload.ts';
-import { ifMatchVersion } from '../../src/http/routes/review.ts';
+import { ifMatchVersion } from '../../src/http/etag.ts';
 
 describe('lease tokens', () => {
   it('carry 256 random bits behind a recognizable prefix', () => {

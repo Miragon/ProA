@@ -1375,8 +1375,9 @@ function repos(db: Conn): Tx {
       },
       async findByRev(projectId, valueChainId, rev) {
         const rows = await db
-          .select(chainRevisionColumns)
+          .select({ ...chainRevisionColumns, handle: s.principal.handle })
           .from(s.valueChainRevision)
+          .innerJoin(s.principal, eq(s.principal.id, s.valueChainRevision.principalId))
           .where(
             and(
               eq(s.valueChainRevision.projectId, projectId),
@@ -1384,12 +1385,13 @@ function repos(db: Conn): Tx {
               eq(s.valueChainRevision.rev, rev),
             ),
           );
-        return rows[0] ? toChainRevision(rows[0]) : null;
+        return rows[0] ? { ...toChainRevision(rows[0]), handle: rows[0].handle } : null;
       },
       async listForChain(projectId, valueChainId, page) {
         const rows = await db
-          .select(chainRevisionColumns)
+          .select({ ...chainRevisionColumns, handle: s.principal.handle })
           .from(s.valueChainRevision)
+          .innerJoin(s.principal, eq(s.principal.id, s.valueChainRevision.principalId))
           .where(
             and(
               eq(s.valueChainRevision.projectId, projectId),
@@ -1401,7 +1403,7 @@ function repos(db: Conn): Tx {
           )
           .orderBy(desc(s.valueChainRevision.rev))
           .limit(page.limit);
-        return rows.map(toChainRevision);
+        return rows.map((r) => ({ ...toChainRevision(r), handle: r.handle }));
       },
       async content(projectId, valueChainId, id) {
         const rows = await db
@@ -1545,6 +1547,10 @@ function repos(db: Conn): Tx {
               filter.touchingModelKey === undefined
                 ? undefined
                 : eq(s.placement.processModel, filter.touchingModelKey),
+              filter.tier === undefined ? undefined : eq(s.placement.tier, filter.tier),
+              filter.endpointState === undefined
+                ? undefined
+                : eq(s.placement.endpointState, filter.endpointState),
               after === undefined
                 ? undefined
                 : sql`(${s.placement.elementId} collate "C", ${s.placement.generation}, ${s.placement.processRef} collate "C") > (${after[0]} collate "C", ${after[1]}::integer, ${after[2]} collate "C")`,

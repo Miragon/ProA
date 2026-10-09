@@ -32,11 +32,14 @@ and code are in English.
   `diagram-js` and zod v4, and the schema-model round trip in Node), and **M4 S1** (2026-10-09:
   the value chain tables with migrations 0006/0007, `recomputeStatus` generalised over the
   subject with relation behaviour pinned by a golden digest, step generations, the revision
-  write path and the placement lifecycle as domain functions; no REST, MCP or UI yet).
+  write path and the placement lifecycle as domain functions), and **M4 S2** (2026-10-09: the
+  value chain and placements over REST, MCP and `proa value-chain push|pull`, the rule tier's key
+  proposals, placements that follow model ingest and deletion, findings, server tiers with
+  `baseline-prefix/1` in `@proa/relations`; no UI yet).
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
   runs per landscape incl. the holdout), then the rest of **M4** (value chain /
-  Wertschöpfungskette, slices S2–S6, on `@miragon/value-chain-*` 0.3.0; the owner accepted the
-  defaults of M4 §11).
+  Wertschöpfungskette, slices S3–S6, on `@miragon/value-chain-*` 0.3.0; the owner accepted the
+  defaults of M4 §11); S3 (the UI) is next.
 
 ## 2. Read in this order
 
@@ -134,12 +137,12 @@ This answers the former open questions "Supersession scope" and "No-links in rev
 | `packages/contracts` | zod schemas, API resources, OpenAPI 3.1 (contracts-first routes) |
 | `packages/client` | hey-api client generated from the OpenAPI document (drift test) |
 | `packages/bpmn-facts` | C7/C8 fact extraction, hostile-XML protection, `FACTS_VERSION` |
-| `packages/relations` | rule tier (unambiguous calls, key-tier proposals, findings), candidates for agents, 1.x baseline, pair assessor |
+| `packages/relations` | rule tier (unambiguous calls, key-tier proposals, findings), candidates for agents, 1.x baseline, pair assessor, and since M4 S2 `baseline-prefix/1` and the name-stem rule for placements (`placement.ts`) |
 | `packages/procedures` | the released procedure `proa-relations@0.2.0` (`relations.md`; judge each pair once), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
 | `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
 | `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
-| `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1 the value chain storage and placement lifecycle (`src/domain/value-chain/`, no entry point before S2) |
-| `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name] / token create\|list\|revoke / mcp` (stdio bridge) |
+| `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1/S2 the value chain and placements (`src/domain/value-chain/`: storage, lifecycle, `prepareRevision`, rule proposals, findings; REST under `/value-chains`, six MCP tools; no UI before S3) |
+| `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name] / token create\|list\|revoke / value-chain push\|pull / mcp` (stdio bridge) |
 | `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen |
 | `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP |
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
@@ -245,17 +248,40 @@ random relation histories computed before the change; the domain functions in
 `apps/server/src/domain/value-chain/` (create, save with the `unchanged` no-op, delete and revive
 a chain with step generations and placement endpoint refresh; a save or deletion withdraws the
 live proposals on the generations it tombstones; propose, also as the rule tier, withdraw,
-accept, reject, hold, correct, manual placement, note). They have no production caller yet: the seam is
-`PreparedRevision`, which S2's `prepareRevision` produces.
+accept, reject, hold, correct, manual placement, note). Since S2 the use cases, ingest and model
+deletion call them with `prepareRevision`'s output (the seam `PreparedRevision`).
 
-**Next: S2** (M4 §9 "S2 checklist"): `prepareRevision` (canonicalize, ProA rules, kinds, ranks,
-step fingerprints, `structure_hash`), REST with `If-Match` and `dryRun`, use cases with
-`policy.require`, `refreshPlacements` from ingest and model deletion, key-tier rule proposals,
-server tiers (decide where `baseline-prefix/1` lives), item validation, bulk decisions, read and
-propose MCP tools, findings, contract snapshots, token revocation of placement proposals. Then S3,
-S4 and M4b: UI with the embedded modeler, `eval:placements`, the `placement` pipeline kind. The
-owner accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason,
-one home step per process (a second only by a reviewer's decision), a step rename sends accepted
+**S2 is done** (2026-10-09, M4 §9 "S2 as delivered"): `prepareRevision` (canonical bytes, ProA
+rules with per-element violations, kinds, ranks, step fingerprints, `structure_hash`), 19 REST
+routes under `/value-chains` (`If-Match: "r<rev>"` required, 428/412 `revision-conflict`,
+`If-None-Match: *` to create, `?dryRun=true` with the impact, decisions incl. bulk, unplaced
+processes, findings), six MCP tools (`get_value_chain`, `get_value_chain_document`,
+`list_unplaced_processes`, `propose_placement`, `withdraw_placement_proposal`, the stub
+`decide_placement`), `proa value-chain push|pull`, the rule tier's key proposals (step link or
+equal name, recorded under `proa-rules`, re-derived on every save and model change), placements
+that follow model ingest and deletion (`changed`, `missing`, `ok` again), findings, token
+revocation of placement proposals, server tiers. `baseline-prefix/1` moved from S4 into S2 and
+lives in `@proa/relations` (`placement.ts`), next to the normalization it builds on and reachable
+from both the server and `eval/tools` without a sixth package; S4 shrinks to about 1 d. Taken by
+the implementing agents (M4 §9 lists all deviations): the top-level ranks group by kind band; the
+dry run runs in a snapshot, not under the project lock (the save re-checks and returns its own
+impact); "unplaced" and "pending" go by placement status, so a rejected placement homes nothing.
+From the S2 review: a ProA rule bounds coordinates and sizes (`geometry-out-of-range`; a finite
+coordinate near `Number.MAX_VALUE` was stored as `null` and broke every later read of the
+project's chain), the canonical form is loaded again as reads load it before it is stored, the
+size and count limits are checked first (an 8,000-step hierarchy blocked the event loop for
+43 s), `rev` is capped at 999,999,999, the rule tier runs before the endpoint refresh in saves
+too (no `endpoint_changed` there and back on a rename), and `proa value-chain push` needs
+`--base` (the revision pulled) or `--force` for an existing chain, so a pull, edit, push round
+trip cannot silently revert a save made in between.
+
+**Next: S3** (M4 §9 "S3 checklist"): the chain page with the embedded viewer/modeler,
+collision-free ids, save with dry run and conflict, overlays, side panel, link editing,
+drill-down, Playwright incl. the CSS check, the bundle guard and the import check of both golden
+chains; the routes `valueChainPath()` names are the `reviewUrl` of every refused agent write. Then
+S4 (`eval:placements` reports `baseline-prefix/1`, `proa seed --value-chains`) and M4b. The owner
+accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason, one
+home step per process (a second only by a reviewer's decision), a step rename sends accepted
 placements to re-confirm, org units as owners of top-level steps (not agent evidence), one chain
 per project, kinds by colour until upstream has a category.
 
@@ -281,7 +307,7 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | First users | UI upload or Git/bpmiq.yml repos? Decides whether folder/bpmiq.yml import moves earlier. | CONCEPT §12 |
 | Shared-name flag | The bulk dialog flags 20–22 of 33 key-tier pairs (names used by >2 processes), incl. legitimate broadcasts. Keep, or flag only names with several senders? | M2 web stage |
 | `correct` on a typed pair | Correcting towards a pair that already has a key-tier proposal creates a second, manual relation. Offer "accept the existing proposal instead"? | M2 e2e |
-| Revoking a token | Revoking now withdraws that token's open proposals and no-links (CONCEPT §6) and, since `0.2.0`, queues the models whose pairs it judged again. Confirm. | M2 fix, 0.2.0 |
+| Revoking a token | Revoking now withdraws that token's open proposals and no-links (CONCEPT §6) and, since `0.2.0`, queues the models whose pairs it judged again, and, since M4 S2, withdraws its live placement proposals (nothing queued: no placement pipeline before M4b). Confirm. | M2 fix, 0.2.0, M4 S2 |
 | Message-name matching | Names match ignoring separators (`Zahlung_Eingegangen` = `ZahlungEingegangen`). Confirm. | M1 relations |
 | Local session | `POST /api/v1/session` is open to any local process (fine single-user, not on shared machines). Add a one-time login link later? | M1 integrate |
 

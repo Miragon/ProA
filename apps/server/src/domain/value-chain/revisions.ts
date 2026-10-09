@@ -5,12 +5,12 @@
  * withdraws the live proposals on the generations it tombstones and
  * refreshes the placements' endpoint state.
  *
- * The seam to S2 is {@link PreparedRevision}: S2's `prepareRevision`
+ * The seam is {@link PreparedRevision}: `prepareRevision` (`document.ts`)
  * canonicalizes the input with schema-model, applies the ProA rules, derives
  * kinds and step fingerprints and computes `structure_hash`. These functions
- * trust it, and revisions are append-only, so nothing may call them before
- * that exists (S1 has no REST, MCP or CLI entry). Every function assumes the
- * caller holds `tx.projects.lockForWrite(projectId)`.
+ * trust it, and revisions are append-only, so only the use cases
+ * (`use-cases/value-chains.ts`) call them, with a prepared revision. Every
+ * function assumes the caller holds `tx.projects.lockForWrite(projectId)`.
  */
 import {
   newId,
@@ -34,7 +34,7 @@ import { planStepGenerations, type GenerationMode, type StepKey } from './steps.
 /** The only chain key in M4 (one chain per project, M4 §11). */
 export const MAIN_VALUE_CHAIN_KEY = 'main';
 
-/** A revision ready to store: what S2's `prepareRevision` produces from the input. */
+/** A revision ready to store: what `prepareRevision` produces from the input. */
 export interface PreparedRevision {
   /** Canonical bytes: UTF-8 of `serializeDocument(loadDocument(input))`. */
   content: Uint8Array;
@@ -57,6 +57,19 @@ export interface RevisionWritten {
   steps: { added: StepKey[]; removed: StepKey[] };
 }
 
+/**
+ * Runs inside a revision's write once the step generations, the head and the
+ * withdrawals on removed steps are stored, before the placements' endpoint
+ * state is refreshed. The use cases derive the rule tier's proposals here
+ * (`recomputeRulePlacements`), as `sync.ts` does before its refresh after a
+ * model change: a rule proposal re-asserted on a renamed step moves to its
+ * new anchor without an `endpoint_changed` there and back, and one the rules
+ * no longer derive turns obsolete without one.
+ *
+ * @param chain the chain as stored by this revision (its new head)
+ */
+export type BeforeRefresh = (chain: ValueChainRecord) => Promise<void>;
+
 /** `unchanged`: the content equals the head's; nothing was written. */
 export type SaveResult =
   | RevisionWritten
@@ -78,7 +91,8 @@ async function headOf(tx: Tx, chain: ValueChainRecord): Promise<ValueChainRevisi
  * Stores a revision: the next `rev` (numbering continues after a deletion and
  * revival, so the ETag `"r<rev>"` never repeats), its event, the step
  * generations, the head and name, the withdrawal of the live proposals on
- * removed generations, and the placements' endpoint state.
+ * removed generations, the {@link BeforeRefresh} hook, and the placements'
+ * endpoint state.
  */
 async function appendRevision(
   tx: Tx,
@@ -89,6 +103,7 @@ async function appendRevision(
     mode: Exclude<GenerationMode, 'delete'>;
     outcome: RevisionWritten['outcome'];
     baseRevisionId: ValueChainRevisionId | null;
+    beforeRefresh: BeforeRefresh | undefined;
   },
 ): Promise<RevisionWritten> {
   const projectId = chain.projectId;
@@ -153,6 +168,7 @@ async function appendRevision(
     plan.removed,
     `step removed in revision ${rev}`,
   );
+  await options.beforeRefresh?.(stored);
   await refreshPlacements(tx, projectId, chain.id, endpoints, {
     principalId: actor.principalId,
     clientId: actor.clientId,
@@ -170,6 +186,7 @@ async function appendRevision(
  * deleted chain (same `vch_`, `rev` continues, new step generations, so none
  * of its placements comes back). The chain's name is `prepared.name`.
  *
+ * @param options.beforeRefresh see {@link BeforeRefresh}
  * @throws {DomainError} `human-decision-required` for agents; `validation-failed`
  *   for a key other than `main`; `conflict` if a live chain has the key
  */
@@ -179,6 +196,7 @@ export async function createValueChain(
   projectId: ProjectId,
   input: { key: string },
   prepared: PreparedRevision,
+  options: { beforeRefresh?: BeforeRefresh } = {},
 ): Promise<RevisionWritten> {
   requireHuman(actor);
   if (input.key !== MAIN_VALUE_CHAIN_KEY) {
@@ -204,6 +222,7 @@ export async function createValueChain(
     mode: 'create',
     outcome: existing ? 'revived' : 'created',
     baseRevisionId: null,
+    beforeRefresh: options.beforeRefresh,
   });
 }
 
@@ -211,7 +230,8 @@ export async function createValueChain(
  * Saves a new revision of a live chain; content equal to the head's is
  * `unchanged` (no row, no event).
  *
- * @param baseRevisionId the revision the editor started from (S2 checks it against the head with `If-Match`)
+ * @param options.baseRevisionId the revision the editor started from (S2 checks it against the head with `If-Match`)
+ * @param options.beforeRefresh see {@link BeforeRefresh}
  * @throws {DomainError} `human-decision-required` for agents; `not-found` for
  *   a deleted or foreign chain; `validation-failed` for a base revision of
  *   another chain
@@ -222,7 +242,7 @@ export async function saveValueChainRevision(
   projectId: ProjectId,
   valueChainId: ValueChainId,
   prepared: PreparedRevision,
-  options: { baseRevisionId: ValueChainRevisionId | null },
+  options: { baseRevisionId: ValueChainRevisionId | null; beforeRefresh?: BeforeRefresh },
 ): Promise<SaveResult> {
   requireHuman(actor);
   const chain = await tx.valueChains.findInProject(projectId, valueChainId);
@@ -243,6 +263,7 @@ export async function saveValueChainRevision(
     mode: 'revise',
     outcome: 'revised',
     baseRevisionId: options.baseRevisionId,
+    beforeRefresh: options.beforeRefresh,
   });
 }
 

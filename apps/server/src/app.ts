@@ -17,12 +17,14 @@ import { problemFromError, problemResponse, validationHook } from './http/proble
 import { registerAgentTokenRoutes } from './http/routes/agent-tokens.ts';
 import { registerAnalysisRoutes } from './http/routes/analyses.ts';
 import { registerModelRoutes } from './http/routes/models.ts';
+import { registerPlacementRoutes } from './http/routes/placements.ts';
 import { mountNotImplementedRoutes } from './http/routes/not-implemented.ts';
 import { registerProjectRoutes } from './http/routes/projects.ts';
 import { registerRelationRoutes } from './http/routes/relations.ts';
 import { registerReviewRoutes } from './http/routes/review.ts';
 import { registerSessionRoutes } from './http/routes/session.ts';
 import { registerSystemRoutes } from './http/routes/system.ts';
+import { registerValueChainRoutes } from './http/routes/value-chains.ts';
 import { securityHeaders } from './http/security-headers.ts';
 import { mountWebUi } from './http/web-ui.ts';
 import { mountMcp } from './mcp/http.ts';
@@ -107,6 +109,8 @@ export function createProaApp(deps: AppDeps): ProaApp {
   registerReviewRoutes(app, useCases);
   registerAnalysisRoutes(app, useCases);
   registerAgentTokenRoutes(app, useCases);
+  registerValueChainRoutes(app, useCases);
+  registerPlacementRoutes(app, useCases);
 
   mountMcp(app, { version, useCases, auth: { sessions } });
   const placeholders = mountNotImplementedRoutes(app);

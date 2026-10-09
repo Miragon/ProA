@@ -60,7 +60,7 @@ import {
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { fakeBpmn } from '../support/fake-analysis.ts';
-import { chainDoc, prepare } from '../support/value-chain.ts';
+import { chainDoc, prepare, prepareUnchecked } from '../support/value-chain.ts';
 
 let database: TestDatabase;
 let t: TestApp;
@@ -392,7 +392,11 @@ describe('revisions and step generations', () => {
       code: 'validation-failed',
       extras: { reason: 'unknown-base-revision' },
     });
-    const reserved = prepare(chainDoc('Testkette', [['@step', 'Reserviert']]));
+    // prepareRevision refuses the id (reserved-id); the generations refuse it too, behind it.
+    expect(() => prepare(chainDoc('Testkette', [['@step', 'Reserviert']]))).toThrow(
+      expect.objectContaining({ code: 'value-chain-invalid' }) as Error,
+    );
+    const reserved = prepareUnchecked(chainDoc('Testkette', [['@step', 'Reserviert']]));
     await expect(
       refused((tx) =>
         saveValueChainRevision(tx, owner, P, chainId, reserved, { baseRevisionId: null }),
@@ -1133,7 +1137,8 @@ describe('the placement lifecycle', () => {
     expect(await historyOf(P, placement.id)).toHaveLength(1);
   });
 
-  it('a deleted model makes the process side missing once placements are refreshed', async () => {
+  it('a deleted model makes the process side missing: deleteModel refreshes the placements (S2)', async () => {
+    const rules = await t.useCases.rulesPrincipal();
     const versand = await store.read((tx) => tx.models.findByKey(P, 'lager/versand'));
     const del = await t.asOwner(`/api/v1/projects/vc-life/models/${versand?.id ?? ''}`, {
       method: 'DELETE',
@@ -1146,24 +1151,45 @@ describe('the placement lifecycle', () => {
           clientId: owner.clientId,
         }),
       );
-    // The accepted manual @outside placement of P_Versand (the obsolete one is not counted).
-    expect(await refresh()).toEqual({ written: 2, endpointChanges: 1 });
+    // deleteModel refreshed them already (M4 S2): nothing is left to write.
+    expect(await refresh()).toEqual({ written: 0, endpointChanges: 0 });
     const placements = await store.read((tx) => tx.placements.forChain(P, chainId));
     expect(
       placements
         .filter((p) => p.processRef === VERSAND)
-        .map((p) => [p.status, p.endpointState])
+        .map((p) => [p.elementId, p.status, p.endpointState])
         .sort(),
     ).toEqual([
-      ['accepted', 'missing'],
-      ['obsolete', 'missing'],
+      [OUTSIDE, 'accepted', 'missing'],
+      ['step-versand', 'obsolete', 'missing'],
     ]);
-    expect(await refresh()).toEqual({ written: 0, endpointChanges: 0 });
+    // The hand-made key proposal of P_Auftrag on step-versand is derived by no rule: the rule
+    // tier withdrew it with the deletion's recomputation.
+    const handMade = placements.find(
+      (p) => p.processRef === AUFTRAG && p.elementId === 'step-versand',
+    );
+    expect(handMade?.status).toBe('obsolete');
+    expect((await historyOf(P, handMade?.id ?? ('' as PlacementId))).at(-1)).toMatchObject({
+      kind: 'withdrawal',
+      sourceKind: 'rule',
+      principalId: rules,
+    });
     expect(await t.putModel('vc-life', 'lager/versand', MODELS['lager/versand'])).toHaveProperty(
       'status',
       201,
     );
-    expect(await refresh()).toEqual({ written: 2, endpointChanges: 1 });
+    expect(await refresh()).toEqual({ written: 0, endpointChanges: 0 });
+    const after = await store.read((tx) => tx.placements.forChain(P, chainId));
+    expect(
+      after
+        .filter((p) => p.processRef === VERSAND)
+        .map((p) => [p.elementId, p.status, p.endpointState, p.tier])
+        .sort(),
+    ).toEqual([
+      [OUTSIDE, 'accepted', 'ok', 'manual'],
+      // Step "Versand" and process "Versand": the rule tier proposes it again.
+      ['step-versand', 'proposed', 'ok', 'key'],
+    ]);
   });
 
   it('lists placements by filter, in natural key order, page by page', async () => {
@@ -1197,7 +1223,7 @@ describe('the placement lifecycle', () => {
     ).toEqual([RECHNUNG, RECHNUNG]);
     expect((await list({ processRef: AUFTRAG })).every((p) => p.processRef === AUFTRAG)).toBe(true);
     expect((await list({ elementId: 'step-rechnung' })).map((p) => p.status)).toEqual(['accepted']);
-    expect((await list({ status: 'obsolete' })).map((p) => p.processRef)).toEqual([VERSAND]);
+    expect((await list({ status: 'obsolete' })).map((p) => p.processRef)).toEqual([AUFTRAG]);
   });
 
   it('keeps the event history dense and every event typed by its subject', async () => {

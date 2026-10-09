@@ -48,6 +48,20 @@ function asProblem(error: unknown): Partial<ApiProblem> | null {
  * @throws {ApiError} for a non-2xx answer, carrying the problem
  */
 export async function call<T>(api: Api, what: string, request: Promise<SdkResult<T>>): Promise<T> {
+  return (await callWithResponse(api, what, request)).data;
+}
+
+/**
+ * `call`, also returning the response (its headers, e.g. an `ETag`).
+ *
+ * @throws {CliError} if the server is unreachable
+ * @throws {ApiError} for a non-2xx answer, carrying the problem
+ */
+export async function callWithResponse<T>(
+  api: Api,
+  what: string,
+  request: Promise<SdkResult<T>>,
+): Promise<{ data: T; response: Response }> {
   let result: SdkResult<T>;
   try {
     result = await request;
@@ -57,7 +71,7 @@ export async function call<T>(api: Api, what: string, request: Promise<SdkResult
   const { response } = result;
   if (!response) throw new CliError(`cannot reach ProA at ${api.url}: ${reason(result.error)}`);
   if (!response.ok) throw new ApiError(what, response.status, asProblem(result.error));
-  return result.data as T;
+  return { data: result.data as T, response };
 }
 
 /** `call`, but a 404 becomes `null` (e.g. "does the project exist?"). */

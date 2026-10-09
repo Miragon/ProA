@@ -24,6 +24,7 @@ import { generateOwnerKey } from '../../src/auth/owner-key.ts';
 import { INSUFFICIENT_SCOPE_CHALLENGE, MAX_MCP_REQUEST_BYTES } from '../../src/mcp/http.ts';
 import { MAX_RESULT_SIZE_CHARS, MCP_INSTRUCTIONS } from '../../src/mcp/server.ts';
 import { startTestApp, testClock, type TestApp } from '../support/app.ts';
+import { chain, chainPath } from '../support/value-chain.ts';
 import { corpusFiles, importAll } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { listen } from '../support/http.ts';
@@ -40,19 +41,36 @@ const READ_TOOLS = [
   'get_procedure',
   'get_process',
   'get_relations',
+  'get_value_chain',
+  'get_value_chain_document',
   'list_processes',
   'list_projects',
+  'list_unplaced_processes',
   'which_processes_use',
 ];
 const WRITE_TOOLS = [
   'claim_analysis',
+  'decide_placement',
   'decide_relation',
+  'propose_placement',
   'propose_relation',
   'release_analysis',
   'submit_analysis',
+  'withdraw_placement_proposal',
   'withdraw_proposal',
 ];
 const TOOLS = [...READ_TOOLS, ...WRITE_TOOLS].sort();
+const CHAIN = chain({
+  name: 'Vertragskette',
+  steps: [
+    { id: 'step-verkauf', name: 'Verkauf' },
+    { id: 'step-finanzen', name: 'Finanzwesen', x: 300 },
+    { id: 'step-auftrag', name: 'Auftragsbearbeitung', parent: 'step-verkauf', y: 100 },
+    { id: 'step-forderung', name: 'Forderungen', parent: 'step-finanzen', y: 100 },
+  ],
+  sequence: [['step-verkauf', 'step-finanzen']],
+  orgUnits: [{ id: 'org-vertrieb', name: 'Vertriebsteam', owns: ['step-verkauf'] }],
+});
 
 let database: TestDatabase;
 let t: TestApp;
@@ -138,6 +156,13 @@ beforeAll(async () => {
     items: { key: string; headRevisionId: string }[];
   };
   foreignRevisionId = models.items.find((m) => m.key === ORDER)?.headRevisionId ?? '';
+  // The value chain of the contract project (steps never named like a process).
+  const chainRes = await t.asOwner(chainPath('contract', '/content'), {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'if-none-match': '*' },
+    body: JSON.stringify(CHAIN),
+  });
+  expect(chainRes.status).toBe(201);
   secrets.read = (await t.createToken('contract', ['proa:read'])).secret;
   secrets.propose = (await t.createToken('contract', ['proa:read', 'proa:propose'])).secret;
   secrets.write = (await t.createToken('contract', ['proa:write'])).secret;
@@ -170,8 +195,8 @@ describe('tools/list', () => {
       });
       // Claude Code would otherwise save results above 50,000 characters to a file.
       expect(tool._meta?.['anthropic/maxResultSizeChars'], tool.name).toBe(MAX_RESULT_SIZE_CHARS);
-      // decide_relation never succeeds for agents, so it declares no output.
-      if (tool.name !== 'decide_relation')
+      // decide_relation and decide_placement never succeed for agents: no output schema.
+      if (tool.name !== 'decide_relation' && tool.name !== 'decide_placement')
         expect(tool.outputSchema?.type, tool.name).toBe('object');
     }
     // Only standard JSON Schema formats: SDK clients (Ajv) warn on stderr about
@@ -438,6 +463,79 @@ describe.each<Negotiation>(['default', 'auto'])('every tool (%s negotiation)', (
     await expectInvalid(c, 'get_procedure', { id: '' });
   });
 
+  it('get_value_chain: steps with kinds, ranks and owners, and the placements', async () => {
+    const out = await call(c, 'get_value_chain', { projectId: 'contract' });
+    expect(out.isError, out.text).toBe(false);
+    expect(out.data['valueChain']).toMatchObject({
+      key: 'main',
+      name: 'Vertragskette',
+      headRev: 1,
+    });
+    const steps = out.data['steps'] as {
+      elementId: string;
+      kind: string;
+      rank: number;
+      owners: unknown[];
+    }[];
+    expect(steps.map((x) => [x.elementId, x.kind, x.rank])).toEqual([
+      ['step-auftrag', 'core', 0],
+      ['step-finanzen', 'core', 1],
+      ['step-forderung', 'core', 0],
+      ['step-verkauf', 'core', 0],
+    ]);
+    expect(out.data['orgUnits']).toEqual([
+      { elementId: 'org-vertrieb', name: 'Vertriebsteam', stepIds: ['step-verkauf'] },
+    ]);
+    await expectInvalid(c, 'get_value_chain', {});
+  });
+
+  it('get_value_chain_document: the canonical document in pages, revisions of this chain only', async () => {
+    const whole = await call(c, 'get_value_chain_document', { projectId: 'contract' });
+    expect(whole.isError, whole.text).toBe(false);
+    const content = whole.data['content'] as string;
+    expect(JSON.parse(content)).toMatchObject({
+      schemaVersion: 1,
+      meta: { name: 'Vertragskette' },
+    });
+    expect(whole.data).toMatchObject({ key: 'main', rev: 1, offset: 0, nextOffset: null });
+    expect(whole.data['totalChars']).toBe(content.length);
+    const page = await call(c, 'get_value_chain_document', {
+      projectId: 'contract',
+      rev: 1,
+      offset: 10,
+      maxChars: 20,
+    });
+    expect(page.data).toMatchObject({ offset: 10, nextOffset: 30, content: content.slice(10, 30) });
+    expect(
+      await problem(c, 'get_value_chain_document', { projectId: 'contract', rev: 99 }),
+    ).toMatchObject({ code: 'not-found', status: 404 });
+    await expectInvalid(c, 'get_value_chain_document', {
+      projectId: 'contract',
+      maxChars: 100_001,
+    });
+    await expectInvalid(c, 'get_value_chain_document', { projectId: 'contract', rev: 0 });
+    // Beyond the 9-digit revision tag (and the integer column): invalid input, never `internal`.
+    expect(
+      await problem(c, 'get_value_chain_document', { projectId: 'contract', rev: 999_999_999 }),
+    ).toMatchObject({ code: 'not-found', status: 404 });
+    for (const rev of [1_000_000_000, 2_147_483_648, 99_999_999_999]) {
+      await expectInvalid(c, 'get_value_chain_document', { projectId: 'contract', rev });
+    }
+  });
+
+  it('list_unplaced_processes: processes without a home step, with hints, paged', async () => {
+    const out = await call(c, 'list_unplaced_processes', { projectId: 'contract' });
+    expect(out.isError, out.text).toBe(false);
+    const listed = items(out).map((u) => u['process']);
+    expect(listed).toEqual(expect.arrayContaining([ORDER_PROCESS]));
+    const order = items(out).find((u) => u['process'] === ORDER_PROCESS);
+    expect(order).toMatchObject({ name: 'Auftragsabwicklung', modelKey: ORDER });
+    const page = await call(c, 'list_unplaced_processes', { projectId: 'contract', limit: 1 });
+    expect(items(page)).toHaveLength(1);
+    expect(page.data['nextCursor']).toEqual(expect.any(String));
+    await expectInvalid(c, 'list_unplaced_processes', { projectId: 'contract', limit: 0 });
+  });
+
   it('answers 404 for another project (key or id) and unknown projects, for every project tool', async () => {
     const calls: [string, Record<string, unknown>][] = [
       ['list_processes', {}],
@@ -446,6 +544,9 @@ describe.each<Negotiation>(['default', 'auto'])('every tool (%s negotiation)', (
       ['get_relations', {}],
       ['which_processes_use', { kind: 'message', name: 'WareVersandbereit' }],
       ['find_unlinked_events', {}],
+      ['get_value_chain', {}],
+      ['get_value_chain_document', {}],
+      ['list_unplaced_processes', {}],
     ];
     for (const [name, args] of calls) {
       for (const projectId of ['foreign', foreign.id, 'nope', 'prj_01J9Z3N4X5Q6R7S8T9V0W1X2Y3']) {
@@ -730,6 +831,108 @@ describe.each<Negotiation>(['default', 'auto'])(
       });
       const after = items(await call(reader, 'get_relations', { projectId: 'contract' }));
       expect(after.find((r) => r['id'] === id)?.['status']).toBe(relations[0]?.['status']);
+    });
+
+    it('propose_placement and withdraw_placement_proposal: own proposals only', async () => {
+      const proposed = await call(agent, 'propose_placement', {
+        projectId: 'contract',
+        procedure: { id: 'proa-placements', version: '0.1.0' },
+        llmModel: 'contract-test',
+        placements: [
+          {
+            step: 'step-auftrag',
+            process: ORDER_PROCESS,
+            confidence: 0.8,
+            rationale: `contract ${negotiation}`,
+            evidence: [ORDER_PROCESS, 'step:step-verkauf'],
+          },
+          { step: 'step-nope', process: ORDER_PROCESS, confidence: 0.8, rationale: 'x' },
+        ],
+      });
+      expect(proposed.isError, proposed.text).toBe(false);
+      expect(proposed.data).toMatchObject({ kind: 'propose' });
+      const [ok, bad] = items(proposed) as { result: string; placementId: string | null }[];
+      expect(ok?.result).toBe('applied');
+      expect(bad).toMatchObject({ result: 'invalid:unknown-step', placementId: null });
+      const id = ok?.placementId ?? '';
+      const chainOut = await call(reader, 'get_value_chain', { projectId: 'contract' });
+      expect(
+        (chainOut.data['placements'] as { id: string; tier: string }[]).find((p) => p.id === id),
+      ).toMatchObject({
+        tier: 'lexical',
+        status: 'proposed',
+      });
+      await expectInvalid(agent, 'propose_placement', { projectId: 'contract', placements: [] });
+      await expectInvalid(agent, 'propose_placement', { projectId: 'contract' });
+      const withdrawn = await call(agent, 'withdraw_placement_proposal', {
+        projectId: 'contract',
+        placementId: id,
+      });
+      expect(withdrawn.isError, withdrawn.text).toBe(false);
+      expect(withdrawn.data).toMatchObject({ id, status: 'obsolete' });
+      expect(
+        await problem(agent, 'withdraw_placement_proposal', {
+          projectId: 'contract',
+          placementId: id,
+        }),
+      ).toMatchObject({ code: 'conflict' });
+      expect(
+        await problem(agent, 'withdraw_placement_proposal', {
+          projectId: 'contract',
+          placementId: 'plc_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+        }),
+      ).toMatchObject({ code: 'not-found', status: 404 });
+      await expectInvalid(agent, 'withdraw_placement_proposal', {
+        projectId: 'contract',
+        placementId: 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+      });
+      expect(
+        await problem(reader, 'propose_placement', {
+          projectId: 'contract',
+          placements: [{ step: 'step-auftrag', process: ORDER_PROCESS, confidence: 1 }],
+        }),
+      ).toMatchObject({ code: 'insufficient-scope', status: 403 });
+    });
+
+    it('decide_placement always answers human-decision-required with the value chain URL', async () => {
+      const proposed = await call(agent, 'propose_placement', {
+        projectId: 'contract',
+        placements: [
+          {
+            step: 'step-forderung',
+            process: `${PAYMENT}#Process_PaymentCollection`,
+            confidence: 0.6,
+            rationale: 'x',
+          },
+        ],
+      });
+      const id = (items(proposed)[0]?.['placementId'] ?? '') as string;
+      for (const verdict of ['accept', 'reject', 'hold']) {
+        expect(
+          await problem(agent, 'decide_placement', {
+            projectId: 'contract',
+            placementId: id,
+            verdict,
+          }),
+        ).toMatchObject({
+          code: 'human-decision-required',
+          status: 403,
+          reviewUrl: `${server.url}/projects/contract/value-chain?placement=${id}`,
+        });
+      }
+      expect(
+        await problem(agent, 'decide_placement', {
+          projectId: 'foreign',
+          placementId: id,
+          verdict: 'accept',
+        }),
+      ).toMatchObject({ code: 'not-found' });
+      const after = await call(reader, 'get_value_chain', { projectId: 'contract' });
+      expect(
+        (after.data['placements'] as { id: string; status: string }[]).find((p) => p.id === id)
+          ?.status,
+      ).toBe('proposed');
+      await call(agent, 'withdraw_placement_proposal', { projectId: 'contract', placementId: id });
     });
 
     it('propose_relation and withdraw_proposal: own proposals only', async () => {

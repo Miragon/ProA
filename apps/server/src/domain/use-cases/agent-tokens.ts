@@ -19,6 +19,7 @@ import type { AgentTokenRecord, AssertionRecord, ProjectRecord, Tx } from '../po
 import { withdrawStance, type ProposalContext } from '../proposals.ts';
 import { byRelation, naturalKey } from '../relation-state.ts';
 import { currentStances } from '../status.ts';
+import { withdrawPlacementProposalsOf } from '../value-chain/revocation.ts';
 import { toAgentToken } from '../views.ts';
 import { ALL, type UseCaseDeps } from './deps.ts';
 
@@ -31,7 +32,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * tasks are queued again without counting the attempt. Decisions by others
  * stay. Both endpoint models of every withdrawn pipeline judgement judge
  * their pairs again (`requeueAfterLoss`): partner analyses may have skipped
- * the pairs because of them (judge each pair once).
+ * the pairs because of them (judge each pair once). Its live placement
+ * proposals on the value chain are withdrawn the same way (M4), with nothing
+ * queued.
  *
  * @param seq the `agent_token.revoked` event (stamps the no-link withdrawals)
  * @param procedure the procedure claims name now
@@ -43,7 +46,12 @@ async function retractToken(
   token: AgentTokenRecord,
   seq: number,
   procedure: DeclaredProcedure,
-): Promise<{ withdrawn: number; withdrawnNoLinks: number; released: number }> {
+): Promise<{
+  withdrawn: number;
+  withdrawnNoLinks: number;
+  withdrawnPlacements: number;
+  released: number;
+}> {
   const reason = `agent token ${token.name} (${token.prefix}…) revoked`;
   const histories = byRelation<AssertionRecord>(await tx.assertions.listForProject(project.id));
   const own = (history: readonly AssertionRecord[]) =>
@@ -115,7 +123,14 @@ async function retractToken(
     released++;
   }
   await requeueAfterLoss(tx, actor, project.id, lost);
-  return { withdrawn, withdrawnNoLinks: noLinks.length, released };
+  const withdrawnPlacements = await withdrawPlacementProposalsOf(
+    tx,
+    actor,
+    project.id,
+    token.principalId,
+    reason,
+  );
+  return { withdrawn, withdrawnNoLinks: noLinks.length, withdrawnPlacements, released };
 }
 
 /**

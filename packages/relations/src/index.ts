@@ -7,6 +7,8 @@
  * - {@link generateCandidates}: candidate pairs for agents (key, lexical,
  *   compatible), in both directions around a focus model;
  * - {@link baselineProa1}: the 1.x algorithm, for comparison in the eval;
+ * - {@link baselinePrefix} (`baseline-prefix/1`) and {@link sharesNameStem}:
+ *   lexical matching of processes to value chain steps (M4);
  * - the shared endpoint semantics, compatibility matrix and text similarity.
  */
 import { normalizeKey } from '@proa/bpmn-facts';
@@ -41,6 +43,22 @@ export {
   searchLabel,
 } from './baseline.ts';
 export type { BaselineEvent, BaselineEventPosition, BaselineOptions } from './baseline.ts';
+export {
+  BASELINE_PREFIX,
+  NAME_STEM_MIN,
+  PREFIX_ANCESTOR_VOTE,
+  PREFIX_ANCESTOR_WEIGHT,
+  PREFIX_FOLDER_WEIGHT,
+  PREFIX_NAME_WEIGHT,
+  PREFIX_TOP,
+  PREFIX_VOTE,
+  baselinePrefix,
+  prefixTokensMatch,
+  sharedStem,
+  sharesNameStem,
+  stemWords,
+} from './placement.ts';
+export type { PrefixHint, PrefixInput, PrefixProcess, PrefixStep } from './placement.ts';
 export {
   EVENT_DEF_COMPATIBILITY,
   LINK_TYPES,

@@ -43,6 +43,10 @@ export interface FakeProcess {
   id: string;
   name?: string;
   elements?: FakeElement[];
+  /** `bpmn:documentation` of the process. */
+  doc?: string;
+  /** Lane names (one `lane` fact each). */
+  lanes?: string[];
 }
 
 export interface FakeModelSpec {
@@ -147,9 +151,30 @@ export function extractFake(xml: string, modelKey: string): Extracted {
       fact(
         modelKey,
         { kind: 'process', elementId: p.id, processId: p.id, label: p.name ?? '', keyRaw: p.id },
-        { attrs: { elementType: 'bpmn:Process', isExecutable: true } },
+        {
+          attrs: {
+            elementType: 'bpmn:Process',
+            isExecutable: true,
+            ...(p.doc === undefined ? {} : { documentation: p.doc }),
+          },
+        },
       ),
     );
+    for (const [i, lane] of (p.lanes ?? []).entries()) {
+      facts.push(
+        fact(
+          modelKey,
+          {
+            kind: 'lane',
+            elementId: `${p.id}_Lane${i}`,
+            processId: p.id,
+            label: lane,
+            keyRaw: lane,
+          },
+          { attrs: { elementType: 'bpmn:Lane' } },
+        ),
+      );
+    }
     for (const e of p.elements ?? []) {
       const label = e.name ?? '';
       const keyRaw = e.ref ?? label;

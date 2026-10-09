@@ -3,19 +3,11 @@ import { apiRoutes } from '@proa/contracts';
 
 import type { UseCases } from '../../domain/use-cases/index.ts';
 import { requireActor, type App } from '../context.ts';
-import { relationEtag } from './review.ts';
+import { matchesEtag, versionEtag } from '../etag.ts';
 
 /** `"s<seq>"`: the landscape changes exactly when the project's event seq does. */
 export function landscapeEtag(seq: number): string {
   return `"s${seq}"`;
-}
-
-function matchesEtag(ifNoneMatch: string | undefined, etag: string): boolean {
-  if (!ifNoneMatch) return false;
-  return ifNoneMatch
-    .split(',')
-    .map((t) => t.trim().replace(/^W\//, ''))
-    .some((t) => t === etag || t === '*');
 }
 
 /** Landscape, relations and findings (CONCEPT §5). */
@@ -50,7 +42,7 @@ export function registerRelationRoutes(app: App, useCases: UseCases): void {
     const { project, relation } = c.req.valid('param');
     const result = await useCases.getRelation(requireActor(c), project, relation);
     // For If-Match on decisions.
-    c.header('etag', relationEtag(result.version));
+    c.header('etag', versionEtag(result.version));
     return c.json(result, 200);
   });
 

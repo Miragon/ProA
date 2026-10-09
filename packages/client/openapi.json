@@ -493,6 +493,73 @@
         ],
         "description": "A message flow within one collaboration file."
       },
+      "ValueChainViolation": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/ValueChainViolationReason"
+          },
+          "elementId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connectionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "elementId",
+          "connectionId",
+          "path",
+          "detail"
+        ],
+        "description": "One reason a value chain is refused."
+      },
+      "ValueChainViolationReason": {
+        "type": "string",
+        "enum": [
+          "not-json",
+          "not-an-object",
+          "schema",
+          "duplicate-id",
+          "unknown-endpoint",
+          "self-connection",
+          "connection-not-allowed",
+          "document-too-large",
+          "too-many-elements",
+          "too-many-connections",
+          "name-required",
+          "name-too-long",
+          "name-characters",
+          "id-too-long",
+          "id-characters",
+          "reserved-id",
+          "link-too-long",
+          "link-characters",
+          "geometry-out-of-range",
+          "multiple-parents",
+          "hierarchy-cycle",
+          "hierarchy-too-deep",
+          "duplicate-connection",
+          "sequence-cycle"
+        ],
+        "description": "Why a value chain is refused."
+      },
       "Health": {
         "type": "object",
         "properties": {
@@ -622,6 +689,10 @@
           "method-not-allowed",
           "conflict",
           "precondition-failed",
+          "precondition-required",
+          "revision-conflict",
+          "value-chain-invalid",
+          "value-chain-unsupported-version",
           "lease-lost",
           "task-cancelled",
           "already-submitted",
@@ -2141,6 +2212,2086 @@
           "text"
         ],
         "description": "A note on a relation."
+      },
+      "ValueChainList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChain"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The live value chains of a project."
+      },
+      "ValueChain": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ValueChainId"
+          },
+          "key": {
+            "$ref": "#/components/schemas/ValueChainKey"
+          },
+          "name": {
+            "type": "string"
+          },
+          "headRevisionId": {
+            "$ref": "#/components/schemas/ValueChainRevisionId"
+          },
+          "headRev": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "structureHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "headRevisionId",
+          "headRev",
+          "contentHash",
+          "structureHash",
+          "schemaVersion",
+          "updatedAt"
+        ],
+        "description": "A value chain of a project."
+      },
+      "ValueChainId": {
+        "type": "string",
+        "pattern": "^vch_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Value chain id (`vch_` + ULID).",
+        "example": "vch_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "ValueChainKey": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "description": "Value chain key (M4: `main`).",
+        "example": "main"
+      },
+      "ValueChainRevisionId": {
+        "type": "string",
+        "pattern": "^vcr_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Value chain revision id (`vcr_` + ULID).",
+        "example": "vcr_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "SaveValueChainResult": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "created",
+              "revived",
+              "revised",
+              "unchanged"
+            ]
+          },
+          "valueChain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueChain"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueChainRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "impact": {
+            "$ref": "#/components/schemas/ValueChainImpact"
+          }
+        },
+        "required": [
+          "dryRun",
+          "outcome",
+          "valueChain",
+          "revision",
+          "impact"
+        ],
+        "description": "Outcome of a value chain save."
+      },
+      "ValueChainRevision": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ValueChainRevisionId"
+          },
+          "rev": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "structureHash": {
+            "$ref": "#/components/schemas/Sha256Hex"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "baseRevisionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueChainRevisionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "rev",
+          "contentHash",
+          "structureHash",
+          "schemaVersion",
+          "baseRevisionId",
+          "principalId",
+          "handle",
+          "seq",
+          "createdAt"
+        ],
+        "description": "An immutable value chain revision."
+      },
+      "ValueChainImpact": {
+        "type": "object",
+        "properties": {
+          "structureChanged": {
+            "type": "boolean"
+          },
+          "steps": {
+            "type": "object",
+            "properties": {
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "elementId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "elementId",
+                    "name"
+                  ]
+                }
+              },
+              "removed": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "elementId": {
+                      "type": "string"
+                    },
+                    "generation": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "placements": {
+                      "$ref": "#/components/schemas/ImpactPlacementCounts"
+                    }
+                  },
+                  "required": [
+                    "elementId",
+                    "generation",
+                    "name",
+                    "placements"
+                  ]
+                }
+              },
+              "changed": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "elementId": {
+                      "type": "string"
+                    },
+                    "generation": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "before": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "$ref": "#/components/schemas/StepKind"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "parentId",
+                        "kind"
+                      ]
+                    },
+                    "after": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "$ref": "#/components/schemas/StepKind"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "parentId",
+                        "kind"
+                      ]
+                    },
+                    "fingerprintChanged": {
+                      "type": "boolean"
+                    },
+                    "placements": {
+                      "$ref": "#/components/schemas/ImpactPlacementCounts"
+                    }
+                  },
+                  "required": [
+                    "elementId",
+                    "generation",
+                    "before",
+                    "after",
+                    "fingerprintChanged",
+                    "placements"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "added",
+              "removed",
+              "changed"
+            ]
+          },
+          "placements": {
+            "type": "object",
+            "properties": {
+              "stranded": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "toReconfirm": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "proposalsWithdrawn": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "stranded",
+              "toReconfirm",
+              "proposalsWithdrawn"
+            ]
+          }
+        },
+        "required": [
+          "structureChanged",
+          "steps",
+          "placements"
+        ],
+        "description": "What a value chain save does to steps and placements."
+      },
+      "ImpactPlacementCounts": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "held": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "proposed": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "accepted",
+          "held",
+          "proposed"
+        ],
+        "description": "Placements on a step by status."
+      },
+      "StepKind": {
+        "type": "string",
+        "enum": [
+          "core",
+          "management",
+          "support",
+          "other"
+        ],
+        "description": "Kind of a value chain step."
+      },
+      "CreateValueChainBody": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/ValueChainKey"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "content": {
+            "$ref": "#/components/schemas/ValueChainDocument"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "description": "Request body to create a value chain."
+      },
+      "ValueChainDocument": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "A value chain document (`.vc.json`, @miragon/value-chain-schema-model)."
+      },
+      "ValueChainDetail": {
+        "type": "object",
+        "properties": {
+          "valueChain": {
+            "$ref": "#/components/schemas/ValueChain"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainStep"
+            }
+          },
+          "orgUnits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainOrgUnit"
+            }
+          },
+          "placements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlacementSummary"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainFinding"
+            }
+          }
+        },
+        "required": [
+          "valueChain",
+          "steps",
+          "orgUnits",
+          "placements",
+          "findings"
+        ],
+        "description": "A value chain with steps, placements and findings."
+      },
+      "ValueChainStep": {
+        "type": "object",
+        "properties": {
+          "elementId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/StepKind"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "childIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkKind": {
+            "$ref": "#/components/schemas/LinkKind"
+          },
+          "linkProcess": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkResolved": {
+            "type": "boolean"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "elementId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "elementId",
+                "name"
+              ]
+            }
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/StepPlacementCounts"
+          }
+        },
+        "required": [
+          "elementId",
+          "generation",
+          "name",
+          "kind",
+          "depth",
+          "rank",
+          "parentId",
+          "path",
+          "childIds",
+          "link",
+          "linkKind",
+          "linkProcess",
+          "linkResolved",
+          "owners",
+          "fingerprint",
+          "counts"
+        ],
+        "description": "A step of the head revision."
+      },
+      "LinkKind": {
+        "type": "string",
+        "enum": [
+          "none",
+          "process",
+          "url",
+          "opaque"
+        ],
+        "description": "Kind of a step link."
+      },
+      "StepPlacementCounts": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "proposed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "held": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "accepted",
+          "proposed",
+          "held"
+        ],
+        "description": "Placements of a step by status."
+      },
+      "ValueChainOrgUnit": {
+        "type": "object",
+        "properties": {
+          "elementId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stepIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "elementId",
+          "name",
+          "stepIds"
+        ],
+        "description": "An org unit and the steps it owns."
+      },
+      "PlacementSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/PlacementId"
+          },
+          "elementId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "stepLive": {
+            "type": "boolean"
+          },
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/PlacementTier"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "elementId",
+          "generation",
+          "stepLive",
+          "process",
+          "status",
+          "endpointState",
+          "tier",
+          "confidence",
+          "version",
+          "source"
+        ],
+        "description": "A placement in the chain overview."
+      },
+      "PlacementId": {
+        "type": "string",
+        "pattern": "^plc_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Placement id (`plc_` + ULID).",
+        "example": "plc_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "PlacementTier": {
+        "type": "string",
+        "enum": [
+          "key",
+          "lexical",
+          "semantic",
+          "manual"
+        ],
+        "description": "Evidence tier of a placement: `key` (rule tier: a step link or an equal name), `lexical`, `semantic`, `manual`."
+      },
+      "ValueChainFinding": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ValueChainFindingKind"
+          },
+          "elementId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "process": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnplacedState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "calledFrom": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "elementId": {
+                  "type": "string"
+                },
+                "process": {
+                  "$ref": "#/components/schemas/Ref"
+                }
+              },
+              "required": [
+                "elementId",
+                "process"
+              ]
+            }
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "elementId",
+          "process",
+          "link",
+          "state",
+          "calledFrom",
+          "detail"
+        ],
+        "description": "A deterministic finding about the value chain."
+      },
+      "ValueChainFindingKind": {
+        "type": "string",
+        "enum": [
+          "process-without-step",
+          "step-without-process",
+          "unresolved-link"
+        ],
+        "description": "Kind of a value chain finding."
+      },
+      "UnplacedState": {
+        "type": "string",
+        "enum": [
+          "none",
+          "proposed",
+          "held"
+        ],
+        "description": "Review state of a process without a home step."
+      },
+      "ValueChainRevisionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainRevision"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of ValueChainRevision items."
+      },
+      "ValueChainStepDetail": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/ValueChainStep"
+          },
+          "breadcrumb": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "elementId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "elementId",
+                "name"
+              ]
+            }
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainStep"
+            }
+          },
+          "placements": {
+            "type": "object",
+            "properties": {
+              "own": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Placement"
+                }
+              },
+              "subtree": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Placement"
+                }
+              },
+              "reachedByCall": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "process": {
+                      "$ref": "#/components/schemas/Ref"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "via": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "relationId": {
+                            "$ref": "#/components/schemas/RelationId"
+                          },
+                          "caller": {
+                            "$ref": "#/components/schemas/Ref"
+                          }
+                        },
+                        "required": [
+                          "relationId",
+                          "caller"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "process",
+                    "name",
+                    "via"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "own",
+              "subtree",
+              "reachedByCall"
+            ]
+          }
+        },
+        "required": [
+          "step",
+          "breadcrumb",
+          "children",
+          "placements"
+        ],
+        "description": "The drill-down of one value chain step."
+      },
+      "Placement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/PlacementId"
+          },
+          "valueChainId": {
+            "$ref": "#/components/schemas/ValueChainId"
+          },
+          "elementId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "stepName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stepLive": {
+            "type": "boolean"
+          },
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "processName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "endpoints": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "$ref": "#/components/schemas/EndpointState"
+              },
+              "process": {
+                "$ref": "#/components/schemas/EndpointState"
+              }
+            },
+            "required": [
+              "step",
+              "process"
+            ]
+          },
+          "tier": {
+            "$ref": "#/components/schemas/PlacementTier"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "valueChainId",
+          "elementId",
+          "generation",
+          "stepName",
+          "stepLive",
+          "process",
+          "processName",
+          "status",
+          "endpointState",
+          "endpoints",
+          "tier",
+          "confidence",
+          "version",
+          "source",
+          "provenance",
+          "updatedAt"
+        ],
+        "description": "A process placed on a value chain step."
+      },
+      "PlacementProvenance": {
+        "type": "object",
+        "properties": {
+          "assertionId": {
+            "$ref": "#/components/schemas/PlacementAssertionId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssertionKind"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceKind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementTier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "assertionId",
+          "kind",
+          "verdict",
+          "sourceKind",
+          "principalId",
+          "handle",
+          "clientId",
+          "procedure",
+          "llmModel",
+          "tier",
+          "confidence",
+          "rationale",
+          "question",
+          "label",
+          "at"
+        ],
+        "description": "The assertion a placement status rests on."
+      },
+      "PlacementAssertionId": {
+        "type": "string",
+        "pattern": "^pas_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Placement assertion id (`pas_` + ULID).",
+        "example": "pas_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "ValueChainFindingList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainFinding"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Findings of the value chain head."
+      },
+      "UnplacedProcessPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnplacedProcess"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of UnplacedProcess items."
+      },
+      "UnplacedProcess": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "starts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5
+          },
+          "ends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5
+          },
+          "doc": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "neighbours": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "process": {
+                  "$ref": "#/components/schemas/Ref"
+                },
+                "via": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "relationId": {
+                        "$ref": "#/components/schemas/RelationId"
+                      },
+                      "type": {
+                        "$ref": "#/components/schemas/RelationType"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "out",
+                          "in"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "relationId",
+                      "type",
+                      "direction"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "process",
+                "via",
+                "steps"
+              ]
+            }
+          },
+          "calls": {
+            "type": "object",
+            "properties": {
+              "out": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "process": {
+                      "$ref": "#/components/schemas/Ref"
+                    },
+                    "relationId": {
+                      "$ref": "#/components/schemas/RelationId"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/RelationStatus"
+                    }
+                  },
+                  "required": [
+                    "process",
+                    "relationId",
+                    "status"
+                  ]
+                }
+              },
+              "in": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "process": {
+                      "$ref": "#/components/schemas/Ref"
+                    },
+                    "relationId": {
+                      "$ref": "#/components/schemas/RelationId"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/RelationStatus"
+                    }
+                  },
+                  "required": [
+                    "process",
+                    "relationId",
+                    "status"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "out",
+              "in"
+            ]
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "step",
+                "name",
+                "score"
+              ]
+            },
+            "maxItems": 3
+          }
+        },
+        "required": [
+          "process",
+          "name",
+          "modelKey",
+          "lanes",
+          "starts",
+          "ends",
+          "neighbours",
+          "calls",
+          "hints"
+        ],
+        "description": "A process without a home step on the chain."
+      },
+      "PlacementPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Placement"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Cursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "description": "A page of Placement items."
+      },
+      "PostPlacementsResult": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ProposePlacementsResult"
+          },
+          {
+            "$ref": "#/components/schemas/ManualPlacementResult"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "propose": "#/components/schemas/ProposePlacementsResult",
+            "manual": "#/components/schemas/ManualPlacementResult"
+          }
+        },
+        "description": "Outcome of proposed or manual placements."
+      },
+      "ProposePlacementsResult": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "propose"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlacementItemResult"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "duplicate": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "suppressed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reopened": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "invalid": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "applied",
+              "duplicate",
+              "suppressed",
+              "reopened",
+              "invalid"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "items",
+          "counts"
+        ],
+        "description": "Outcome per proposed placement."
+      },
+      "PlacementItemResult": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "result": {
+            "$ref": "#/components/schemas/PlacementOutcome"
+          },
+          "placementId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "index",
+          "result",
+          "placementId",
+          "status"
+        ],
+        "description": "Outcome of one proposed placement."
+      },
+      "PlacementOutcome": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "duplicate",
+          "suppressed",
+          "reopened",
+          "invalid:malformed-step",
+          "invalid:malformed-ref",
+          "invalid:confidence-out-of-range",
+          "invalid:rationale-too-long",
+          "invalid:question-too-long",
+          "invalid:too-much-evidence",
+          "invalid:control-characters",
+          "invalid:rationale-required",
+          "invalid:unknown-step",
+          "invalid:unknown-process",
+          "invalid:unknown-evidence",
+          "invalid:too-many-steps"
+        ],
+        "description": "Outcome of one proposed placement."
+      },
+      "ManualPlacementResult": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "manual"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "duplicate"
+            ]
+          },
+          "placement": {
+            "$ref": "#/components/schemas/Placement"
+          }
+        },
+        "required": [
+          "kind",
+          "result",
+          "placement"
+        ],
+        "description": "The manual placement."
+      },
+      "PostPlacementsBody": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ProposePlacementsBody"
+          },
+          {
+            "$ref": "#/components/schemas/ManualPlacementBody"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "propose": "#/components/schemas/ProposePlacementsBody",
+            "manual": "#/components/schemas/ManualPlacementBody"
+          }
+        },
+        "description": "Propose placements, or add a manual one."
+      },
+      "ProposePlacementsBody": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "propose"
+            ]
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100,
+            "default": null
+          },
+          "placements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlacementItem"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          }
+        },
+        "required": [
+          "kind",
+          "placements"
+        ],
+        "description": "Placements proposed ad hoc."
+      },
+      "PlacementItem": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "process": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 20000,
+            "default": ""
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "maxItems": 200,
+            "default": []
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20000,
+            "default": null
+          }
+        },
+        "required": [
+          "step",
+          "process",
+          "confidence"
+        ],
+        "description": "A placement an agent proposes."
+      },
+      "ManualPlacementBody": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "manual"
+            ]
+          },
+          "step": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "kind",
+          "step",
+          "process",
+          "rationale"
+        ],
+        "description": "A manual placement, accepted at once."
+      },
+      "BulkPlacementDecisionResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Placement"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The decided placements."
+      },
+      "BulkPlacementDecisionBody": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "hold"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "tier": {
+            "$ref": "#/components/schemas/PlacementTier"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/PlacementId"
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 500
+          },
+          "expectedCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": [
+          "verdict",
+          "items",
+          "expectedCount"
+        ],
+        "description": "One verdict for many placements."
+      },
+      "PlacementDecisionResult": {
+        "type": "object",
+        "properties": {
+          "placement": {
+            "$ref": "#/components/schemas/Placement"
+          },
+          "corrected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Placement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "placement",
+          "corrected"
+        ],
+        "description": "The decided placement (and its correction)."
+      },
+      "PlacementDecisionBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "reject"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict",
+              "reason"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "hold"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict",
+              "note"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "correct"
+                ]
+              },
+              "step": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "verdict",
+              "step",
+              "note"
+            ]
+          }
+        ],
+        "description": "A human decision on one placement."
+      },
+      "PlacementAssertion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/PlacementAssertionId"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AssertionKind"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceKind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submissionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubmissionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementTier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkedPlacementId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacementId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stepFp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "processFp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "kind",
+          "verdict",
+          "sourceKind",
+          "principalId",
+          "handle",
+          "clientId",
+          "procedure",
+          "llmModel",
+          "submissionId",
+          "tier",
+          "confidence",
+          "rationale",
+          "evidence",
+          "question",
+          "label",
+          "linkedPlacementId",
+          "stepFp",
+          "processFp",
+          "at"
+        ],
+        "description": "One assertion of a placement history."
+      },
+      "PlacementAssertionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlacementAssertion"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The history of a placement, oldest first."
       },
       "ClaimResult": {
         "type": "object",
@@ -5738,6 +7889,2093 @@
           },
           "409": {
             "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains": {
+      "get": {
+        "operationId": "listValueChains",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "The value chains of a project (M4: at most one, key `main`)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Value chains",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createValueChain",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Create the value chain from a name or a document (humans only)",
+        "description": "Creates the chain `main` (the only key in M4) with its first revision: an empty document named `name`, or `content`, validated with schema-model and the ProA rules. A deleted chain is revived (same id, `rev` continues, outcome `revived`). 409 `conflict` if a live chain has the key.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateValueChainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new chain",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<rev>\"`"
+                },
+                "required": true,
+                "description": "`\"r<rev>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveValueChainResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Problem: `payload-too-large`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`, `value-chain-invalid`, `value-chain-unsupported-version`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}": {
+      "get": {
+        "operationId": "getValueChain",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "The value chain: head structure (steps with kinds, ranks, owners), placements",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The chain with steps and placements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteValueChain",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Delete the value chain; its placements turn `missing` (humans only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/content": {
+      "get": {
+        "operationId": "getValueChainContent",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "The head document: canonical `.vc.json` bytes (ETag `\"r<rev>\"`)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canonical document",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<rev>\"`"
+                },
+                "required": true,
+                "description": "`\"r<rev>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainDocument"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified (`If-None-Match` names the head revision)"
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putValueChainContent",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Save a revision: `If-Match: \"r<rev>\"` required; `?dryRun=true` returns the impact only",
+        "description": "Saves the document as the next revision (humans only). `If-Match: \"r<rev>\"` must name the head revision: without it 428 `precondition-required`, a stale one 412 `revision-conflict` with `headRev`; content equal to the head answers 200 `unchanged` whatever the `If-Match`. `If-None-Match: *` creates (or revives) the chain instead: 201, or 412 `revision-conflict` if it exists. `dryRun=true` checks the same and returns the impact (removed and changed steps with their placements) without writing anything. The body is the `.vc.json` document as `application/json`, at most 2 MiB; its canonical form may have at most 1 MiB (`document-too-large`).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "dryRun",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "if-match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "if-none-match",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValueChainDocument"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "`revised`, `unchanged`, or a dry run",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<rev>\"`"
+                },
+                "required": true,
+                "description": "`\"r<rev>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveValueChainResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "`created` or `revived` (`If-None-Match: *`)",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<rev>\"`"
+                },
+                "required": true,
+                "description": "`\"r<rev>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveValueChainResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Problem: `revision-conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Problem: `payload-too-large`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Problem: `unsupported-media-type`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`, `value-chain-invalid`, `value-chain-unsupported-version`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Problem: `precondition-required`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/revisions": {
+      "get": {
+        "operationId": "listValueChainRevisions",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Revisions of the value chain, newest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of revisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainRevisionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/revisions/{rev}/content": {
+      "get": {
+        "operationId": "getValueChainRevisionContent",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "The canonical document of one revision (ETag `\"r<rev>\"`)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 999999999
+            },
+            "required": true,
+            "name": "rev",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The canonical document",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<rev>\"`"
+                },
+                "required": true,
+                "description": "`\"r<rev>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/steps/{elementId}": {
+      "get": {
+        "operationId": "getValueChainStep",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "The drill-down of a step: breadcrumb, sub-steps (up to level 2), processes",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "required": true,
+            "name": "elementId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The step",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainStepDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/findings": {
+      "get": {
+        "operationId": "getValueChainFindings",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Findings of the value chain: processes without a step, steps without a process, unresolved links",
+        "description": "Deterministic, recomputed on read, never blocking (M4 §3.4): `process-without-step` for a head process without an accepted placement on a live step (`@outside` counts), with `state` (pending or held) and the steps of accepted callers; `step-without-process` at the topmost step without an accepted placement on it or below it; `unresolved-link` for a link that is neither `proa:process/<ref>` of a head process nor an http(s) URL.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValueChainFindingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/unplaced-processes": {
+      "get": {
+        "operationId": "listUnplacedProcesses",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Processes without a home step and without a placement waiting for review, with hints",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of unplaced processes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnplacedProcessPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements": {
+      "get": {
+        "operationId": "listPlacements",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Placements, filtered by step, process, model, status, tier or endpoint state",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "required": false,
+            "name": "elementId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Ref"
+            },
+            "required": false,
+            "description": "Reference to a BPMN element: `<model_key>#<element_id>`, or `<model_key>#<process_id>` for a process.",
+            "name": "process",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelKey"
+            },
+            "required": false,
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "name": "modelKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/RelationStatus"
+            },
+            "required": false,
+            "description": "Review status of a relation.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PlacementTier"
+            },
+            "required": false,
+            "description": "Evidence tier of a placement: `key` (rule tier: a step link or an equal name), `lexical`, `semantic`, `manual`.",
+            "name": "tier",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EndpointState"
+            },
+            "required": false,
+            "description": "State of the relation endpoints in the head revisions.",
+            "name": "endpointState",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/Cursor"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of placements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacementPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postPlacements",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Propose placements ad hoc (proa:propose), or add an accepted manual one (humans)",
+        "description": "`kind: \"propose\"`: up to 200 items, each answered `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`; the server computes the tier. `kind: \"manual\"`: a human accepts a process on a step at once (agents get `human-decision-required`).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostPlacementsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostPlacementsResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements/decisions": {
+      "post": {
+        "operationId": "decidePlacements",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Bulk decision on placements with ids, versions and expectedCount (all or nothing)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPlacementDecisionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided placements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkPlacementDecisionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements/{placement}": {
+      "get": {
+        "operationId": "getPlacement",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "One placement (ETag `\"<version>\"`)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PlacementId"
+            },
+            "required": true,
+            "description": "Placement id (`plc_` + ULID).",
+            "name": "placement",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The placement",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"<version>\"`"
+                },
+                "required": true,
+                "description": "`\"<version>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Placement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/proposal": {
+      "delete": {
+        "operationId": "withdrawPlacementProposal",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Withdraw the caller's own live proposal of a placement",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PlacementId"
+            },
+            "required": true,
+            "description": "Placement id (`plc_` + ULID).",
+            "name": "placement",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The placement after the withdrawal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Placement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/decision": {
+      "post": {
+        "operationId": "decidePlacement",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Decide a placement: accept, reject, hold or correct (humans only)",
+        "description": "Agents get 403 `human-decision-required` with `reviewUrl`. `If-Match: \"<version>\"` (or `version` in the body) makes the decision conditional: 412 `precondition-failed` (409 `conflict` for the body field) if the placement changed. A placement on a removed step can only be rejected or corrected (422 `unknown-step`).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PlacementId"
+            },
+            "required": true,
+            "description": "Placement id (`plc_` + ULID).",
+            "name": "placement",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "required": false,
+            "name": "if-match",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlacementDecisionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided placement",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"<version>\"`"
+                },
+                "required": true,
+                "description": "`\"<version>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacementDecisionResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Problem: `precondition-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/notes": {
+      "post": {
+        "operationId": "addPlacementNote",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "Add a note to a placement, e.g. the answer to a held question (humans only)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PlacementId"
+            },
+            "required": true,
+            "description": "Placement id (`plc_` + ULID).",
+            "name": "placement",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacementAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/assertions": {
+      "get": {
+        "operationId": "getPlacementAssertions",
+        "tags": [
+          "value-chains"
+        ],
+        "summary": "The history (timeline) of a placement: every assertion, oldest first",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ValueChainKey"
+            },
+            "required": true,
+            "description": "Value chain key (M4: `main`).",
+            "name": "key",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PlacementId"
+            },
+            "required": true,
+            "description": "Placement id (`plc_` + ULID).",
+            "name": "placement",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The assertions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacementAssertionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
             "content": {
               "application/problem+json": {
                 "schema": {

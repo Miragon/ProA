@@ -41,6 +41,7 @@ const STATUS_CODES: Readonly<Record<number, ProblemCode>> = {
   412: 'precondition-failed',
   413: 'payload-too-large',
   415: 'unsupported-media-type',
+  428: 'precondition-required',
   501: 'not-implemented',
 };
 

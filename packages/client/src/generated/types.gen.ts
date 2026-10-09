@@ -192,6 +192,46 @@ export type MessageFlowInfo = {
 };
 
 /**
+ * One reason a value chain is refused.
+ */
+export type ValueChainViolation = {
+  reason: ValueChainViolationReason;
+  elementId: string | null;
+  connectionId: string | null;
+  path: string | null;
+  detail: string;
+};
+
+/**
+ * Why a value chain is refused.
+ */
+export type ValueChainViolationReason =
+  | 'not-json'
+  | 'not-an-object'
+  | 'schema'
+  | 'duplicate-id'
+  | 'unknown-endpoint'
+  | 'self-connection'
+  | 'connection-not-allowed'
+  | 'document-too-large'
+  | 'too-many-elements'
+  | 'too-many-connections'
+  | 'name-required'
+  | 'name-too-long'
+  | 'name-characters'
+  | 'id-too-long'
+  | 'id-characters'
+  | 'reserved-id'
+  | 'link-too-long'
+  | 'link-characters'
+  | 'geometry-out-of-range'
+  | 'multiple-parents'
+  | 'hierarchy-cycle'
+  | 'hierarchy-too-deep'
+  | 'duplicate-connection'
+  | 'sequence-cycle';
+
+/**
  * Server health.
  */
 export type Health = {
@@ -249,6 +289,10 @@ export type ProblemCode =
   | 'method-not-allowed'
   | 'conflict'
   | 'precondition-failed'
+  | 'precondition-required'
+  | 'revision-conflict'
+  | 'value-chain-invalid'
+  | 'value-chain-unsupported-version'
   | 'lease-lost'
   | 'task-cancelled'
   | 'already-submitted'
@@ -780,6 +824,603 @@ export type BulkDecisionBody = {
  */
 export type NoteBody = {
   text: string;
+};
+
+/**
+ * The live value chains of a project.
+ */
+export type ValueChainList = {
+  items: Array<ValueChain>;
+};
+
+/**
+ * A value chain of a project.
+ */
+export type ValueChain = {
+  id: ValueChainId;
+  key: ValueChainKey;
+  name: string;
+  headRevisionId: ValueChainRevisionId;
+  headRev: number;
+  contentHash: Sha256Hex;
+  structureHash: Sha256Hex;
+  schemaVersion: number;
+  updatedAt: Timestamp;
+};
+
+/**
+ * Value chain id (`vch_` + ULID).
+ */
+export type ValueChainId = string;
+
+/**
+ * Value chain key (M4: `main`).
+ */
+export type ValueChainKey = string;
+
+/**
+ * Value chain revision id (`vcr_` + ULID).
+ */
+export type ValueChainRevisionId = string;
+
+/**
+ * Outcome of a value chain save.
+ */
+export type SaveValueChainResult = {
+  dryRun: boolean;
+  outcome: 'created' | 'revived' | 'revised' | 'unchanged';
+  valueChain: ValueChain | null;
+  revision: ValueChainRevision | null;
+  impact: ValueChainImpact;
+};
+
+/**
+ * An immutable value chain revision.
+ */
+export type ValueChainRevision = {
+  id: ValueChainRevisionId;
+  rev: number;
+  contentHash: Sha256Hex;
+  structureHash: Sha256Hex;
+  schemaVersion: number;
+  baseRevisionId: ValueChainRevisionId | null;
+  principalId: PrincipalId;
+  handle: string;
+  seq: number;
+  createdAt: Timestamp;
+};
+
+/**
+ * What a value chain save does to steps and placements.
+ */
+export type ValueChainImpact = {
+  structureChanged: boolean;
+  steps: {
+    added: Array<{
+      elementId: string;
+      name: string;
+    }>;
+    removed: Array<{
+      elementId: string;
+      generation: number;
+      name: string;
+      placements: ImpactPlacementCounts;
+    }>;
+    changed: Array<{
+      elementId: string;
+      generation: number;
+      before: {
+        name: string;
+        parentId: string | null;
+        kind: StepKind;
+      };
+      after: {
+        name: string;
+        parentId: string | null;
+        kind: StepKind;
+      };
+      fingerprintChanged: boolean;
+      placements: ImpactPlacementCounts;
+    }>;
+  };
+  placements: {
+    stranded: number;
+    toReconfirm: number;
+    proposalsWithdrawn: number;
+  };
+};
+
+/**
+ * Placements on a step by status.
+ */
+export type ImpactPlacementCounts = {
+  accepted: number;
+  held: number;
+  proposed: number;
+};
+
+/**
+ * Kind of a value chain step.
+ */
+export type StepKind = 'core' | 'management' | 'support' | 'other';
+
+/**
+ * Request body to create a value chain.
+ */
+export type CreateValueChainBody = {
+  key: ValueChainKey;
+  name?: string;
+  content?: ValueChainDocument;
+};
+
+/**
+ * A value chain document (`.vc.json`, @miragon/value-chain-schema-model).
+ */
+export type ValueChainDocument = {
+  [key: string]: unknown;
+};
+
+/**
+ * A value chain with steps, placements and findings.
+ */
+export type ValueChainDetail = {
+  valueChain: ValueChain;
+  steps: Array<ValueChainStep>;
+  orgUnits: Array<ValueChainOrgUnit>;
+  placements: Array<PlacementSummary>;
+  findings: Array<ValueChainFinding>;
+};
+
+/**
+ * A step of the head revision.
+ */
+export type ValueChainStep = {
+  elementId: string;
+  generation: number;
+  name: string;
+  kind: StepKind;
+  depth: number;
+  rank: number;
+  parentId: string | null;
+  path: Array<string>;
+  childIds: Array<string>;
+  link: string | null;
+  linkKind: LinkKind;
+  linkProcess: string | null;
+  linkResolved: boolean;
+  owners: Array<{
+    elementId: string;
+    name: string;
+  }>;
+  fingerprint: string;
+  counts: StepPlacementCounts;
+};
+
+/**
+ * Kind of a step link.
+ */
+export type LinkKind = 'none' | 'process' | 'url' | 'opaque';
+
+/**
+ * Placements of a step by status.
+ */
+export type StepPlacementCounts = {
+  accepted: number;
+  proposed: number;
+  held: number;
+};
+
+/**
+ * An org unit and the steps it owns.
+ */
+export type ValueChainOrgUnit = {
+  elementId: string;
+  name: string;
+  stepIds: Array<string>;
+};
+
+/**
+ * A placement in the chain overview.
+ */
+export type PlacementSummary = {
+  id: PlacementId;
+  elementId: string;
+  generation: number;
+  stepLive: boolean;
+  process: Ref;
+  status: RelationStatus;
+  endpointState: EndpointState;
+  tier: PlacementTier;
+  confidence: number | null;
+  version: number;
+  source: SourceKind | null;
+};
+
+/**
+ * Placement id (`plc_` + ULID).
+ */
+export type PlacementId = string;
+
+/**
+ * Evidence tier of a placement: `key` (rule tier: a step link or an equal name), `lexical`, `semantic`, `manual`.
+ */
+export type PlacementTier = 'key' | 'lexical' | 'semantic' | 'manual';
+
+/**
+ * A deterministic finding about the value chain.
+ */
+export type ValueChainFinding = {
+  kind: ValueChainFindingKind;
+  elementId: string | null;
+  process: Ref | null;
+  link: string | null;
+  state: UnplacedState | null;
+  calledFrom: Array<{
+    elementId: string;
+    process: Ref;
+  }>;
+  detail: string;
+};
+
+/**
+ * Kind of a value chain finding.
+ */
+export type ValueChainFindingKind =
+  'process-without-step' | 'step-without-process' | 'unresolved-link';
+
+/**
+ * Review state of a process without a home step.
+ */
+export type UnplacedState = 'none' | 'proposed' | 'held';
+
+/**
+ * A page of ValueChainRevision items.
+ */
+export type ValueChainRevisionPage = {
+  items: Array<ValueChainRevision>;
+  nextCursor: Cursor | null;
+};
+
+/**
+ * The drill-down of one value chain step.
+ */
+export type ValueChainStepDetail = {
+  step: ValueChainStep;
+  breadcrumb: Array<{
+    elementId: string;
+    name: string;
+  }>;
+  children: Array<ValueChainStep>;
+  placements: {
+    own: Array<Placement>;
+    subtree: Array<Placement>;
+    reachedByCall: Array<{
+      process: Ref;
+      name: string | null;
+      via: Array<{
+        relationId: RelationId;
+        caller: Ref;
+      }>;
+    }>;
+  };
+};
+
+/**
+ * A process placed on a value chain step.
+ */
+export type Placement = {
+  id: PlacementId;
+  valueChainId: ValueChainId;
+  elementId: string;
+  generation: number;
+  stepName: string | null;
+  stepLive: boolean;
+  process: Ref;
+  processName: string | null;
+  status: RelationStatus;
+  endpointState: EndpointState;
+  endpoints: {
+    step: EndpointState;
+    process: EndpointState;
+  };
+  tier: PlacementTier;
+  confidence: number | null;
+  version: number;
+  source: SourceKind | null;
+  provenance: PlacementProvenance | null;
+  updatedAt: Timestamp;
+};
+
+/**
+ * The assertion a placement status rests on.
+ */
+export type PlacementProvenance = {
+  assertionId: PlacementAssertionId;
+  kind: AssertionKind;
+  verdict: Verdict | null;
+  sourceKind: SourceKind;
+  principalId: PrincipalId;
+  handle: string;
+  clientId: string | null;
+  procedure: DeclaredProcedure | null;
+  llmModel: string | null;
+  tier: PlacementTier | null;
+  confidence: number | null;
+  rationale: string | null;
+  question: string | null;
+  label: string | null;
+  at: Timestamp;
+};
+
+/**
+ * Placement assertion id (`pas_` + ULID).
+ */
+export type PlacementAssertionId = string;
+
+/**
+ * Findings of the value chain head.
+ */
+export type ValueChainFindingList = {
+  items: Array<ValueChainFinding>;
+};
+
+/**
+ * A page of UnplacedProcess items.
+ */
+export type UnplacedProcessPage = {
+  items: Array<UnplacedProcess>;
+  nextCursor: Cursor | null;
+};
+
+/**
+ * A process without a home step on the chain.
+ */
+export type UnplacedProcess = {
+  process: Ref;
+  name: string | null;
+  modelKey: ModelKey;
+  lanes: Array<string>;
+  starts: Array<string>;
+  ends: Array<string>;
+  doc?: string;
+  neighbours: Array<{
+    process: Ref;
+    via: Array<{
+      relationId: RelationId;
+      type: RelationType;
+      direction: 'out' | 'in';
+    }>;
+    steps: Array<string>;
+  }>;
+  calls: {
+    out: Array<{
+      process: Ref;
+      relationId: RelationId;
+      status: RelationStatus;
+    }>;
+    in: Array<{
+      process: Ref;
+      relationId: RelationId;
+      status: RelationStatus;
+    }>;
+  };
+  hints: Array<{
+    step: string;
+    name: string;
+    score: number;
+  }>;
+};
+
+/**
+ * A page of Placement items.
+ */
+export type PlacementPage = {
+  items: Array<Placement>;
+  nextCursor: Cursor | null;
+};
+
+/**
+ * Outcome of proposed or manual placements.
+ */
+export type PostPlacementsResult =
+  | ({
+      kind: 'propose';
+    } & ProposePlacementsResult)
+  | ({
+      kind: 'manual';
+    } & ManualPlacementResult);
+
+/**
+ * Outcome per proposed placement.
+ */
+export type ProposePlacementsResult = {
+  kind: 'propose';
+  items: Array<PlacementItemResult>;
+  counts: {
+    applied: number;
+    duplicate: number;
+    suppressed: number;
+    reopened: number;
+    invalid: number;
+  };
+};
+
+/**
+ * Outcome of one proposed placement.
+ */
+export type PlacementItemResult = {
+  index: number;
+  result: PlacementOutcome;
+  placementId: PlacementId | null;
+  status: RelationStatus | null;
+};
+
+/**
+ * Outcome of one proposed placement.
+ */
+export type PlacementOutcome =
+  | 'applied'
+  | 'duplicate'
+  | 'suppressed'
+  | 'reopened'
+  | 'invalid:malformed-step'
+  | 'invalid:malformed-ref'
+  | 'invalid:confidence-out-of-range'
+  | 'invalid:rationale-too-long'
+  | 'invalid:question-too-long'
+  | 'invalid:too-much-evidence'
+  | 'invalid:control-characters'
+  | 'invalid:rationale-required'
+  | 'invalid:unknown-step'
+  | 'invalid:unknown-process'
+  | 'invalid:unknown-evidence'
+  | 'invalid:too-many-steps';
+
+/**
+ * The manual placement.
+ */
+export type ManualPlacementResult = {
+  kind: 'manual';
+  result: 'applied' | 'duplicate';
+  placement: Placement;
+};
+
+/**
+ * Propose placements, or add a manual one.
+ */
+export type PostPlacementsBody =
+  | ({
+      kind: 'propose';
+    } & ProposePlacementsBody)
+  | ({
+      kind: 'manual';
+    } & ManualPlacementBody);
+
+/**
+ * Placements proposed ad hoc.
+ */
+export type ProposePlacementsBody = {
+  kind: 'propose';
+  procedure?: DeclaredProcedure | null;
+  llmModel?: string | null;
+  placements: Array<PlacementItem>;
+};
+
+/**
+ * A placement an agent proposes.
+ */
+export type PlacementItem = {
+  step: string;
+  process: string;
+  confidence: number;
+  rationale?: string;
+  evidence?: Array<string>;
+  question?: string | null;
+};
+
+/**
+ * A manual placement, accepted at once.
+ */
+export type ManualPlacementBody = {
+  kind: 'manual';
+  step: string;
+  process: Ref;
+  rationale: string;
+  confidence?: number;
+};
+
+/**
+ * The decided placements.
+ */
+export type BulkPlacementDecisionResult = {
+  items: Array<Placement>;
+};
+
+/**
+ * One verdict for many placements.
+ */
+export type BulkPlacementDecisionBody = {
+  verdict: 'accept' | 'reject' | 'hold';
+  reason?: string;
+  note?: string;
+  question?: string;
+  label?: string;
+  tier?: PlacementTier;
+  items: Array<{
+    id: PlacementId;
+    version: number;
+  }>;
+  expectedCount: number;
+};
+
+/**
+ * The decided placement (and its correction).
+ */
+export type PlacementDecisionResult = {
+  placement: Placement;
+  corrected: Placement | null;
+};
+
+/**
+ * A human decision on one placement.
+ */
+export type PlacementDecisionBody =
+  | {
+      verdict: 'accept';
+      note?: string;
+      version?: number;
+    }
+  | {
+      verdict: 'reject';
+      reason: string;
+      version?: number;
+    }
+  | {
+      verdict: 'hold';
+      note: string;
+      question?: string;
+      label?: string;
+      version?: number;
+    }
+  | {
+      verdict: 'correct';
+      step: string;
+      note: string;
+      version?: number;
+    };
+
+/**
+ * One assertion of a placement history.
+ */
+export type PlacementAssertion = {
+  id: PlacementAssertionId;
+  seq: number;
+  kind: AssertionKind;
+  verdict: Verdict | null;
+  sourceKind: SourceKind;
+  principalId: PrincipalId;
+  handle: string;
+  clientId: string | null;
+  procedure: DeclaredProcedure | null;
+  llmModel: string | null;
+  submissionId: SubmissionId | null;
+  tier: PlacementTier | null;
+  confidence: number | null;
+  rationale: string | null;
+  evidence: Array<string>;
+  question: string | null;
+  label: string | null;
+  linkedPlacementId: PlacementId | null;
+  stepFp: string | null;
+  processFp: string | null;
+  at: Timestamp;
+};
+
+/**
+ * The history of a placement, oldest first.
+ */
+export type PlacementAssertionList = {
+  items: Array<PlacementAssertion>;
 };
 
 /**
@@ -2354,6 +2995,1010 @@ export type AddRelationNoteResponses = {
 };
 
 export type AddRelationNoteResponse = AddRelationNoteResponses[keyof AddRelationNoteResponses];
+
+export type ListValueChainsData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains';
+};
+
+export type ListValueChainsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListValueChainsError = ListValueChainsErrors[keyof ListValueChainsErrors];
+
+export type ListValueChainsResponses = {
+  /**
+   * Value chains
+   */
+  200: ValueChainList;
+};
+
+export type ListValueChainsResponse = ListValueChainsResponses[keyof ListValueChainsResponses];
+
+export type CreateValueChainData = {
+  body: CreateValueChainBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains';
+};
+
+export type CreateValueChainErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `payload-too-large`
+   */
+  413: ApiProblem;
+  /**
+   * Problem: `validation-failed`, `value-chain-invalid`, `value-chain-unsupported-version`
+   */
+  422: ApiProblem;
+};
+
+export type CreateValueChainError = CreateValueChainErrors[keyof CreateValueChainErrors];
+
+export type CreateValueChainResponses = {
+  /**
+   * The new chain
+   */
+  201: SaveValueChainResult;
+};
+
+export type CreateValueChainResponse = CreateValueChainResponses[keyof CreateValueChainResponses];
+
+export type DeleteValueChainData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}';
+};
+
+export type DeleteValueChainErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type DeleteValueChainError = DeleteValueChainErrors[keyof DeleteValueChainErrors];
+
+export type DeleteValueChainResponses = {
+  /**
+   * Deleted
+   */
+  204: void;
+};
+
+export type DeleteValueChainResponse = DeleteValueChainResponses[keyof DeleteValueChainResponses];
+
+export type GetValueChainData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}';
+};
+
+export type GetValueChainErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetValueChainError = GetValueChainErrors[keyof GetValueChainErrors];
+
+export type GetValueChainResponses = {
+  /**
+   * The chain with steps and placements
+   */
+  200: ValueChainDetail;
+};
+
+export type GetValueChainResponse = GetValueChainResponses[keyof GetValueChainResponses];
+
+export type GetValueChainContentData = {
+  body?: never;
+  headers?: {
+    'if-none-match'?: string;
+  };
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/content';
+};
+
+export type GetValueChainContentErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetValueChainContentError =
+  GetValueChainContentErrors[keyof GetValueChainContentErrors];
+
+export type GetValueChainContentResponses = {
+  /**
+   * The canonical document
+   */
+  200: ValueChainDocument;
+};
+
+export type GetValueChainContentResponse =
+  GetValueChainContentResponses[keyof GetValueChainContentResponses];
+
+export type PutValueChainContentData = {
+  body: ValueChainDocument;
+  headers?: {
+    'if-match'?: string;
+    'if-none-match'?: string;
+  };
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: {
+    dryRun?: 'true' | 'false';
+  };
+  url: '/api/v1/projects/{project}/value-chains/{key}/content';
+};
+
+export type PutValueChainContentErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `revision-conflict`
+   */
+  412: ApiProblem;
+  /**
+   * Problem: `payload-too-large`
+   */
+  413: ApiProblem;
+  /**
+   * Problem: `unsupported-media-type`
+   */
+  415: ApiProblem;
+  /**
+   * Problem: `validation-failed`, `value-chain-invalid`, `value-chain-unsupported-version`
+   */
+  422: ApiProblem;
+  /**
+   * Problem: `precondition-required`
+   */
+  428: ApiProblem;
+};
+
+export type PutValueChainContentError =
+  PutValueChainContentErrors[keyof PutValueChainContentErrors];
+
+export type PutValueChainContentResponses = {
+  /**
+   * `revised`, `unchanged`, or a dry run
+   */
+  200: SaveValueChainResult;
+  /**
+   * `created` or `revived` (`If-None-Match: *`)
+   */
+  201: SaveValueChainResult;
+};
+
+export type PutValueChainContentResponse =
+  PutValueChainContentResponses[keyof PutValueChainContentResponses];
+
+export type ListValueChainRevisionsData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: {
+    /**
+     * Opaque pagination cursor.
+     */
+    cursor?: Cursor;
+    limit?: number;
+  };
+  url: '/api/v1/projects/{project}/value-chains/{key}/revisions';
+};
+
+export type ListValueChainRevisionsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListValueChainRevisionsError =
+  ListValueChainRevisionsErrors[keyof ListValueChainRevisionsErrors];
+
+export type ListValueChainRevisionsResponses = {
+  /**
+   * A page of revisions
+   */
+  200: ValueChainRevisionPage;
+};
+
+export type ListValueChainRevisionsResponse =
+  ListValueChainRevisionsResponses[keyof ListValueChainRevisionsResponses];
+
+export type GetValueChainRevisionContentData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    rev: number;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/revisions/{rev}/content';
+};
+
+export type GetValueChainRevisionContentErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetValueChainRevisionContentError =
+  GetValueChainRevisionContentErrors[keyof GetValueChainRevisionContentErrors];
+
+export type GetValueChainRevisionContentResponses = {
+  /**
+   * The canonical document
+   */
+  200: ValueChainDocument;
+};
+
+export type GetValueChainRevisionContentResponse =
+  GetValueChainRevisionContentResponses[keyof GetValueChainRevisionContentResponses];
+
+export type GetValueChainStepData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    elementId: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/steps/{elementId}';
+};
+
+export type GetValueChainStepErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetValueChainStepError = GetValueChainStepErrors[keyof GetValueChainStepErrors];
+
+export type GetValueChainStepResponses = {
+  /**
+   * The step
+   */
+  200: ValueChainStepDetail;
+};
+
+export type GetValueChainStepResponse =
+  GetValueChainStepResponses[keyof GetValueChainStepResponses];
+
+export type GetValueChainFindingsData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/findings';
+};
+
+export type GetValueChainFindingsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetValueChainFindingsError =
+  GetValueChainFindingsErrors[keyof GetValueChainFindingsErrors];
+
+export type GetValueChainFindingsResponses = {
+  /**
+   * The findings
+   */
+  200: ValueChainFindingList;
+};
+
+export type GetValueChainFindingsResponse =
+  GetValueChainFindingsResponses[keyof GetValueChainFindingsResponses];
+
+export type ListUnplacedProcessesData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: {
+    /**
+     * Opaque pagination cursor.
+     */
+    cursor?: Cursor;
+    limit?: number;
+  };
+  url: '/api/v1/projects/{project}/value-chains/{key}/unplaced-processes';
+};
+
+export type ListUnplacedProcessesErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListUnplacedProcessesError =
+  ListUnplacedProcessesErrors[keyof ListUnplacedProcessesErrors];
+
+export type ListUnplacedProcessesResponses = {
+  /**
+   * A page of unplaced processes
+   */
+  200: UnplacedProcessPage;
+};
+
+export type ListUnplacedProcessesResponse =
+  ListUnplacedProcessesResponses[keyof ListUnplacedProcessesResponses];
+
+export type ListPlacementsData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: {
+    elementId?: string;
+    /**
+     * Reference to a BPMN element: `<model_key>#<element_id>`, or `<model_key>#<process_id>` for a process.
+     */
+    process?: Ref;
+    /**
+     * Immutable model key: lowercase slug segments separated by `/`.
+     */
+    modelKey?: ModelKey;
+    /**
+     * Review status of a relation.
+     */
+    status?: RelationStatus;
+    /**
+     * Evidence tier of a placement: `key` (rule tier: a step link or an equal name), `lexical`, `semantic`, `manual`.
+     */
+    tier?: PlacementTier;
+    /**
+     * State of the relation endpoints in the head revisions.
+     */
+    endpointState?: EndpointState;
+    /**
+     * Opaque pagination cursor.
+     */
+    cursor?: Cursor;
+    limit?: number;
+  };
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements';
+};
+
+export type ListPlacementsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListPlacementsError = ListPlacementsErrors[keyof ListPlacementsErrors];
+
+export type ListPlacementsResponses = {
+  /**
+   * A page of placements
+   */
+  200: PlacementPage;
+};
+
+export type ListPlacementsResponse = ListPlacementsResponses[keyof ListPlacementsResponses];
+
+export type PostPlacementsData = {
+  body: PostPlacementsBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements';
+};
+
+export type PostPlacementsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type PostPlacementsError = PostPlacementsErrors[keyof PostPlacementsErrors];
+
+export type PostPlacementsResponses = {
+  /**
+   * The outcome
+   */
+  200: PostPlacementsResult;
+};
+
+export type PostPlacementsResponse = PostPlacementsResponses[keyof PostPlacementsResponses];
+
+export type DecidePlacementsData = {
+  body: BulkPlacementDecisionBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements/decisions';
+};
+
+export type DecidePlacementsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type DecidePlacementsError = DecidePlacementsErrors[keyof DecidePlacementsErrors];
+
+export type DecidePlacementsResponses = {
+  /**
+   * The decided placements
+   */
+  200: BulkPlacementDecisionResult;
+};
+
+export type DecidePlacementsResponse = DecidePlacementsResponses[keyof DecidePlacementsResponses];
+
+export type GetPlacementData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    /**
+     * Placement id (`plc_` + ULID).
+     */
+    placement: PlacementId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}';
+};
+
+export type GetPlacementErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetPlacementError = GetPlacementErrors[keyof GetPlacementErrors];
+
+export type GetPlacementResponses = {
+  /**
+   * The placement
+   */
+  200: Placement;
+};
+
+export type GetPlacementResponse = GetPlacementResponses[keyof GetPlacementResponses];
+
+export type WithdrawPlacementProposalData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    /**
+     * Placement id (`plc_` + ULID).
+     */
+    placement: PlacementId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/proposal';
+};
+
+export type WithdrawPlacementProposalErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type WithdrawPlacementProposalError =
+  WithdrawPlacementProposalErrors[keyof WithdrawPlacementProposalErrors];
+
+export type WithdrawPlacementProposalResponses = {
+  /**
+   * The placement after the withdrawal
+   */
+  200: Placement;
+};
+
+export type WithdrawPlacementProposalResponse =
+  WithdrawPlacementProposalResponses[keyof WithdrawPlacementProposalResponses];
+
+export type DecidePlacementData = {
+  body: PlacementDecisionBody;
+  headers?: {
+    'if-match'?: string;
+  };
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    /**
+     * Placement id (`plc_` + ULID).
+     */
+    placement: PlacementId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/decision';
+};
+
+export type DecidePlacementErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `precondition-failed`
+   */
+  412: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type DecidePlacementError = DecidePlacementErrors[keyof DecidePlacementErrors];
+
+export type DecidePlacementResponses = {
+  /**
+   * The decided placement
+   */
+  200: PlacementDecisionResult;
+};
+
+export type DecidePlacementResponse = DecidePlacementResponses[keyof DecidePlacementResponses];
+
+export type AddPlacementNoteData = {
+  body: NoteBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    /**
+     * Placement id (`plc_` + ULID).
+     */
+    placement: PlacementId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/notes';
+};
+
+export type AddPlacementNoteErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type AddPlacementNoteError = AddPlacementNoteErrors[keyof AddPlacementNoteErrors];
+
+export type AddPlacementNoteResponses = {
+  /**
+   * The note
+   */
+  201: PlacementAssertion;
+};
+
+export type AddPlacementNoteResponse = AddPlacementNoteResponses[keyof AddPlacementNoteResponses];
+
+export type GetPlacementAssertionsData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Value chain key (M4: `main`).
+     */
+    key: ValueChainKey;
+    /**
+     * Placement id (`plc_` + ULID).
+     */
+    placement: PlacementId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/assertions';
+};
+
+export type GetPlacementAssertionsErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetPlacementAssertionsError =
+  GetPlacementAssertionsErrors[keyof GetPlacementAssertionsErrors];
+
+export type GetPlacementAssertionsResponses = {
+  /**
+   * The assertions
+   */
+  200: PlacementAssertionList;
+};
+
+export type GetPlacementAssertionsResponse =
+  GetPlacementAssertionsResponses[keyof GetPlacementAssertionsResponses];
 
 export type ClaimAnalysesData = {
   body: ClaimAnalysisBody;

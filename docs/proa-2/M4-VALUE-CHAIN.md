@@ -1,6 +1,6 @@
 # ProA 2.0 – Milestone M4 "Value chain"
 
-Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
+Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
 
 M4 puts the classic process landscape map ("Prozesslandkarte") on top of the processes: one
 value chain per project (Wertschöpfungskette, ARIS value-added chain diagram), edited in the
@@ -57,8 +57,12 @@ characters; element ids ≤ 128 characters, never `vc-root` (reserved by the ren
 importer skips it) and never starting with `@` (ProA's pseudo-steps); at most one `hierarchy`
 parent per step, acyclic, depth ≤ 2; no two connections of the same type between the same
 pair (either direction; the modeler's docs call them invalid, `validateDocument` does not
-check); acyclic `sequence` edges. A `schemaVersion` newer than ProA's schema-model gives 422
-`value-chain-unsupported-version`.
+check); acyclic `sequence` edges; coordinates (bounds and waypoints) within ±10,000,000 and
+widths and heights ≤ 1,000,000 (`geometry-out-of-range`, S2: schema-model takes any finite
+number, but its 3-decimal rounding turns one above about 1.8e305 into `Infinity`, stored as
+`null`, which no read loads again). The size and count limits are checked first; a document
+beyond them gets only those violations. A `schemaVersion` newer than ProA's schema-model gives
+422 `value-chain-unsupported-version`.
 
 **Steps** are parsed from the head content on read (≤ 500 elements; cached per
 `content_hash`), not stored per revision: element type, name, `name_norm` (as for facts),
@@ -201,8 +205,8 @@ domain allows only `main`.
 ### 3.1 Propose placements ad hoc (M4a)
 
 Any MCP client with `proa:propose` works on the chain without a task:
-`list_unplaced_processes` returns processes with no accepted placement and no live proposal,
-including called ones, each with name, model key, lanes, up to 5 start and end labels,
+`list_unplaced_processes` returns processes with no accepted or held placement and none waiting
+for review on a live step (a rejected one homes nothing), including called ones, each with name, model key, lanes, up to 5 start and end labels,
 documentation cut to 200 characters, relation neighbours with their accepted steps, calls in
 both directions, and the top 3 `baseline-prefix/1` hints. `propose_placement` takes one or
 more items:
@@ -292,6 +296,7 @@ will need as expected findings.
 |---|---|---|
 | `get_value_chain` (structure with kinds, placements per step with status and endpoint state, findings, stage), `get_value_chain_document` (canonical `.vc.json`), `list_unplaced_processes` | read | M4a |
 | `propose_placement` (also to `@outside`), `withdraw_placement_proposal` (own) | propose | M4a |
+| `decide_placement` (a stub like `decide_relation`: always `human-decision-required` with the review URL) | none | M4a |
 | `claim_analysis` (`kinds`), `submit_analysis` (new fields), `release_analysis` | propose | M4b |
 
 No tool saves a revision or decides; attempts return `human-decision-required` with the review
@@ -525,9 +530,9 @@ decisions, manual placements and notes.
 |---|---|---|
 | S1 | **done** (2026-10-09): tables and migration (`value_chain`, revisions, step generations, `placement`, `placement_assertion`); placement lifecycle with generalised `recomputeStatus`; see below | 2.5 d |
 | S0 | **done** (2026-10-08): consume the release, see below | 1 d |
-| S2 | `domain/value-chain` (canonicalize, ProA rules, kinds, ranks, fingerprints, `structure_hash`, generations); REST with `If-Match` and `dryRun`; events; policy matrix; `proa value-chain push\|pull`; endpoint state on save and model ingest/delete; key-tier rule proposals; server tiers; decisions incl. bulk; read and propose MCP tools; findings; contract snapshots | 4 d |
+| S2 | **done** (2026-10-09): `domain/value-chain` (canonicalize, ProA rules, kinds, ranks, fingerprints, `structure_hash`, generations); REST with `If-Match` and `dryRun`; events; policy matrix; `proa value-chain push\|pull`; endpoint state on save and model ingest/delete; key-tier rule proposals; server tiers with `baseline-prefix/1` (moved here from S4); decisions incl. bulk; read and propose MCP tools; findings; contract snapshots; see below | 4.5 d |
 | S3 | UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check; from S0: the bundle guard (one `diagram-js` and one zod v4 copy in the web chunks, chain chunk budget) and the Playwright import check of both golden chains (zero import warnings, stored waypoints equal `layouter.layoutConnection`) | 5.5 d |
-| S4 | `eval:placements`, `baseline-prefix/1`, report, `proa seed --value-chains` | 1.5 d |
+| S4 | `eval:placements` (reports `baseline-prefix/1`, which S2 ships in `@proa/relations`), report, `proa seed --value-chains` | 1 d |
 
 **S0 as delivered.** `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and
 `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`, exact; no overrides (§5);
@@ -596,28 +601,161 @@ as domain functions, without REST, MCP or UI (S2, S3).
   of another chain is refused with `validation-failed` (`unknown-base-revision`) before the
   foreign key would; notes do not move a placement's version, as for relations.
 
-**S2 checklist** (from S1):
-- `prepareRevision`: canonicalize, ProA rules (incl. no element id starting with `@`), kinds,
-  ranks, step fingerprints, `structure_hash`; `If-Match` and `dryRun` under the project lock
-  (`dryRun` uses `planStepGenerations`).
-- Call `refreshPlacements` from ingest and `deleteModel`, with step fingerprints parsed from the
-  head (cached per `content_hash`); an integration test as for relations in `corpus.test.ts`.
-- Token revocation withdraws the token's live placement proposals (with the propose tool).
-- Key-tier rule proposals, written through `applyPlacementProposal` with
-  `PlacementContext.proposer` = `{sourceKind: 'rule', principalId: proa-rules}` (so
-  `source_kind = 'rule'`, no client), re-derived on save and ingest, withdrawn when no longer
-  derived.
-- Item validation and its invalid reasons (incl. `invalid:rationale-required` for `@outside`
-  without a reason, which the domain also refuses), the tier matchers (`baseline-prefix/1` is
-  scheduled for S4: move it into S2 or ship S2 with name-stem matching only), bulk decisions
-  (a bulk "re-confirm" must leave out placements on tombstoned generations, which the domain
-  refuses to accept or hold, and offer reject or `correct`), views, contracts,
-  REST and MCP with `policy.require`, new problem codes (`value-chain-invalid`,
-  `revision-conflict`, 428).
-- Findings treat an accepted placement whose step is missing as unplaced
-  (`process-without-step`); accepted and held placements on deleted or re-created steps stay
-  `missing` for good, so `dryRun`, the UI's bulk actions and the findings must surface them.
-  Live proposals there are withdrawn by the save (S1), so they never count as pending.
+**S2 as delivered** (2026-10-09). REST, MCP and CLI on S1's domain functions, the rule tier's
+key proposals, the endpoint hooks of model changes, findings and `baseline-prefix/1`; no UI (S3).
+- **Contracts** (`packages/contracts/src/api/{value-chains,placements}.ts`): the problem codes
+  `value-chain-invalid` (422, `violations` ≤ 100 and `truncated`), `value-chain-unsupported-version`
+  (422, `schemaVersion`, `supported`), `revision-conflict` (412, `headRev`, `etag`) and
+  `precondition-required` (428); 19 routes under the OpenAPI tag `value-chains` (§3.5, plus notes,
+  the assertion timeline and `DELETE …/placements/{plc}/proposal`, because every MCP capability
+  needs REST and the UI has no private endpoints); one `SaveValueChainResult` (`dryRun`,
+  `outcome`, `valueChain`, `revision`, `impact`) for POST, PUT and the dry run; `ValueChainFinding`
+  separate from the relation `FindingKind`; `valueChainPath()` as the `reviewUrl` of chain and
+  placement writes (`/projects/<key>/value-chain[?placement=plc_…]` or `…/steps/<id>`; S3 builds
+  the page, until then the web app shows its not-found page); the limits as constants
+  (`MAX_VALUE_CHAIN_*`, `STEP_KIND_COLORS`, `OUTSIDE_STEP`) for S3's web limits. The client is
+  regenerated.
+- **`baseline-prefix/1` and the stem rule** live in `packages/relations/src/placement.ts`
+  (`baselinePrefix`, `sharesNameStem`): the package already holds the normalization, stopwords,
+  synonyms and `baselineProa1` they build on, both the server domain and `eval/tools` depend on it
+  (S4 imports the same code), a sixth package would break CONCEPT principle 7, and `eval/tools`
+  must not import from an app; steps come in as plain `{id, name, parentId}`, so the package needs
+  no schema-model. Frozen v1: words are `contentWords`, each kept with its `conceptOf` concept;
+  two words match when equal, or when both have ≥ 4 characters and share a prefix of
+  `min(5, |a|, |b|)`; score 3 × process name or file stem words on the step's name + 1 × on an
+  ancestor's name + 2 × model key folder words (not the file) on the step or an ancestor + 1 per
+  neighbour known on the step and 0.5 per neighbour known below it; score 0 dropped; ties by
+  depth (deepest first), then id; top 3; `@outside` is never a candidate; leave-one-out holds by
+  construction (a process's own placements are never read). Any change needs `/2`; nothing is
+  tuned on the holdout. `sharesNameStem` is the README's derived `name-match` rule exactly (its
+  transliteration, words of ≥ 4 letters, the shared stem in both directions, no sibling with
+  it); a unit test checks it against the `name-match`/`semantic` tags of every dev placement.
+  This moves `baseline-prefix/1` from S4 into S2 (0.5 d); S4 shrinks by the same.
+- **`domain/value-chain/`**: `document.ts` (`prepareRevision`: not an object, the version
+  before `migrate()`, schema-model's zod schema, ProA's copies of the cross-field rules so each
+  violation names its element, `loadDocument` as the authority, canonical bytes and hash, the
+  ProA rules (the size and count limits first and, when one fails, nothing else, so the graph
+  rules only see ≤ 500 elements and ≤ 1,000 connections; then the rest collected together,
+  including `geometry-out-of-range`; hierarchy depth and cycles in one memoized walk, sequence
+  successors sorted once), then the canonical text loaded again with `parseDocumentJSON`
+  exactly as a read loads the stored bytes on a cache miss (a failure would be `schema`), and
+  the structure from that reloaded document, so the cached structure and one derived from the
+  stored bytes are the same), `structure.ts`
+  (kinds, ranks, fingerprints, owners, link kinds, `structure_hash` over
+  `proa-vc-structure/1`, a 16-entry LRU per `content_hash`), `impact.ts`, `items.ts`
+  (`validatePlacementItem`, reused by S5), `tiers.ts` (`lexicalMatcher`: top 3 of the baseline
+  or a shared stem or an equal name; neighbours from accepted relations, votes from accepted
+  placements on live generations), `views.ts`, `chain-state.ts`, `revocation.ts`, `rules.ts`,
+  `sync.ts`, `findings.ts`; use cases `use-cases/{value-chains,placements,chain-access}.ts`, each
+  with `policy.require` (`read`, `propose`, `review`; agents get `human-decision-required` with
+  the `reviewUrl`).
+- **Saves:** `POST …/value-chains` takes exactly one of `name` (an empty document) or `content`;
+  `PUT …/content` needs `If-Match: "r<rev>"` (428 without, `*` or an unparsable tag), a stale
+  revision is 412 `revision-conflict` with `headRev`, content equal to the head answers 200
+  `unchanged` whatever the tag (RFC 9110 §13.1.1, so retries are idempotent), and
+  `If-None-Match: *` creates or revives (201; 412 if a live chain exists); both headers at once,
+  or an `If-None-Match` other than `*`, is 422. The body is raw JSON (2 MiB, 413; another media
+  type 415; a syntax error `not-json`); canonical bytes may have 1 MiB (`document-too-large`).
+  `GET …/content` sends the canonical bytes with `ETag: "r<rev>"`, `Cache-Control: private,
+  no-cache` and 304 on a matching `If-None-Match`. A revision number is at most 999,999,999
+  (`MAX_VALUE_CHAIN_REV`, the 9 digits of the tag) in the path and in `get_value_chain_document`
+  (422 `validation-failed` or invalid input above it); a cursor's revision or generation must
+  fit the `integer` column (else 422 `invalid cursor`), never a database error. Concurrent saves
+  on one `If-Match`, concurrent `If-None-Match: *` creates and concurrent POST creates are
+  tested: exactly one wins, the other gets 412 (409 for POST), `seq` stays dense.
+- **Rule tier** (`rules.ts`): a step whose `link` is `proa:process/<ref>` of a head process, or
+  whose non-empty `name_norm` equals `normalizeKey` of a head process's label, yields one
+  proposal per (step, process) through `applyPlacementProposal` with `proposer = {sourceKind:
+  'rule', principalId: proa-rules}`: tier `key`, confidence 1.0, a rationale naming the link or
+  the normalized name (stable while the fingerprints are, so a case-only rename records nothing),
+  evidence `[process ref, step:<id>]`. It runs in the save's transaction on every create,
+  revival and revision (not on `unchanged` or a dry run), inside S1's write path through its
+  `beforeRefresh` hook: after the step generations, the head and the withdrawals on removed
+  steps, before the endpoint state is refreshed, as after model changes; and after every ingest
+  that stored a revision and every model deletion. A rule proposal no longer derived is
+  withdrawn under `proa-rules`. Rules before the refresh means a rename writes no `endpoint_changed`
+  for a rule proposal: one re-asserted by a kept link moves to the new anchor with one
+  `placement.proposed` (no `ok` → `changed` → `ok`), one the rename ends turns obsolete with
+  its `placement.withdrawn`. An `endpoint_changed` the rule tier's writes record inside a save
+  (an accepted placement under a re-asserted proposal turning `changed`) names the saving human,
+  whose save moved the endpoint, as S1's refresh does; after model changes it names
+  `proa-rules`. Tests pin the events of both renames. A human decision on the same fingerprints suppresses it, a kept link re-asserts
+  it on a renamed step's new anchor (an accepted placement there stays accepted and turns
+  `changed`: re-confirming is the human's), token revocation never touches it, and a step's
+  removal withdraws it as S1 does (under the rule tier, caused by the saving human). The golden
+  dev chain gets four rule proposals (equal names), each the process's `must`.
+- **Endpoint hooks** (`sync.ts`): `syncValueChainAfterModels` runs in `ingest()` after
+  `recomputeProject` and `touchNoLinkRelations` (only when a revision was stored) and in
+  `deleteModel()`: for each live chain the rule proposals first (a withdrawn one turns obsolete
+  without an `endpoint_changed`), then `refreshPlacements` with the cached head structure and
+  the head process fingerprints; all events under `proa-rules` without a client. A project
+  without a chain costs one query.
+- **Findings** (`findings.ts`, pure, recomputed on read; `GET …/findings`, `ValueChainDetail.findings`,
+  `get_value_chain`): `process-without-step` per head process without an accepted placement on a
+  live generation (`@outside` counts; an accepted placement on a removed step does not), with
+  `state` (`held`, `proposed` or `none`) and `calledFrom` (the steps of accepted callers through
+  accepted `call` relations, never `@outside`); `step-without-process` at the topmost step
+  without an accepted placement of a head process on it or below it; `unresolved-link` for an
+  opaque link and a `proa:` link that is malformed or names no head process. Order: processes by
+  ref, then steps, then links by id.
+- **Unplaced and pending** mean the placement *status* on a live generation: a process is
+  unplaced (`list_unplaced_processes`) without an accepted, held or `proposed` placement there.
+  A rejected placement homes nothing, although the agent's proposal on it is still that agent's
+  current stance (the first cut of S2 counted that stance, so a rejected process vanished from
+  the list for good).
+- **MCP:** `get_value_chain`, `get_value_chain_document` (paged like `get_model_xml`, ≤ 100,000
+  characters), `list_unplaced_processes` (read), `propose_placement`,
+  `withdraw_placement_proposal` (propose), and the stub `decide_placement` (always
+  `human-decision-required` with the value chain `reviewUrl`, through the REST use case, like
+  `decide_relation`); the instructions name placements and the value chain. No `stage` field
+  (S5), no `place_processes` prompt (S5), no resource `proa://…/main.vc.json` (deferred with
+  the model resources; `get_value_chain_document` covers it).
+- **CLI:** `proa value-chain push <file> -p <project> [--key] [--base <rev> | --force]
+  [--dry-run] [--yes] [--json]` (owner key only; an agent token is refused before any request;
+  `If-Match` names `--base`, the revision the file was pulled from, as §3.5 defines it; for an
+  existing chain push refuses to save without `--base` (exit 1, "pass --base … or --force"),
+  since `If-Match` on the head read at push time would let a pull, edit, push round trip
+  silently revert a save made in between; `--force` saves on the current head; content equal to
+  the head is `unchanged` and a `--dry-run` runs against the current head without either;
+  `If-None-Match: *` for a new chain; a dry run first, stops with exit 1 before stranding
+  placements or sending them to re-confirm unless `--yes`; 412 says "pull first", 422 lists the
+  violations with their element and connection ids) and `proa value-chain pull -p <project>
+  [--key] [--rev <n>] [-o <file>]` (any credential; the canonical bytes verbatim through hey-api
+  `parseAs: 'text'`, `r<rev> <sha256>` on stderr: the `--base` for the next push).
+- **Token revocation** withdraws the token's live placement proposals under the token's
+  principal, caused by the owner; nothing is queued (no placement pipeline before M4b).
+- **Events:** no new types. A dry run and an `unchanged` save write none; rule and ingest-sync
+  events carry `proa-rules` and no client, except an `endpoint_changed` the rule tier causes
+  inside a save, which names the saving human; a rename writes no `endpoint_changed` for a rule
+  proposal it re-asserts or ends (Rule tier above); revocation withdrawals carry the proposer as
+  `principalId` in the payload; `seq` stays dense (tests).
+- **Deviations from the plan:** ranks group the top-level steps by kind band (core chain,
+  management, support), so the core chain ranks 0…n−1 instead of interleaving with the bands;
+  the dry run runs in a REPEATABLE READ snapshot without the project lock (the S1 checklist said
+  "under the project lock"; the save re-checks `If-Match` under the lock and returns its own
+  impact, which can differ when placements changed in between); names allow tab and line breaks
+  but no other control or bidi characters, links refuse bidi characters too; a dry run that
+  would create the chain has `valueChain: null`; `decide_placement` carries write annotations
+  like `decide_relation`; the rule tier runs before the refresh of the endpoint state, after
+  model changes and inside saves (a hook in S1's write path); the unplaced definition above;
+  the ProA rules gained `geometry-out-of-range` and stop after the size and count limits;
+  `proa value-chain push` needs `--base` (or `--force`) for an existing chain.
+
+**S3 checklist** (from S2):
+- Build the routes `valueChainPath()` names (`/projects/$p/value-chain`, `?placement=`,
+  `/steps/$elementId`); mirror `MAX_VALUE_CHAIN_*`, `STEP_KIND_COLORS` and `OUTSIDE_STEP` in
+  `src/lib/limits.ts` (compared with the contracts by `test/limits.test.ts`).
+- Save with `serializeDocument` → `PUT …/content?dryRun=true` → confirm stranded and
+  re-confirm placements → `PUT` with `If-Match`; show the save's own `impact`, which can differ
+  from the dry run's.
+- Bulk "re-confirm" leaves out placements with `stepLive: false` (the bulk answers
+  `step-removed`) and offers reject or `correct` for them; findings and the rule tier's
+  proposals (`source: rule`, handle `proa-rules`) come from `ValueChainDetail`.
+- Once the page exists, name it again where agents are told how a chain is created: the
+  not-found message `NO_VALUE_CHAIN` (`chain-state.ts`) and the `get_value_chain` description
+  (MCP snapshot) name only `proa value-chain push` until then.
+- The modeler's limits include `MAX_VALUE_CHAIN_COORDINATE` and `MAX_VALUE_CHAIN_ELEMENT_SIZE`
+  (a shape dragged beyond them is refused on save).
 
 **M4b "Pipeline and drafts"**
 

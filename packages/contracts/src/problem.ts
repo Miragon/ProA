@@ -9,6 +9,10 @@ export const PROBLEM_TYPE_BASE = 'urn:proa:problem:';
 /**
  * Problem codes (CONCEPT §5) plus generic HTTP ones. The code is the last
  * segment of the problem `type` and is repeated as the `code` extension member.
+ * M4 (value chain): `value-chain-invalid` (422, with `violations` and
+ * `truncated`), `value-chain-unsupported-version` (422, with `schemaVersion`
+ * and `supported`), `revision-conflict` (412, with `headRev` and `etag`) and
+ * `precondition-required` (428, a content save without `If-Match`).
  */
 export const ProblemCode = z
   .enum([
@@ -22,6 +26,10 @@ export const ProblemCode = z
     'method-not-allowed',
     'conflict',
     'precondition-failed',
+    'precondition-required',
+    'revision-conflict',
+    'value-chain-invalid',
+    'value-chain-unsupported-version',
     'lease-lost',
     'task-cancelled',
     'already-submitted',
@@ -45,6 +53,13 @@ export const PROBLEMS = {
   'method-not-allowed': { status: 405, title: 'Method not allowed' },
   conflict: { status: 409, title: 'Conflict' },
   'precondition-failed': { status: 412, title: 'Precondition failed' },
+  'precondition-required': { status: 428, title: 'Precondition required' },
+  'revision-conflict': { status: 412, title: 'Revision conflict' },
+  'value-chain-invalid': { status: 422, title: 'Value chain invalid' },
+  'value-chain-unsupported-version': {
+    status: 422,
+    title: 'Value chain schema version unsupported',
+  },
   'lease-lost': { status: 409, title: 'Lease lost' },
   'task-cancelled': { status: 409, title: 'Task cancelled' },
   'already-submitted': { status: 409, title: 'Already submitted' },

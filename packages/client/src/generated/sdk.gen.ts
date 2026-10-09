@@ -10,6 +10,9 @@ import {
   type TDataShape,
 } from './client/index.ts';
 import type {
+  AddPlacementNoteData,
+  AddPlacementNoteErrors,
+  AddPlacementNoteResponses,
   AddRelationNoteData,
   AddRelationNoteErrors,
   AddRelationNoteResponses,
@@ -25,6 +28,15 @@ import type {
   CreateSessionData,
   CreateSessionErrors,
   CreateSessionResponses,
+  CreateValueChainData,
+  CreateValueChainErrors,
+  CreateValueChainResponses,
+  DecidePlacementData,
+  DecidePlacementErrors,
+  DecidePlacementResponses,
+  DecidePlacementsData,
+  DecidePlacementsErrors,
+  DecidePlacementsResponses,
   DecideRelationData,
   DecideRelationErrors,
   DecideRelationResponses,
@@ -36,6 +48,9 @@ import type {
   DeleteModelResponses,
   DeleteSessionData,
   DeleteSessionResponses,
+  DeleteValueChainData,
+  DeleteValueChainErrors,
+  DeleteValueChainResponses,
   GetAnalysisSubmissionData,
   GetAnalysisSubmissionErrors,
   GetAnalysisSubmissionResponses,
@@ -54,6 +69,12 @@ import type {
   GetPendingAnalysesData,
   GetPendingAnalysesErrors,
   GetPendingAnalysesResponses,
+  GetPlacementAssertionsData,
+  GetPlacementAssertionsErrors,
+  GetPlacementAssertionsResponses,
+  GetPlacementData,
+  GetPlacementErrors,
+  GetPlacementResponses,
   GetProjectData,
   GetProjectErrors,
   GetProjectResponses,
@@ -69,6 +90,21 @@ import type {
   GetRevisionFactsData,
   GetRevisionFactsErrors,
   GetRevisionFactsResponses,
+  GetValueChainContentData,
+  GetValueChainContentErrors,
+  GetValueChainContentResponses,
+  GetValueChainData,
+  GetValueChainErrors,
+  GetValueChainFindingsData,
+  GetValueChainFindingsErrors,
+  GetValueChainFindingsResponses,
+  GetValueChainResponses,
+  GetValueChainRevisionContentData,
+  GetValueChainRevisionContentErrors,
+  GetValueChainRevisionContentResponses,
+  GetValueChainStepData,
+  GetValueChainStepErrors,
+  GetValueChainStepResponses,
   ImportModelsData,
   ImportModelsErrors,
   ImportModelsResponses,
@@ -84,6 +120,9 @@ import type {
   ListModelsData,
   ListModelsErrors,
   ListModelsResponses,
+  ListPlacementsData,
+  ListPlacementsErrors,
+  ListPlacementsResponses,
   ListProjectsData,
   ListProjectsErrors,
   ListProjectsResponses,
@@ -93,12 +132,27 @@ import type {
   ListRevisionsData,
   ListRevisionsErrors,
   ListRevisionsResponses,
+  ListUnplacedProcessesData,
+  ListUnplacedProcessesErrors,
+  ListUnplacedProcessesResponses,
+  ListValueChainRevisionsData,
+  ListValueChainRevisionsErrors,
+  ListValueChainRevisionsResponses,
+  ListValueChainsData,
+  ListValueChainsErrors,
+  ListValueChainsResponses,
+  PostPlacementsData,
+  PostPlacementsErrors,
+  PostPlacementsResponses,
   ProposeRelationData,
   ProposeRelationErrors,
   ProposeRelationResponses,
   PutModelByKeyData,
   PutModelByKeyErrors,
   PutModelByKeyResponses,
+  PutValueChainContentData,
+  PutValueChainContentErrors,
+  PutValueChainContentResponses,
   ReleaseAnalysisData,
   ReleaseAnalysisErrors,
   ReleaseAnalysisResponses,
@@ -111,6 +165,9 @@ import type {
   SubmitAnalysisData,
   SubmitAnalysisErrors,
   SubmitAnalysisResponses,
+  WithdrawPlacementProposalData,
+  WithdrawPlacementProposalErrors,
+  WithdrawPlacementProposalResponses,
   WithdrawProposalData,
   WithdrawProposalErrors,
   WithdrawProposalResponses,
@@ -480,6 +537,314 @@ export const addRelationNote = <ThrowOnError extends boolean = false>(
       'Content-Type': 'application/json',
       ...options.headers,
     },
+  });
+
+/**
+ * The value chains of a project (M4: at most one, key `main`)
+ */
+export const listValueChains = <ThrowOnError extends boolean = false>(
+  options: Options<ListValueChainsData, ThrowOnError>,
+): RequestResult<ListValueChainsResponses, ListValueChainsErrors, ThrowOnError> =>
+  (options.client ?? client).get<ListValueChainsResponses, ListValueChainsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains',
+    ...options,
+  });
+
+/**
+ * Create the value chain from a name or a document (humans only)
+ *
+ * Creates the chain `main` (the only key in M4) with its first revision: an empty document named `name`, or `content`, validated with schema-model and the ProA rules. A deleted chain is revived (same id, `rev` continues, outcome `revived`). 409 `conflict` if a live chain has the key.
+ */
+export const createValueChain = <ThrowOnError extends boolean = false>(
+  options: Options<CreateValueChainData, ThrowOnError>,
+): RequestResult<CreateValueChainResponses, CreateValueChainErrors, ThrowOnError> =>
+  (options.client ?? client).post<CreateValueChainResponses, CreateValueChainErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Delete the value chain; its placements turn `missing` (humans only)
+ */
+export const deleteValueChain = <ThrowOnError extends boolean = false>(
+  options: Options<DeleteValueChainData, ThrowOnError>,
+): RequestResult<DeleteValueChainResponses, DeleteValueChainErrors, ThrowOnError> =>
+  (options.client ?? client).delete<
+    DeleteValueChainResponses,
+    DeleteValueChainErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}',
+    ...options,
+  });
+
+/**
+ * The value chain: head structure (steps with kinds, ranks, owners), placements
+ */
+export const getValueChain = <ThrowOnError extends boolean = false>(
+  options: Options<GetValueChainData, ThrowOnError>,
+): RequestResult<GetValueChainResponses, GetValueChainErrors, ThrowOnError> =>
+  (options.client ?? client).get<GetValueChainResponses, GetValueChainErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}',
+    ...options,
+  });
+
+/**
+ * The head document: canonical `.vc.json` bytes (ETag `"r<rev>"`)
+ */
+export const getValueChainContent = <ThrowOnError extends boolean = false>(
+  options: Options<GetValueChainContentData, ThrowOnError>,
+): RequestResult<GetValueChainContentResponses, GetValueChainContentErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    GetValueChainContentResponses,
+    GetValueChainContentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/content',
+    ...options,
+  });
+
+/**
+ * Save a revision: `If-Match: "r<rev>"` required; `?dryRun=true` returns the impact only
+ *
+ * Saves the document as the next revision (humans only). `If-Match: "r<rev>"` must name the head revision: without it 428 `precondition-required`, a stale one 412 `revision-conflict` with `headRev`; content equal to the head answers 200 `unchanged` whatever the `If-Match`. `If-None-Match: *` creates (or revives) the chain instead: 201, or 412 `revision-conflict` if it exists. `dryRun=true` checks the same and returns the impact (removed and changed steps with their placements) without writing anything. The body is the `.vc.json` document as `application/json`, at most 2 MiB; its canonical form may have at most 1 MiB (`document-too-large`).
+ */
+export const putValueChainContent = <ThrowOnError extends boolean = false>(
+  options: Options<PutValueChainContentData, ThrowOnError>,
+): RequestResult<PutValueChainContentResponses, PutValueChainContentErrors, ThrowOnError> =>
+  (options.client ?? client).put<
+    PutValueChainContentResponses,
+    PutValueChainContentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/content',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Revisions of the value chain, newest first
+ */
+export const listValueChainRevisions = <ThrowOnError extends boolean = false>(
+  options: Options<ListValueChainRevisionsData, ThrowOnError>,
+): RequestResult<ListValueChainRevisionsResponses, ListValueChainRevisionsErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    ListValueChainRevisionsResponses,
+    ListValueChainRevisionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/revisions',
+    ...options,
+  });
+
+/**
+ * The canonical document of one revision (ETag `"r<rev>"`)
+ */
+export const getValueChainRevisionContent = <ThrowOnError extends boolean = false>(
+  options: Options<GetValueChainRevisionContentData, ThrowOnError>,
+): RequestResult<
+  GetValueChainRevisionContentResponses,
+  GetValueChainRevisionContentErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    GetValueChainRevisionContentResponses,
+    GetValueChainRevisionContentErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/revisions/{rev}/content',
+    ...options,
+  });
+
+/**
+ * The drill-down of a step: breadcrumb, sub-steps (up to level 2), processes
+ */
+export const getValueChainStep = <ThrowOnError extends boolean = false>(
+  options: Options<GetValueChainStepData, ThrowOnError>,
+): RequestResult<GetValueChainStepResponses, GetValueChainStepErrors, ThrowOnError> =>
+  (options.client ?? client).get<GetValueChainStepResponses, GetValueChainStepErrors, ThrowOnError>(
+    {
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/api/v1/projects/{project}/value-chains/{key}/steps/{elementId}',
+      ...options,
+    },
+  );
+
+/**
+ * Findings of the value chain: processes without a step, steps without a process, unresolved links
+ *
+ * Deterministic, recomputed on read, never blocking (M4 §3.4): `process-without-step` for a head process without an accepted placement on a live step (`@outside` counts), with `state` (pending or held) and the steps of accepted callers; `step-without-process` at the topmost step without an accepted placement on it or below it; `unresolved-link` for a link that is neither `proa:process/<ref>` of a head process nor an http(s) URL.
+ */
+export const getValueChainFindings = <ThrowOnError extends boolean = false>(
+  options: Options<GetValueChainFindingsData, ThrowOnError>,
+): RequestResult<GetValueChainFindingsResponses, GetValueChainFindingsErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    GetValueChainFindingsResponses,
+    GetValueChainFindingsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/findings',
+    ...options,
+  });
+
+/**
+ * Processes without a home step and without a placement waiting for review, with hints
+ */
+export const listUnplacedProcesses = <ThrowOnError extends boolean = false>(
+  options: Options<ListUnplacedProcessesData, ThrowOnError>,
+): RequestResult<ListUnplacedProcessesResponses, ListUnplacedProcessesErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    ListUnplacedProcessesResponses,
+    ListUnplacedProcessesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/unplaced-processes',
+    ...options,
+  });
+
+/**
+ * Placements, filtered by step, process, model, status, tier or endpoint state
+ */
+export const listPlacements = <ThrowOnError extends boolean = false>(
+  options: Options<ListPlacementsData, ThrowOnError>,
+): RequestResult<ListPlacementsResponses, ListPlacementsErrors, ThrowOnError> =>
+  (options.client ?? client).get<ListPlacementsResponses, ListPlacementsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements',
+    ...options,
+  });
+
+/**
+ * Propose placements ad hoc (proa:propose), or add an accepted manual one (humans)
+ *
+ * `kind: "propose"`: up to 200 items, each answered `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`; the server computes the tier. `kind: "manual"`: a human accepts a process on a step at once (agents get `human-decision-required`).
+ */
+export const postPlacements = <ThrowOnError extends boolean = false>(
+  options: Options<PostPlacementsData, ThrowOnError>,
+): RequestResult<PostPlacementsResponses, PostPlacementsErrors, ThrowOnError> =>
+  (options.client ?? client).post<PostPlacementsResponses, PostPlacementsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Bulk decision on placements with ids, versions and expectedCount (all or nothing)
+ */
+export const decidePlacements = <ThrowOnError extends boolean = false>(
+  options: Options<DecidePlacementsData, ThrowOnError>,
+): RequestResult<DecidePlacementsResponses, DecidePlacementsErrors, ThrowOnError> =>
+  (options.client ?? client).post<DecidePlacementsResponses, DecidePlacementsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements/decisions',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * One placement (ETag `"<version>"`)
+ */
+export const getPlacement = <ThrowOnError extends boolean = false>(
+  options: Options<GetPlacementData, ThrowOnError>,
+): RequestResult<GetPlacementResponses, GetPlacementErrors, ThrowOnError> =>
+  (options.client ?? client).get<GetPlacementResponses, GetPlacementErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}',
+    ...options,
+  });
+
+/**
+ * Withdraw the caller's own live proposal of a placement
+ */
+export const withdrawPlacementProposal = <ThrowOnError extends boolean = false>(
+  options: Options<WithdrawPlacementProposalData, ThrowOnError>,
+): RequestResult<
+  WithdrawPlacementProposalResponses,
+  WithdrawPlacementProposalErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    WithdrawPlacementProposalResponses,
+    WithdrawPlacementProposalErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/proposal',
+    ...options,
+  });
+
+/**
+ * Decide a placement: accept, reject, hold or correct (humans only)
+ *
+ * Agents get 403 `human-decision-required` with `reviewUrl`. `If-Match: "<version>"` (or `version` in the body) makes the decision conditional: 412 `precondition-failed` (409 `conflict` for the body field) if the placement changed. A placement on a removed step can only be rejected or corrected (422 `unknown-step`).
+ */
+export const decidePlacement = <ThrowOnError extends boolean = false>(
+  options: Options<DecidePlacementData, ThrowOnError>,
+): RequestResult<DecidePlacementResponses, DecidePlacementErrors, ThrowOnError> =>
+  (options.client ?? client).post<DecidePlacementResponses, DecidePlacementErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/decision',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Add a note to a placement, e.g. the answer to a held question (humans only)
+ */
+export const addPlacementNote = <ThrowOnError extends boolean = false>(
+  options: Options<AddPlacementNoteData, ThrowOnError>,
+): RequestResult<AddPlacementNoteResponses, AddPlacementNoteErrors, ThrowOnError> =>
+  (options.client ?? client).post<AddPlacementNoteResponses, AddPlacementNoteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/notes',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * The history (timeline) of a placement: every assertion, oldest first
+ */
+export const getPlacementAssertions = <ThrowOnError extends boolean = false>(
+  options: Options<GetPlacementAssertionsData, ThrowOnError>,
+): RequestResult<GetPlacementAssertionsResponses, GetPlacementAssertionsErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    GetPlacementAssertionsResponses,
+    GetPlacementAssertionsErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/value-chains/{key}/placements/{placement}/assertions',
+    ...options,
   });
 
 /**

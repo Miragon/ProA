@@ -1,7 +1,14 @@
 import type { RouteConfig } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
 
-import { AgentTokenId, AnalysisTaskId, ModelId, RelationId, RevisionId } from '../ids.ts';
+import {
+  AgentTokenId,
+  AnalysisTaskId,
+  ModelId,
+  PlacementId,
+  RelationId,
+  RevisionId,
+} from '../ids.ts';
 import { ApiProblem, PROBLEMS, PROBLEM_CONTENT_TYPE, type ProblemCode } from '../problem.ts';
 import { ModelKey } from '../refs.ts';
 import { AgentTokenList, CreateAgentTokenBody, CreatedAgentToken } from './agent-tokens.ts';
@@ -34,6 +41,23 @@ import {
   RevisionFacts,
   RevisionPage,
 } from './models.ts';
+import {
+  BulkPlacementDecisionBody,
+  BulkPlacementDecisionResult,
+  Placement,
+  PlacementAssertion,
+  PlacementAssertionList,
+  PlacementDecisionBody,
+  PlacementDecisionResult,
+  PlacementPage,
+  PlacementQuery,
+  PostPlacementsBody,
+  PostPlacementsResult,
+  UnplacedProcessPage,
+  ValueChainDetail,
+  ValueChainFindingList,
+  ValueChainStepDetail,
+} from './placements.ts';
 import { CreateProjectBody, Project, ProjectPage } from './projects.ts';
 import {
   FindingList,
@@ -52,6 +76,17 @@ import {
   ProposeRelationBody,
   ProposeRelationResult,
 } from './review.ts';
+import {
+  CreateValueChainBody,
+  MAX_VALUE_CHAIN_DEPTH,
+  MAX_VALUE_CHAIN_REV,
+  SaveValueChainQuery,
+  SaveValueChainResult,
+  ValueChainDocument,
+  ValueChainKey,
+  ValueChainList,
+  ValueChainRevisionPage,
+} from './value-chains.ts';
 
 const JSON_TYPE = 'application/json';
 
@@ -81,6 +116,12 @@ const modelParams = ProjectParam.extend({ model: ModelId });
 const revisionParams = modelParams.extend({ revision: RevisionId });
 const relationParams = ProjectParam.extend({ relation: RelationId });
 const analysisParams = z.object({ analysis: AnalysisTaskId });
+const chainParams = ProjectParam.extend({ key: ValueChainKey });
+const chainRevisionParams = chainParams.extend({
+  rev: z.coerce.number().int().min(1).max(MAX_VALUE_CHAIN_REV),
+});
+const stepParams = chainParams.extend({ elementId: z.string().min(1).max(128) });
+const placementParams = chainParams.extend({ placement: PlacementId });
 const projectAnalysisParams = ProjectParam.extend({ analysis: AnalysisTaskId });
 
 function jsonBody<T extends z.ZodType>(schema: T) {
@@ -106,6 +147,25 @@ const REVIEW_PROBLEMS = [
   'validation-failed',
 ] as const;
 const BpmnXml = z.string().meta({ id: 'BpmnXml', description: 'BPMN 2.0 XML document (UTF-8).' });
+
+/**
+ * Problems of value chain writes (M4): agents get `human-decision-required`
+ * with the value chain `reviewUrl`, a document that fails schema-model or the
+ * ProA rules `value-chain-invalid` (with `violations`), a newer schema
+ * version `value-chain-unsupported-version`.
+ */
+const CHAIN_WRITE_PROBLEMS = [
+  'human-decision-required',
+  'forbidden',
+  'value-chain-invalid',
+  'value-chain-unsupported-version',
+  'payload-too-large',
+] as const;
+
+/** ETag of a value chain revision: `"r<rev>"`. */
+const REVISION_ETAG = z.object({ ETag: z.string().meta({ description: '`"r<rev>"`' }) });
+/** ETag of a placement version: `"<version>"`, for `If-Match` on decisions. */
+const VERSION_ETAG = z.object({ ETag: z.string().meta({ description: '`"<version>"`' }) });
 
 /**
  * Problems of every route below `/projects/{project}`: no or a rejected
@@ -465,6 +525,289 @@ export const apiRoutes = {
     responses: {
       201: json(RelationAssertion, 'The note'),
       ...problems(...READ_PROBLEMS, ...REVIEW_PROBLEMS),
+    },
+  },
+
+  listValueChains: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains`,
+    operationId: 'listValueChains',
+    tags: ['value-chains'],
+    summary: 'The value chains of a project (M4: at most one, key `main`)',
+    request: { params: projectParams },
+    responses: { 200: json(ValueChainList, 'Value chains'), ...problems(...READ_PROBLEMS) },
+  },
+  createValueChain: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/value-chains`,
+    operationId: 'createValueChain',
+    tags: ['value-chains'],
+    summary: 'Create the value chain from a name or a document (humans only)',
+    description:
+      'Creates the chain `main` (the only key in M4) with its first revision: an empty document ' +
+      'named `name`, or `content`, validated with schema-model and the ProA rules. A deleted ' +
+      'chain is revived (same id, `rev` continues, outcome `revived`). 409 `conflict` if a live ' +
+      'chain has the key.',
+    request: { params: projectParams, body: jsonBody(CreateValueChainBody) },
+    responses: {
+      201: { ...json(SaveValueChainResult, 'The new chain'), headers: REVISION_ETAG },
+      ...problems(...READ_PROBLEMS, ...CHAIN_WRITE_PROBLEMS, 'conflict'),
+    },
+  },
+  getValueChain: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}`,
+    operationId: 'getValueChain',
+    tags: ['value-chains'],
+    summary: 'The value chain: head structure (steps with kinds, ranks, owners), placements',
+    request: { params: chainParams },
+    responses: {
+      200: json(ValueChainDetail, 'The chain with steps and placements'),
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  deleteValueChain: {
+    method: 'delete',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}`,
+    operationId: 'deleteValueChain',
+    tags: ['value-chains'],
+    summary: 'Delete the value chain; its placements turn `missing` (humans only)',
+    request: { params: chainParams },
+    responses: {
+      204: { description: 'Deleted' },
+      ...problems(...READ_PROBLEMS, 'human-decision-required', 'forbidden'),
+    },
+  },
+  getValueChainContent: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/content`,
+    operationId: 'getValueChainContent',
+    tags: ['value-chains'],
+    summary: 'The head document: canonical `.vc.json` bytes (ETag `"r<rev>"`)',
+    request: {
+      params: chainParams,
+      headers: z.object({ 'if-none-match': z.string().max(200).optional() }),
+    },
+    responses: {
+      200: { ...json(ValueChainDocument, 'The canonical document'), headers: REVISION_ETAG },
+      304: { description: 'Not modified (`If-None-Match` names the head revision)' },
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  putValueChainContent: {
+    method: 'put',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/content`,
+    operationId: 'putValueChainContent',
+    tags: ['value-chains'],
+    summary:
+      'Save a revision: `If-Match: "r<rev>"` required; `?dryRun=true` returns the impact only',
+    description:
+      'Saves the document as the next revision (humans only). `If-Match: "r<rev>"` must name the ' +
+      'head revision: without it 428 `precondition-required`, a stale one 412 ' +
+      '`revision-conflict` with `headRev`; content equal to the head answers 200 `unchanged` ' +
+      'whatever the `If-Match`. `If-None-Match: *` creates (or revives) the chain instead: 201, ' +
+      'or 412 `revision-conflict` if it exists. `dryRun=true` checks the same and returns the ' +
+      'impact (removed and changed steps with their placements) without writing anything. The ' +
+      'body is the `.vc.json` document as `application/json`, at most 2 MiB; its canonical ' +
+      'form may have at most 1 MiB (`document-too-large`).',
+    request: {
+      params: chainParams,
+      query: SaveValueChainQuery,
+      headers: z.object({
+        'if-match': z.string().max(200).optional(),
+        'if-none-match': z.string().max(200).optional(),
+      }),
+      body: jsonBody(ValueChainDocument),
+    },
+    responses: {
+      200: {
+        ...json(SaveValueChainResult, '`revised`, `unchanged`, or a dry run'),
+        headers: REVISION_ETAG,
+      },
+      201: {
+        ...json(SaveValueChainResult, '`created` or `revived` (`If-None-Match: *`)'),
+        headers: REVISION_ETAG,
+      },
+      ...problems(
+        ...READ_PROBLEMS,
+        ...CHAIN_WRITE_PROBLEMS,
+        'revision-conflict',
+        'precondition-required',
+        'unsupported-media-type',
+      ),
+    },
+  },
+  listValueChainRevisions: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/revisions`,
+    operationId: 'listValueChainRevisions',
+    tags: ['value-chains'],
+    summary: 'Revisions of the value chain, newest first',
+    request: { params: chainParams, query: PageQuery },
+    responses: {
+      200: json(ValueChainRevisionPage, 'A page of revisions'),
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  getValueChainRevisionContent: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/revisions/{rev}/content`,
+    operationId: 'getValueChainRevisionContent',
+    tags: ['value-chains'],
+    summary: 'The canonical document of one revision (ETag `"r<rev>"`)',
+    request: { params: chainRevisionParams },
+    responses: {
+      200: { ...json(ValueChainDocument, 'The canonical document'), headers: REVISION_ETAG },
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  getValueChainStep: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/steps/{elementId}`,
+    operationId: 'getValueChainStep',
+    tags: ['value-chains'],
+    summary: `The drill-down of a step: breadcrumb, sub-steps (up to level ${MAX_VALUE_CHAIN_DEPTH}), processes`,
+    request: { params: stepParams },
+    responses: {
+      200: json(ValueChainStepDetail, 'The step'),
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  getValueChainFindings: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/findings`,
+    operationId: 'getValueChainFindings',
+    tags: ['value-chains'],
+    summary:
+      'Findings of the value chain: processes without a step, steps without a process, unresolved links',
+    description:
+      'Deterministic, recomputed on read, never blocking (M4 §3.4): `process-without-step` for a ' +
+      'head process without an accepted placement on a live step (`@outside` counts), with ' +
+      '`state` (pending or held) and the steps of accepted callers; `step-without-process` at ' +
+      'the topmost step without an accepted placement on it or below it; `unresolved-link` for ' +
+      'a link that is neither `proa:process/<ref>` of a head process nor an http(s) URL.',
+    request: { params: chainParams },
+    responses: {
+      200: json(ValueChainFindingList, 'The findings'),
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  listUnplacedProcesses: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/unplaced-processes`,
+    operationId: 'listUnplacedProcesses',
+    tags: ['value-chains'],
+    summary: 'Processes without a home step and without a placement waiting for review, with hints',
+    request: { params: chainParams, query: PageQuery },
+    responses: {
+      200: json(UnplacedProcessPage, 'A page of unplaced processes'),
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  listPlacements: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements`,
+    operationId: 'listPlacements',
+    tags: ['value-chains'],
+    summary: 'Placements, filtered by step, process, model, status, tier or endpoint state',
+    request: { params: chainParams, query: PlacementQuery },
+    responses: { 200: json(PlacementPage, 'A page of placements'), ...problems(...READ_PROBLEMS) },
+  },
+  postPlacements: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements`,
+    operationId: 'postPlacements',
+    tags: ['value-chains'],
+    summary: 'Propose placements ad hoc (proa:propose), or add an accepted manual one (humans)',
+    description:
+      '`kind: "propose"`: up to 200 items, each answered `applied`, `duplicate`, `suppressed`, ' +
+      '`reopened` or `invalid:<reason>`; the server computes the tier. `kind: "manual"`: a human ' +
+      'accepts a process on a step at once (agents get `human-decision-required`).',
+    request: { params: chainParams, body: jsonBody(PostPlacementsBody) },
+    responses: {
+      200: json(PostPlacementsResult, 'The outcome'),
+      ...problems(...READ_PROBLEMS, 'human-decision-required', 'forbidden'),
+    },
+  },
+  decidePlacements: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements/decisions`,
+    operationId: 'decidePlacements',
+    tags: ['value-chains'],
+    summary: 'Bulk decision on placements with ids, versions and expectedCount (all or nothing)',
+    request: { params: chainParams, body: jsonBody(BulkPlacementDecisionBody) },
+    responses: {
+      200: json(BulkPlacementDecisionResult, 'The decided placements'),
+      ...problems(...READ_PROBLEMS, ...REVIEW_PROBLEMS),
+    },
+  },
+  getPlacement: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements/{placement}`,
+    operationId: 'getPlacement',
+    tags: ['value-chains'],
+    summary: 'One placement (ETag `"<version>"`)',
+    request: { params: placementParams },
+    responses: {
+      200: { ...json(Placement, 'The placement'), headers: VERSION_ETAG },
+      ...problems(...READ_PROBLEMS),
+    },
+  },
+  withdrawPlacementProposal: {
+    method: 'delete',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements/{placement}/proposal`,
+    operationId: 'withdrawPlacementProposal',
+    tags: ['value-chains'],
+    summary: "Withdraw the caller's own live proposal of a placement",
+    request: { params: placementParams },
+    responses: {
+      200: json(Placement, 'The placement after the withdrawal'),
+      ...problems(...READ_PROBLEMS, 'forbidden', 'conflict'),
+    },
+  },
+  decidePlacement: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements/{placement}/decision`,
+    operationId: 'decidePlacement',
+    tags: ['value-chains'],
+    summary: 'Decide a placement: accept, reject, hold or correct (humans only)',
+    description:
+      'Agents get 403 `human-decision-required` with `reviewUrl`. `If-Match: "<version>"` (or ' +
+      '`version` in the body) makes the decision conditional: 412 `precondition-failed` (409 ' +
+      '`conflict` for the body field) if the placement changed. A placement on a removed step ' +
+      'can only be rejected or corrected (422 `unknown-step`).',
+    request: {
+      params: placementParams,
+      headers: z.object({ 'if-match': z.string().max(100).optional() }),
+      body: jsonBody(PlacementDecisionBody),
+    },
+    responses: {
+      200: { ...json(PlacementDecisionResult, 'The decided placement'), headers: VERSION_ETAG },
+      ...problems(...READ_PROBLEMS, ...REVIEW_PROBLEMS, 'precondition-failed'),
+    },
+  },
+  addPlacementNote: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements/{placement}/notes`,
+    operationId: 'addPlacementNote',
+    tags: ['value-chains'],
+    summary: 'Add a note to a placement, e.g. the answer to a held question (humans only)',
+    request: { params: placementParams, body: jsonBody(NoteBody) },
+    responses: {
+      201: json(PlacementAssertion, 'The note'),
+      ...problems(...READ_PROBLEMS, ...REVIEW_PROBLEMS),
+    },
+  },
+  getPlacementAssertions: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/value-chains/{key}/placements/{placement}/assertions`,
+    operationId: 'getPlacementAssertions',
+    tags: ['value-chains'],
+    summary: 'The history (timeline) of a placement: every assertion, oldest first',
+    request: { params: placementParams },
+    responses: {
+      200: json(PlacementAssertionList, 'The assertions'),
+      ...problems(...READ_PROBLEMS),
     },
   },
 

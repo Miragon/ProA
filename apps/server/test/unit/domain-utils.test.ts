@@ -60,6 +60,20 @@ describe('cursors', () => {
   it.each(['nope', encodeCursor([1]), encodeCursor(['a', 'b'])])('rejects %s', (cursor) => {
     expect(() => decodeCursor(cursor, ['string'])).toThrow(DomainError);
   });
+
+  it('takes an int only as a whole number within the integer column', () => {
+    expect(decodeCursor(encodeCursor(['s', 0, 'p']), ['string', 'int', 'string'])).toEqual([
+      's',
+      0,
+      'p',
+    ]);
+    expect(decodeCursor(encodeCursor([2_147_483_647]), ['int'])).toEqual([2_147_483_647]);
+    for (const bad of [2_147_483_648, -1, 1.5, 1e300, '3']) {
+      expect(() => decodeCursor(encodeCursor([bad]), ['int']), String(bad)).toThrow(DomainError);
+    }
+    // A plain number stays any number (e.g. a bigint seq).
+    expect(decodeCursor(encodeCursor([2 ** 40]), ['number'])).toEqual([2 ** 40]);
+  });
 });
 
 describe('session cookies', () => {

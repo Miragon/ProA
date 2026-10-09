@@ -391,6 +391,11 @@ export interface ValueChainRevisionRecord {
   createdAt: Date;
 }
 
+/** A revision as read back: with the saving principal's handle. */
+export interface StoredValueChainRevision extends ValueChainRevisionRecord {
+  handle: string;
+}
+
 export interface NewValueChainRevision extends Omit<ValueChainRevisionRecord, 'createdAt'> {
   /** Canonical bytes: UTF-8 of `serializeDocument(loadDocument(input))`. */
   content: Uint8Array;
@@ -479,6 +484,8 @@ export interface PlacementFilter {
   /** Placements of the processes of this model. */
   touchingModelKey?: string | undefined;
   status?: RelationStatus | undefined;
+  tier?: PlacementTier | undefined;
+  endpointState?: EndpointState | undefined;
   /** Without a `status` filter, obsolete placements are left out unless this is set. */
   includeObsolete?: boolean;
 }
@@ -755,13 +762,13 @@ export interface ValueChainRevisionRepo {
     projectId: ProjectId,
     valueChainId: ValueChainId,
     rev: number,
-  ): Promise<ValueChainRevisionRecord | null>;
+  ): Promise<StoredValueChainRevision | null>;
   /** Newest first. */
   listForChain(
     projectId: ProjectId,
     valueChainId: ValueChainId,
     page: { beforeRev?: number | undefined; limit: number },
-  ): Promise<ValueChainRevisionRecord[]>;
+  ): Promise<StoredValueChainRevision[]>;
   content(
     projectId: ProjectId,
     valueChainId: ValueChainId,

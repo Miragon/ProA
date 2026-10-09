@@ -13,6 +13,7 @@ import {
   tokenListCommand,
   tokenRevokeCommand,
 } from './commands/token.ts';
+import { valueChainPullCommand, valueChainPushCommand } from './commands/value-chain.ts';
 import type { CredentialOptions } from './credentials.ts';
 import { CliError } from './errors.ts';
 import { processIo, type CliIo } from './io.ts';
@@ -32,7 +33,7 @@ interface GlobalOptions {
 export function buildProgram(io: CliIo = processIo): Command {
   const program = new Command('proa')
     .description(
-      'ProA 2.0 command line: seed and import models, manage agent tokens, bridge MCP over stdio',
+      'ProA 2.0 command line: seed and import models, push and pull the value chain, manage agent tokens, bridge MCP over stdio',
     )
     .version(rootPackage.version, '-v, --version')
     .option('--url <url>', `ProA server URL (env PROA_URL, default ${DEFAULT_PROA_URL})`)
@@ -123,6 +124,52 @@ export function buildProgram(io: CliIo = processIo): Command {
     .requiredOption('-p, --project <project>', 'project key or id')
     .action((id: string, opts: { project: string }) =>
       tokenRevokeCommand(io, id, { ...globals(), ...opts }),
+    );
+
+  const valueChain = program
+    .command('value-chain')
+    .description('push and pull the value chain document (.vc.json) of a project');
+  valueChain
+    .command('push')
+    .description(
+      'save a .vc.json file as the next revision (owner key; If-Match on --base, a dry run first)',
+    )
+    .argument('<file>', 'the .vc.json document')
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--key <key>', 'value chain key', 'main')
+    .option(
+      '--base <rev>',
+      'the revision the file comes from (pull prints it); required for an existing chain',
+    )
+    .option('--force', 'save on the current head without --base (may overwrite newer saves)')
+    .option('--dry-run', 'print what the save would do to steps and placements; save nothing')
+    .option('--yes', 'save even if placements would be stranded or need re-confirmation')
+    .option('--json', 'print JSON')
+    .action(
+      (
+        file: string,
+        opts: {
+          project: string;
+          key: string;
+          base?: string;
+          force?: boolean;
+          dryRun?: boolean;
+          yes?: boolean;
+          json?: boolean;
+        },
+      ) => valueChainPushCommand(io, file, { ...globals(), ...opts }),
+    );
+  valueChain
+    .command('pull')
+    .description(
+      'write the canonical .vc.json of the head (or --rev) verbatim; r<rev> <hash> on stderr',
+    )
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--key <key>', 'value chain key', 'main')
+    .option('--rev <rev>', 'revision number (default: the head)')
+    .option('-o, --output <file>', 'write to this file (default: stdout)')
+    .action((opts: { project: string; key: string; rev?: string; output?: string }) =>
+      valueChainPullCommand(io, { ...globals(), ...opts }),
     );
 
   program

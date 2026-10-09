@@ -20,16 +20,22 @@ const READ_TOOLS = [
   'get_procedure',
   'get_process',
   'get_relations',
+  'get_value_chain',
+  'get_value_chain_document',
   'list_processes',
   'list_projects',
+  'list_unplaced_processes',
   'which_processes_use',
 ];
 const WRITE_TOOLS = [
   'claim_analysis',
+  'decide_placement',
   'decide_relation',
+  'propose_placement',
   'propose_relation',
   'release_analysis',
   'submit_analysis',
+  'withdraw_placement_proposal',
   'withdraw_proposal',
 ];
 /** Tools that take no projectId: the token's projects, the procedure, and tasks by id. */
@@ -140,7 +146,7 @@ describe('MCP /mcp with an agent token', () => {
       // A `$ref` root hides the parameters from clients that read only `properties`.
       expect(tool.inputSchema['$ref'], tool.name).toBeUndefined();
       // A `$ref` root would make the SDK wrap results as { result: … }.
-      if (tool.name !== 'decide_relation') {
+      if (tool.name !== 'decide_relation' && tool.name !== 'decide_placement') {
         expect(tool.outputSchema?.type, tool.name).toBe('object');
         expect(tool.outputSchema?.['$ref'], tool.name).toBeUndefined();
       }

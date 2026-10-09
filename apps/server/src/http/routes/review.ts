@@ -1,25 +1,9 @@
 import { createRoute } from '@hono/zod-openapi';
 import { apiRoutes } from '@proa/contracts';
 
-import { DomainError } from '../../domain/errors.ts';
 import type { UseCases } from '../../domain/use-cases/index.ts';
 import { requireActor, type App } from '../context.ts';
-
-/** ETag of a relation version: `"<version>"`. */
-export function relationEtag(version: number): string {
-  return `"${version}"`;
-}
-
-/**
- * The version an `If-Match` header names (`"3"`, `W/"3"`, `"v3"`); a header
- * naming no version (`*` aside) can never match: 412.
- */
-export function ifMatchVersion(header: string | undefined): number | undefined {
-  if (header === undefined || header.trim() === '*') return undefined;
-  const m = /^\s*(?:W\/)?"v?(\d{1,9})"\s*$/.exec(header);
-  if (!m?.[1]) throw new DomainError('precondition-failed', 'If-Match names no relation version');
-  return Number(m[1]);
-}
+import { ifMatchVersion, versionEtag } from '../etag.ts';
 
 /** Review (CONCEPT §3): decisions, bulk decisions, notes, timeline, ad-hoc proposals. */
 export function registerReviewRoutes(app: App, useCases: UseCases): void {
@@ -33,7 +17,7 @@ export function registerReviewRoutes(app: App, useCases: UseCases): void {
       c.req.valid('json'),
       ifMatch,
     );
-    c.header('etag', relationEtag(result.relation.version));
+    c.header('etag', versionEtag(result.relation.version));
     return c.json(result, 200);
   });
 

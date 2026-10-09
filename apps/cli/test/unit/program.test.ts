@@ -17,15 +17,18 @@ describe('proa', () => {
     expect(t.out()).toMatch(/^2\.0\.0/);
   });
 
-  it('lists the M1 commands in --help', async () => {
+  it('lists the commands in --help', async () => {
     const t = testIo();
     expect(await runCli(['--help'], t.io)).toBe(0);
-    for (const cmd of ['health', 'status', 'import', 'token', 'mcp', 'seed']) {
+    for (const cmd of ['health', 'status', 'import', 'token', 'mcp', 'seed', 'value-chain']) {
       expect(t.out()).toContain(cmd);
     }
     const token = testIo();
     expect(await runCli(['token', '--help'], token.io)).toBe(0);
     for (const cmd of ['create', 'list', 'revoke']) expect(token.out()).toContain(cmd);
+    const chain = testIo();
+    expect(await runCli(['value-chain', '--help'], chain.io)).toBe(0);
+    for (const cmd of ['push', 'pull']) expect(chain.out()).toContain(cmd);
   });
 
   it('health prints the server health from PROA_URL', async () => {
