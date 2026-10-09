@@ -10,9 +10,11 @@ see [M2 end to end](#m2-end-to-end-2026-10-08), and again after the
 released procedure `proa-relations@0.2.0`, which judges each pair once
 ([below](#judge-each-pair-once)), the Claude Code plugin, the agent reference setups in
 `examples/agents`, `eval:live` and the live gate; the owner's guide to live runs is
-[M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)). Of [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md), slice S0 is in:
-the `@miragon/value-chain-*` 0.3.0 packages are dependencies, not yet used by app code, and the
-golden value chains are validated with the npm schema-model ([M4 S0](#m4-s0-2026-10-08)). The 1.x
+[M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)). Of [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md), slices S0 and
+S1 are in: the `@miragon/value-chain-*` 0.3.0 packages are dependencies and the golden value
+chains are validated with the npm schema-model ([M4 S0](#m4-s0-2026-10-08)); the value chain
+tables, the placement lifecycle and `recomputeStatus` generalised over the subject are in the
+server as domain functions, without REST, MCP or UI yet ([M4 S1](#m4-s1-2026-10-09)). The 1.x
 tree (`backend/`, `frontend/`, Maven) lives next to it, untouched, until the cut-over PR.
 
 The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) were run end to end on
@@ -44,7 +46,8 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | `eval:replay` | working; scores the recordings in `eval/recordings` against `expected.yaml` (precision, recall and F1 per type and tag, must_not_link hits, questions, no-links, pairs judged twice, uncovered pairs); report in `eval/reports/replay.md`, ending with the live gate (it reports the gate, `eval:live` enforces it) |
 | `eval:live` (M3): records a live run from its project's stored submissions in `eval/recordings`, scores it and checks the live gate ([below](#live-runs-evallive-and-the-live-gate-m3)) | working; unit tests with fixtures, the server test that rebuilds the simulation agent's recordings from the stored submissions byte for byte (input aside), a smoke test against a seeded server; three LLM dev runs recorded into a scratch directory (not committed); no live run of the owner recorded yet |
 | `docker/compose.yaml`, `docker/Dockerfile` | working; `up -d --build --wait` starts PostgreSQL and ProA (migrations at start, owner key in the `proa-state` volume); CI builds it, seeds it and runs the live check against it; an M1 stack upgrades in place (migrations 0002/0003 on its data, the engine backfill equal to `@proa/bpmn-facts` on all 57 corpus models) |
-| Value chain packages (M4 S0, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §5, §9): `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`; `eval/value-chains/validate-value-chains.mjs` on the npm schema-model | consumed, not used by app code yet (S1–S3); the server's Node round trip of both golden chains, the validator in `pnpm test` (both modes), the dependency specifier guard; no web chunk contains the renderer before the chain page (S3: bundle guard, Playwright import check) |
+| Value chain packages (M4 S0, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §5, §9): `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`; `eval/value-chains/validate-value-chains.mjs` on the npm schema-model | consumed; the server uses schema-model in S1's tests only, the renderer is not used yet (S3); the server's Node round trip of both golden chains, the validator in `pnpm test` (both modes), the dependency specifier guard; no web chunk contains the renderer before the chain page (S3: bundle guard, Playwright import check) |
+| Value chain storage and placements (M4 S1, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §2, §9): tables `value_chain`, `value_chain_revision`, `value_chain_step`, `placement`, `placement_assertion` (migrations 0006/0007), `status.ts` generalised over the subject, `src/domain/value-chain/` (step generations, the revision write path, the placement lifecycle) | storage and domain only, no production caller until S2 (REST, MCP, `prepareRevision`); unit tests (golden relation digest, relation ↔ placement equivalence, generations, tiers) and real-PostgreSQL tests (lifecycle, revisions, deletion and revival, triggers, checks, composite foreign keys) |
 
 ## Quickstart (Docker)
 
@@ -1309,7 +1312,12 @@ a rule decision `accept`, everything else a rule proposal, re-asserted when the 
 fingerprints change and withdrawn when no longer derived — except an acceptance whose endpoint
 is missing (deleted model), which stays accepted with `endpoint_state = missing`, an open item.
 A human decision always outranks the rule. Every write appends events with a dense per-project
-`seq` (`UPDATE project SET last_seq = last_seq + 1 RETURNING`).
+`seq` (`UPDATE project SET last_seq = last_seq + 1 RETURNING`). `status.ts` computes status,
+tier and basis for any subject (`recomputeStatusOf`, `classifyProposalOf` with a `Subject`
+descriptor); relations and, since M4 S1, placements (`domain/value-chain/`) are its instances.
+The value chain functions (`createValueChain`, `saveValueChainRevision`, `deleteValueChain`, the
+placement lifecycle) run inside the caller's transaction after `lockForWrite`; S2's use cases add
+`policy.require` and the REST and MCP entry points.
 
 **Schema** (`src/db/schema.ts`, CONCEPT §2): `project`, `principal`, `membership`, `invitation`
 (unused in M1), `agent_token`, `model`, `model_revision` (verbatim bytes as `bytea`, processes
@@ -1332,6 +1340,21 @@ models, basis, reason, source kind, principal, client, declared procedure and mo
 origin model, `seq`; unique per submission and typed pair) and `no_link_withdrawal`
 (`0004_judge_once.sql`, generated); their append-only triggers and the `claimed_seq` backfill from
 the latest `analysis.claimed` event (`0005_judge_once_triggers.sql`, hand-written).
+M4 S1 (value chain, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §2): `value_chain` (mutable like
+`model`: key, name, head, `deleted_seq`; the head is a revision of the same chain),
+`value_chain_revision` (canonical bytes as `bytea`, `content_hash`, `structure_hash`,
+`schema_version`, base revision of the same chain, humans only by check), `value_chain_step`
+(one row per step element id and generation plus the pseudo-step `@outside`; tombstoned by
+`deleted_seq`/`deleted_rev`; a partial unique index allows one live generation per id),
+`placement` (mutable derived state like `relation`: natural key chain, element, generation and
+process ref, generated `process_model`, status, endpoint state, tier without `rule`, anchor
+fingerprints; a composite foreign key to its step generation) and `placement_assertion` (the
+`relation_assertion` columns with `step_fp`/`process_fp`, the M4b basis `step_hash`/`process_hash`
+and `submission_id`; checks: neither agents nor the rule tier decide, notes by humans, the basis
+pairing) (`0006_value_chain.sql`, generated); `value_chain_revision` and `placement_assertion`
+append-only, `value_chain_step` tombstone-only (`proa_value_chain_step_tombstone_only`), and the
+deferred `placement_assertion` → submission foreign key (`0007_value_chain_triggers.sql`,
+hand-written).
 Migrations: `pnpm --filter @proa/server db:generate` for schema changes,
 `pnpm --filter @proa/server exec drizzle-kit generate --custom --name <name>` for SQL drizzle-kit
 does not model.
@@ -1741,6 +1764,39 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   `eval/tools/test/value-chains.test.mjs` runs `validate-value-chains.mjs` in both modes and
   requires every landscape ok and the built-in copy's agreement with the pinned package version
   (a failure shows the summary lines only, not the holdout's findings).
+- M4 S1 (value chain storage and placements): unit `status-subjects.test.ts` holds a golden
+  sha256 over the relation results (`recomputeStatus`, `currentStances`, `decisionsInForce`,
+  `classifyProposal` with and without a basis and under an appended hold, `endpointState`) of
+  2,000 seeded random histories from `test/support/status-histories.ts`, computed on the code
+  before the generalisation: a change means relation behaviour changed. The same histories mapped
+  to placement form give the same status, tier, confidence, basis and classification;
+  `placementEndpointState` covers `@outside` and tombstoned generations. `value-chain-steps.test.ts`:
+  generations (first revision, removal, a returning id, org units ignored, delete, revival, `@`
+  ids refused, deterministic order); `placements.test.ts`: the tier precedence (no key-match
+  input for agents). Integration
+  `value-chain.test.ts` (synthetic chains from `test/support/value-chain.ts` and the dev
+  landscape's golden chain, never the holdout's): revisions (rev 1, `unchanged`, rev 2 tombstones
+  and withdraws the agent and rule proposals on the removed step under their proposers, caused
+  by the saving human, so a proposal-only placement turns `obsolete` without an endpoint event
+  while an acceptance stays `missing` and can then only be rejected, not accepted or held, and no
+  new proposal lands on the dead generation; rev 3 re-adds a step as generation 2 while its old
+  placement stays `missing`, a layout-only save), deletion and revival (same `vch_`, `rev`
+  continues, new generations, the live proposals withdrawn, no placement comes back), the
+  canonical bytes and their hash, refusals (agents, a second chain, another key, a foreign base
+  revision, `@` ids), the lifecycle (proposal, duplicate, acceptance, `changed` after a rename,
+  re-confirmation, rejection with a required reason, `suppressed`, `reopened`, hold, a pipeline
+  judgement under the hold, note, withdrawal to `obsolete`), `correct` linked both ways, manual
+  placements incl. `@outside`, `@outside` proposals without a reason refused, the rule tier's key
+  proposals recorded as `rule` under `proa-rules` (and `key` refused for any other source), a
+  deleted model making the process side `missing`, the
+  repositories' listings (revisions newest first, placements by filter in code point order and
+  by cursor, nothing from another project), dense and typed events; every chain and placement write leaves relations, their assertions,
+  no-links, tasks, findings, models and `model_pipeline` unchanged. `db-constraints.test.ts`:
+  append-only `value_chain_revision` and `placement_assertion`, tombstone-only `value_chain_step`,
+  humans-only revisions, the `placement_assertion` checks (agents and rules never decide, notes by
+  humans, verdict, basis pairing, no `rule` tier, linked placement), one live generation per id,
+  the composite foreign keys (head and base revision of another chain, a placement on another
+  chain's or project's generation or on none) and the deferred submission reference.
 
 ## CI
 
@@ -2186,3 +2242,25 @@ delivered"), on macOS with Node 24.15.0 and pnpm 11.1.3:
    `pnpm build` (no chunk contains the renderer).
 
 Not run: anything with the renderer in a browser (S3), the CI workflow itself.
+
+### M4 S1 (2026-10-09)
+
+Value chain storage and the placement lifecycle ([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §9 "S1
+as delivered"), on macOS with Node 24.15.0 and pnpm 11.1.3:
+
+1. The golden relation digest was computed on `status.ts` before the generalisation and pinned;
+   after the change it is unchanged. A mutation check (the anchor's key order swapped) fails it;
+   the synthetic proposal's `sourceKind` does not reach any result (only decisions read it).
+2. `pnpm --filter @proa/server db:generate --name value_chain` wrote `0006_value_chain.sql` with
+   CREATE TABLE, ADD CONSTRAINT and CREATE INDEX for the five new tables only (no ALTER on an
+   existing table); `drizzle-kit generate --custom --name value_chain_triggers` gave
+   `0007_value_chain_triggers.sql`, written by hand; a second `db:generate` reported "No schema
+   changes, nothing to migrate".
+3. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser clean),
+   `CI=1 pnpm -r test` (server 866, web 116, cli 55 plus 7 live tests skipped, agent-sim 37,
+   relations 61, bpmn-facts 134, contracts 43, procedures 22, client 4, eval/tools 61),
+   `pnpm eval:candidates` (pass, report unchanged) and `pnpm eval:replay` (reports and recordings
+   unchanged).
+
+Not run: the Docker image and the owner's `proa2` stack (migrations 0006 and 0007 have not run
+on its data), the CI workflow itself. Nothing calls the new code in production before S2.

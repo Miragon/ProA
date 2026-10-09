@@ -16,12 +16,16 @@ import {
   type ModelId,
   type ModelStage,
   type NoLinkId,
+  type PlacementAssertionId,
+  type PlacementId,
   type PrincipalId,
   type ProjectId,
   type Ref,
   type RelationId,
   type RevisionId,
   type SubmissionId,
+  type ValueChainId,
+  type ValueChainRevisionId,
 } from '@proa/contracts';
 import {
   and,
@@ -48,17 +52,22 @@ import type {
   HeadFactFilter,
   ModelRecord,
   ModelView,
+  PlacementRecord,
   PrincipalRecord,
   ProjectRecord,
   RelationRecord,
   RevisionRecord,
   StoredAssertion,
   StoredNoLink,
+  StoredPlacementAssertion,
   StoredSubmission,
   Store,
   TaskDetail,
   TaskRecord,
   Tx,
+  ValueChainRecord,
+  ValueChainRevisionRecord,
+  ValueChainStepRecord,
 } from '../domain/ports.ts';
 import type { Db } from './client.ts';
 import * as s from './schema.ts';
@@ -216,6 +225,113 @@ const toRevision = (r: RevisionRow): RevisionRecord => ({
   projectId: r.projectId as ProjectId,
   modelId: r.modelId as ModelId,
   principalId: r.principalId as PrincipalId,
+});
+
+type ValueChainRow = typeof s.valueChain.$inferSelect;
+type ValueChainStepRow = typeof s.valueChainStep.$inferSelect;
+type PlacementRow = typeof s.placement.$inferSelect;
+type PlacementAssertionRow = typeof s.placementAssertion.$inferSelect;
+
+const toValueChain = (r: ValueChainRow): ValueChainRecord => ({
+  id: r.id as ValueChainId,
+  projectId: r.projectId as ProjectId,
+  key: r.key,
+  name: r.name,
+  headRevisionId: r.headRevisionId as ValueChainRevisionId | null,
+  deletedSeq: r.deletedSeq,
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt,
+});
+
+const chainRevisionColumns = {
+  id: s.valueChainRevision.id,
+  projectId: s.valueChainRevision.projectId,
+  valueChainId: s.valueChainRevision.valueChainId,
+  rev: s.valueChainRevision.rev,
+  contentHash: s.valueChainRevision.contentHash,
+  structureHash: s.valueChainRevision.structureHash,
+  schemaVersion: s.valueChainRevision.schemaVersion,
+  baseRevisionId: s.valueChainRevision.baseRevisionId,
+  principalId: s.valueChainRevision.principalId,
+  sourceKind: s.valueChainRevision.sourceKind,
+  seq: s.valueChainRevision.seq,
+  createdAt: s.valueChainRevision.createdAt,
+};
+
+type ChainRevisionRow = Pick<
+  typeof s.valueChainRevision.$inferSelect,
+  keyof typeof chainRevisionColumns
+>;
+
+function toChainRevision(r: ChainRevisionRow): ValueChainRevisionRecord {
+  if (r.sourceKind !== 'human') throw new Error(`revision ${r.id} not saved by a human`);
+  return {
+    ...r,
+    id: r.id as ValueChainRevisionId,
+    projectId: r.projectId as ProjectId,
+    valueChainId: r.valueChainId as ValueChainId,
+    baseRevisionId: r.baseRevisionId as ValueChainRevisionId | null,
+    principalId: r.principalId as PrincipalId,
+    sourceKind: 'human',
+  };
+}
+
+const toStep = (r: ValueChainStepRow): ValueChainStepRecord => ({
+  projectId: r.projectId as ProjectId,
+  valueChainId: r.valueChainId as ValueChainId,
+  elementId: r.elementId,
+  generation: r.generation,
+  createdRev: r.createdRev,
+  deletedRev: r.deletedRev,
+  deletedSeq: r.deletedSeq,
+});
+
+const toPlacement = (r: PlacementRow): PlacementRecord => ({
+  id: r.id as PlacementId,
+  projectId: r.projectId as ProjectId,
+  valueChainId: r.valueChainId as ValueChainId,
+  elementId: r.elementId,
+  generation: r.generation,
+  processRef: r.processRef as Ref,
+  status: r.status,
+  endpointState: r.endpointState,
+  tier: r.tier,
+  confidence: r.confidence,
+  version: r.version,
+  stepFp: r.stepFp,
+  processFp: r.processFp,
+  createdAt: r.createdAt,
+  updatedAt: r.updatedAt,
+});
+
+const toPlacementAssertion = (
+  r: PlacementAssertionRow,
+  handle: string,
+): StoredPlacementAssertion => ({
+  id: r.id as PlacementAssertionId,
+  projectId: r.projectId as ProjectId,
+  placementId: r.placementId as PlacementId,
+  seq: r.seq,
+  kind: r.kind,
+  verdict: r.verdict,
+  sourceKind: r.sourceKind,
+  principalId: r.principalId as PrincipalId,
+  clientId: r.clientId,
+  declared: r.declared ?? null,
+  submissionId: r.submissionId as SubmissionId | null,
+  tier: r.tier,
+  confidence: r.confidence,
+  rationale: r.rationale,
+  evidence: r.evidence ?? null,
+  question: r.question,
+  label: r.label,
+  linkedPlacementId: r.linkedPlacementId as PlacementId | null,
+  stepFp: r.stepFp,
+  processFp: r.processFp,
+  stepHash: r.stepHash,
+  processHash: r.processHash,
+  handle,
+  createdAt: r.createdAt,
 });
 
 // ------------------------------------------------------------- repositories
@@ -1193,6 +1309,296 @@ function repos(db: Conn): Tx {
             })),
           );
         }
+      },
+    },
+
+    valueChains: {
+      async findByKey(projectId, key) {
+        const rows = await db
+          .select()
+          .from(s.valueChain)
+          .where(and(eq(s.valueChain.projectId, projectId), eq(s.valueChain.key, key)));
+        return rows[0] ? toValueChain(rows[0]) : null;
+      },
+      async findInProject(projectId, id) {
+        const rows = await db
+          .select()
+          .from(s.valueChain)
+          .where(
+            and(
+              eq(s.valueChain.projectId, projectId),
+              eq(s.valueChain.id, id),
+              isNull(s.valueChain.deletedSeq),
+            ),
+          );
+        return rows[0] ? toValueChain(rows[0]) : null;
+      },
+      async list(projectId) {
+        const rows = await db
+          .select()
+          .from(s.valueChain)
+          .where(and(eq(s.valueChain.projectId, projectId), isNull(s.valueChain.deletedSeq)));
+        return rows.map(toValueChain).sort((a, b) => byCodePoint(a.key, b.key));
+      },
+      async insert(c) {
+        const rows = await db.insert(s.valueChain).values(c).returning();
+        if (!rows[0]) throw new Error(`value chain ${c.id} not inserted`);
+        return toValueChain(rows[0]);
+      },
+      async update(projectId, id, patch) {
+        const rows = await db
+          .update(s.valueChain)
+          .set({ ...patch, updatedAt: sql`now()` })
+          .where(and(eq(s.valueChain.projectId, projectId), eq(s.valueChain.id, id)))
+          .returning();
+        if (!rows[0]) throw new Error(`value chain ${id} not found`);
+        return toValueChain(rows[0]);
+      },
+    },
+
+    valueChainRevisions: {
+      async insert(r) {
+        await db.insert(s.valueChainRevision).values(r);
+      },
+      async findInProject(projectId, valueChainId, id) {
+        const rows = await db
+          .select(chainRevisionColumns)
+          .from(s.valueChainRevision)
+          .where(
+            and(
+              eq(s.valueChainRevision.projectId, projectId),
+              eq(s.valueChainRevision.valueChainId, valueChainId),
+              eq(s.valueChainRevision.id, id),
+            ),
+          );
+        return rows[0] ? toChainRevision(rows[0]) : null;
+      },
+      async findByRev(projectId, valueChainId, rev) {
+        const rows = await db
+          .select(chainRevisionColumns)
+          .from(s.valueChainRevision)
+          .where(
+            and(
+              eq(s.valueChainRevision.projectId, projectId),
+              eq(s.valueChainRevision.valueChainId, valueChainId),
+              eq(s.valueChainRevision.rev, rev),
+            ),
+          );
+        return rows[0] ? toChainRevision(rows[0]) : null;
+      },
+      async listForChain(projectId, valueChainId, page) {
+        const rows = await db
+          .select(chainRevisionColumns)
+          .from(s.valueChainRevision)
+          .where(
+            and(
+              eq(s.valueChainRevision.projectId, projectId),
+              eq(s.valueChainRevision.valueChainId, valueChainId),
+              page.beforeRev === undefined
+                ? undefined
+                : lt(s.valueChainRevision.rev, page.beforeRev),
+            ),
+          )
+          .orderBy(desc(s.valueChainRevision.rev))
+          .limit(page.limit);
+        return rows.map(toChainRevision);
+      },
+      async content(projectId, valueChainId, id) {
+        const rows = await db
+          .select({ content: s.valueChainRevision.content })
+          .from(s.valueChainRevision)
+          .where(
+            and(
+              eq(s.valueChainRevision.projectId, projectId),
+              eq(s.valueChainRevision.valueChainId, valueChainId),
+              eq(s.valueChainRevision.id, id),
+            ),
+          );
+        return rows[0]?.content ?? null;
+      },
+      async maxRev(projectId, valueChainId) {
+        const rows = await db
+          .select({ rev: max(s.valueChainRevision.rev) })
+          .from(s.valueChainRevision)
+          .where(
+            and(
+              eq(s.valueChainRevision.projectId, projectId),
+              eq(s.valueChainRevision.valueChainId, valueChainId),
+            ),
+          );
+        return rows[0]?.rev ?? 0;
+      },
+    },
+
+    valueChainSteps: {
+      async list(projectId, valueChainId) {
+        const rows = await db
+          .select()
+          .from(s.valueChainStep)
+          .where(
+            and(
+              eq(s.valueChainStep.projectId, projectId),
+              eq(s.valueChainStep.valueChainId, valueChainId),
+            ),
+          );
+        return rows
+          .map(toStep)
+          .sort((a, b) => byCodePoint(a.elementId, b.elementId) || a.generation - b.generation);
+      },
+      async insertMany(rows) {
+        for (const chunk of chunks(rows, INSERT_CHUNK)) {
+          await db.insert(s.valueChainStep).values(chunk);
+        }
+      },
+      async tombstone(projectId, valueChainId, keys, by) {
+        let n = 0;
+        for (const chunk of chunks(keys, INSERT_CHUNK)) {
+          const rows = await db
+            .update(s.valueChainStep)
+            .set({ deletedRev: by.rev, deletedSeq: by.seq })
+            .where(
+              and(
+                eq(s.valueChainStep.projectId, projectId),
+                eq(s.valueChainStep.valueChainId, valueChainId),
+                isNull(s.valueChainStep.deletedSeq),
+                sql`(${s.valueChainStep.elementId}, ${s.valueChainStep.generation}) in (${sql.join(
+                  chunk.map((k) => sql`(${k.elementId}::text, ${k.generation}::integer)`),
+                  sql`, `,
+                )})`,
+              ),
+            )
+            .returning({ elementId: s.valueChainStep.elementId });
+          n += rows.length;
+        }
+        return n;
+      },
+    },
+
+    placements: {
+      async forChain(projectId, valueChainId) {
+        const rows = await db
+          .select()
+          .from(s.placement)
+          .where(
+            and(eq(s.placement.projectId, projectId), eq(s.placement.valueChainId, valueChainId)),
+          );
+        return rows.map(toPlacement);
+      },
+      async findInProject(projectId, id) {
+        const rows = await db
+          .select()
+          .from(s.placement)
+          .where(and(eq(s.placement.projectId, projectId), eq(s.placement.id, id)));
+        return rows[0] ? toPlacement(rows[0]) : null;
+      },
+      async findByNaturalKey(projectId, valueChainId, elementId, generation, processRef) {
+        const rows = await db
+          .select()
+          .from(s.placement)
+          .where(
+            and(
+              eq(s.placement.projectId, projectId),
+              eq(s.placement.valueChainId, valueChainId),
+              eq(s.placement.elementId, elementId),
+              eq(s.placement.generation, generation),
+              eq(s.placement.processRef, processRef),
+            ),
+          );
+        return rows[0] ? toPlacement(rows[0]) : null;
+      },
+      async insert(p) {
+        const rows = await db.insert(s.placement).values(p).returning();
+        if (!rows[0]) throw new Error(`placement ${p.id} not inserted`);
+        return toPlacement(rows[0]);
+      },
+      async update(projectId, id, patch) {
+        const rows = await db
+          .update(s.placement)
+          .set({ ...patch, version: sql`${s.placement.version} + 1`, updatedAt: sql`now()` })
+          .where(and(eq(s.placement.projectId, projectId), eq(s.placement.id, id)))
+          .returning();
+        if (!rows[0]) throw new Error(`placement ${id} not found`);
+        return toPlacement(rows[0]);
+      },
+      async list(projectId, filter, page) {
+        const statusFilter =
+          filter.status !== undefined
+            ? eq(s.placement.status, filter.status)
+            : filter.includeObsolete
+              ? undefined
+              : sql`${s.placement.status} <> 'obsolete'`;
+        const after = page.after;
+        const rows = await db
+          .select()
+          .from(s.placement)
+          .where(
+            and(
+              eq(s.placement.projectId, projectId),
+              eq(s.placement.valueChainId, filter.valueChainId),
+              statusFilter,
+              filter.elementId === undefined
+                ? undefined
+                : eq(s.placement.elementId, filter.elementId),
+              filter.processRef === undefined
+                ? undefined
+                : eq(s.placement.processRef, filter.processRef),
+              filter.touchingModelKey === undefined
+                ? undefined
+                : eq(s.placement.processModel, filter.touchingModelKey),
+              after === undefined
+                ? undefined
+                : sql`(${s.placement.elementId} collate "C", ${s.placement.generation}, ${s.placement.processRef} collate "C") > (${after[0]} collate "C", ${after[1]}::integer, ${after[2]} collate "C")`,
+            ),
+          )
+          .orderBy(
+            sql`${s.placement.elementId} collate "C"`,
+            asc(s.placement.generation),
+            sql`${s.placement.processRef} collate "C"`,
+          )
+          .limit(page.limit);
+        return rows.map(toPlacement);
+      },
+    },
+
+    placementAssertions: {
+      async insert(a) {
+        await db.insert(s.placementAssertion).values(a);
+      },
+      async listForChain(projectId, valueChainId) {
+        const rows = await db
+          .select({ a: s.placementAssertion, handle: s.principal.handle })
+          .from(s.placementAssertion)
+          .innerJoin(
+            s.placement,
+            and(
+              eq(s.placement.projectId, s.placementAssertion.projectId),
+              eq(s.placement.id, s.placementAssertion.placementId),
+            ),
+          )
+          .innerJoin(s.principal, eq(s.principal.id, s.placementAssertion.principalId))
+          .where(
+            and(
+              eq(s.placementAssertion.projectId, projectId),
+              eq(s.placement.valueChainId, valueChainId),
+            ),
+          )
+          .orderBy(asc(s.placementAssertion.seq));
+        return rows.map((r) => toPlacementAssertion(r.a, r.handle));
+      },
+      async listForPlacements(projectId, ids) {
+        if (ids.length === 0) return [];
+        const rows = await db
+          .select({ a: s.placementAssertion, handle: s.principal.handle })
+          .from(s.placementAssertion)
+          .innerJoin(s.principal, eq(s.principal.id, s.placementAssertion.principalId))
+          .where(
+            and(
+              eq(s.placementAssertion.projectId, projectId),
+              inArray(s.placementAssertion.placementId, [...ids]),
+            ),
+          )
+          .orderBy(asc(s.placementAssertion.seq));
+        return rows.map((r) => toPlacementAssertion(r.a, r.handle));
       },
     },
 

@@ -8,9 +8,11 @@
  *   into another project;
  * - enumerations are `text` plus a CHECK constraint (no Postgres enums, which
  *   are awkward to migrate);
- * - `event`, `relation_assertion`, `analysis_submission`, `no_link` and
- *   `no_link_withdrawal` are append-only (triggers in migrations
- *   0001_append_only.sql and 0005_judge_once_triggers.sql).
+ * - `event`, `relation_assertion`, `analysis_submission`, `no_link`,
+ *   `no_link_withdrawal`, `value_chain_revision` and `placement_assertion`
+ *   are append-only (triggers in migrations 0001_append_only.sql,
+ *   0005_judge_once_triggers.sql and 0007_value_chain_triggers.sql);
+ *   `value_chain_step` only ever takes its tombstone (0007).
  *
  * After changing this file run `pnpm --filter @proa/server db:generate` and
  * commit the new migration in `apps/server/drizzle/`.
@@ -89,6 +91,8 @@ export const TASK_KINDS = ['relations'] as const;
 export const TASK_STATES = ['queued', 'claimed', 'done', 'failed', 'cancelled'] as const;
 export const LINK_TYPES = ['call', 'message', 'signal', 'trigger'] as const;
 export const JUDGING_SOURCE_KINDS = ['agent', 'human'] as const;
+/** Tiers of a placement (M4 §2): server-computed, never `rule` (nothing is auto-accepted). */
+export const PLACEMENT_TIERS = ['key', 'lexical', 'semantic', 'manual'] as const;
 
 export const project = pgTable('project', {
   id: text().primaryKey(),
@@ -589,6 +593,312 @@ export const noLinkWithdrawal = pgTable(
       columns: [t.projectId, t.noLinkId],
       foreignColumns: [noLink.projectId, noLink.id],
     }),
+  ],
+);
+
+/**
+ * A value chain (M4 §2): the project's process landscape map. Mutable like
+ * `model`; M4 allows one chain per project, key `main` (the domain enforces
+ * it, so more chains need no migration). A deleted chain keeps its id, and
+ * re-creating it revives that row.
+ */
+export const valueChain = pgTable(
+  'value_chain',
+  {
+    id: text().primaryKey(),
+    projectId: text()
+      .notNull()
+      .references(() => project.id),
+    /** Immutable key (`main` in M4). */
+    key: text().notNull(),
+    /** `meta.name` of the head revision. */
+    name: text().notNull(),
+    /** Null only inside the transaction that creates the chain. */
+    headRevisionId: text(),
+    /** Set while the chain is deleted (seq of `value_chain.deleted`). */
+    deletedSeq: seqColumn(),
+    createdAt: createdAt(),
+    updatedAt: timestamptz().notNull().defaultNow(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    unique('value_chain_project_key_unique').on(t.projectId, t.key),
+    unique('value_chain_project_id_unique').on(t.projectId, t.id),
+    // The head is a revision of this chain.
+    foreignKey({
+      name: 'value_chain_head_revision_fk',
+      columns: [t.projectId, t.id, t.headRevisionId],
+      foreignColumns: [
+        valueChainRevision.projectId,
+        valueChainRevision.valueChainId,
+        valueChainRevision.id,
+      ],
+    }),
+  ],
+);
+
+/** A saved state of a value chain (M4 §2); append-only, always saved by a human. */
+export const valueChainRevision = pgTable(
+  'value_chain_revision',
+  {
+    id: text().primaryKey(),
+    projectId: text().notNull(),
+    valueChainId: text().notNull(),
+    /** 1, 2, …; continues after a deletion and revival, so `"r<rev>"` never repeats. */
+    rev: integer().notNull(),
+    /** Canonical bytes: UTF-8 of `serializeDocument(loadDocument(input))`. */
+    content: bytea().notNull(),
+    /** sha256 (hex) of `content`: an identical save is a no-op. */
+    contentHash: text().notNull(),
+    /** Ids, types, names, links, connections and step kinds; not geometry (M4 §2). */
+    structureHash: text().notNull(),
+    schemaVersion: integer().notNull(),
+    /** The revision the editor started from (`If-Match`). */
+    baseRevisionId: text(),
+    principalId: text()
+      .notNull()
+      .references(() => principal.id),
+    /** Derived from the credential; humans only (check). */
+    sourceKind: text({ enum: values(SourceKind.options) }).notNull(),
+    seq: seqColumn().notNull(),
+    createdAt: createdAt(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    unique('value_chain_revision_project_id_unique').on(t.projectId, t.id),
+    unique('value_chain_revision_chain_id_unique').on(t.projectId, t.valueChainId, t.id),
+    unique('value_chain_revision_chain_rev_unique').on(t.valueChainId, t.rev),
+    foreignKey({
+      name: 'value_chain_revision_chain_fk',
+      columns: [t.projectId, t.valueChainId],
+      foreignColumns: [valueChain.projectId, valueChain.id],
+    }),
+    foreignKey({
+      name: 'value_chain_revision_base_fk',
+      columns: [t.projectId, t.valueChainId, t.baseRevisionId],
+      foreignColumns: [t.projectId, t.valueChainId, t.id],
+    }),
+    // Agents never edit the chain (M4 §7).
+    check('value_chain_revision_humans_only', sql`${t.sourceKind} = 'human'`),
+    check('value_chain_revision_rev_check', sql`${t.rev} >= 1`),
+    check('value_chain_revision_schema_version_check', sql`${t.schemaVersion} >= 1`),
+  ],
+);
+
+/**
+ * Generations of the chain's steps (M4 §2 "Identity"): one row per element
+ * id of type `step` and generation, plus the pseudo-step `@outside`. A step
+ * removed from the head is tombstoned (`deleted_seq`); if its id reappears it
+ * is a new generation, so placements of the old one stay `missing`. Rows only
+ * ever take their tombstone (trigger in 0007).
+ */
+export const valueChainStep = pgTable(
+  'value_chain_step',
+  {
+    projectId: text().notNull(),
+    valueChainId: text().notNull(),
+    elementId: text().notNull(),
+    generation: integer().notNull(),
+    /** The revision that added this generation. */
+    createdRev: integer().notNull(),
+    /** The first revision without it; null while live and when the chain's deletion ended it. */
+    deletedRev: integer(),
+    /** The tombstone: seq of the `value_chain.revised` or `value_chain.deleted` event. */
+    deletedSeq: seqColumn(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    primaryKey({ columns: [t.valueChainId, t.elementId, t.generation] }),
+    unique('value_chain_step_project_key_unique').on(
+      t.projectId,
+      t.valueChainId,
+      t.elementId,
+      t.generation,
+    ),
+    foreignKey({
+      name: 'value_chain_step_chain_fk',
+      columns: [t.projectId, t.valueChainId],
+      foreignColumns: [valueChain.projectId, valueChain.id],
+    }),
+    foreignKey({
+      name: 'value_chain_step_created_rev_fk',
+      columns: [t.valueChainId, t.createdRev],
+      foreignColumns: [valueChainRevision.valueChainId, valueChainRevision.rev],
+    }),
+    foreignKey({
+      name: 'value_chain_step_deleted_rev_fk',
+      columns: [t.valueChainId, t.deletedRev],
+      foreignColumns: [valueChainRevision.valueChainId, valueChainRevision.rev],
+    }),
+    // One live generation per element id.
+    uniqueIndex('value_chain_step_live_unique')
+      .on(t.valueChainId, t.elementId)
+      .where(sql`${t.deletedSeq} is null`),
+    check('value_chain_step_generation_check', sql`${t.generation} >= 1`),
+    check(
+      'value_chain_step_tombstone_check',
+      sql`(${t.deletedRev} is null or ${t.deletedSeq} is not null) and (${t.deletedRev} is null or ${t.deletedRev} > ${t.createdRev})`,
+    ),
+  ],
+);
+
+/**
+ * A placement (M4 §2): a process belongs to a step generation (or to
+ * `@outside`). Mutable derived state like `relation`; its history is in
+ * `placement_assertion`.
+ */
+export const placement = pgTable(
+  'placement',
+  {
+    id: text().primaryKey(),
+    projectId: text()
+      .notNull()
+      .references(() => project.id),
+    valueChainId: text().notNull(),
+    elementId: text().notNull(),
+    generation: integer().notNull(),
+    /** `<model_key>#<process_id>`. */
+    processRef: text().notNull(),
+    /** Model key of the process, for "placements touching model M". */
+    processModel: text()
+      .notNull()
+      .generatedAlwaysAs(sql`split_part(process_ref, '#', 1)`),
+    status: text({ enum: values(RelationStatus.options) }).notNull(),
+    endpointState: text({ enum: values(EndpointState.options) }).notNull(),
+    tier: text({ enum: PLACEMENT_TIERS }).notNull(),
+    confidence: doublePrecision(),
+    /** Incremented on every change (optimistic concurrency for decisions). */
+    version: integer().notNull().default(1),
+    /** Fingerprints of the assertion the status rests on (endpoint state compares against them). */
+    stepFp: text(),
+    processFp: text(),
+    createdAt: createdAt(),
+    updatedAt: timestamptz().notNull().defaultNow(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    unique('placement_natural_key_unique').on(
+      t.projectId,
+      t.valueChainId,
+      t.elementId,
+      t.generation,
+      t.processRef,
+    ),
+    unique('placement_project_id_unique').on(t.projectId, t.id),
+    // Pins the chain and the project too; `@outside` has its own step row.
+    foreignKey({
+      name: 'placement_step_fk',
+      columns: [t.projectId, t.valueChainId, t.elementId, t.generation],
+      foreignColumns: [
+        valueChainStep.projectId,
+        valueChainStep.valueChainId,
+        valueChainStep.elementId,
+        valueChainStep.generation,
+      ],
+    }),
+    index('placement_process_model_idx').on(t.projectId, t.processModel),
+    index('placement_process_idx').on(t.projectId, t.valueChainId, t.processRef),
+    check('placement_status_check', oneOf(t.status, RelationStatus.options)),
+    check('placement_endpoint_state_check', oneOf(t.endpointState, EndpointState.options)),
+    check('placement_tier_check', oneOf(t.tier, PLACEMENT_TIERS)),
+    check(
+      'placement_confidence_check',
+      sql`${t.confidence} is null or ${t.confidence} between 0 and 1`,
+    ),
+    check('placement_generation_check', sql`${t.generation} >= 1`),
+  ],
+);
+
+/** The history of a placement (M4 §2); append-only, mirrors `relation_assertion`. */
+export const placementAssertion = pgTable(
+  'placement_assertion',
+  {
+    id: text().primaryKey(),
+    projectId: text().notNull(),
+    placementId: text().notNull(),
+    /** Seq of the event that recorded the assertion. */
+    seq: seqColumn().notNull(),
+    kind: text({ enum: ASSERTION_KINDS }).notNull(),
+    verdict: text({ enum: VERDICTS }),
+    /** Derived from the credential, never sent by clients (CONCEPT §6). */
+    sourceKind: text({ enum: values(SourceKind.options) }).notNull(),
+    principalId: text()
+      .notNull()
+      .references(() => principal.id),
+    clientId: text(),
+    /** Declared procedure and LLM model (agents). */
+    declared: jsonb().$type<{ procedure: DeclaredProcedure | null; llmModel: string | null }>(),
+    /** The stored submission of a pipeline proposal (M4b). */
+    submissionId: text(),
+    tier: text({ enum: PLACEMENT_TIERS }),
+    confidence: doublePrecision(),
+    /** Agent rationale (required for `@outside`), rejection reason, hold or accept note, or a note. */
+    rationale: text(),
+    evidence: jsonb().$type<string[]>(),
+    /** An agent's question to the reviewer, or the question of a hold. */
+    question: text(),
+    /** Label of a hold. */
+    label: text(),
+    /** `correct`: the manual placement accepted instead, or the corrected placement. */
+    linkedPlacementId: text(),
+    stepFp: text(),
+    processFp: text(),
+    /**
+     * Basis of a pipeline proposal (M4b, judge each subject once): the
+     * chain's `structure_hash` and the `facts_hash` of the process's model as
+     * the agent saw them; null for every other assertion.
+     */
+    stepHash: text(),
+    processHash: text(),
+    createdAt: createdAt(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    foreignKey({
+      name: 'placement_assertion_placement_fk',
+      columns: [t.projectId, t.placementId],
+      foreignColumns: [placement.projectId, placement.id],
+    }),
+    foreignKey({
+      name: 'placement_assertion_linked_fk',
+      columns: [t.projectId, t.linkedPlacementId],
+      foreignColumns: [placement.projectId, placement.id],
+    }),
+    // Made DEFERRABLE INITIALLY DEFERRED in 0007 (as 0003 did for relation assertions).
+    foreignKey({
+      name: 'placement_assertion_submission_fk',
+      columns: [t.projectId, t.submissionId],
+      foreignColumns: [analysisSubmission.projectId, analysisSubmission.id],
+    }),
+    index('placement_assertion_placement_idx').on(t.projectId, t.placementId, t.seq),
+    // Agents only propose; humans decide (M4 §7).
+    check(
+      'placement_assertion_agents_never_decide',
+      sql`not (${t.kind} = 'decision' and ${t.sourceKind} = 'agent')`,
+    ),
+    // Nothing is auto-accepted (M4 §2 "Tiers"): the rule tier only proposes.
+    check(
+      'placement_assertion_rules_never_decide',
+      sql`not (${t.kind} = 'decision' and ${t.sourceKind} = 'rule')`,
+    ),
+    check(
+      'placement_assertion_notes_by_humans',
+      sql`${t.kind} <> 'note' or ${t.sourceKind} = 'human'`,
+    ),
+    check(
+      'placement_assertion_verdict_check',
+      sql`(${t.kind} = 'decision') = (${t.verdict} is not null) and (${t.verdict} is null or ${oneOf(t.verdict, VERDICTS)})`,
+    ),
+    check('placement_assertion_kind_check', oneOf(t.kind, ASSERTION_KINDS)),
+    check('placement_assertion_source_kind_check', oneOf(t.sourceKind, SourceKind.options)),
+    check(
+      'placement_assertion_tier_check',
+      sql`${t.tier} is null or ${oneOf(t.tier, PLACEMENT_TIERS)}`,
+    ),
+    check(
+      'placement_assertion_confidence_check',
+      sql`${t.confidence} is null or ${t.confidence} between 0 and 1`,
+    ),
+    // A basis has both hashes, and only proposals carry one.
+    check(
+      'placement_assertion_basis_check',
+      sql`(${t.stepHash} is null) = (${t.processHash} is null) and (${t.stepHash} is null or ${t.kind} = 'proposal')`,
+    ),
   ],
 );
 

@@ -26,6 +26,8 @@ import type {
   ModelId,
   ModelStage,
   NoLinkId,
+  PlacementAssertionId,
+  PlacementId,
   PrincipalId,
   ProcessInfo,
   ProjectFacts,
@@ -42,6 +44,8 @@ import type {
   SubmissionResult,
   Tier,
   TypedPair,
+  ValueChainId,
+  ValueChainRevisionId,
   Verdict,
 } from '@proa/contracts';
 import type { PairAssessment, PairQuery } from '@proa/relations';
@@ -353,6 +357,132 @@ export interface HeadFact extends Fact {
   processName: string | null;
 }
 
+// ------------------------------------------------- value chain (M4 §2)
+
+export interface ValueChainRecord {
+  id: ValueChainId;
+  projectId: ProjectId;
+  /** Immutable (`main` in M4). */
+  key: string;
+  /** `meta.name` of the head revision. */
+  name: string;
+  /** Null only inside the transaction that creates the chain. */
+  headRevisionId: ValueChainRevisionId | null;
+  /** Set while the chain is deleted. */
+  deletedSeq: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ValueChainRevisionRecord {
+  id: ValueChainRevisionId;
+  projectId: ProjectId;
+  valueChainId: ValueChainId;
+  rev: number;
+  /** sha256 (hex) of the canonical content. */
+  contentHash: string;
+  structureHash: string;
+  schemaVersion: number;
+  baseRevisionId: ValueChainRevisionId | null;
+  principalId: PrincipalId;
+  /** Revisions are saved by humans only (DB check). */
+  sourceKind: 'human';
+  seq: number;
+  createdAt: Date;
+}
+
+export interface NewValueChainRevision extends Omit<ValueChainRevisionRecord, 'createdAt'> {
+  /** Canonical bytes: UTF-8 of `serializeDocument(loadDocument(input))`. */
+  content: Uint8Array;
+}
+
+/** One generation of a step element (or of the pseudo-step `@outside`). */
+export interface StepKey {
+  elementId: string;
+  generation: number;
+}
+
+export interface ValueChainStepRecord extends StepKey {
+  projectId: ProjectId;
+  valueChainId: ValueChainId;
+  /** The revision that added this generation. */
+  createdRev: number;
+  /** The first revision without it; null while live and when the chain's deletion ended it. */
+  deletedRev: number | null;
+  /** The tombstone (seq of the event that ended the generation); null while live. */
+  deletedSeq: number | null;
+}
+
+/** Tiers of a placement: server-computed, never `rule` (nothing is auto-accepted). */
+export type PlacementTier = Exclude<Tier, 'rule'>;
+
+export interface PlacementRecord {
+  id: PlacementId;
+  projectId: ProjectId;
+  valueChainId: ValueChainId;
+  elementId: string;
+  generation: number;
+  /** `<model_key>#<process_id>`. */
+  processRef: Ref;
+  status: RelationStatus;
+  endpointState: EndpointState;
+  tier: PlacementTier;
+  confidence: number | null;
+  version: number;
+  /** Fingerprints of the assertion the status rests on. */
+  stepFp: string | null;
+  processFp: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PlacementAssertionRecord {
+  id: PlacementAssertionId;
+  projectId: ProjectId;
+  placementId: PlacementId;
+  seq: number;
+  kind: AssertionKind;
+  verdict: Verdict | null;
+  sourceKind: SourceKind;
+  principalId: PrincipalId;
+  clientId: string | null;
+  declared: Declared | null;
+  /** The stored submission of a pipeline proposal (M4b). */
+  submissionId: SubmissionId | null;
+  tier: PlacementTier | null;
+  confidence: number | null;
+  rationale: string | null;
+  evidence: string[] | null;
+  question: string | null;
+  label: string | null;
+  linkedPlacementId: PlacementId | null;
+  stepFp: string | null;
+  processFp: string | null;
+  /**
+   * Basis of a pipeline proposal (M4b): the chain's `structure_hash` and the
+   * `facts_hash` of the process's model as the agent saw them; `null` otherwise.
+   */
+  stepHash: string | null;
+  processHash: string | null;
+}
+
+/** A placement assertion as read back: with the principal's handle and the time it was recorded. */
+export interface StoredPlacementAssertion extends PlacementAssertionRecord {
+  handle: string;
+  createdAt: Date;
+}
+
+export interface PlacementFilter {
+  valueChainId: ValueChainId;
+  elementId?: string | undefined;
+  processRef?: Ref | undefined;
+  /** Placements of the processes of this model. */
+  touchingModelKey?: string | undefined;
+  status?: RelationStatus | undefined;
+  /** Without a `status` filter, obsolete placements are left out unless this is set. */
+  includeObsolete?: boolean;
+}
+
 // ------------------------------------------------------------ repositories
 
 export interface ProjectRepo {
@@ -589,6 +719,124 @@ export interface NoLinkRepo {
   ): Promise<void>;
 }
 
+export interface ValueChainRepo {
+  /** By key, deleted chains included (creating the key again revives them). */
+  findByKey(projectId: ProjectId, key: string): Promise<ValueChainRecord | null>;
+  /** A live (not deleted) chain. */
+  findInProject(projectId: ProjectId, id: ValueChainId): Promise<ValueChainRecord | null>;
+  /** Live chains, ordered by key. */
+  list(projectId: ProjectId): Promise<ValueChainRecord[]>;
+  insert(c: {
+    id: ValueChainId;
+    projectId: ProjectId;
+    key: string;
+    name: string;
+  }): Promise<ValueChainRecord>;
+  /** Applies the patch and sets `updated_at`; returns the stored row. */
+  update(
+    projectId: ProjectId,
+    id: ValueChainId,
+    patch: {
+      name?: string;
+      headRevisionId?: ValueChainRevisionId;
+      deletedSeq?: number | null;
+    },
+  ): Promise<ValueChainRecord>;
+}
+
+export interface ValueChainRevisionRepo {
+  insert(r: NewValueChainRevision): Promise<void>;
+  findInProject(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    id: ValueChainRevisionId,
+  ): Promise<ValueChainRevisionRecord | null>;
+  findByRev(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    rev: number,
+  ): Promise<ValueChainRevisionRecord | null>;
+  /** Newest first. */
+  listForChain(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    page: { beforeRev?: number | undefined; limit: number },
+  ): Promise<ValueChainRevisionRecord[]>;
+  content(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    id: ValueChainRevisionId,
+  ): Promise<Uint8Array | null>;
+  /** Highest `rev` of the chain, 0 without revisions. */
+  maxRev(projectId: ProjectId, valueChainId: ValueChainId): Promise<number>;
+}
+
+export interface ValueChainStepRepo {
+  /** Every generation, tombstones included, ordered by element id (code points) and generation. */
+  list(projectId: ProjectId, valueChainId: ValueChainId): Promise<ValueChainStepRecord[]>;
+  insertMany(
+    rows: readonly Omit<ValueChainStepRecord, 'deletedRev' | 'deletedSeq'>[],
+  ): Promise<void>;
+  /**
+   * Tombstones these live generations (`deleted_rev = by.rev`, `deleted_seq
+   * = by.seq`); generations already tombstoned are left alone.
+   *
+   * @returns the number of generations tombstoned
+   */
+  tombstone(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    keys: readonly StepKey[],
+    by: { rev: number | null; seq: number },
+  ): Promise<number>;
+}
+
+export interface PlacementRepo {
+  /** Every placement of the chain, obsolete ones included. */
+  forChain(projectId: ProjectId, valueChainId: ValueChainId): Promise<PlacementRecord[]>;
+  findInProject(projectId: ProjectId, id: PlacementId): Promise<PlacementRecord | null>;
+  findByNaturalKey(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    elementId: string,
+    generation: number,
+    processRef: Ref,
+  ): Promise<PlacementRecord | null>;
+  /** Inserts and returns the stored row (timestamps from the database). */
+  insert(p: Omit<PlacementRecord, 'createdAt' | 'updatedAt'>): Promise<PlacementRecord>;
+  /** Applies the patch, increments `version`, sets `updated_at`; returns the stored row. */
+  update(
+    projectId: ProjectId,
+    id: PlacementId,
+    patch: Partial<
+      Pick<
+        PlacementRecord,
+        'status' | 'endpointState' | 'tier' | 'confidence' | 'stepFp' | 'processFp'
+      >
+    >,
+  ): Promise<PlacementRecord>;
+  /** Ordered by `(element_id, generation, process_ref)`. */
+  list(
+    projectId: ProjectId,
+    filter: PlacementFilter,
+    page: { after?: readonly [string, number, string] | undefined; limit: number },
+  ): Promise<PlacementRecord[]>;
+}
+
+export interface PlacementAssertionRepo {
+  insert(a: PlacementAssertionRecord): Promise<void>;
+  /** The assertions of every placement of the chain, ordered by seq. */
+  listForChain(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+  ): Promise<StoredPlacementAssertion[]>;
+  /** The assertions of these placements, ordered by seq. */
+  listForPlacements(
+    projectId: ProjectId,
+    ids: readonly PlacementId[],
+  ): Promise<StoredPlacementAssertion[]>;
+}
+
 export interface FindingRepo {
   replace(projectId: ProjectId, findings: readonly Finding[]): Promise<void>;
   list(projectId: ProjectId): Promise<Finding[]>;
@@ -614,6 +862,11 @@ export interface Tx {
   tasks: TaskRepo;
   submissions: SubmissionRepo;
   noLinks: NoLinkRepo;
+  valueChains: ValueChainRepo;
+  valueChainRevisions: ValueChainRevisionRepo;
+  valueChainSteps: ValueChainStepRepo;
+  placements: PlacementRepo;
+  placementAssertions: PlacementAssertionRepo;
   findings: FindingRepo;
   events: EventRepo;
 }

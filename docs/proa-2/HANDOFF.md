@@ -1,4 +1,4 @@
-# ProA 2.0 – Handoff (status as of 2026-10-08)
+# ProA 2.0 – Handoff (status as of 2026-10-09)
 
 This file lets another person or AI agent continue the ProA 2.0 rebuild without the original
 conversation. It records **where we stand, what the owner decided, what is open and what comes
@@ -29,10 +29,14 @@ and code are in English.
   shown to reviewers), and **M4 S0** (the value chain packages `@miragon/value-chain-*` 0.3.0
   consumed from npm: exact dependencies, the golden-chain validator on the npm schema-model,
   the dependency specifier guard with one locked version of each value chain package,
-  `diagram-js` and zod v4, and the schema-model round trip in Node).
+  `diagram-js` and zod v4, and the schema-model round trip in Node), and **M4 S1** (2026-10-09:
+  the value chain tables with migrations 0006/0007, `recomputeStatus` generalised over the
+  subject with relation behaviour pinned by a golden digest, step generations, the revision
+  write path and the placement lifecycle as domain functions; no REST, MCP or UI yet).
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
   runs per landscape incl. the holdout), then the rest of **M4** (value chain /
-  Wertschöpfungskette, slices S1–S6, on `@miragon/value-chain-*` 0.3.0).
+  Wertschöpfungskette, slices S2–S6, on `@miragon/value-chain-*` 0.3.0; the owner accepted the
+  defaults of M4 §11).
 
 ## 2. Read in this order
 
@@ -97,6 +101,11 @@ and code are in English.
 17. **No work twice** (2026-10-08): no pair may be judged twice, also with several agents. Done
     as "judge each pair once" in `proa-relations@0.2.0` (`M3-RELATIONS-PROCEDURE.md`, CONCEPT §3),
     released before any live run, so the owner's runs use `0.2.0`.
+18. **Value chain defaults** (2026-10-09): the defaults of `M4-VALUE-CHAIN.md` §11 hold:
+    archived copies go to `@outside` with the current version in the reason; one home step per
+    process, a second only by a reviewer's decision; a step rename sends accepted placements to
+    re-confirm; org units are owners of top-level steps, not agent evidence; one chain per project
+    in M4; step kinds by colour until upstream has a category.
 
 **Taken during M3 by the implementing agent (the owner may overrule; details in
 `M3-RELATIONS-PROCEDURE.md`):** agents write rationales, questions, no-link reasons and summaries
@@ -129,7 +138,7 @@ This answers the former open questions "Supersession scope" and "No-links in rev
 | `packages/procedures` | the released procedure `proa-relations@0.2.0` (`relations.md`; judge each pair once), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
 | `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
 | `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
-| `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review |
+| `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1 the value chain storage and placement lifecycle (`src/domain/value-chain/`, no entry point before S2) |
 | `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name] / token create\|list\|revoke / mcp` (stdio bridge) |
 | `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen |
 | `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP |
@@ -224,10 +233,31 @@ lockfile, and requires one locked version of each value chain package, `diagram-
 `diagram-js-direct-editing` and zod v4 that every `@miragon/value-chain-*` pin names (bump the
 pins in `apps/server`, `apps/web` and `eval/tools` together). The bundle guard and the Playwright
 import check moved to S3, the first slice that imports the renderer; Dependabot for the pnpm
-workspace comes with the cut-over, until then bumps are manual. Next: S1 (tables, placement lifecycle), then S2–S4 and M4b: storage,
-**placements** (ProA's term for a process in a step; `assignment` is the modeler's org-unit
-connection), the `placement` pipeline kind, MCP tools, UI with the embedded modeler,
-`eval:placements`. Ask the owner the open questions of that document (§11) first.
+workspace comes with the cut-over, until then bumps are manual.
+
+**S1 is done** (2026-10-09, M4 §9 "S1 as delivered"): the tables `value_chain`,
+`value_chain_revision` (append-only), `value_chain_step` (generations, tombstone-only, incl. the
+pseudo-step `@outside`), `placement` and `placement_assertion` (append-only, with the M4b basis
+columns already in place) in migrations 0006 (generated) and 0007 (triggers, deferred submission
+reference); typed ids `vch_`, `vcr_`, `plc_`, `pas_`; `status.ts` generalised over a subject
+descriptor, with the relation functions unchanged as instances and a golden digest over 2,000
+random relation histories computed before the change; the domain functions in
+`apps/server/src/domain/value-chain/` (create, save with the `unchanged` no-op, delete and revive
+a chain with step generations and placement endpoint refresh; a save or deletion withdraws the
+live proposals on the generations it tombstones; propose, also as the rule tier, withdraw,
+accept, reject, hold, correct, manual placement, note). They have no production caller yet: the seam is
+`PreparedRevision`, which S2's `prepareRevision` produces.
+
+**Next: S2** (M4 §9 "S2 checklist"): `prepareRevision` (canonicalize, ProA rules, kinds, ranks,
+step fingerprints, `structure_hash`), REST with `If-Match` and `dryRun`, use cases with
+`policy.require`, `refreshPlacements` from ingest and model deletion, key-tier rule proposals,
+server tiers (decide where `baseline-prefix/1` lives), item validation, bulk decisions, read and
+propose MCP tools, findings, contract snapshots, token revocation of placement proposals. Then S3,
+S4 and M4b: UI with the embedded modeler, `eval:placements`, the `placement` pipeline kind. The
+owner accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason,
+one home step per process (a second only by a reviewer's decision), a step rename sends accepted
+placements to re-confirm, org units as owners of top-level steps (not agent evidence), one chain
+per project, kinds by colour until upstream has a category.
 
 ### Later (R1 and beyond)
 
@@ -254,7 +284,6 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | Revoking a token | Revoking now withdraws that token's open proposals and no-links (CONCEPT §6) and, since `0.2.0`, queues the models whose pairs it judged again. Confirm. | M2 fix, 0.2.0 |
 | Message-name matching | Names match ignoring separators (`Zahlung_Eingegangen` = `ZahlungEingegangen`). Confirm. | M1 relations |
 | Local session | `POST /api/v1/session` is open to any local process (fine single-user, not on shared machines). Add a one-time login link later? | M1 integrate |
-| Value chain | Six questions with defaults: archived copies (`@outside` vs. superseded flag), one home step per process, step renames send placements to re-confirm, org units as owners vs. performers, one vs. several chains per project, kinds by colour until a step category exists. | M4-VALUE-CHAIN.md §11 |
 
 ## 9. Working agreements and pitfalls
 

@@ -1,6 +1,6 @@
 # ProA 2.0 – Milestone M4 "Value chain"
 
-Status: proposed (2026-10-08, revised after review); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
+Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
 
 M4 puts the classic process landscape map ("Prozesslandkarte") on top of the processes: one
 value chain per project (Wertschöpfungskette, ARIS value-added chain diagram), edited in the
@@ -76,7 +76,13 @@ check); acyclic `sequence` edges. A `schemaVersion` newer than ProA's schema-mod
   therefore (1) gives its Modeler collision-free ids (§4) and (2) keeps a generation per element
   id: a deleted id is tombstoned, and if it reappears it is a new generation whose old
   placements stay `missing`. Deleting the chain tombstones all its steps, so a re-created
-  chain starts with new generations and revives no placements implicitly.
+  chain starts with new generations and revives no placements implicitly. A tombstone is
+  final, so the save or deletion that sets it withdraws the live proposals on that generation
+  (each recorded under its proposer, caused by the saving human); a proposal-only placement
+  turns `obsolete`, and a "live proposal" (`list_unplaced_processes`, the limit per process
+  and principal, findings) is always one on a live generation. Decisions stay: an accepted or
+  held placement on a removed step is an open item that only a rejection or `correct` closes,
+  since accepting or holding it again is refused (`unknown-step`).
 - `fingerprint = sha256(type|name_norm|parent_id)[:12]`: a change of case or umlaut spelling
   keeps the meaning, a rename or a new parent changes it.
 
@@ -92,9 +98,11 @@ process fingerprint differs from the one stored at the decision); `missing` (ste
 gone from the head, or process gone from the head facts). An accepted placement that is not
 `ok` is an open item.
 
-Separate tables, not a relation type: one endpoint is not a fact, and relation queries,
-landscape ETag and findings stay untouched while M2 is still changing them. Shared: the
-status function, the assertion columns, the review components.
+Separate tables, not a relation type: one endpoint is not a fact, and relation queries and
+findings stay untouched while M2 is still changing them. The landscape ETag is computed as
+before, but its value (`"s<seq>"` from `project.last_seq`) moves with every project event,
+chain and placement writes included (§7). Shared: the status function, the assertion
+columns, the review components.
 
 **Multiplicity.** A step has any number of processes. A process has one home step, the most
 specific one (the golden data and the procedure assume this); a reviewer may accept a second
@@ -104,7 +112,7 @@ processes) is computed and shown, never stored, and never replaces a placement: 
 remove a process from agent inputs, findings or the eval.
 
 **`@outside`** is a pseudo-step for "deliberately outside this chain", with the same
-lifecycle and a required reason. Archived copies go there, with the current version named in
+lifecycle and a required reason (a proposal without one is refused, `rationale-required`). Archived copies go there, with the current version named in
 the reason (the golden choice, §11). Technical adapters normally sit on the step they serve;
 `@outside` is acceptable for them.
 
@@ -112,8 +120,10 @@ the reason (the golden choice, §11). Technical adapters normally sit on the ste
 `proa-rules`, confidence 1.0) when a step's `link` is `proa:process/<ref>` of the process or
 its `name_norm` equals the process's; `lexical` for an agent proposal whose step is among the
 top 3 of `baseline-prefix/1` for that process or shares a name stem with it (the derived
-`name-match` rule of the golden README); `semantic` for every other agent proposal, including
-`@outside`; `manual` for humans. Nothing is auto-accepted.
+`name-match` rule of the golden README; an equal `name_norm` is a shared stem, a matching
+`link` alone is not); `semantic` for every other agent proposal, including `@outside`;
+`manual` for humans. Rule proposals are recorded with `source_kind = 'rule'`, so supersession
+and token revocation, which end agent proposals, never touch them. Nothing is auto-accepted.
 
 **The `link` field** is one opaque string per step (upstream: "opaque reference to a more
 detailed model"), so ProA accepts any string ≤ 2,000 characters and never rewrites it. It
@@ -137,19 +147,54 @@ Logistik. Their connections are drawing content without a lifecycle. M4 does not
 agents as evidence; matching them to `lane` facts is later work (§10).
 
 ```sql
-value_chain(id, project_id, key, name, head_revision_id, deleted_seq, unique(project_id, key))
-value_chain_revision(id, project_id, value_chain_id, rev, content, content_hash, structure_hash,
-         schema_version, base_revision_id, principal_id, source_kind, seq,
-         check(source_kind = 'human'))
+value_chain(id vch_, project_id, key, name, head_revision_id, deleted_seq, created_at, updated_at,
+         unique(project_id, key),
+         fk(project_id, id, head_revision_id) → value_chain_revision(project_id, value_chain_id, id))
+value_chain_revision(id vcr_, project_id, value_chain_id, rev, content bytea, content_hash,
+         structure_hash, schema_version, base_revision_id, principal_id, source_kind, seq, created_at,
+         unique(value_chain_id, rev), check(source_kind = 'human'), check(rev >= 1),
+         fk(project_id, value_chain_id, base_revision_id) → value_chain_revision (same chain))
+                                                                  -- append-only
 value_chain_step(project_id, value_chain_id, element_id, generation, created_rev, deleted_rev,
-         pk(value_chain_id, element_id, generation))              -- tombstones
-placement(id, project_id, value_chain_id, element_id, generation, process_ref, status,
-         endpoint_state, tier, confidence, version,
-         unique(project_id, value_chain_id, element_id, generation, process_ref))
-placement_assertion(<columns of relation_assertion>, step_fp, process_fp,
-         check(not (kind = 'decision' and source_kind = 'agent')))
+         deleted_seq, pk(value_chain_id, element_id, generation),
+         unique(value_chain_id, element_id) where deleted_seq is null,
+         fk created_rev, deleted_rev → value_chain_revision(value_chain_id, rev))
+                                                                  -- tombstone-only; `@outside` too
+placement(id plc_, project_id, value_chain_id, element_id, generation, process_ref,
+         process_model generated (split_part(process_ref, '#', 1)), status, endpoint_state,
+         tier (key|lexical|semantic|manual), confidence, version, step_fp, process_fp,
+         unique(project_id, value_chain_id, element_id, generation, process_ref),
+         fk(project_id, value_chain_id, element_id, generation) → value_chain_step)
+placement_assertion(id pas_, project_id, placement_id, seq, kind, verdict, source_kind,
+         principal_id, client_id, declared, submission_id, tier, confidence, rationale, evidence,
+         question, label, linked_placement_id, step_fp, process_fp, step_hash, process_hash,
+         check(not (kind = 'decision' and source_kind in ('agent', 'rule'))),
+         check(kind <> 'note' or source_kind = 'human'),
+         check((step_hash is null) = (process_hash is null) and (step_hash is null or kind = 'proposal')),
+         fk linked_placement_id → placement, fk submission_id → analysis_submission (deferred))
+                                                                  -- append-only
 placement_input(value_chain_id, process_ref, input_hash, task_id, outcome, reason)   -- M4b
 ```
+
+As delivered in S1 (migrations `0006_value_chain.sql`, generated, and `0007_value_chain_triggers.sql`,
+hand-written). `value_chain_revision` and `placement_assertion` are append-only
+(`proa_forbid_change`); a `value_chain_step` row only ever takes its tombstone, one UPDATE that
+sets `deleted_seq` (the seq of the `value_chain.revised` or `value_chain.deleted` event) and, for
+a revision, `deleted_rev` (the first revision without the step; null when the chain's deletion
+ended it), so a tombstone is final and rows are never deleted. Generations track elements of
+type `step` only, plus a row for the pseudo-step `@outside` that is created with the chain and
+tombstoned with it, so one foreign key from `placement` to its step generation covers every
+placement and also pins its chain and project; `@outside`'s step fingerprint is the constant
+`@outside`. The foreign keys are stronger than on the relation side: the head and the base
+revision belong to the same chain, `created_rev`/`deleted_rev` name real revisions,
+`linked_placement_id` names a placement. Placement status reuses the relation status values; the
+`rule` tier is excluded, and the rule tier never decides (nothing is auto-accepted). The basis
+columns for M4b are there already: `step_hash` (the chain's `structure_hash`) and `process_hash`
+(the `facts_hash` of the process's model) as the agent saw them, both or neither and only on
+proposals, plus `submission_id` with a foreign key that is checked at commit (as 0003 did for
+relation assertions), so S5 needs no change to an append-only table. `content` holds the
+canonical bytes; the 1 MB limit is a ProA rule (S2), not a DB check. `key` has no DB check: the
+domain allows only `main`.
 
 ## 3. AI-first flows
 
@@ -175,8 +220,9 @@ more items:
 
 **Validation:** `step` is a step of the head revision or `@outside`; `process` is a `process`
 fact of the head revisions; ≤ 3 live steps per process and principal; confidence in [0, 1];
-rationale ≤ 1,000 and question ≤ 500 characters; ≤ 200 items; evidence items are fact refs,
-`rel_` ids or `step:<element_id>`, and must exist. Each item comes back `applied`,
+rationale ≤ 1,000 and question ≤ 500 characters, and a non-empty rationale for `@outside`
+(`invalid:rationale-required`); ≤ 200 items; evidence items are fact refs, `rel_` ids or
+`step:<element_id>`, and must exist. Each item comes back `applied`,
 `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`; payloads are stored verbatim.
 `withdraw_placement_proposal` withdraws the caller's own live proposals.
 
@@ -421,8 +467,19 @@ Status and trust fields map as for relations (CONCEPT §4); rejected placements 
 `deprecated`, so offline agents do not propose them again. `processes/*.md` gain
 `proa.value_chain_steps`.
 
-**Events:** `value_chain.created|revised|deleted`, `placement.proposed|decided|endpoint_changed`;
-`analysis.*` payloads carry `kind` and subject (M4b).
+**Events** (S1; `seq` from `project.last_seq` like every event, so the landscape ETag moves on
+chain and placement writes too): `value_chain.created` (also when a deleted chain is created
+again; payload `outcome` `created` or `revived`), `value_chain.revised` and `value_chain.deleted`,
+with subject the `vch_` id; the payloads carry `valueChainId`, `key` and, for a revision,
+`revisionId`, `rev`, `contentHash`, `structureHash`, the counts `stepsAdded` and `stepsRemoved`
+(not id lists) and on `revised` `baseRevisionId`. `placement.proposed|withdrawn|decided|noted|endpoint_changed`
+with subject the `plc_` id; payload `placementId`, `valueChainId`, `elementId`, `generation`,
+`process`, `sourceKind`, and as they apply `verdict`, `tier` and `confidence`, `submissionId`,
+`linkedPlacementId`, `principalId` (when caused by someone else, e.g. the human whose save or
+chain deletion withdrew the proposal), `previous` and `endpointState` (`endpoint_changed`,
+emitted when the endpoint state of a non-obsolete placement changes, also by a decision or
+proposal that re-anchors it; a placement whose withdrawals make it obsolete gets none). `analysis.*` payloads carry `kind`
+and subject (M4b).
 
 | Capability | Scope | Min role | Principal |
 |---|---|---|---|
@@ -431,7 +488,10 @@ Status and trust fields map as for relations (CONCEPT §4); rejected placements 
 | Create, save, import, delete the chain; decide placements; manual placements | `proa:review` | editor | user on an interactive client |
 
 Agents never edit the chain; the DB checks back this up (`value_chain_revision.source_kind =
-'human'`, no agent decisions in `placement_assertion`).
+'human'`, no agent or rule decisions in `placement_assertion`). No new permission: the rows map
+onto `read`, `propose` and `review` (human-only, `human-decision-required`) of `policy.ts`. S2's
+use cases call `policy.require`; in S1 the domain functions refuse non-humans for chain writes,
+decisions, manual placements and notes.
 
 ## 8. Changes to M2 contracts
 
@@ -452,7 +512,7 @@ Agents never edit the chain; the DB checks back this up (`value_chain_revision.s
    stays; a new `value_chain_pipeline` view gives the chain's stage.
 4. **Recordings** (M4b): `RecordingLine` gains a `subject` (model revision or chain revision);
    `eval:replay` scores by kind.
-5. **Status** (M4a): `recomputeStatus` is generalised over the subject (relation or
+5. **Status** (M4a, done in S1): `recomputeStatus` is generalised over the subject (relation or
    placement), not copied; M2's tests stay unchanged and green.
 6. **Snapshots** (M4a, M4b): `mcp-tools.json` and the contract tests gain the new tools and
    fields.
@@ -463,7 +523,7 @@ Agents never edit the chain; the DB checks back this up (`value_chain_revision.s
 
 | Slice | Scope | Effort |
 |---|---|---|
-| S1 | tables and migration (`value_chain`, revisions, step generations, `placement`, `placement_assertion`); placement lifecycle with generalised `recomputeStatus`; needs no package | 2.5 d |
+| S1 | **done** (2026-10-09): tables and migration (`value_chain`, revisions, step generations, `placement`, `placement_assertion`); placement lifecycle with generalised `recomputeStatus`; see below | 2.5 d |
 | S0 | **done** (2026-10-08): consume the release, see below | 1 d |
 | S2 | `domain/value-chain` (canonicalize, ProA rules, kinds, ranks, fingerprints, `structure_hash`, generations); REST with `If-Match` and `dryRun`; events; policy matrix; `proa value-chain push\|pull`; endpoint state on save and model ingest/delete; key-tier rule proposals; server tiers; decisions incl. bulk; read and propose MCP tools; findings; contract snapshots | 4 d |
 | S3 | UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check; from S0: the bundle guard (one `diagram-js` and one zod v4 copy in the web chunks, chain chunk budget) and the Playwright import check of both golden chains (zero import warnings, stored waypoints equal `layouter.layoutConnection`) | 5.5 d |
@@ -491,6 +551,73 @@ imports the renderer before the chain page: the bundle guard and the Playwright 
 Neither can run earlier without faking: the renderer's entry does not load in Node (§5), and
 jsdom 30 has no `getBBox`, `createSVGMatrix` or `createSVGTransform`, which diagram-js and
 tiny-svg call, so a component test would need stubbed geometry.
+
+**S1 as delivered** (2026-10-09). Storage, the generalised status and the placement lifecycle
+as domain functions, without REST, MCP or UI (S2, S3).
+- **Contracts:** typed ids `ValueChainId` (`vch_`), `ValueChainRevisionId` (`vcr_`),
+  `PlacementId` (`plc_`) and `PlacementAssertionId` (`pas_`; relation assertions keep `asr_`).
+  No route references them yet, so the OpenAPI document and the client are unchanged.
+- **Schema:** the five tables of §2 in `apps/server/src/db/schema.ts`, migrations `0006` and `0007`
+  (above); a second `drizzle-kit generate` reports no changes. Ports and Drizzle repositories:
+  `tx.valueChains`, `valueChainRevisions`, `valueChainSteps`, `placements`,
+  `placementAssertions`.
+- **Status:** `status.ts` has a subject descriptor (`Subject`: `anchor`, `sameAnchor`,
+  `proposalView`) with `recomputeStatusOf`, `classifyProposalOf` and `pairEndpointState`;
+  `currentStances` and `decisionsInForce` take any `StanceView`. The relation functions keep
+  their names and signatures as instances (`RELATION`), so no relation caller changed. A golden
+  digest over 2,000 seeded random relation histories, computed on the code before the change,
+  pins relation behaviour byte for byte (`status-subjects.test.ts`); relation histories mapped to
+  placement form give the same status, tier, confidence, basis and classification.
+- **`apps/server/src/domain/value-chain/`:** `steps.ts` (`OUTSIDE`, `planStepGenerations`:
+  the head's steps plus `@outside` live, a returning id gets the next generation, delete
+  tombstones all, ids starting with `@` are refused), `revisions.ts` (`createValueChain` with
+  revival of the same `vch_`, `saveValueChainRevision` with the `unchanged` no-op,
+  `deleteValueChain`; humans only; `rev` continues after deletion and revival; each revision
+  updates generations, head and name, withdraws the live proposals on the generations it
+  tombstones, as the deletion does, and refreshes the placements' endpoint state),
+  `placement-state.ts` (`recomputePlacementStatus`, `classifyPlacementProposal`,
+  `placementEndpointState`, endpoints from the live generations, step fingerprints and the head's
+  `process` facts, `refreshPlacement(s)`, events) and `placements.ts` (`placementTier`, which
+  takes no key match for agents; `applyPlacementProposal`, which refuses a step generation that
+  is not live (`unknown-step`) and `@outside` without a reason (`rationale-required`) and records
+  the rule tier's key proposals as `rule` under `proa-rules` when `PlacementContext.proposer`
+  names it, with `key` exactly for that source; `withdrawPlacementStance`;
+  `withdrawProposalsOnRemovedSteps`; `recordPlacementDecision` with reasons required for reject
+  and hold and accept and hold refused on a tombstoned generation (`unknown-step`: reject or
+  correct); `acceptManualPlacement`, `correctPlacement`, `addPlacementNote`).
+- **The seam to S2** is `PreparedRevision` (`content`, `contentHash`, `structureHash`,
+  `schemaVersion`, `name` = `meta.name`, `stepFingerprints`): S1 trusts it, and revisions are
+  append-only, so no production code calls the write path before S2's `prepareRevision`
+  exists. S1's tests build it with schema-model and stand-in fingerprints.
+- **Deviations from the plan:** `createValueChain` takes `{key}` and names the chain after
+  `prepared.name` (S2 builds the empty document from the requested name, M4 §3.5);
+  `saveValueChainRevision` and `deleteValueChain` take the chain id and re-read the chain; the
+  revival outcome is `revived` (result and event payload) rather than `created`; a base revision
+  of another chain is refused with `validation-failed` (`unknown-base-revision`) before the
+  foreign key would; notes do not move a placement's version, as for relations.
+
+**S2 checklist** (from S1):
+- `prepareRevision`: canonicalize, ProA rules (incl. no element id starting with `@`), kinds,
+  ranks, step fingerprints, `structure_hash`; `If-Match` and `dryRun` under the project lock
+  (`dryRun` uses `planStepGenerations`).
+- Call `refreshPlacements` from ingest and `deleteModel`, with step fingerprints parsed from the
+  head (cached per `content_hash`); an integration test as for relations in `corpus.test.ts`.
+- Token revocation withdraws the token's live placement proposals (with the propose tool).
+- Key-tier rule proposals, written through `applyPlacementProposal` with
+  `PlacementContext.proposer` = `{sourceKind: 'rule', principalId: proa-rules}` (so
+  `source_kind = 'rule'`, no client), re-derived on save and ingest, withdrawn when no longer
+  derived.
+- Item validation and its invalid reasons (incl. `invalid:rationale-required` for `@outside`
+  without a reason, which the domain also refuses), the tier matchers (`baseline-prefix/1` is
+  scheduled for S4: move it into S2 or ship S2 with name-stem matching only), bulk decisions
+  (a bulk "re-confirm" must leave out placements on tombstoned generations, which the domain
+  refuses to accept or hold, and offer reject or `correct`), views, contracts,
+  REST and MCP with `policy.require`, new problem codes (`value-chain-invalid`,
+  `revision-conflict`, 428).
+- Findings treat an accepted placement whose step is missing as unplaced
+  (`process-without-step`); accepted and held placements on deleted or re-created steps stay
+  `missing` for good, so `dryRun`, the UI's bulk actions and the findings must surface them.
+  Live proposals there are withdrawn by the save (S1), so they never count as pending.
 
 **M4b "Pipeline and drafts"**
 
@@ -520,6 +647,8 @@ offers `saveSVG()` as a download); linked Git sync of `*.vc.json`; cross-project
 steps; ARIS (AML) import; dismissing findings; changes to the modeler itself.
 
 ## 11. Open questions for the owner
+
+**Decided** (2026-10-09): the owner accepted every default below (HANDOFF §4 item 18).
 
 1. **Archived copies:** `@outside` with the current version as the reason (default; the golden
    data use it), or the current step plus a "superseded" flag, which needs a new assertion

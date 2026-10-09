@@ -29,6 +29,8 @@ ProA 2.0 is a headless store for process landscapes. It holds BPMN models, the f
 | Relation | `rel_`, plus the natural key `(type, from_ref, to_ref)` |
 | Assertion, submission, no-link | append-only; submissions stored verbatim; a no-link (`nlk_`, an agent's judgement that a typed pair is unrelated) ends with a withdrawal row |
 | Analysis task | `ana_` |
+| Value chain (M4) | `vch_` with an immutable `key` (`main`); revisions `vcr_` hold immutable canonical bytes; step generations `(chain, element_id, generation)` |
+| Placement (M4) | `plc_`, natural key `(chain, element_id, generation, process_ref)`; assertions `pas_`, append-only |
 | Event | `(project, seq)`; both change feed and audit log |
 
 **Refs** have the form `<model_key>#<element_id>`, or `<model_key>#<process_id>` for a process.
@@ -95,9 +97,19 @@ no_link(id, project_id, type, from_ref, to_ref, from_model, to_model, from_hash,
          principal_id, client_id, declared jsonb, submission_id, model_id, seq)
 no_link_withdrawal(no_link_id pk, project_id, seq, principal_id, reason)
 event(project_id, seq, type, principal_id, client_id, subject_ref, payload jsonb, at, pk(project_id, seq))
+-- M4 (value chain, M4-VALUE-CHAIN.md §2 has the columns and constraints):
+value_chain(id, project_id, key, name, head_revision_id, deleted_seq, unique(project_id, key))
+value_chain_revision(id, project_id, value_chain_id, rev, content, content_hash, structure_hash,
+         schema_version, base_revision_id, principal_id, source_kind = 'human', seq)
+value_chain_step(project_id, value_chain_id, element_id, generation, created_rev, deleted_rev, deleted_seq)
+placement(id, project_id, value_chain_id, element_id, generation, process_ref, status, endpoint_state,
+         tier, confidence, version, step_fp, process_fp)
+placement_assertion(<relation_assertion columns>, placement_id, linked_placement_id, step_fp, process_fp,
+         step_hash, process_hash)
 ```
 
-`seq` comes from `UPDATE project SET last_seq = last_seq + 1 RETURNING last_seq` in the writing transaction, which serializes writes per project and keeps `seq` dense for cursors. Triggers block UPDATE and DELETE on `event` and the other append-only tables. The policy limits rule decisions to `call` relations.
+`seq` comes from `UPDATE project SET last_seq = last_seq + 1 RETURNING last_seq` in the writing transaction, which serializes writes per project and keeps `seq` dense for cursors. Triggers block UPDATE and DELETE on `event` and the other append-only tables (since M4 also
+`value_chain_revision` and `placement_assertion`; a `value_chain_step` row only takes its tombstone). The policy limits rule decisions to `call` relations.
 
 ## 3. Analysis pipeline
 

@@ -4,7 +4,9 @@ import { z } from 'zod';
  * Prefixes of ProA's typed ULIDs (CONCEPT §2). `prj`, `prn`, `agt`, `mdl`,
  * `rev`, `rel` and `ana` come from the concept; `inv`, `asr`, `sbm` and `nlk`
  * are ProA 2.0 additions for invitations, relation assertions, analysis
- * submissions and stored no-links.
+ * submissions and stored no-links; `vch`, `vcr`, `plc` and `pas` are M4's
+ * value chains, value chain revisions, placements and placement assertions
+ * (M4-VALUE-CHAIN.md §2).
  */
 export const ID_PREFIXES = {
   project: 'prj',
@@ -18,6 +20,10 @@ export const ID_PREFIXES = {
   assertion: 'asr',
   submission: 'sbm',
   noLink: 'nlk',
+  valueChain: 'vch',
+  valueChainRevision: 'vcr',
+  placement: 'plc',
+  placementAssertion: 'pas',
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;
@@ -67,6 +73,22 @@ export const SubmissionId = typedId(
 export type SubmissionId = TypedId<'sbm'>;
 export const NoLinkId = typedId('nlk', 'NoLinkId', 'Stored no-link id (`nlk_` + ULID).');
 export type NoLinkId = TypedId<'nlk'>;
+export const ValueChainId = typedId('vch', 'ValueChainId', 'Value chain id (`vch_` + ULID).');
+export type ValueChainId = TypedId<'vch'>;
+export const ValueChainRevisionId = typedId(
+  'vcr',
+  'ValueChainRevisionId',
+  'Value chain revision id (`vcr_` + ULID).',
+);
+export type ValueChainRevisionId = TypedId<'vcr'>;
+export const PlacementId = typedId('plc', 'PlacementId', 'Placement id (`plc_` + ULID).');
+export type PlacementId = TypedId<'plc'>;
+export const PlacementAssertionId = typedId(
+  'pas',
+  'PlacementAssertionId',
+  'Placement assertion id (`pas_` + ULID).',
+);
+export type PlacementAssertionId = TypedId<'pas'>;
 
 /**
  * Creates a new typed ULID: 48-bit millisecond timestamp plus 80 random bits,

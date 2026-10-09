@@ -12,6 +12,10 @@ import {
   NO_LINK_INVALID_REASONS,
   NoLinkId,
   NoLinkItem,
+  PlacementAssertionId,
+  PlacementId,
+  ValueChainId,
+  ValueChainRevisionId,
   NoLinkOutcome,
   NoteBody,
   Relation,
@@ -89,6 +93,16 @@ describe('ids', () => {
     expect(ProjectId.safeParse(a).success).toBe(true);
     expect(newId('model').startsWith('mdl_')).toBe(true);
     expect(NoLinkId.safeParse(newId('noLink')).success).toBe(true);
+  });
+
+  it('types the value chain ids (M4)', () => {
+    expect(ValueChainId.safeParse(newId('valueChain')).success).toBe(true);
+    expect(ValueChainRevisionId.safeParse(newId('valueChainRevision')).success).toBe(true);
+    expect(PlacementId.safeParse(newId('placement')).success).toBe(true);
+    expect(PlacementAssertionId.safeParse(newId('placementAssertion')).success).toBe(true);
+    // Placement assertions are not relation assertions (`asr_`).
+    expect(PlacementAssertionId.safeParse(newId('assertion')).success).toBe(false);
+    expect(PlacementId.safeParse(newId('valueChain')).success).toBe(false);
   });
 
   it('rejects timestamps outside the ULID range', () => {
