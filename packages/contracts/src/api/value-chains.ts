@@ -58,10 +58,10 @@ export const STEP_KIND_COLORS = {
 } as const;
 
 /**
- * Path of the value chain page of a project in the web UI, of one placement
- * on it (`?placement=`), or of one step's drill-down. `human-decision-required`
- * problems of chain and placement writes carry it as `reviewUrl` (absolute,
- * on the server's origin). The page ships with M4 S3.
+ * Path of the value chain page of a project in the web UI (M4 S3), of one
+ * placement on it (`?placement=`: the card is selected), or of one step's
+ * drill-down. `human-decision-required` problems of chain and placement writes
+ * carry it as `reviewUrl` (absolute, on the server's origin).
  */
 export function valueChainPath(
   projectKey: string,

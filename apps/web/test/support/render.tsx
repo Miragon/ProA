@@ -62,6 +62,10 @@ export interface Call {
   method: string;
   path: string;
   body: unknown;
+  /** The query string (`?dryRun=true`), `''` without one. */
+  search: string;
+  /** Request headers, lowercased names. */
+  headers: Record<string, string>;
 }
 
 type Handler = (call: Call) => Response | Promise<Response>;
@@ -82,7 +86,13 @@ export function stubApi(routes: Record<string, Handler>): Call[] {
         const text = await request.text();
         body = text === '' ? undefined : (JSON.parse(text) as unknown);
       }
-      const call: Call = { method: request.method, path: url.pathname, body };
+      const call: Call = {
+        method: request.method,
+        path: url.pathname,
+        body,
+        search: url.search,
+        headers: Object.fromEntries(request.headers.entries()),
+      };
       const handler = routes[`${request.method} ${url.pathname}`];
       // The owner session is opened before the first API request; answer it unless a test cares.
       if (!handler && call.method === 'POST' && call.path === '/api/v1/session') {

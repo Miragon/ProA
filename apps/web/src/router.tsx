@@ -12,6 +12,8 @@ import { projectReviewRoute } from './routes/project-review';
 import { projectUploadRoute } from './routes/project-upload';
 import { reviewRoute } from './routes/review';
 import { rootRoute } from './routes/root';
+import { valueChainRoute } from './routes/value-chain';
+import { valueChainStepRoute } from './routes/value-chain-step';
 
 /** Code-based route tree: add a route file under src/routes and list it here. */
 export const routeTree = rootRoute.addChildren([
@@ -23,9 +25,11 @@ export const routeTree = rootRoute.addChildren([
     projectFindingsRoute,
     projectUploadRoute,
     projectAgentsRoute,
+    valueChainStepRoute,
   ]),
   modelViewRoute,
   reviewRoute,
+  valueChainRoute,
 ]);
 
 export function createAppRouter(options: { queryClient: QueryClient; history?: RouterHistory }) {

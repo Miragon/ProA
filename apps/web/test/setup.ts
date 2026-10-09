@@ -3,23 +3,27 @@ import { afterEach, vi } from 'vitest';
 
 import { resetSessionState } from '../src/lib/api';
 
-// jsdom lacks a few browser APIs that Radix primitives touch.
+// jsdom lacks a few browser APIs that Radix primitives touch. (Node-environment
+// tests such as bundle.test.ts have no DOM at all.)
+const dom = typeof window !== 'undefined';
 class ResizeObserverStub {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
-const elementProto = Element.prototype as unknown as Record<string, unknown>;
-const elementStubs: Record<string, () => unknown> = {
-  hasPointerCapture: () => false,
-  releasePointerCapture: () => undefined,
-  scrollIntoView: () => undefined,
-};
-for (const [name, stub] of Object.entries(elementStubs)) {
-  if (typeof elementProto[name] !== 'function') elementProto[name] = stub;
+if (dom) {
+  const elementProto = Element.prototype as unknown as Record<string, unknown>;
+  const elementStubs: Record<string, () => unknown> = {
+    hasPointerCapture: () => false,
+    releasePointerCapture: () => undefined,
+    scrollIntoView: () => undefined,
+  };
+  for (const [name, stub] of Object.entries(elementStubs)) {
+    if (typeof elementProto[name] !== 'function') elementProto[name] = stub;
+  }
 }
-if (typeof window.matchMedia !== 'function')
+if (dom && typeof window.matchMedia !== 'function')
   window.matchMedia = (query: string) =>
     ({
       matches: false,
@@ -33,7 +37,7 @@ if (typeof window.matchMedia !== 'function')
     }) as MediaQueryList;
 
 afterEach(() => {
-  cleanup();
+  if (dom) cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   resetSessionState();

@@ -1,15 +1,22 @@
 import {
   getHealth,
   getLandscape,
+  getPlacementAssertions,
   getProject,
   getRelation,
   getRelationAssertions,
   getRevisionContent,
   getRevisionFacts,
+  getValueChain,
+  getValueChainContent,
+  getValueChainStep,
   listAgentTokens,
   listAnalyses,
   listModels,
+  listPlacements,
   listProjects,
+  listUnplacedProcesses,
+  listValueChainRevisions,
   type Health,
 } from '@proa/client';
 import type {
@@ -18,15 +25,22 @@ import type {
   AnalysisTaskState,
   Landscape,
   Model,
+  Placement,
+  PlacementAssertion,
   Project,
   Relation,
   RelationAssertion,
   RevisionFacts,
+  UnplacedProcess,
+  ValueChainDetail,
+  ValueChainRevision,
+  ValueChainStepDetail,
 } from '@proa/client';
 import { queryOptions } from '@tanstack/react-query';
 
-import { api, unwrap } from './api';
-import { MAX_PAGE_LIMIT } from './limits';
+import { api, unwrap, unwrapWithResponse } from './api';
+import { MAX_PAGE_LIMIT, VALUE_CHAIN_KEY } from './limits';
+import { revisionOfEtag } from './value-chain';
 
 /**
  * Query keys and fetchers. Everything below `['project', key]` belongs to one
@@ -44,6 +58,16 @@ export const keys = {
     ['project', project, 'relation', id, 'assertions'] as const,
   analyses: (project: string, state: AnalysisTaskState) =>
     ['project', project, 'analyses', state] as const,
+  // The value chain (M4): under the project, so every project invalidation refreshes it.
+  valueChain: (project: string) => ['project', project, 'value-chain', 'detail'] as const,
+  valueChainContent: (project: string) => ['project', project, 'value-chain', 'content'] as const,
+  placements: (project: string) => ['project', project, 'value-chain', 'placements'] as const,
+  placementAssertions: (project: string, id: string) =>
+    ['project', project, 'value-chain', 'placement', id, 'assertions'] as const,
+  valueChainStep: (project: string, elementId: string) =>
+    ['project', project, 'value-chain', 'step', elementId] as const,
+  unplaced: (project: string) => ['project', project, 'value-chain', 'unplaced'] as const,
+  chainRevisions: (project: string) => ['project', project, 'value-chain', 'revisions'] as const,
   // Revisions are immutable: keyed by revision id, cached for good.
   facts: (revisionId: string) => ['revision', revisionId, 'facts'] as const,
   content: (revisionId: string) => ['revision', revisionId, 'content'] as const,
@@ -185,4 +209,103 @@ export const contentQuery = ({ project, modelId, revisionId }: RevisionRef) =>
     },
     staleTime: Infinity,
     gcTime: 30 * 60_000,
+  });
+
+// ----------------------------------------------------------- value chain (M4)
+
+const chain = (project: string) => ({ project, key: VALUE_CHAIN_KEY });
+
+/** The chain with steps, placements (summaries) and findings; 404 while there is none. */
+export const valueChainQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.valueChain(project),
+    queryFn: (): Promise<ValueChainDetail> =>
+      unwrap(getValueChain({ client: api, path: chain(project) })),
+  });
+
+export interface ValueChainContent {
+  /** The canonical `.vc.json` bytes as text. */
+  text: string;
+  /** The head revision, from `ETag: "r<rev>"`. */
+  rev: number;
+}
+
+/** The head document (canonical text) and its revision. */
+export const valueChainContentQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.valueChainContent(project),
+    queryFn: async (): Promise<ValueChainContent> => {
+      const { data, response } = await unwrapWithResponse(
+        getValueChainContent({ client: api, path: chain(project), parseAs: 'text' }),
+      );
+      const text =
+        typeof data === 'string' ? data : await new Response(data as unknown as Blob).text();
+      const rev = revisionOfEtag(response.headers.get('etag'));
+      if (rev === null) throw new Error('Der Server hat die Kette ohne Revision geschickt.');
+      return { text, rev };
+    },
+  });
+
+/** Every non-obsolete placement with provenance (the cards). */
+export const placementsQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.placements(project),
+    queryFn: (): Promise<Placement[]> =>
+      allPages((cursor) =>
+        unwrap(
+          listPlacements({
+            client: api,
+            path: chain(project),
+            query: { limit: MAX_PAGE_LIMIT, cursor },
+          }),
+        ),
+      ),
+  });
+
+/** A placement's history, oldest first. */
+export const placementAssertionsQuery = (project: string, id: string) =>
+  queryOptions({
+    queryKey: keys.placementAssertions(project, id),
+    queryFn: async (): Promise<PlacementAssertion[]> =>
+      (
+        await unwrap(
+          getPlacementAssertions({ client: api, path: { ...chain(project), placement: id } }),
+        )
+      ).items,
+  });
+
+/** The drill-down of one step (404 for a step that is not in the head). */
+export const valueChainStepQuery = (project: string, elementId: string) =>
+  queryOptions({
+    queryKey: keys.valueChainStep(project, elementId),
+    queryFn: (): Promise<ValueChainStepDetail> =>
+      unwrap(getValueChainStep({ client: api, path: { ...chain(project), elementId } })),
+  });
+
+/** Processes without a home step and without a placement waiting for review. */
+export const unplacedQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.unplaced(project),
+    queryFn: (): Promise<UnplacedProcess[]> =>
+      allPages((cursor) =>
+        unwrap(
+          listUnplacedProcesses({
+            client: api,
+            path: chain(project),
+            query: { limit: MAX_PAGE_LIMIT, cursor },
+          }),
+        ),
+      ),
+  });
+
+/** The newest revision (who saved the head, when); `null` without one. */
+export const chainRevisionQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.chainRevisions(project),
+    queryFn: async (): Promise<ValueChainRevision | null> =>
+      (
+        await unwrap(
+          listValueChainRevisions({ client: api, path: chain(project), query: { limit: 1 } }),
+        )
+      ).items[0] ?? null,
   });

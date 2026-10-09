@@ -193,9 +193,14 @@ describe('create, read and delete', () => {
   it('deletes the chain (404 afterwards), and creating it again revives the same id', async () => {
     const before = await json<ValueChainDetail>(await t.asOwner(chainPath('vc-name')), 200);
     expect((await t.asOwner(chainPath('vc-name'), { method: 'DELETE' })).status).toBe(204);
-    expect(await json(await t.asOwner(chainPath('vc-name')), 404)).toMatchObject({
-      code: 'not-found',
-    });
+    const gone = await json<{ code: string; detail: string }>(
+      await t.asOwner(chainPath('vc-name')),
+      404,
+    );
+    expect(gone.code).toBe('not-found');
+    // the detail tells an agent where a human creates the chain: the web page or the CLI
+    expect(gone.detail).toContain('/projects/<project key>/value-chain');
+    expect(gone.detail).toContain('proa value-chain push');
     expect((await t.asOwner(chainPath('vc-name', '/content'))).status).toBe(404);
     expect((await t.asOwner(chainPath('vc-name'), { method: 'DELETE' })).status).toBe(404);
     const revived = await json<SaveValueChainResult>(

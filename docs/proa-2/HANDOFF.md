@@ -35,11 +35,14 @@ and code are in English.
   write path and the placement lifecycle as domain functions), and **M4 S2** (2026-10-09: the
   value chain and placements over REST, MCP and `proa value-chain push|pull`, the rule tier's key
   proposals, placements that follow model ingest and deletion, findings, server tiers with
-  `baseline-prefix/1` in `@proa/relations`; no UI yet).
+  `baseline-prefix/1` in `@proa/relations`), and **M4 S3** (2026-10-09: the value chain page in
+  the web UI: viewer and modeler in a lazy chunk, collision-free ids, overlays, placement review
+  in the side panel, save with dry run, conflict and drafts, link editing, drill-down; the bundle
+  guard, the import harness and the CSS check in Playwright).
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
   runs per landscape incl. the holdout), then the rest of **M4** (value chain /
-  Wertschöpfungskette, slices S3–S6, on `@miragon/value-chain-*` 0.3.0; the owner accepted the
-  defaults of M4 §11); S3 (the UI) is next.
+  Wertschöpfungskette, slices S4–S6, on `@miragon/value-chain-*` 0.3.0; the owner accepted the
+  defaults of M4 §11); S4 (`eval:placements`, `proa seed --value-chains`) is next.
 
 ## 2. Read in this order
 
@@ -141,9 +144,9 @@ This answers the former open questions "Supersession scope" and "No-links in rev
 | `packages/procedures` | the released procedure `proa-relations@0.2.0` (`relations.md`; judge each pair once), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
 | `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
 | `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
-| `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1/S2 the value chain and placements (`src/domain/value-chain/`: storage, lifecycle, `prepareRevision`, rule proposals, findings; REST under `/value-chains`, six MCP tools; no UI before S3) |
+| `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1/S2 the value chain and placements (`src/domain/value-chain/`: storage, lifecycle, `prepareRevision`, rule proposals, findings; REST under `/value-chains`, six MCP tools; the web page since S3) |
 | `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name] / token create\|list\|revoke / value-chain push\|pull / mcp` (stdio bridge) |
-| `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen |
+| `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen; since M4 S3 the value chain page (`/projects/{key}/value-chain`: renderer viewer/modeler in a lazy chunk, placement review, save with dry run and conflict, drafts, link editing) and the step view |
 | `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP |
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
 | `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate |
@@ -275,11 +278,40 @@ too (no `endpoint_changed` there and back on a rename), and `proa value-chain pu
 `--base` (the revision pulled) or `--force` for an existing chain, so a pull, edit, push round
 trip cannot silently revert a save made in between.
 
-**Next: S3** (M4 §9 "S3 checklist"): the chain page with the embedded viewer/modeler,
-collision-free ids, save with dry run and conflict, overlays, side panel, link editing,
-drill-down, Playwright incl. the CSS check, the bundle guard and the import check of both golden
-chains; the routes `valueChainPath()` names are the `reviewUrl` of every refused agent write. Then
-S4 (`eval:placements` reports `baseline-prefix/1`, `proa seed --value-chains`) and M4b. The owner
+**S3 is done** (2026-10-09, M4 §9 "S3 as delivered"): the page `/projects/{key}/value-chain` (tab
+"Wertschöpfungskette" with the open placement count; the `reviewUrl` of refused agent writes,
+`?placement=` selects the card) and the step view `…/value-chain/steps/{id}`. The renderer's
+NavigatedViewer and Modeler live in a lazy chunk (`src/components/value-chain/canvas/`, the only
+place allowed to import renderer, schema-model, diagram-js or zod: ESLint plus
+`apps/web/test/bundle.test.ts`, chain-only code 36.0 KB gzip of a 40 KB budget beyond the shared
+diagram-js chunk); `diagram-js` 15.28.0 became a direct web dependency, no `didi` override was
+needed, and `src/lib/zod-csp.ts` sets zod's `jitless` so the CSP sees no `new Function` probe.
+ProA's element factory names new elements `shape_<ULID>`, so a re-added step never takes a deleted
+step's id. Placements are reviewed in the side panel (A/R/H/C on the active card, J/K, bulk
+re-confirm, manual placements, `@outside` and removed steps); saves run the dry run with `If-Match`
+(`If-None-Match: *` creates the chain on its first save), ask before stranding or sending to
+re-confirm, show the save's own impact, offer "Neuere Revision laden" on 412 (the local copy
+downloads first) and keep unsaved edits as drafts in `localStorage`. Link editing writes
+`proa:process/<ref>` (a key-tier proposal) and clears with one undoable command. The server texts
+for a missing chain and `get_value_chain` name the page. Playwright: the import harness (golden dev
+chain and synthetic chains, 0 warnings, waypoints equal `layouter.layoutConnection`, ids never
+repeat) and the value chain flow (15 tests, incl. the CSS check of the bpmn-js review screen around
+the chain page, which found no difference). A review of the uncommitted work made 20 findings (two
+on the same impact-dialog flaw), all fixed with tests before the commit (M4 §9 "S3 review fixes",
+DEVELOPMENT.md "M4 S3 review fixes"): drafts that an import deleted or marked clean, edits lost to
+the 300 ms change debounce or made during a save, the impact dialog on every save, a re-checked bulk
+row, the unfitted first view under StrictMode, the chain routes in the entry chunk (now route
+chunks; the bundle guard also bounds the entry), and keyboard, focus and wording issues (link
+picker, draft dialog focus, "Zur Übersicht"/Escape, the tree's single tab stop, "nichts angenommen"
+instead of "ohne Prozess", "offen" counted alike everywhere). Taken by the implementing agent: the
+import check runs on the dev chain plus synthetic chains, never on the holdout chain (the owner can
+run it with `PROA_E2E_VC_EXTRA=<path>`, counts only); the confirm rule also counts withdrawn
+proposals; the renderer's copy-paste copies nothing in 0.3.0 (no `element.copy` rule), and its
+palette and context pad are English (new upstream asks in M4 §12).
+
+**Next: S4** (M4 §9 "S4 checklist"): `eval:placements` (reports `baseline-prefix/1`) and
+`proa seed --value-chains`, then M4b. After a bump of the renderer, schema-model or zod: rerun the
+bundle guard, the import harness and the CSS check (Playwright is not in CI). The owner
 accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason, one
 home step per process (a second only by a reviewer's decision), a step rename sends accepted
 placements to re-confirm, org units as owners of top-level steps (not agent evidence), one chain

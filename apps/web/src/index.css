@@ -175,3 +175,68 @@
 .proa-canvas .djs-container {
   font-family: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
 }
+
+/*
+ * Value chain canvas (M4 §4/§5), scoped under .proa-vc. The renderer's own CSS
+ * (diagram-js.css plus its .vc-* rules) is loaded with the lazy chain chunk;
+ * ProA adds badges, finding/invalid/selected markers (always with a text label
+ * or the side panel, never colour alone) and moves the palette below the
+ * floating header. A step's colour carries its kind, so markers change the
+ * stroke's width and dashes, not its colour (except an invalid element).
+ */
+.proa-vc-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: var(--cd-radius-sm);
+  border: 1px solid var(--cd-linie);
+  background: var(--cd-weiss);
+  color: var(--cd-schwarz);
+  font:
+    600 11px/16px 'Geist Variable',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  white-space: nowrap;
+  box-shadow: var(--cd-shadow-1);
+  pointer-events: none;
+}
+.proa-vc-badge[data-tone='warning'] {
+  border-color: var(--cd-warning);
+  background: var(--cd-warning-soft);
+  color: var(--cd-warning);
+}
+.proa-vc-badge[data-tone='finding'] {
+  border-color: var(--cd-warning);
+  background: var(--cd-weiss);
+  color: var(--cd-warning);
+  font-weight: 500;
+}
+.proa-vc-badge[data-tone='invalid'] {
+  border-color: var(--cd-danger);
+  background: var(--cd-danger-soft);
+  color: var(--cd-danger);
+}
+.proa-vc .djs-element.proa-vc-finding .djs-visual > path:first-child {
+  stroke-dasharray: 7 4;
+}
+.proa-vc .djs-element.proa-vc-selected .djs-visual > path:first-child {
+  stroke-width: 4px;
+}
+.proa-vc .djs-element.proa-vc-invalid .djs-visual > path:first-child {
+  stroke: var(--cd-danger) !important;
+  stroke-width: 4px;
+}
+.proa-vc .djs-palette {
+  top: 176px;
+  left: 16px;
+}
+/* The renderer paints its container white; the chain sits on ProA's dotted paper like the model view. */
+.proa-vc .vc-container {
+  background: transparent;
+}
+.proa-vc-labels {
+  display: inline-flex;
+  gap: 4px;
+  pointer-events: none;
+}

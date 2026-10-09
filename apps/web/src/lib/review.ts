@@ -229,41 +229,54 @@ export interface Conflict {
   description: string;
 }
 
+/** What a conflict is about: relations (M2) or placements (M4). */
+export type ConflictNoun = 'relation' | 'placement';
+
+const NOUNS: Record<ConflictNoun, { one: string; many: string; the: string }> = {
+  relation: { one: 'Eine Relation hat', many: 'Relationen haben', the: 'Die Relation' },
+  placement: { one: 'Eine Platzierung hat', many: 'Platzierungen haben', the: 'Die Platzierung' },
+};
+
 /**
  * Turns a 409 `conflict` or 412 `precondition-failed` into a message: the
- * relation changed after it was loaded (another decision, a new proposal, a
- * re-upload), it became obsolete, or a bulk list no longer matches.
+ * relation (or placement) changed after it was loaded (another decision, a
+ * new proposal, a re-upload or a chain save), it became obsolete, or a bulk
+ * list no longer matches.
  */
-export function conflictOf(error: unknown, seenVersion?: number): Conflict | null {
+export function conflictOf(
+  error: unknown,
+  seenVersion?: number,
+  noun: ConflictNoun = 'relation',
+): Conflict | null {
   if (!(error instanceof ApiError)) return null;
   const { code } = error.problem;
   if (code !== 'conflict' && code !== 'precondition-failed') return null;
+  const words = NOUNS[noun];
   const extras = error.problem as Record<string, unknown>;
   const mismatches = Array.isArray(extras['mismatches']) ? extras['mismatches'] : null;
   if (mismatches) {
     const n = mismatches.length;
     return {
       title: 'Die Liste hat sich geändert',
-      description: `${n === 1 ? 'Eine Relation hat' : `${n} Relationen haben`} sich seit dem Laden geändert. Es wurde nichts entschieden. Die Liste ist neu geladen; prüfe sie und bestätige noch einmal.`,
+      description: `${n === 1 ? words.one : `${n} ${words.many}`} sich seit dem Laden geändert. Es wurde nichts entschieden. Die Liste ist neu geladen; prüfe sie und bestätige noch einmal.`,
     };
   }
   if (typeof extras['expectedCount'] === 'number') {
     return {
       title: 'Die Liste hat sich geändert',
-      description:
-        'Die Anzahl der Relationen stimmt nicht mehr. Es wurde nichts entschieden. Die Liste ist neu geladen; prüfe sie und bestätige noch einmal.',
+      description: `Die Anzahl der ${noun === 'relation' ? 'Relationen' : 'Platzierungen'} stimmt nicht mehr. Es wurde nichts entschieden. Die Liste ist neu geladen; prüfe sie und bestätige noch einmal.`,
     };
   }
   const now = typeof extras['version'] === 'number' ? extras['version'] : null;
   if (now !== null) {
     const seen = seenVersion === undefined ? '' : ` (du hast Version ${seenVersion} gesehen)`;
     return {
-      title: 'Die Relation wurde inzwischen geändert',
+      title: `${words.the} wurde inzwischen geändert`,
       description: `Sie steht jetzt auf Version ${now}${seen}: Ein Agent oder eine andere Prüfung hat etwas ergänzt. Deine Entscheidung wurde nicht gespeichert. Der neue Stand ist geladen; prüfe ihn und entscheide noch einmal.`,
     };
   }
   return {
-    title: 'Die Relation kann so nicht entschieden werden',
+    title: `${words.the} kann so nicht entschieden werden`,
     description: `${error.problem.detail ?? error.problem.title}. Der neue Stand ist geladen; prüfe ihn noch einmal.`,
   };
 }

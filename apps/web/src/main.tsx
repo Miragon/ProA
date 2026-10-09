@@ -1,3 +1,6 @@
+// First: zod must not probe `new Function` under the CSP (M4 §5); see zod-csp.ts.
+import './lib/zod-csp';
+
 import { QueryClient } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

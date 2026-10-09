@@ -565,7 +565,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
     {
       title: 'Get the value chain',
       description:
-        "The project's value chain (Wertschöpfungskette) from its head revision: every step with kind (core, management, support, other), depth, rank, path, sub-steps, owner org units, link and placement counts; every non-obsolete placement (step → process) with status, endpoint state, tier and version, including placements on removed steps (stepLive false); and the findings (process-without-step with its review state and the steps of its callers, step-without-process at the topmost step, unresolved-link). Answers not-found while the project has no value chain: a human creates it with proa value-chain push (the web page comes with M4 S3).",
+        "The project's value chain (Wertschöpfungskette) from its head revision: every step with kind (core, management, support, other), depth, rank, path, sub-steps, owner org units, link and placement counts; every non-obsolete placement (step → process) with status, endpoint state, tier and version, including placements on removed steps (stepLive false); and the findings (process-without-step with its review state and the steps of its callers, step-without-process at the topmost step, unresolved-link). Answers not-found while the project has no value chain: a human creates it on the value chain page of the ProA web UI (tab Wertschöpfungskette, /projects/<project key>/value-chain) or with proa value-chain push.",
       inputSchema: z.object({ projectId }),
       // A plain object root (a named schema would become a `$ref` root).
       outputSchema: z.object(ValueChainDetail.shape),

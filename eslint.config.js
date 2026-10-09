@@ -9,6 +9,16 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+/** Packages whose values only the lazy value chain chunk of the web app may import. */
+const CHAIN_CHUNK_PACKAGES = [
+  '@miragon/value-chain-renderer',
+  '@miragon/value-chain-schema-model',
+  'diagram-js',
+  'zod',
+];
+const CHAIN_CHUNK_MESSAGE =
+  'Only the lazy chain chunk (src/components/value-chain/canvas/) may import the value chain renderer, schema-model, diagram-js or zod (M4 §5).';
+
 export default defineConfig(
   globalIgnores([
     '**/node_modules/',
@@ -87,7 +97,40 @@ export default defineConfig(
   {
     // The bundle gets types from the contracts, never their zod schemas: use
     // the generated @proa/client types (constants are mirrored in src/lib/limits.ts).
+    // The value chain renderer, schema-model (with zod) and diagram-js belong to
+    // the lazy chain chunk only (M4 §5): values from them are allowed in
+    // src/components/value-chain/canvas/** alone (override below).
     files: ['apps/web/src/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@proa/contracts',
+              message: 'Import types from @proa/client; constants live in src/lib/limits.ts.',
+              allowTypeImports: true,
+            },
+            ...CHAIN_CHUNK_PACKAGES.map((name) => ({
+              name,
+              message: CHAIN_CHUNK_MESSAGE,
+              allowTypeImports: true,
+            })),
+          ],
+          patterns: [
+            {
+              group: ['diagram-js/*', '@miragon/value-chain-renderer/*'],
+              message: CHAIN_CHUNK_MESSAGE,
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The lazy chain chunk: renderer, schema-model, diagram-js and zod are its own.
+    files: ['apps/web/src/components/value-chain/canvas/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',

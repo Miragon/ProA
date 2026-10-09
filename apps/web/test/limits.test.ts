@@ -19,6 +19,40 @@ describe('constants copied from @proa/contracts', () => {
     expect(limits.MAX_BULK_DECISIONS).toBe(contracts.MAX_BULK_DECISIONS);
   });
 
+  it('match the value chain constants (M4)', () => {
+    expect(limits.MAX_RATIONALE_CHARS).toBe(contracts.MAX_RATIONALE_CHARS);
+    expect(limits.VALUE_CHAIN_KEY).toBe(contracts.VALUE_CHAIN_KEY);
+    expect(limits.OUTSIDE_STEP).toBe(contracts.OUTSIDE_STEP);
+    expect(limits.RESERVED_ELEMENT_IDS).toEqual(contracts.RESERVED_ELEMENT_IDS);
+    expect(limits.PROA_PROCESS_LINK_PREFIX).toBe(contracts.PROA_PROCESS_LINK_PREFIX);
+    expect(limits.STEP_KIND_COLORS).toEqual(contracts.STEP_KIND_COLORS);
+    expect(limits.BIDI_CHARACTERS.source).toBe(contracts.BIDI_CHARACTERS.source);
+    const names = [
+      'BYTES',
+      'BODY_BYTES',
+      'ELEMENTS',
+      'CONNECTIONS',
+      'NAME_CHARS',
+      'ID_CHARS',
+      'LINK_CHARS',
+      'DEPTH',
+      'COORDINATE',
+      'ELEMENT_SIZE',
+      'REV',
+      'VIOLATIONS',
+    ] as const;
+    for (const name of names) {
+      const key = `MAX_VALUE_CHAIN_${name}` as const;
+      expect([key, limits[key]]).toEqual([key, contracts[key]]);
+    }
+    // every MAX_VALUE_CHAIN_* of the contracts is mirrored
+    expect(
+      Object.keys(contracts)
+        .filter((k) => k.startsWith('MAX_VALUE_CHAIN_'))
+        .sort(),
+    ).toEqual(names.map((n) => `MAX_VALUE_CHAIN_${n}`).sort());
+  });
+
   it('label maps cover every enum value of the contracts', async () => {
     const labels = await import('../src/lib/labels');
     expect(Object.keys(labels.STAGES).sort()).toEqual([...contracts.ModelStage.options].sort());
@@ -35,5 +69,24 @@ describe('constants copied from @proa/contracts', () => {
     expect(Object.keys(labels.ASSERTION_KINDS).sort()).toEqual(
       [...contracts.AssertionKind.options].sort(),
     );
+    // value chain (M4)
+    expect(Object.keys(labels.STEP_KINDS).sort()).toEqual([...contracts.StepKind.options].sort());
+    expect([...labels.STEP_KIND_ORDER].sort()).toEqual([...contracts.StepKind.options].sort());
+    expect(Object.keys(labels.LINK_KINDS).sort()).toEqual([...contracts.LinkKind.options].sort());
+    expect(Object.keys(labels.VALUE_CHAIN_FINDING_KINDS).sort()).toEqual(
+      [...contracts.VALUE_CHAIN_FINDING_KINDS].sort(),
+    );
+    expect([...labels.VALUE_CHAIN_FINDING_ORDER].sort()).toEqual(
+      [...contracts.VALUE_CHAIN_FINDING_KINDS].sort(),
+    );
+    expect(Object.keys(labels.UNPLACED_STATES).sort()).toEqual(
+      [...contracts.UnplacedState.options].sort(),
+    );
+    expect(Object.keys(labels.VALUE_CHAIN_VIOLATION_TEXTS).sort()).toEqual(
+      [...contracts.VALUE_CHAIN_VIOLATIONS].sort(),
+    );
+    for (const text of Object.values(labels.VALUE_CHAIN_VIOLATION_TEXTS)) {
+      expect(text).toMatch(/^[A-ZÄÖÜ].*\.$/);
+    }
   });
 });

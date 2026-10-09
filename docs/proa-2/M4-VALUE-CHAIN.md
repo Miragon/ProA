@@ -1,6 +1,6 @@
 # ProA 2.0 – Milestone M4 "Value chain"
 
-Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
+Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3 done (2026-10-09, the chain page in the web UI), S4–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
 
 M4 puts the classic process landscape map ("Prozesslandkarte") on top of the processes: one
 value chain per project (Wertschöpfungskette, ARIS value-added chain diagram), edited in the
@@ -357,6 +357,22 @@ covers both kinds (M4b).
   drill-down, link set and clear, a deleted and re-added step getting a fresh id, and the bpmn-js
   review screen after visiting the chain page (CSS, §5).
 
+**As delivered in S3** (§9 "S3 as delivered"): the page is a full-viewport route
+(`/projects/$p/value-chain`, like the model view and the review screen), its tab
+"Wertschöpfungskette" sits between Prüfen and Relationen and counts the open placement items
+(proposed, or accepted with an endpoint that is not `ok`); the drill-down
+`/projects/$p/value-chain/steps/$elementId` is a list page in the project layout. A project without
+a chain shows an empty state with the CLI command; "Wertschöpfungskette anlegen" opens the Modeler
+on an empty document locally, and the first save is the dry run plus `PUT` with `If-None-Match: *`,
+so no empty revision 1 is written. Badges read "3 Prozesse · 2 offen" (the processes homed on the
+step, accepted or held, and its open items; a step with only a proposal reads "1 offen"), one row of
+labels just above each step, with the finding labels "nichts angenommen" and "Link ungelöst" next to
+them; the step tree and the step view count the same. One placement card is active (from
+`?placement=`, else the first open one on the selected step); A/R/H/C act on it, J/K walk the
+chain's open placements (live steps in tree order, then `@outside`, then removed steps). The save
+asks for confirmation when it strands placements, sends accepted ones to re-confirm or withdraws
+proposals (stricter than the CLI, which ignores withdrawn proposals).
+
 ## 5. Packaging
 
 - `apps/web` depends on `@miragon/value-chain-renderer` and `@miragon/value-chain-schema-model`,
@@ -413,6 +429,43 @@ covers both kinds (M4b).
   `.github/dependabot.yml` covers only the 1.x tree; when it gets the pnpm workspace, it groups
   bpmn-js with the renderer and both `@miragon/value-chain-*` packages. Modeler needs go
   upstream as issues; ProA never patches or forks it.
+- **As delivered in S3.** `apps/web` depends on `diagram-js` 15.28.0 directly (exact; pnpm's strict
+  `node_modules` did not expose `diagram-js/lib/features/overlays` through the renderer, and the
+  lockfile keeps one version). No `didi` override: the diagram-js overlays module and a
+  `VcDiagramElementFactory` subclass type-check in the renderer's `additionalModules` (didi 12
+  types), and the bundles pull only didi 11.0.1. **zod and the CSP:** schema-model's zod builds its
+  object schemas at module evaluation and probes `new Function("")`, which raises a
+  `securitypolicyviolation` under `script-src 'self'` even though zod swallows the error;
+  `src/lib/zod-csp.ts` sets `globalThis.__zod_globalConfig.jitless = true` before any zod code runs
+  (the first import of `main.tsx` and of the chain chunk; zod 4.6.5 skips the probe under
+  `jitless`), and every chain page in the e2e flow is checked for CSP violations. **Bundle guard**
+  (`apps/web/test/bundle.test.ts`, a node-environment vitest in `pnpm test`, two Vite builds in
+  memory): exactly one `diagram-js`, one zod (4.x, no 3.x), one renderer and one schema-model in the
+  module ids of the web chunks; the entry chunk and its static imports hold none of them; the main
+  CSS has no rule whose selector starts with `.vc-` (ProA's own chain rules are scoped `.proa-vc
+  …`); and, with the dependency closure of `diagram-js` and `diagram-js-direct-editing` split into a
+  shared chunk (`build.rolldownOptions.output.codeSplitting` groups), the code only the chain canvas
+  loads is at most 40 KB gzip. Measured: 36.0 KB gzip chain-only (zod about 24.5, renderer 9.8,
+  schema-model 1.1, ProA's canvas glue the rest), the shared diagram-js chunk 76.0 KB; without the
+  split the production chain chunk is 89.6 KB gzip next to bpmn-js' own chunks; after the S3 review
+  fixes the chain-only code is 36.1 KB. The budget counts only the chunks reachable from the canvas'
+  dynamic import and from no other entry, so it binds what the canvas module pulls in, not the page:
+  the page (`routes/value-chain-page.tsx` with its panels, dialogs and save logic) and the step view
+  are route chunks of their own (`lazyRouteComponent`), and the entry chunk every page loads holds
+  none of them. The first S3 build had both routes in the entry (the review measured 729.5 KB /
+  217.9 KB gzip as Vite reports it, 628.8 KB / 192.8 KB at S2); with the route chunks it is 638.4 KB
+  / 195.9 KB, the page chunk 81.0 KB / 22.7 KB. The guard checks that no module of the page, its
+  components or the step view is in the entry closure and keeps the entry under 200 KB gzip (192.9
+  KB measured with Node's default level). It builds with `NODE_ENV=production`, as `pnpm build`
+  does; under vitest's `NODE_ENV=test` it had built React's development code. Raising the chain-only
+  budget is an owner decision. **CSS check** (Playwright, `e2e/value-chain.spec.ts`): the computed
+  styles of the bpmn-js review screen (container font, task, flow, label, ProA's overlay and
+  endpoint marker, zoom group, details panel) and screenshots of both panes are equal before and
+  after visiting the chain page in view and edit mode within the same session, and the chain page's
+  styles and canvas screenshot are equal before and after the review screen: no difference, so no
+  scoped override was needed. ProA only adds `.proa-vc .vc-container { background: transparent }`
+  (the chain sits on the dotted paper like the model view) and moves the palette below the floating
+  header.
 - **Node.** schema-model runs in Node (server, validator): the server's unit test
   `value-chain-schema-model.test.ts` parses both golden chains with the package and serializes
   them back to the committed bytes. The renderer does not: its ESM entry needs a DOM, and Node's
@@ -531,7 +584,7 @@ decisions, manual placements and notes.
 | S1 | **done** (2026-10-09): tables and migration (`value_chain`, revisions, step generations, `placement`, `placement_assertion`); placement lifecycle with generalised `recomputeStatus`; see below | 2.5 d |
 | S0 | **done** (2026-10-08): consume the release, see below | 1 d |
 | S2 | **done** (2026-10-09): `domain/value-chain` (canonicalize, ProA rules, kinds, ranks, fingerprints, `structure_hash`, generations); REST with `If-Match` and `dryRun`; events; policy matrix; `proa value-chain push\|pull`; endpoint state on save and model ingest/delete; key-tier rule proposals; server tiers with `baseline-prefix/1` (moved here from S4); decisions incl. bulk; read and propose MCP tools; findings; contract snapshots; see below | 4.5 d |
-| S3 | UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check; from S0: the bundle guard (one `diagram-js` and one zod v4 copy in the web chunks, chain chunk budget) and the Playwright import check of both golden chains (zero import warnings, stored waypoints equal `layouter.layoutConnection`) | 5.5 d |
+| S3 | **done** (2026-10-09): UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check; from S0: the bundle guard (one `diagram-js` and one zod v4 copy in the web chunks, chain chunk budget) and the Playwright import check (zero import warnings, stored waypoints equal `layouter.layoutConnection`; the dev chain and synthetic chains, see below); see below | 5.5 d |
 | S4 | `eval:placements` (reports `baseline-prefix/1`, which S2 ships in `@proa/relations`), report, `proa seed --value-chains` | 1 d |
 
 **S0 as delivered.** `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and
@@ -741,7 +794,7 @@ key proposals, the endpoint hooks of model changes, findings and `baseline-prefi
   the ProA rules gained `geometry-out-of-range` and stop after the size and count limits;
   `proa value-chain push` needs `--base` (or `--force`) for an existing chain.
 
-**S3 checklist** (from S2):
+**S3 checklist** (from S2; every item is closed in "S3 as delivered" below):
 - Build the routes `valueChainPath()` names (`/projects/$p/value-chain`, `?placement=`,
   `/steps/$elementId`); mirror `MAX_VALUE_CHAIN_*`, `STEP_KIND_COLORS` and `OUTSIDE_STEP` in
   `src/lib/limits.ts` (compared with the contracts by `test/limits.test.ts`).
@@ -756,6 +809,147 @@ key proposals, the endpoint hooks of model changes, findings and `baseline-prefi
   (MCP snapshot) name only `proa value-chain push` until then.
 - The modeler's limits include `MAX_VALUE_CHAIN_COORDINATE` and `MAX_VALUE_CHAIN_ELEMENT_SIZE`
   (a shape dragged beyond them is refused on save).
+
+**S3 as delivered** (2026-10-09). The value chain page in the web UI on S2's routes; no server
+change beyond the texts that point to it.
+- **Routes.** `/projects/$p/value-chain` (`validateSearch`: `step`, `placement`; the `reviewUrl` of
+  refused agent writes selects the card) is a full-viewport child of the root route;
+  `/projects/$p/value-chain/steps/$elementId` is a child of the project layout, whose tab
+  "Wertschöpfungskette" stays active by prefix. Both components load with their routes
+  (`routes/value-chain-page.tsx`, `routes/value-chain-step-page.tsx`), not with every page. The
+  Prüfen inbox shows one callout "N Platzierungen warten auf deine Prüfung" with a link to the chain
+  page; the relation queue and its bulk accept are unchanged.
+- **The chain chunk** `src/components/value-chain/canvas/` (`chain-canvas.tsx`, `proa-modules.ts`,
+  `overlays.ts`, `services.ts`) is the only code that imports the renderer, schema-model,
+  diagram-js or zod values (ESLint `no-restricted-imports` outside that folder, type imports
+  allowed; the bundle guard). View mode is the renderer's `NavigatedViewer`, edit mode its
+  `Modeler`, both with ProA's modules (diagram-js overlays and `ProaElementFactory`); a switch
+  destroys one and creates the other in the same place and keeps the viewbox. A document is
+  imported when the mode or the page's document key changes (`view:r<rev>`, `edit:<n>`), never on
+  a refetch, so a decision (which invalidates the whole project) never replaces an edit. The page
+  talks to the chunk through props, callbacks (`onSelect`, `onOpen`, `onChange` debounced 300 ms
+  after an executed, undone or redone command, never for an import's `commandStack.clear`,
+  `onImported`, `onError`) and an imperative handle (`exportCanonical` =
+  `serializeDocument(exportDocument())`, `emptyText` (the canonical empty chain, the clean state
+  of a new chain), `takePendingChange` (a change still waiting for its debounce, which the page
+  handles at once before deciding about unsaved changes), undo/redo, `elementInfo`, `setLink`,
+  `setName`, `setColor`, `setChainName`, `saveSVG`, zoom, fit); `data-testid="vc-canvas"` carries
+  `data-imported`, `data-mode`, `data-dirty` and `data-import-warnings`. The first view fits the
+  drawing into the part the floating header and legend leave free (also under StrictMode: only an
+  instance that showed a drawing hands its viewbox on).
+- **Collision-free ids.** `ProaElementFactory` overrides `create(type, attrs)`: without an id it
+  hands out `<type>_<ULID>` (48 bits of time, 80 random bits from `crypto.getRandomValues`,
+  Crockford base32, `src/lib/ulid.ts`, no new dependency), probing the registry; imported ids are
+  never changed. Palette, append and auto-place go through it.
+- **Save** (`src/lib/value-chain-save.ts`, a state machine without canvas access): export, the
+  no-op check against the base text, the client pre-check (canonical bytes and counts), the dry
+  run with `If-Match: "r<base>"` (`If-None-Match: *` for a chain not created yet), the impact
+  dialog when anything is stranded, sent to re-confirm or withdrawn, the save with the same
+  precondition, a toast with the save's own impact and a result dialog when it differs from the
+  dry run's. 412 opens the conflict dialog ("Neuere Revision laden" downloads the local copy as
+  `<key>-r<base>-entwurf.vc.json` first and stays in edit mode on the new head; "Weiter
+  bearbeiten"); 428 is shown as an internal error; 422 `value-chain-invalid` lists every
+  violation in German with the element's name, a click selects it and the canvas marks it; 413,
+  `value-chain-unsupported-version` and 404 explain themselves. Entering edit mode snapshots the
+  base (revision and canonical text); a banner says when the server's head moves past it.
+- **Drafts** (`src/lib/drafts.ts`): `localStorage` under `proa:vc-draft:<project>:<vch_|new>:r<base>`,
+  written with every (debounced) change, cleared by a save, an `unchanged` answer, a discard or an
+  edit back to the base (a new chain's base is the empty document); an import never touches it.
+  A draft on the current head offers "Entwurf wiederherstellen", one on an older base only
+  "Herunterladen" or "Verwerfen"; the dialog needs an explicit choice (no Escape, focus on the
+  safe action) and nothing is written or cleared while it asks; every access is wrapped (private
+  mode, quota). Dirtiness is the export compared with the base text, taken at once (with the
+  canvas' pending change) when "Fertig" or a navigation asks, and recomputed after a save, so an
+  edit made while the save ran stays unsaved, as a draft on the new revision. Leaving the page
+  while dirty asks first (TanStack `useBlocker`; Escape stays); a reload does not (the draft
+  survives it).
+- **Panel.** Without a selection: summary, the step tree (`role="tree"`, one tab stop with a roving
+  tabindex, arrow keys, Home/End, ArrowRight/ArrowLeft to a sub-step or the parent, Enter or Space;
+  every node open, so no `aria-expanded`), "Offene Prüfungen" with "Alle erneut bestätigen (n)",
+  findings, "Prozesse ohne Schritt" (up to three `baseline-prefix/1` hints, "Platzieren" as a manual
+  placement), "Außerhalb der Kette" and "Auf entfernten Schritten" (cards, reject or correct only);
+  in edit mode also the chain's name and the head steps with placements the drawing lost. With a
+  step: "Zur Übersicht" (also Escape; the focus returns to the step in the tree), the path (each
+  segment selects that parent), name (edit: one command on Enter or blur; the field keeps the focus
+  and takes over an undo), kind ("Art" select for top-level steps in edit mode: no colour,
+  management or support), owners, link (view: by `linkKind`; edit: the link editor), counts, the
+  placement cards, the sub-steps' processes and "Über Aufrufe erreicht", "Prozess hinzufügen" and
+  "Schritt öffnen"; a step saved after the last head shows "Neuer Schritt – Platzierungen nach dem
+  Speichern"; an org unit shows the steps it owns. Viewers (`role = viewer`) get no edit, decisions
+  or manual placements. The forms of "Prozess hinzufügen" and "Platzieren" take the focus and hand
+  it back to their button; import warnings show closable in the panel.
+- **Placement cards** (`placement-card.tsx`, `placement-decision-panel.tsx`): process, status,
+  tier, endpoint state, confidence, the rule basis ("Regel: gleicher Name" or "Link des Schritts")
+  for `proa-rules`, rationale, question and hold label as plain text, provenance, evidence (fact
+  refs to the model view, `rel_…` to the review screen, `step:<id>` selects the step) and the
+  timeline on demand, an answer field on held cards. Decisions reuse the M2 forms
+  (`components/review/decision-forms.tsx`), send the `version` seen, show a 409 as a conflict
+  that pauses the shortcuts; `correct` picks a step (or `@outside`) and sends exactly `{verdict:
+  'correct', step, note, version}`. In edit mode the shortcuts work only while the panel has
+  focus (the Modeler binds H, L, S, C and E on the canvas); a click on a card focuses it, and key
+  hints show only while the keys work (viewers see J/K only). The active card scrolls into view
+  when it becomes active (J/K, a `reviewUrl` to an `@outside` card).
+- **Link editing:** none, a ProA process from the head facts (`proa:process/<ref>`), or other
+  text (≤ 2,000 characters, no control or bidi characters); a click or the arrow keys only mark a
+  process (Radix checks a radio when an arrow key focuses it), "Übernehmen" or Enter applies it;
+  each applied change is one `vcModeling.updateProperties` call that sets `link` and
+  `businessObject.link`, so clearing works and Ctrl+Z on the canvas restores it; the editor stays
+  mounted (and focused) while the canvas reports the change.
+- **Drill-down:** a double-click in view mode (or "Schritt öffnen") opens the model view for a
+  resolved `proa:process/` link, otherwise the step view (breadcrumb, sub-steps with counts, own
+  processes with "Im Modell" and "Auf der Kette zeigen", the sub-steps' processes, processes
+  reached by call with their `/review/$rel` links; 404: "Den Schritt „x“ gibt es in der aktuellen
+  Revision nicht.").
+- **Server texts** (S2 checklist): `NO_VALUE_CHAIN` and the `get_value_chain` description name the
+  web page (tab Wertschöpfungskette, `/projects/<project key>/value-chain`) and `proa value-chain
+  push`; the MCP snapshot is regenerated; OpenAPI and the client are unchanged.
+- **Tests.** Unit and component (vitest, a stand-in canvas): `value-chain-lib.test.ts`,
+  `drafts.test.ts`, `chain-canvas.test.tsx` (the chunk with a stand-in renderer),
+  `value-chain-page.test.tsx`, `placement-decision-panel.test.tsx`,
+  `chain-save.test.tsx`, `link-editor.test.tsx`, `bulk-reconfirm-dialog.test.tsx`,
+  `step-view.test.tsx`, `bundle.test.ts`, extended `app.test.tsx` and `limits.test.ts`.
+  Playwright: `e2e/value-chain-import.spec.ts` (the harness page `e2e/harness`, served by Vite's
+  `createServer` inside the spec, no ProA server: the golden dev chain imports with 0 warnings
+  and all 39 stored waypoint lists equal `layouter.layoutConnection` rounded like
+  `serializeDocument`; synthetic chains drawn with the modeling API (a row, a rake, a single
+  centred sub-step, a sequence with a bendpoint, assignments) round-trip the same way; ProA's
+  factory never repeats an id over create, delete, re-create, append and a second session, the
+  stock factory hands out `shape_1` again) and `e2e/value-chain.spec.ts` (15 tests against a
+  server, see DEVELOPMENT.md).
+- **Deviations from the plan:** M4 §9's import check "of both golden chains" runs on the dev
+  chain and synthetic chains; the holdout chain is never read by S3, `PROA_E2E_VC_EXTRA=<path>`
+  lets the owner run it with counts-only output. `PickerList` lives in `src/components/` (shared
+  with the review screen's correction dialog), not under `value-chain/`. Badges and finding
+  labels sit in one row above the step (two overlays collided in the 30 px gaps between
+  sub-steps). The page's zoom controls and legend are main-bundle code, not part of the chunk.
+  The renderer's copy-paste copies nothing in 0.3.0 (it has no `element.copy` rule), so pasting
+  is not a path for ids or links today (§12). The layout-only re-save of the M4a done criterion
+  moves a step with the keyboard (Shift+Arrow) in the Modeler.
+
+**S3 review fixes** (2026-10-09, before the commit; folded into the bullets above): a restored
+draft of a new chain was marked clean and deleted 300 ms later (dirtiness came from `canUndo()`,
+which an import resets), and entering edit mode deleted the stored draft while the draft dialog
+still asked (the import's `commandStack.clear` reached `onChange`); edits committed by the click
+on "Fertig" or a link, and edits made while the dry run ran, were dropped silently; the impact
+dialog opened during every save; the bulk re-confirm re-checked a placement the reviewer had
+unchecked once its version moved (now keyed by id, as the M2 bulk accept); StrictMode (`pnpm
+dev`) opened every chain unfitted; the value chain routes sat in the entry chunk; and keyboard and
+reading issues: arrow keys in the link picker wrote a link per press and lost the focus, the draft
+dialog focused "Verwerfen", the active card did not scroll into view, there was no keyboard way
+back from a step, the tree made every step a tab stop, key hints showed while the keys did
+nothing, "1 Prozess · 1 offen" stood next to "ohne Prozess" (now "nichts angenommen", and the
+badge counts accepted and held placements as processes), "offen" counted differently in the tree
+and the step view, two forms dropped the focus, import warnings covered the header, and the step
+view had a second `h1`. Each fix has a test (component, the canvas unit test or Playwright).
+
+**S4 checklist** (from S3):
+- `eval:placements` and its report, `proa seed --value-chains` (unchanged scope).
+- When the renderer, zod or schema-model is bumped, re-run `bundle.test.ts` (the chain-only
+  budget has about 4 KB left: 36.1 of 40 KB; the entry ceiling 200 KB gzip, 192.9 KB used), the
+  import harness and the CSS check; Playwright is not in CI.
+- Run `PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm
+  --filter @proa/web e2e value-chain-import` once as the owner (counts only) to close the
+  holdout gap of the import check.
 
 **M4b "Pipeline and drafts"**
 
@@ -818,5 +1012,15 @@ the release in flight.
 5. Clearing `link` through the modeling API (the exporter falls back to `businessObject.link`).
 6. `validateDocument` rejecting duplicate same-type, same-pair connections, as the format docs
    already say.
+
+7. German (or any) labels for the palette, context pad and colour picker through diagram-js'
+   `translate` service (S3: ProA's modeler shows English tooltips such as "Create step" and colour
+   names such as "Purple"; the legend explains the colours).
+8. The modeler's rules refusing a second connection of the same type in the reverse direction
+   (`ft()` only checks the source's outgoing connections), which ProA refuses on save
+   (`duplicate-connection`), as it refuses sequence cycles, a second hierarchy parent and depth
+   > 2 that the modeler allows.
+9. Copy and paste: the renderer registers `copyPaste` but no `element.copy` rule, so diagram-js
+   copies nothing (S3 observation).
 
 Not asked: `peerDependencies` for diagram-js (§5).

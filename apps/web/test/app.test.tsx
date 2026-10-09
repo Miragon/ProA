@@ -74,6 +74,17 @@ describe('web app', () => {
     expect(screen).toContain('Prüfliste');
   });
 
+  it('routes the value chain page (the placement reviewUrl) and the step drill-down', async () => {
+    const page = await render('/projects/demo/value-chain?placement=plc_01ABC');
+    expect(page).toContain('data-testid="value-chain-page"');
+    expect(page).toContain('href="/projects/demo/review"');
+    const stepView = await render('/projects/demo/value-chain/steps/step-vertrieb');
+    // the drill-down lives in the project layout, its tab marked by prefix
+    expect(stepView).toContain('Projektbereiche');
+    expect(stepView).toContain('href="/projects/demo/value-chain"');
+    expect(stepView).not.toContain('Seite nicht gefunden');
+  });
+
   it('answers unknown paths with a German not-found page', async () => {
     const html = await render('/gibt-es-nicht');
     expect(html).toContain('Seite nicht gefunden');

@@ -1,4 +1,4 @@
-import type { RelationAssertion } from '@proa/client';
+import type { PlacementAssertion, RelationAssertion } from '@proa/client';
 import { Link } from '@tanstack/react-router';
 import { cn } from 'cn';
 import {
@@ -10,6 +10,7 @@ import {
   Undo2Icon,
   type LucideIcon,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { TierBadge } from '@/components/badges';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +27,27 @@ interface EntryLook {
   tone: string;
 }
 
-function lookOf(a: RelationAssertion): EntryLook {
+/** What relation and placement assertions share: the timeline shows these. */
+export type TimelineAssertion = Pick<
+  RelationAssertion | PlacementAssertion,
+  | 'id'
+  | 'kind'
+  | 'verdict'
+  | 'sourceKind'
+  | 'handle'
+  | 'clientId'
+  | 'procedure'
+  | 'llmModel'
+  | 'tier'
+  | 'confidence'
+  | 'rationale'
+  | 'evidence'
+  | 'question'
+  | 'label'
+  | 'at'
+>;
+
+function lookOf(a: TimelineAssertion): EntryLook {
   switch (a.kind) {
     case 'proposal':
       return {
@@ -72,19 +93,47 @@ function lookOf(a: RelationAssertion): EntryLook {
   }
 }
 
-export interface AssertionTimelineProps {
-  project: string;
-  assertions: readonly RelationAssertion[];
-  /** The assertion the status rests on (`Relation.provenance.assertionId`). */
+export interface AssertionTimelineProps<T extends TimelineAssertion> {
+  assertions: readonly T[];
+  /** The assertion the status rests on (`provenance.assertionId`). */
   basisId?: string | null;
+  /** A link of an entry, e.g. between a correction and the corrected proposal. */
+  renderLink?: (assertion: T) => ReactNode;
+}
+
+/** The link between a corrected relation proposal and the manual relation that replaced it. */
+export function RelationLink({
+  project,
+  assertion: a,
+}: {
+  project: string;
+  assertion: RelationAssertion;
+}) {
+  if (!a.linkedRelationId) return null;
+  return (
+    <Link
+      to="/projects/$project/review/$relation"
+      params={{ project, relation: a.linkedRelationId }}
+      className="text-sm text-link hover:underline"
+    >
+      {a.kind === 'decision' && a.verdict === 'reject'
+        ? 'Korrigiert durch die manuelle Relation'
+        : 'Korrektur dieses Vorschlags'}{' '}
+      <span className="font-mono text-xs">{a.linkedRelationId}</span>
+    </Link>
+  );
 }
 
 /**
- * The relation's history (append-only assertions, oldest first): who
- * proposed, withdrew, decided or noted what, with declared procedure and
- * model, tier, confidence, the texts and links to a correction.
+ * The history of a relation or placement (append-only assertions, oldest
+ * first): who proposed, withdrew, decided or noted what, with declared
+ * procedure and model, tier, confidence, the texts and links to a correction.
  */
-export function AssertionTimeline({ project, assertions, basisId }: AssertionTimelineProps) {
+export function AssertionTimeline<T extends TimelineAssertion>({
+  assertions,
+  basisId,
+  renderLink,
+}: AssertionTimelineProps<T>) {
   if (assertions.length === 0) {
     return <p className="text-sm text-muted-foreground">Noch keine Einträge.</p>;
   }
@@ -157,18 +206,7 @@ export function AssertionTimeline({ project, assertions, basisId }: AssertionTim
                   ))}
                 </ul>
               ) : null}
-              {a.linkedRelationId ? (
-                <Link
-                  to="/projects/$project/review/$relation"
-                  params={{ project, relation: a.linkedRelationId }}
-                  className="text-sm text-link hover:underline"
-                >
-                  {a.kind === 'decision' && a.verdict === 'reject'
-                    ? 'Korrigiert durch die manuelle Relation'
-                    : 'Korrektur dieses Vorschlags'}{' '}
-                  <span className="font-mono text-xs">{a.linkedRelationId}</span>
-                </Link>
-              ) : null}
+              {renderLink?.(a)}
             </div>
           </li>
         );

@@ -4,12 +4,17 @@ import type {
   DeclaredProcedure,
   EndpointState,
   FindingKind,
+  LinkKind,
   ModelStage,
   Relation,
   RelationStatus,
   RelationType,
   SourceKind,
+  StepKind,
   Tier,
+  UnplacedState,
+  ValueChainFindingKind,
+  ValueChainViolationReason,
   Verdict,
 } from '@proa/client';
 
@@ -319,3 +324,122 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace('.', ',')} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 }
+
+// ------------------------------------------------------------ value chain (M4)
+
+/** Kind of a value chain step (M4 §2): core by the predecessor chain, the others by colour. */
+export const STEP_KINDS: Record<StepKind, Presentation> = {
+  core: {
+    label: 'Kern',
+    tone: 'primary',
+    hint: 'Kernschritt: liegt auf der Vorgänger-Kette der obersten Ebene.',
+  },
+  management: {
+    label: 'Management',
+    tone: 'neutral',
+    hint: 'Managementschritt: lila eingefärbt, nicht auf der Kern-Kette.',
+  },
+  support: {
+    label: 'Unterstützung',
+    tone: 'neutral',
+    hint: 'Unterstützungsschritt: grün eingefärbt, nicht auf der Kern-Kette.',
+  },
+  other: {
+    label: 'Sonstige',
+    tone: 'neutral',
+    hint: 'Weder auf der Kern-Kette noch lila oder grün eingefärbt.',
+  },
+};
+
+export const STEP_KIND_ORDER: readonly StepKind[] = ['core', 'management', 'support', 'other'];
+
+/** What a step link is (M4 §2 "The link field"). */
+export const LINK_KINDS: Record<LinkKind, Presentation> = {
+  none: { label: 'Kein Link', tone: 'neutral', hint: 'Der Schritt verweist auf nichts.' },
+  process: {
+    label: 'ProA-Prozess',
+    tone: 'info',
+    hint: 'Verweist auf einen Prozess des Projekts; ergibt einen Schlüssel-Vorschlag.',
+  },
+  url: { label: 'Webadresse', tone: 'neutral', hint: 'Eine http(s)-Adresse.' },
+  opaque: {
+    label: 'Freier Text',
+    tone: 'neutral',
+    hint: 'Ein Verweis, den ProA nicht auflöst; er bleibt unverändert.',
+  },
+};
+
+export const VALUE_CHAIN_FINDING_KINDS: Record<ValueChainFindingKind, Presentation> = {
+  'process-without-step': {
+    label: 'Prozess ohne Schritt',
+    tone: 'warning',
+    hint: 'Kein angenommener Schritt (auch nicht „Außerhalb der Kette“) für diesen Prozess.',
+  },
+  'step-without-process': {
+    label: 'Kein Prozess angenommen',
+    tone: 'warning',
+    hint: 'Weder auf dem Schritt noch darunter ist ein Prozess angenommen.',
+  },
+  'unresolved-link': {
+    label: 'Link nicht auflösbar',
+    tone: 'warning',
+    hint: 'Der Link ist weder ein Prozess des Projekts noch eine http(s)-Adresse.',
+  },
+};
+
+export const VALUE_CHAIN_FINDING_ORDER: readonly ValueChainFindingKind[] = [
+  'process-without-step',
+  'step-without-process',
+  'unresolved-link',
+];
+
+/** Review state of a process without a home step (`process-without-step`). */
+export const UNPLACED_STATES: Record<UnplacedState, Presentation> = {
+  none: {
+    label: 'Ohne Vorschlag',
+    tone: 'neutral',
+    hint: 'Niemand hat einen Schritt vorgeschlagen.',
+  },
+  proposed: {
+    label: 'Vorschlag offen',
+    tone: 'info',
+    hint: 'Ein Vorschlag wartet auf deine Prüfung.',
+  },
+  held: { label: 'Vorgemerkt', tone: 'warning', hint: 'Eine Platzierung ist vorgemerkt.' },
+};
+
+/** The pseudo-step `@outside` and the call roll-up (M4 §2). */
+export const OUTSIDE_LABEL = 'Außerhalb der Kette';
+export const REACHED_BY_CALL_LABEL = 'Über Aufrufe erreicht';
+
+/**
+ * Why the server refused a value chain (422 `value-chain-invalid`), in German
+ * for the violations panel. The element or connection is named next to it.
+ */
+export const VALUE_CHAIN_VIOLATION_TEXTS: Record<ValueChainViolationReason, string> = {
+  'not-json': 'Das Dokument ist kein gültiges JSON.',
+  'not-an-object': 'Das Dokument ist kein JSON-Objekt.',
+  schema: 'Das Dokument passt nicht zum Format der Wertschöpfungskette.',
+  'duplicate-id': 'Eine ID kommt mehrfach vor.',
+  'unknown-endpoint': 'Eine Verbindung zeigt auf ein Element, das es nicht gibt.',
+  'self-connection': 'Eine Verbindung verbindet ein Element mit sich selbst.',
+  'connection-not-allowed': 'Diese Verbindungsart ist zwischen diesen Elementen nicht erlaubt.',
+  'document-too-large': 'Die Kette ist zu groß (höchstens 1 MB).',
+  'too-many-elements': 'Zu viele Elemente (höchstens 500 Schritte und Organisationseinheiten).',
+  'too-many-connections': 'Zu viele Verbindungen (höchstens 1.000).',
+  'name-required': 'Die Kette braucht einen Namen.',
+  'name-too-long': 'Der Name ist zu lang (höchstens 200 Zeichen).',
+  'name-characters': 'Der Name enthält Steuer- oder Richtungszeichen.',
+  'id-too-long': 'Die ID ist zu lang (höchstens 128 Zeichen).',
+  'id-characters': 'Die ID enthält Leer-, Steuer- oder Richtungszeichen.',
+  'reserved-id': 'Die ID ist reserviert („vc-root“ oder beginnt mit „@“).',
+  'link-too-long': 'Der Link ist zu lang (höchstens 2.000 Zeichen).',
+  'link-characters': 'Der Link enthält Steuer- oder Richtungszeichen.',
+  'geometry-out-of-range': 'Das Element liegt zu weit außen oder ist zu groß.',
+  'multiple-parents': 'Der Schritt hat mehr als einen übergeordneten Schritt.',
+  'hierarchy-cycle': 'Die Über-/Unterordnung bildet einen Kreis.',
+  'hierarchy-too-deep': 'Zu tief geschachtelt: höchstens zwei Ebenen unter der obersten.',
+  'duplicate-connection':
+    'Zwischen diesen Schritten gibt es diese Verbindungsart schon (auch in Gegenrichtung).',
+  'sequence-cycle': 'Die Vorgänger-Kette bildet einen Kreis.',
+};

@@ -36,11 +36,11 @@ export interface ChainState {
 }
 
 /**
- * The message of a 404 for a project without a (live) chain. Until the web
- * page exists (M4 S3, see its checklist) it names the CLI only.
+ * The message of a 404 for a project without a (live) chain: where a human
+ * creates one (the web page since M4 S3, or the CLI). Agents relay it.
  */
 export const NO_VALUE_CHAIN =
-  'the project has no value chain yet; a human creates it with proa value-chain push (the web page comes with M4 S3)';
+  'the project has no value chain yet; a human creates it on the value chain page of the ProA web UI (tab Wertschöpfungskette, /projects/<project key>/value-chain) or with proa value-chain push';
 
 /**
  * The live chain with this key.

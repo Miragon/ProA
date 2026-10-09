@@ -7,8 +7,9 @@ import { PageShell } from '@/components/page-shell';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError, errorMessage } from '@/lib/api';
-import { landscapeQuery, modelsQuery, projectQuery } from '@/lib/queries';
+import { landscapeQuery, modelsQuery, projectQuery, valueChainQuery } from '@/lib/queries';
 import { isReviewItem } from '@/lib/review';
+import { openPlacementCount } from '@/lib/value-chain';
 
 import { rootRoute } from './root';
 
@@ -28,6 +29,7 @@ function TabLink({
   to:
     | '/projects/$project'
     | '/projects/$project/review'
+    | '/projects/$project/value-chain'
     | '/projects/$project/relations'
     | '/projects/$project/findings'
     | '/projects/$project/upload'
@@ -62,6 +64,8 @@ function ProjectLayout() {
   const info = useQuery(projectQuery(project));
   const models = useQuery(modelsQuery(project));
   const landscape = useQuery(landscapeQuery(project));
+  // 404 while the project has no chain: then the tab shows no count.
+  const chain = useQuery(valueChainQuery(project));
   const notFound = info.error instanceof ApiError && info.error.status === 404;
 
   return (
@@ -113,6 +117,13 @@ function ProjectLayout() {
               hint="zu prüfen"
             >
               Prüfen
+            </TabLink>
+            <TabLink
+              to="/projects/$project/value-chain"
+              count={chain.data ? openPlacementCount(chain.data) : undefined}
+              hint="Platzierungen zu prüfen"
+            >
+              Wertschöpfungskette
             </TabLink>
             <TabLink to="/projects/$project/relations" count={landscape.data?.relations.length}>
               Relationen

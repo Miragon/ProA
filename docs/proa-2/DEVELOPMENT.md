@@ -17,7 +17,9 @@ chain tables, the placement lifecycle and `recomputeStatus` generalised over the
 ([M4 S1](#m4-s1-2026-10-09)); the value chain and placements over REST, MCP and
 `proa value-chain push|pull`, the rule tier's key proposals, placements that follow model
 changes, findings and `baseline-prefix/1` ([below](#value-chain-and-placements-m4),
-[M4 S2](#m4-s2-2026-10-09)), without a UI yet (S3). The 1.x tree (`backend/`, `frontend/`,
+[M4 S2](#m4-s2-2026-10-09)); and the value chain page in the web UI: viewer and modeler,
+placement review, save with dry run, conflict and drafts, link editing, drill-down
+([below](#value-chain-in-the-web-ui-m4), [M4 S3](#m4-s3-2026-10-09)). The 1.x tree (`backend/`, `frontend/`,
 Maven) lives next to it, untouched, until the cut-over PR.
 
 The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) were run end to end on
@@ -44,14 +46,15 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | M2 backend: analysis pipeline (claim/submit/release, lease, long-poll), claim input (with the M3 additions: message-flow ends, partner and process documentation, findings, and `judged`/`skip`), submissions, ad-hoc proposals, review (accept/reject/hold/correct, bulk, notes, timeline), model engine, relation provenance, answered findings hidden ([below](#analysis-pipeline-and-review-m2)); judge each pair once (`proa-relations@0.2.0`: the basis of agent judgements, the assignment at the claim, stored no-links, `Relation.noLinks`, `uncovered`; [below](#judge-each-pair-once)) | working over REST and MCP; real-Postgres integration tests incl. concurrent claims, lease expiry, cancellation, decision memory across re-uploads, the claim-input size and additions on both corpus landscapes, judge each pair once (`judge-once.test.ts`); MCP contract test with the SDK client; reviewed in the web UI ([Review in the web UI](#review-in-the-web-ui-m2)); end to end against the Docker stack with the simulation agent (HTTP and the bridge in the container; before 0.2.0) and in the browser (`e2e/pipeline.spec.ts`: review, re-upload, `suppressed` vs. `reopened`) |
 | `apps/cli`: `proa seed` (M3: `--project`, `--token-name`), `import`, `token create/list/revoke`, `status`, `health`, and `proa mcp` (stdio bridge for Claude Desktop) | working; unit tests, an e2e test against a real server, and a live check against the running Docker stack |
 | `apps/agent-sim`: `proa-agent-sim`, the LLM-free simulation agent (M2 item 8): works the pipeline over MCP (HTTP or the `proa mcp` bridge) with the deterministic policy `sim-policy-1` and records claim inputs and submissions in `eval/recordings` ([below](#simulation-agent-and-evalreplay-m2)) | working; unit tests (policy, recorder, CLI, the loop against an in-memory MCP server) and an end-to-end server test on both corpus landscapes (every task done, provenance, nothing decided, the committed recordings reproduced byte for byte) |
-| `apps/web`: projects (create), per project the tabs Modelle (engine, revision, stage), Prüfen (M2: inbox by stage, review queue, bulk accept per tier, held list), Relationen (filters, rule vs. key tier, provenance), Befunde, Hochladen (files or a folder via the import endpoint) and Agent verbinden (token, Claude Code/Desktop/generic configurations, revoke); model view with bpmn-js that highlights relation endpoints and switches to the other model; review screen per relation (both models in bpmn-js, rationale, evidence, question, provenance, timeline; accept/reject/hold/correct with A/R/H/C, J/K through the queue); bulk accept that leaves generic or widely shared names, open agent questions and ambiguous call targets unchecked; Miragon design system | working; component tests (Testing Library), Playwright smoke, review and pipeline flows against a running server, the screenshots below |
+| `apps/web`: projects (create), per project the tabs Modelle (engine, revision, stage), Prüfen (M2: inbox by stage, review queue, bulk accept per tier, held list), Wertschöpfungskette (M4 S3, [below](#value-chain-in-the-web-ui-m4)), Relationen (filters, rule vs. key tier, provenance), Befunde, Hochladen (files or a folder via the import endpoint) and Agent verbinden (token, Claude Code/Desktop/generic configurations, revoke); model view with bpmn-js that highlights relation endpoints and switches to the other model; review screen per relation (both models in bpmn-js, rationale, evidence, question, provenance, timeline; accept/reject/hold/correct with A/R/H/C, J/K through the queue); bulk accept that leaves generic or widely shared names, open agent questions and ambiguous call targets unchecked; Miragon design system | working; component tests (Testing Library), Playwright smoke, review and pipeline flows against a running server, the screenshots below |
 | `eval:candidates` | working; passes on `nordwind-handel` (dev) and `stadtwerke-auental` (holdout); report in `eval/reports/candidates.md` |
 | `eval:replay` | working; scores the recordings in `eval/recordings` against `expected.yaml` (precision, recall and F1 per type and tag, must_not_link hits, questions, no-links, pairs judged twice, uncovered pairs); report in `eval/reports/replay.md`, ending with the live gate (it reports the gate, `eval:live` enforces it) |
 | `eval:live` (M3): records a live run from its project's stored submissions in `eval/recordings`, scores it and checks the live gate ([below](#live-runs-evallive-and-the-live-gate-m3)) | working; unit tests with fixtures, the server test that rebuilds the simulation agent's recordings from the stored submissions byte for byte (input aside), a smoke test against a seeded server; three LLM dev runs recorded into a scratch directory (not committed); no live run of the owner recorded yet |
 | `docker/compose.yaml`, `docker/Dockerfile` | working; `up -d --build --wait` starts PostgreSQL and ProA (migrations at start, owner key in the `proa-state` volume); CI builds it, seeds it and runs the live check against it; an M1 stack upgrades in place (migrations 0002/0003 on its data, the engine backfill equal to `@proa/bpmn-facts` on all 57 corpus models) |
-| Value chain packages (M4 S0, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §5, §9): `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`; `eval/value-chains/validate-value-chains.mjs` on the npm schema-model | consumed; the server canonicalizes and validates every saved chain with schema-model (S2), the renderer is not used yet (S3); the server's Node round trip of both golden chains, the validator in `pnpm test` (both modes), the dependency specifier guard; no web chunk contains the renderer before the chain page (S3: bundle guard, Playwright import check) |
+| Value chain packages (M4 S0, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §5, §9): `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`; `eval/value-chains/validate-value-chains.mjs` on the npm schema-model | consumed; the server canonicalizes and validates every saved chain with schema-model (S2), the web's lazy chain chunk renders and edits it with the renderer (S3); the server's Node round trip of both golden chains, the validator in `pnpm test` (both modes), the dependency specifier guard; the bundle guard (`apps/web/test/bundle.test.ts`) and the Playwright import check (`e2e/value-chain-import.spec.ts`) since S3 |
 | Value chain storage and placements (M4 S1, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §2, §9): tables `value_chain`, `value_chain_revision`, `value_chain_step`, `placement`, `placement_assertion` (migrations 0006/0007), `status.ts` generalised over the subject, `src/domain/value-chain/` (step generations, the revision write path, the placement lifecycle) | working, behind S2's use cases; unit tests (golden relation digest, relation ↔ placement equivalence, generations, tiers) and real-PostgreSQL tests (lifecycle, revisions, deletion and revival, triggers, checks, composite foreign keys) |
-| Value chain and placements over REST, MCP and CLI (M4 S2, [below](#value-chain-and-placements-m4)): `prepareRevision` (canonical bytes, ProA rules, kinds, ranks, fingerprints, `structure_hash`), 19 routes (`If-Match`/`If-None-Match`, `dryRun`, decisions incl. bulk, unplaced processes, findings), six MCP tools, `proa value-chain push\|pull`, the rule tier's key proposals, placements that follow model ingest and deletion, server tiers with `baseline-prefix/1` (`@proa/relations`), token revocation | working over REST, MCP and the CLI; no UI before S3; unit tests (document rules, structure incl. the golden dev chain, impact, items, tiers, rules, findings, `baseline-prefix/1`), real-PostgreSQL tests (REST, placements, rule tier, the dev landscape with its golden chain through model changes, policy matrix, MCP contract), the CLI against a fake API and end to end |
+| Value chain in the web UI (M4 S3, [below](#value-chain-in-the-web-ui-m4)): the page `/projects/{key}/value-chain` (NavigatedViewer, Modeler in edit mode, lazy chunk), collision-free ids, overlays, side panel with placement review (A/R/H/C, J/K, bulk re-confirm, manual placements), save with dry run, conflict and drafts, link editing, drill-down, the step view | working; component tests with a stand-in canvas, the bundle guard, the import harness and the value chain flow in Playwright (Chromium) against a throwaway stack incl. the CSS check, the screenshots `m4-*.png` |
+| Value chain and placements over REST, MCP and CLI (M4 S2, [below](#value-chain-and-placements-m4)): `prepareRevision` (canonical bytes, ProA rules, kinds, ranks, fingerprints, `structure_hash`), 19 routes (`If-Match`/`If-None-Match`, `dryRun`, decisions incl. bulk, unplaced processes, findings), six MCP tools, `proa value-chain push\|pull`, the rule tier's key proposals, placements that follow model ingest and deletion, server tiers with `baseline-prefix/1` (`@proa/relations`), token revocation | working over REST, MCP and the CLI (and since S3 in the web UI); unit tests (document rules, structure incl. the golden dev chain, impact, items, tiers, rules, findings, `baseline-prefix/1`), real-PostgreSQL tests (REST, placements, rule tier, the dev landscape with its golden chain through model changes, policy matrix, MCP contract), the CLI against a fake API and end to end |
 
 ## Quickstart (Docker)
 
@@ -149,7 +152,13 @@ Screenshots with the seeded landscapes (`apps/web/e2e/screenshots.spec.ts`):
 its question and provenance](screenshots/m2-09-agent-proposal.png), [bulk accept with agent
 questions and an ambiguous call target flagged](screenshots/m2-10-bulk-flags.png), [a rejection
 whose endpoint changed after a re-upload](screenshots/m2-11-endpoint-changed.png), [the same
-relation reopened by the agent's second run](screenshots/m2-12-reopened.png).
+relation reopened by the agent's second run](screenshots/m2-12-reopened.png). The value chain (M4
+S3, `apps/web/e2e/value-chain.spec.ts`, the golden `nordwind-handel` chain in a project of its
+own): [the chain with badges and findings](screenshots/m4-01-chain-view.png), [a step with the
+rule tier's and an agent's placement](screenshots/m4-02-step-panel.png), [the modeler with the
+link editor](screenshots/m4-03-edit-link.png), [the dry run before a rename](screenshots/m4-04-save-impact.png),
+[a save conflict](screenshots/m4-05-conflict.png), [the step view](screenshots/m4-06-step-view.png),
+[a project without a chain](screenshots/m4-07-empty.png), [the bulk re-confirm](screenshots/m4-08-reconfirm.png).
 
 ![Relations of nordwind-handel: rule acceptances and key-tier proposals](screenshots/03-relations.png)
 
@@ -160,6 +169,10 @@ relation reopened by the agent's second run](screenshots/m2-12-reopened.png).
 ![Bulk accept of the key tier: every pair listed, generic and widely shared names flagged and left unchecked](screenshots/m2-03-bulk.png)
 
 ![Decision memory: the rejection, then the simulation agent's new proposal after the endpoint was renamed](screenshots/m2-12-reopened.png)
+
+![Value chain page: the golden nordwind-handel chain with process badges and finding labels, the overview panel with the step tree](screenshots/m4-01-chain-view.png)
+
+![Value chain page: a step selected, its placements as cards (the rule tier's key proposal and an agent's proposal) with the decision and keyboard shortcuts](screenshots/m4-02-step-panel.png)
 
 ### Create an agent token
 
@@ -343,6 +356,7 @@ scopes; the entry in `claude_desktop_config.json`).
 | `eval:live: warning: project … was worked under N tokens (…)` | More than one agent token submitted in the project (also two tokens of one name, and also with `--agent`, which would file them as one run): that is no run. Do not commit it; start the run again in a fresh project. |
 | `eval:live: warning: project … gives … recording files, …` | The run's submissions declared more than one `llmModel` or procedure version; the live gate would count every file as a run. Do not commit it: start the run again in a fresh project ([M3-LIVE-RUNS.md](M3-LIVE-RUNS.md#3b-claude-desktop)). |
 | `eval:live: GET /projects/…/analyses?…: 401 …` | The token is missing, revoked or expired, or belongs to another ProA. Use the run's agent token or the owner key (`PROA_TOKEN`); with ProA in Docker, the checkout needs the container's key (see [Local mode](#local-mode-who-is-calling-concept-6)). |
+| Saving the value chain in the web UI: "Jemand hat inzwischen gespeichert" (412 `revision-conflict`) | Someone saved a newer revision (another tab, `proa value-chain push`, an agent never can) after you entered edit mode; ProA does not merge. "Neuere Revision laden" downloads your version as `<key>-r<rev>-entwurf.vc.json` first, then you edit the newest revision; re-apply your change from the file. "Weiter bearbeiten" keeps your drawing, but the next save conflicts again. Only `proa value-chain push --force` saves over the head. |
 | Integration or e2e tests cannot start PostgreSQL | Testcontainers needs a running Docker; or set `PROA_TEST_DATABASE_URL` to a PostgreSQL whose user may `CREATEDB`. |
 
 ## Development without Docker
@@ -427,7 +441,9 @@ Node cannot load it).
 | `pnpm --filter @proa/web e2e smoke` | Playwright smoke test against a running ProA (`PROA_E2E_URL`, default http://127.0.0.1:7400); creates its own project `e2e-<time>` |
 | `pnpm --filter @proa/web e2e review` | Playwright review flow (M2) against a running ProA; creates its own project `review-<time>` from `nordwind-handel` and an agent token, proposes over REST, then reviews in the browser |
 | `pnpm --filter @proa/web e2e pipeline` | Playwright pipeline flow (M2) against a running ProA: its own project `pipeline-<time>` from `nordwind-handel`, worked by `proa-agent-sim` over MCP, reviewed in the browser, then a re-upload and the agent's second run (decision memory) |
-| `PROA_SCREENSHOTS_DIR=$PWD/docs/proa-2/screenshots pnpm --filter @proa/web e2e screenshots` | retakes the M1 screenshots from a running, seeded ProA; with `… e2e review` the `m2-*.png` |
+| `pnpm --filter @proa/web e2e value-chain.spec` | Playwright value chain flow (M4 S3) against a running ProA: its own projects `vc-<time>` (nordwind-handel with its golden chain), `vc-empty-<time>` and `vc-sketch-<time>`, an agent token, placements over REST, then the page in the browser incl. the CSS check |
+| `pnpm --filter @proa/web e2e value-chain-import` | the renderer's import check in Chromium on a Vite-served harness page (no ProA server): the golden dev chain and synthetic chains import without warnings with the layouter's waypoints, ProA's ids never repeat; `PROA_E2E_VC_EXTRA=<path>` checks another chain (counts only) |
+| `PROA_SCREENSHOTS_DIR=$PWD/docs/proa-2/screenshots pnpm --filter @proa/web e2e screenshots` | retakes the M1 screenshots from a running, seeded ProA; with `… e2e review` the `m2-*.png`, with `… e2e value-chain.spec` the `m4-*.png` |
 | `pnpm --filter @proa/client generate` | regenerates `packages/client` after a contracts change |
 | `pnpm --filter @proa/procedures generate` | writes `plugins/proa/skills/relations/SKILL.md` from `packages/procedures/relations.md` and the procedure version into `plugins/proa/.claude-plugin/plugin.json`; run it after every change of the procedure and commit both ([Conventions](#conventions)) |
 | `pnpm --filter @proa/server db:generate` | writes the next migration after a schema change |
@@ -1124,8 +1140,9 @@ recall), the recall delta and every reason that applies. `eval:live` exits 1 on 
 ### Value chain and placements (M4)
 
 M4 S2 ([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §2, §3, §7, §9 "S2 as delivered"). One chain per
-project, key `main`; the owner draws it (S3: in the web UI; until then with
-`proa value-chain push`), agents propose **placements** (step → process), humans decide them.
+project, key `main`; the owner draws it (since S3 in the web UI, [below](#value-chain-in-the-web-ui-m4),
+or with `proa value-chain push`), agents propose **placements** (step → process), humans decide
+them.
 Contracts: `packages/contracts/src/api/{value-chains,placements}.ts`, OpenAPI tag
 `value-chains`; domain: `src/domain/value-chain/` (S1's write path and lifecycle plus
 `document.ts`, `structure.ts`, `impact.ts`, `items.ts`, `tiers.ts`, `views.ts`,
@@ -1209,7 +1226,9 @@ Contracts: `packages/contracts/src/api/{value-chains,placements}.ts`, OpenAPI ta
   `unchanged` save write none.
 - `human-decision-required` from chain and placement writes carries `reviewUrl` =
   `valueChainPath()` on the server's origin (`/projects/<key>/value-chain[?placement=…]` or
-  `…/steps/<id>`); the page comes with S3, until then the web app shows its not-found page.
+  `…/steps/<id>`): the value chain page with that placement's card active, or the step view.
+  The not-found text of a project without a chain (and `get_value_chain`'s description) names
+  the page and `proa value-chain push`.
 
 ### The `proa` CLI
 
@@ -1245,6 +1264,8 @@ the server); after `pnpm build` the server serves it at http://127.0.0.1:7400.
 | `/projects/{key}/findings` | **Befunde** grouped by kind, each ref with a link into the model view |
 | `/projects/{key}/upload` | **Hochladen**: drag and drop files or a whole folder, or pick them; `POST …/imports` in batches of ≤ 50 files / 25 MB (models > 5 MB and non-BPMN files are skipped and listed); a dropped or picked folder is the import root, so `models/vertrieb/a.bpmn` becomes `vertrieb/a`, like `proa import models`; outcome per file |
 | `/projects/{key}/agents` | **Agent verbinden**: create an agent token (scopes, expiry), secret shown once with a copy button, then ready-to-paste configurations: Claude Code (`claude mcp add --transport http …`), Claude Desktop (`proa mcp` from the checkout with Node 24, or `docker exec -i … proa2-proa-1 proa mcp`; the Node or Docker path you enter becomes `command`), any other MCP client (URL + bearer header, `.mcp.json`); list and revoke tokens |
+| `/projects/{key}/value-chain` | **Wertschöpfungskette** (M4 S3, the tab counts open placement items): the chain on a full-viewport canvas, the side panel, edit mode; `?step=` selects a step, `?placement=plc_…` (the `reviewUrl` of placement writes) a placement and its step ([below](#value-chain-in-the-web-ui-m4)) |
+| `/projects/{key}/value-chain/steps/{element-id}` | **Step view** (drill-down, in the project layout): breadcrumb, sub-steps with counts, the step's processes (own, in the sub-steps, reached by call) with links to the model view and back to the chain |
 | `/projects/{key}/models/{model-key}` | **Model view**: borderless bpmn-js `NavigatedViewer` (lazy chunk) with floating chrome; the panel lists the model's relations and findings; `?relation=rel_…` highlights its endpoints (marker plus "Von"/"Nach" label) and offers "Zu … wechseln" to the other model; `?element=` highlights one element (from findings or a click on the canvas, which also filters the list) |
 
 How it talks to the server: only through `@proa/client` (generated from the contracts) with
@@ -1336,6 +1357,99 @@ and `src/routes/review.tsx`.
 - **Plain text.** Rationales, questions, notes, labels, evidence and task errors render through
   `PlainText` (React text, `white-space: pre-wrap`): no HTML, no Markdown; the review flow checks
   that an `<img onerror>` rationale stays text under the CSP.
+
+#### Value chain in the web UI (M4)
+
+M4 S3 ([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §4, §5, §9 "S3 as delivered") on the REST routes of
+[Value chain and placements](#value-chain-and-placements-m4): `src/routes/value-chain.tsx` and
+`value-chain-step.tsx` (the route definitions), `src/routes/value-chain-page.tsx` (the page) and
+`value-chain-step-page.tsx` (the step view), both loaded with their routes
+(`lazyRouteComponent`), `src/components/value-chain/*` (panel, cards, dialogs), the lazy chunk
+`src/components/value-chain/canvas/*`, and in `src/lib/`
+`value-chain.ts` (pure: badges, open items, the J/K queue, step tree, drill-down targets,
+evidence, impact and the confirmation rule, violation texts, links, kinds, the pre-check),
+`value-chain-save.ts` (the save state machine), `value-chain-actions.ts` (decisions, bulk,
+manual placements, notes), `drafts.ts`, `ulid.ts`, `zod-csp.ts`, `download.ts`.
+
+- **Modes.** View mode is the renderer's `NavigatedViewer` (pan, zoom, select; double-click
+  opens the step), edit mode ("Bearbeiten", editors only) its `Modeler` with palette, context pad,
+  direct editing and undo/redo; "Fertig" leaves edit mode (asking before unsaved changes are
+  discarded). Viewers get the page read-only. The canvas stays light and sits on the dotted paper
+  like the model view; the palette and context-pad tooltips are the renderer's (English).
+- **The chunk.** Only `src/components/value-chain/canvas/` imports the renderer, schema-model,
+  diagram-js or zod values (ESLint; the bundle guard checks the build): it is loaded with the page,
+  whose own route chunk holds the panels, dialogs and save logic, so the entry chunk every page
+  loads carries neither (the bundle guard checks both and keeps the entry under a gzip ceiling).
+  The canvas reports a change 300 ms after an executed, undone or redone command, never for an
+  import (which only clears the command stack); before deciding about unsaved changes ("Fertig",
+  leaving) the page takes a change that is still waiting, so an edit committed by that very click
+  (a name field left by clicking) counts. ProA adds diagram-js overlays and an element factory
+  that names new elements `shape_<ULID>`/`connection_<ULID>`, so a step added in a later session
+  never takes a deleted step's id. `src/lib/zod-csp.ts` (first import of `main.tsx` and of the
+  chunk) sets zod's `jitless`, so the CSP sees no `new Function` probe.
+- **Overlays.** Above each step one row of labels: "3 Prozesse · 2 offen" (processes accepted or
+  held on the step; open = proposed, or accepted with a changed or missing endpoint; a step with
+  only a proposal reads "1 offen"), the finding labels "nichts angenommen" (topmost step without an
+  accepted process on it or below, also when it has proposals or holds) and "Link ungelöst"; the
+  step tree and the step view count "offen" the same way; findings also dash the step's outline, the
+  selected step gets a wider one, an element a refused save names is outlined red with "Fehler beim
+  Speichern". The legend explains the colours (Lila = Management, Grün = Unterstützung,
+  Vorgänger-Kette = Kern).
+- **Panel.** Without a selection: summary, step tree (one tab stop; arrow keys, Home/End,
+  ArrowRight to a sub-step, ArrowLeft to the parent, Enter or Space opens), open placements in
+  review order with "Alle erneut bestätigen (n)" (accepted placements whose step or process
+  changed, all or nothing with ids, versions and `expectedCount`; those on removed steps or with a
+  missing process are listed apart for a rejection or correction), findings, processes without a
+  step (hints, "Platzieren"), "Außerhalb der Kette", "Auf entfernten Schritten". With a step:
+  "Zur Übersicht" (also Escape; the focus returns to that step in the tree), the path (each
+  segment selects that parent), name, kind, owners, link, counts, the placement cards, the
+  sub-steps' processes, "Über Aufrufe erreicht", "Prozess hinzufügen" (a manual placement,
+  accepted at once, rationale prefilled „Manuell zugeordnet.“; its search field takes the focus,
+  which returns to the button when the form closes) and "Schritt öffnen". Import warnings of the
+  renderer show at the top of the panel and can be closed.
+- **Review.** Placement cards show process, status, tier, endpoint state, confidence, rule basis,
+  rationale, question and hold note as plain text, provenance, evidence and the timeline on
+  demand, an answer field on held cards, and the decision (M2's reject and hold forms; correct
+  picks another step or „Außerhalb der Kette“). One card is active (`?placement=`, else the first
+  open one on the step) and scrolls into view when it becomes active: A/R/H/C act on it, J/K move
+  through the chain's open placements and after a decision the page moves on. In edit mode the
+  keys work only while the panel has focus (the Modeler binds H, L, S, C and E on the canvas); a
+  click on a card gives the panel the focus, and the key hints show only while the keys work
+  (viewers see only "J K Platzierungen"). A 409 shows "Die Platzierung wurde
+  inzwischen geändert" and pauses the keys until "Neuen Stand prüfen".
+- **Editing in the panel.** The name (Enter or leaving the field), the kind of a top-level step
+  ("Art": no colour, Management = purple, Unterstützung = green; core comes from the predecessor
+  chain) and the link: "Kein Link", "ProA-Prozess" (a picker over the head processes; a click or
+  the arrow keys only mark a process, "Übernehmen" or Enter writes
+  `proa:process/<model_key>#<process_id>`, which the save turns into a key-tier proposal and the
+  double-click follows into the model view) or "Anderer Link" (≤ 2,000 characters, no control or
+  bidi characters, "Übernehmen"). Each change is one undoable command (toolbar or Ctrl+Z on the
+  canvas); the fields keep the focus while the canvas reports the change, and take over a change
+  they did not make (an undo).
+- **Save.** "Speichern" serializes the drawing canonically (`serializeDocument`), does nothing
+  when it equals the base, pre-checks size and counts, runs the dry run with `If-Match:
+  "r<rev>"` (a new chain `If-None-Match: *`: nothing is stored before the first save), asks
+  before stranding placements, sending accepted ones to re-confirm or withdrawing proposals (only
+  then the impact dialog opens; a save without such an impact keeps the spinner on "Speichern"),
+  saves, and reports the save's own impact (a dialog when it differs from the dry run). An edit
+  made while the request runs stays unsaved, as a draft on the new revision. A 412
+  offers "Neuere Revision laden" (your version downloads as `.vc.json` first) or "Weiter
+  bearbeiten" ([Troubleshooting](#troubleshooting)); a 422 lists the violations with the elements'
+  names (a click selects them). A banner says when someone saved a newer revision meanwhile.
+  Downloads: the head or the drawing as `.vc.json`, the drawing as SVG.
+- **Drafts.** Unsaved edits are kept in `localStorage` per project, chain and base revision (a
+  chain not saved yet under `new:r0`, compared with the empty chain); entering edit mode offers to
+  restore a draft of the current head, or to download or discard one of an older revision. The
+  choice is explicit (Escape does not close the dialog, the focus starts on "Entwurf
+  wiederherstellen" or "Herunterladen"), and nothing touches the stored draft until it is made;
+  a draft is removed only by a save, an `unchanged` answer, "Verwerfen" or editing back to the
+  base. Leaving the page while dirty asks first ("Weiter bearbeiten" is the default, also on
+  Escape); a reload keeps the draft.
+- **Drill-down.** Double-click (view mode) or "Schritt öffnen": a resolved `proa:process/` link
+  opens the model view at that process, any other step the step view.
+- **CSS.** The renderer's stylesheet (with diagram-js' own) comes with the chunk; ProA's rules
+  are scoped under `.proa-vc`. The Playwright CSS check proves the bpmn-js review screen looks
+  the same after the chain page and the other way round.
 
 Design: `miragon-brand:modeler-tool-design`. `src/theme/cd-tokens.generated.css` is vendored
 unchanged from the skill (re-copy it to update, never edit it); `src/index.css` maps the shadcn
@@ -1760,9 +1874,48 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   no-link callout after the question with each entry, a hostile reason as text, an empty reason,
   none without no-links) and `review-lib.test.ts` (queue order and filters, held order, stage
   counts, neighbours, evidence parsing, conflicts, generic names and the bulk flags in order with
-  the cut, endpoint roles and correction candidates, provenance from the API). The tests stub
-  `fetch` and talk through the real generated client; components with links render in a throwaway
-  router (`renderWithRouter`).
+  the cut, endpoint roles and correction candidates, provenance from the API). Value chain (M4
+  S3): `value-chain-lib.test.ts` (badge texts and open counts, the J/K order, drill-down targets,
+  evidence kinds, step tree and pickers with `@outside`, impact summary and the confirmation rule,
+  violation texts, link validation and the `proa:process` builder, the pre-check, kinds by colour,
+  the re-confirm selection without removed steps and missing processes, ULID format and 10,000
+  draws without a repeat), `drafts.test.ts` (keys, restore or download, quota and blocked storage
+  swallowed), `chain-canvas.test.tsx` (the chain chunk with a stand-in renderer: no change event
+  for an import, one per debounced edit, the pending change taken at once, the first fit under
+  StrictMode and the view kept from view to edit mode), `value-chain-page.test.tsx` (the real
+  router with a stand-in canvas: the empty state
+  with the exact CLI command and the create flow's dry run plus `PUT If-None-Match: *` without a
+  POST, the overview with findings, unplaced and `@outside`, `?placement=` and `?step=`, viewers
+  without edit and decisions, the tab count and the inbox callout, drafts offered for restore or
+  only download, violations listed, marked and selectable, a 412 that downloads the local copy
+  and loads the newer revision or keeps editing; the S3 review fixes: a restored draft of a new
+  chain staying dirty and stored, the draft dialog's focus and Escape with nothing cleared while
+  it asks, "Fertig" and a link asking for an edit the canvas has not reported yet, an edit made
+  during the save kept as a draft on the new base, no impact dialog for an unconfirmed slow save,
+  "Zur Übersicht" and Escape with the focus back in the tree, the tree's roving tab stop, the
+  active card scrolled into view, key hints only where the keys work, the name field keeping the
+  focus, the focus in and out of "Prozess hinzufügen", closable import warnings),
+  `placement-decision-panel.test.tsx` (accept with
+  the seen version, A/R/H/C, required reason and note, the exact `correct` body without the own
+  step, removed step and missing process limited to reject or correct, "Erneut annehmen", a 409
+  pausing the keys, keys off without panel focus, other errors as toasts), `chain-save.test.tsx`
+  (the save state machine: no-op, dry run then save with the same `If-Match`, `If-None-Match: *`
+  for a new chain, confirmation and a save whose impact differs, 412, 422, 428, 413, unsupported
+  version, `unchanged`, refusals before any request; the impact dialog and the violations panel),
+  `link-editor.test.tsx` (three modes, picker search, a process applied only with "Übernehmen" or
+  Enter while the held arrow keys write nothing, the focus kept through the canvas' echo, an undo
+  taken over, clearing with `null`, validation), `bulk-reconfirm-dialog.test.tsx` (ids, versions
+  and `expectedCount`, a 409 keeps the dialog open, removed steps listed apart, an unchecked
+  placement staying unchecked at a new version), `step-view.test.tsx` (breadcrumb, sub-steps
+  counted like the badges, own, subtree and reached-by-call with their links, one `h1`, the active
+  tab, 404), `bundle.test.ts` (node environment, two production builds in memory with
+  `NODE_ENV=production`, as `pnpm build` makes them: one `diagram-js`, one zod v4, one renderer
+  and schema-model, the entry chunk free of them and of the chain page and step view, the entry
+  ≤ 200 KB gzip, no renderer rule in the main CSS, the chain-only code ≤ 40 KB gzip beyond the
+  shared diagram-js chunk, with a printed breakdown), plus `app.test.tsx` (both routes)
+  and `limits.test.ts` (every `MAX_VALUE_CHAIN_*`, the value chain constants and label maps). The
+  tests stub `fetch` and talk through the real generated client; components with links render in
+  a throwaway router (`renderWithRouter`).
 - `apps/web/e2e/smoke.spec.ts` (Playwright, Chromium): creates its own project `e2e-<time>`,
   imports `eval/corpus/_sample` and walks projects → relations (rule acceptance, key-tier quick
   filter) → model view (endpoint highlighted in the caller, switch to the called model), re-imports
@@ -1808,6 +1961,39 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   opens the review screen; the agent's second run works only that model and reopens the changed
   pair (`reopened`, status `proposed`, timeline proposal → rejection → proposal), while the
   accepted and held relations of that model keep their status; the reviewer accepts it.
+- `apps/web/e2e/value-chain-import.spec.ts` (Playwright, M4 S3, no ProA server): starts Vite's
+  dev server on `e2e/harness` (the renderer, schema-model and ProA's canvas modules) on a free
+  port inside the spec and checks in Chromium that the golden dev chain imports with 0 warnings
+  and its 39 stored waypoint lists equal `layouter.layoutConnection` (rounded to 3 decimals like
+  `serializeDocument`), that synthetic chains drawn with the modeling API (a row of sub-steps, a
+  rake, a centred sub-step, a sequence with a bendpoint, assignments) round-trip the same way, and
+  that ProA's element factory never repeats an id while the renderer's own hands out `shape_1`
+  again in a new session. `PROA_E2E_VC_EXTRA=<path>` checks another chain with counts-only output
+  (the owner's way to run the holdout chain, which S3 never reads).
+- `apps/web/e2e/value-chain.spec.ts` (Playwright, M4 S3, a running server as for review): creates
+  `vc-<time>` from `eval/corpus/nordwind-handel` with an agent token and `vc-empty-<time>`. The
+  empty state with the CLI command, then a chain drawn in the browser and saved as r1 (nothing
+  stored before); the golden chain pushed over REST (`If-None-Match: *`) with 34 steps, the rule
+  tier's four badges, finding labels and 0 import warnings; agent proposals over REST reviewed in
+  the panel (A, R with Ctrl+Enter, H with a question, C to another step; statuses over REST; an HTML
+  rationale as text; `@outside` in the overview); a rename whose dry run lists the re-confirm, then
+  the bulk re-confirm; a save over r3 saved meanwhile (412, the local copy downloads and parses, the
+  page shows r3); a draft that survives a reload (kept while the dialog asks, Escape does not
+  dismiss it, the focus on restore; still dirty and stored after the restore; then discard); a new
+  chain drawn in `vc-sketch-<time>` and restored after a reload (still unsaved and stored a second
+  later, "Fertig" asks, nothing stored); a name typed and left by clicking "Fertig" or the header
+  link "Prüfen" (both ask); a step added, placed, deleted (stranded) and, after a reload, another
+  added: a fresh `shape_<ULID>` that no revision had, the old placement `missing`, the new step
+  empty; a `proa:process` link marked in the picker and applied with "Übernehmen", undone with
+  Ctrl+Z, applied again by keyboard (Tab, Enter; the focus stays) and saved (the rule tier's key
+  proposal under `proa-rules`, the double-click opens the model view), then cleared (no link stored,
+  the proposal obsolete); the drill-down by double-click (breadcrumb, sub-step, a process to the
+  model view, reached by call with the relation link); an unchanged re-import and a layout-only save
+  (Shift+Arrow in the modeler, same `structureHash`; its PUT delayed by 1.5 s shows no impact
+  dialog) keeping every placement's status and endpoint state; an agent's `decide_placement` over
+  REST (403 with the `reviewUrl` that opens the page with the card active), and an `@outside` card
+  scrolled into view; and the CSS check in both directions (computed styles and screenshots equal).
+  Every page is checked for CSP violations. With `PROA_SCREENSHOTS_DIR` it writes `m4-01` … `m4-08`.
 - `packages/bpmn-facts/test/hostile.test.ts` also appends NUL, a right-to-left override and SOH
   to every text attribute of every corpus model and requires the same facts as for the clean
   file, with no control or bidi character anywhere in the result.
@@ -1982,7 +2168,8 @@ value chain validator), client drift check, `eval/tools` check and validate,
 gate itself fails nothing), and the web build. Job `docker`: builds the image and starts the
 Compose stack (`up -d --build --wait`), checks `/health` and `/`, runs `proa seed` and
 `proa status` in the container, then the live check (`test:live`) against it. Actions are pinned
-to commit SHAs. The Playwright tests are not in CI. `examples/agents` is outside the workspace:
+to commit SHAs. The Playwright tests (also the value chain import harness and CSS check) are not
+in CI; the bundle guard of the web (`apps/web/test/bundle.test.ts`) runs with `pnpm test`. `examples/agents` is outside the workspace:
 CI only runs Prettier over its JSON files; `run-headless.sh` is not shellchecked, and no setup
 runs against a model. `eval:live` needs a live project and is not in CI either.
 
@@ -2473,3 +2660,69 @@ The value chain and placements over REST, MCP and the CLI ([M4-VALUE-CHAIN.md](M
 Not run: the Docker image and the owner's `proa2` stack, the CI workflow itself, anything in a
 browser (S3 builds the chain page; the `reviewUrl` of refused agent writes points at it and
 shows the web app's not-found page until then), an MCP client other than the SDK's in the tests.
+
+### M4 S3 (2026-10-09)
+
+The value chain page in the web UI ([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §9 "S3 as delivered"),
+on macOS with Docker Desktop, Node 24.15.0, pnpm 11.1.3 and Playwright's Chromium:
+
+1. A throwaway stack that left the owner's `proa2` stack (7400/55432) and his `proa:local` image
+   alone: PostgreSQL only in the compose project `proa2-s3`
+   (`PROA_DB_PORT=55501 docker compose -p proa2-s3 -f docker/compose.yaml up -d --wait db`), the
+   server from the checkout on port 7501 with its own `PROA_OWNER_KEY_FILE` and the freshly built
+   UI (`pnpm build`), `proa seed nordwind-handel`, and `proa value-chain push` of the golden dev
+   chain (created r1, 34 steps, the rule tier's four proposals), which the page then rendered
+   (the M4a criterion "the golden chain pushed with the CLI renders").
+2. Playwright against it (`PROA_E2E_URL=http://127.0.0.1:7501`): `value-chain.spec.ts` (13 tests),
+   `value-chain-import.spec.ts` (3 tests, the extra-chain test skipped), and the existing
+   `review.spec.ts` (8), `pipeline.spec.ts` (6, the simulation agent over MCP) and
+   `smoke.spec.ts` (3), all passing, no CSP violation; the screenshots `m4-01` … `m4-08`. The CSS
+   check found no difference in either direction.
+3. The bundle guard: one `diagram-js` (15.28.0), one zod (4.6.5), one renderer and schema-model
+   (0.3.0) in the web chunks; the entry chunk without them; the chain-only code 36.0 KB gzip
+   (budget 40 KB) beyond a shared diagram-js chunk of 76.0 KB; the production chain chunk 89.6 KB
+   gzip unsplit.
+4. The MCP snapshot regenerated for the new `get_value_chain` description (both protocol
+   versions identical); OpenAPI and the client unchanged.
+5. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser clean),
+   `CI=1 pnpm -r test` (server 1,111, web 184, cli 71 plus 7 live tests skipped, agent-sim 37,
+   relations 75, bpmn-facts 134, contracts 54, procedures 22, client 4, eval/tools 61),
+   `pnpm eval:candidates` (pass, report unchanged), `pnpm eval:replay` (reports and recordings
+   unchanged), `pnpm build`, and `docker build -f docker/Dockerfile -t proa:s3-check .` (then
+   `docker image rm proa:s3-check`). Then the server stopped by its PID and
+   `docker compose -p proa2-s3 -f docker/compose.yaml down -v`.
+
+Not run: the holdout chain through the import check (S3 never reads it; the owner can with
+`PROA_E2E_VC_EXTRA`), the owner's `proa2` stack and the CI workflow itself, other browsers than
+Chromium, screen readers, a chain near the 500-element limit in the browser.
+
+### M4 S3 review fixes (2026-10-09)
+
+The review findings on the uncommitted S3 work ([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §9 "S3
+review fixes"), on macOS with Docker Desktop, Node 24.15.0, pnpm 11.1.3 and Playwright's Chromium:
+
+1. A throwaway stack beside the owner's `proa2` stack (7400/55432), which stayed untouched:
+   PostgreSQL in the compose project `proa2-s3`
+   (`PROA_DB_PORT=55511 docker compose -p proa2-s3 -f docker/compose.yaml up -d --wait db`) and
+   the server from the checkout on port 7511 with its own `PROA_OWNER_KEY_FILE` and the freshly
+   built UI; the server tests used the same database (`PROA_TEST_DATABASE_URL`).
+2. Playwright against it (`PROA_E2E_URL=http://127.0.0.1:7511`): `value-chain.spec.ts` (15 tests,
+   two new: a new chain's draft restored after a reload, an edit committed by the click on
+   "Fertig" or a link), `value-chain-import.spec.ts` (3, the extra-chain test skipped),
+   `review.spec.ts` (8), `pipeline.spec.ts` (6) and `smoke.spec.ts` (3), all passing, no CSP
+   violation; the screenshots `m4-01` … `m4-08` retaken. The Vite dev server (StrictMode, port
+   7521 against the same server) and the production build now open the golden chain with the
+   same fitted viewbox.
+3. The bundle guard: the entry chunk without the chain page, its components and the step view,
+   192.9 KB gzip (ceiling 200 KB; Vite reports 638.4 KB / 195.9 KB), the page a route chunk of
+   81.0 KB / 22.7 KB gzip; the chain-only code 36.1 KB gzip (budget 40 KB) beyond the shared
+   diagram-js chunk of 76.0 KB.
+4. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser clean),
+   `CI=1 pnpm -r test` (server 1,111, web 205, cli 71 plus 7 live tests skipped, agent-sim 37,
+   relations 75, bpmn-facts 134, contracts 54, procedures 22, client 4, eval/tools 61),
+   `pnpm --filter @proa/web build`, `pnpm eval:candidates` (pass, report unchanged) and
+   `pnpm eval:replay` (reports and recordings unchanged). Then the server and the dev server
+   stopped by their PIDs and `docker compose -p proa2-s3 -f docker/compose.yaml down -v`.
+
+Not run: the Docker image build, the holdout chain through the import check, the owner's `proa2`
+stack and the CI workflow itself, other browsers than Chromium, screen readers.

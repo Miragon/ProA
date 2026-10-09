@@ -1,7 +1,7 @@
 import type { AnalysisTask, Fact, Model, ModelStage, Tier } from '@proa/client';
 import { useQuery } from '@tanstack/react-query';
 import { Link, createRoute } from '@tanstack/react-router';
-import { CheckCheckIcon, FilterXIcon, PlugIcon, RotateCcwIcon } from 'lucide-react';
+import { CheckCheckIcon, FilterXIcon, MapIcon, PlugIcon, RotateCcwIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { StageBadge } from '@/components/badges';
@@ -34,7 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { errorMessage } from '@/lib/api';
 import { nameUsage } from '@/lib/generic-names';
 import { STAGES, TIERS, TIER_ORDER, formatDateTime } from '@/lib/labels';
-import { analysesQuery, landscapeQuery, modelsQuery } from '@/lib/queries';
+import { analysesQuery, landscapeQuery, modelsQuery, valueChainQuery } from '@/lib/queries';
 import {
   heldList,
   parseQueueFilters,
@@ -46,6 +46,7 @@ import {
 import { useRequeue } from '@/lib/review-actions';
 import { toast } from '@/lib/toast';
 import { useProjectFacts } from '@/lib/use-project-facts';
+import { openPlacementCount } from '@/lib/value-chain';
 
 import { projectRoute } from './project';
 
@@ -223,6 +224,9 @@ function ReviewInbox() {
   const navigate = projectReviewRoute.useNavigate();
   const landscape = useQuery(landscapeQuery(project));
   const models = useQuery(modelsQuery(project));
+  // Placements are reviewed on the value chain page; the inbox only points there (404: no chain).
+  const chain = useQuery(valueChainQuery(project));
+  const openPlacements = chain.data ? openPlacementCount(chain.data) : 0;
   const { resolve, byModel } = useProjectFacts(project, models.data);
   const [bulkTier, setBulkTier] = useState<Tier | null>(null);
 
@@ -273,6 +277,26 @@ function ReviewInbox() {
 
   return (
     <div className="flex flex-col gap-5">
+      {openPlacements > 0 ? (
+        <Alert data-testid="placements-callout">
+          <MapIcon />
+          <AlertTitle>
+            {openPlacements === 1
+              ? '1 Platzierung wartet auf deine Prüfung'
+              : `${openPlacements} Platzierungen warten auf deine Prüfung`}
+          </AlertTitle>
+          <AlertDescription>
+            Platzierungen (Prozess auf Schritt) prüfst du auf der Wertschöpfungskette.{' '}
+            <Link
+              to="/projects/$project/value-chain"
+              params={{ project }}
+              className="text-link underline"
+            >
+              Zur Wertschöpfungskette
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <StageBar counts={counts} selected={search.stage} onSelect={(stage) => set({ stage })} />
       {search.stage ? (
         <StageModels

@@ -124,6 +124,16 @@ interface SdkResult<T> {
  * {@link ApiError}, network failures a plain error with a German message.
  */
 export async function unwrap<T>(call: Promise<SdkResult<T>>): Promise<T> {
+  return (await unwrapWithResponse(call)).data;
+}
+
+/**
+ * Like {@link unwrap}, but also returns the response, for its headers (the
+ * value chain content's `ETag: "r<rev>"`).
+ */
+export async function unwrapWithResponse<T>(
+  call: Promise<SdkResult<T>>,
+): Promise<{ data: T; response: Response }> {
   const unreachable = (cause: unknown) =>
     new Error('Der ProA-Server ist nicht erreichbar. Läuft er (pnpm dev)?', { cause });
   let result: SdkResult<T>;
@@ -147,7 +157,7 @@ export async function unwrap<T>(call: Promise<SdkResult<T>>): Promise<T> {
       status,
     );
   }
-  return result.data as T;
+  return { data: result.data as T, response: result.response };
 }
 
 /** A short German message for any error thrown by {@link unwrap}. */

@@ -14,7 +14,7 @@ import { currentProposal, evidenceItems, type EvidenceItem } from '@/lib/review'
 import { Endpoint } from '../relation-table';
 import { PlainText } from './plain-text';
 import { Principal, ProvenanceList } from './provenance';
-import { AssertionTimeline } from './timeline';
+import { AssertionTimeline, RelationLink } from './timeline';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -230,8 +230,8 @@ export function ReviewDetails({
           <Skeleton className="h-24 w-full" />
         ) : (
           <AssertionTimeline
-            project={project}
             assertions={assertions}
+            renderLink={(a) => <RelationLink project={project} assertion={a} />}
             basisId={relation.provenance?.assertionId ?? null}
           />
         )}

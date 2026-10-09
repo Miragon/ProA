@@ -2,10 +2,16 @@ import type {
   AgentToken,
   Fact,
   Model,
+  Placement,
+  PlacementAssertion,
+  PlacementSummary,
   Relation,
   RelationAssertion,
   RelationNoLink,
   RelationProvenance,
+  ValueChainDetail,
+  ValueChainImpact,
+  ValueChainStep,
 } from '@proa/client';
 
 import { buildRefIndex, resolverOf } from '../../src/lib/refs';
@@ -226,6 +232,148 @@ export function model(overrides: Partial<Model> & Pick<Model, 'key'>): Model {
     stage: 'waiting_for_review',
     openItems: 1,
     updatedAt: NOW,
+    ...overrides,
+  };
+}
+
+// ------------------------------------------------------------ value chain (M4)
+
+/** A step of the head revision; `path` defaults to its name. */
+export function step(
+  overrides: Partial<ValueChainStep> & Pick<ValueChainStep, 'elementId' | 'name'>,
+): ValueChainStep {
+  return {
+    generation: 1,
+    kind: 'core',
+    depth: overrides.parentId ? 1 : 0,
+    rank: 0,
+    parentId: null,
+    path: [overrides.name],
+    childIds: [],
+    link: null,
+    linkKind: 'none',
+    linkProcess: null,
+    linkResolved: false,
+    owners: [],
+    fingerprint: 'aaaaaaaaaaaa',
+    counts: { accepted: 0, proposed: 0, held: 0 },
+    ...overrides,
+  };
+}
+
+/** A placement with an agent proposal's provenance (override for rule or human). */
+export function placement(
+  overrides: Partial<Placement> & Pick<Placement, 'id' | 'elementId' | 'process'>,
+): Placement {
+  return {
+    valueChainId: 'vch_01DEMO',
+    generation: 1,
+    stepName: overrides.elementId === '@outside' ? null : overrides.elementId,
+    stepLive: true,
+    processName: overrides.process.split('#')[1] ?? null,
+    status: 'proposed',
+    endpointState: 'ok',
+    endpoints: { step: 'ok', process: 'ok' },
+    tier: 'semantic',
+    confidence: 0.8,
+    version: 1,
+    source: 'agent',
+    provenance: {
+      assertionId: 'pas_01PROPOSAL',
+      kind: 'proposal',
+      verdict: null,
+      sourceKind: 'agent',
+      principalId: 'prn_01AGENT',
+      handle: 'agent:claude code',
+      clientId: 'agt_01CLAUDE',
+      procedure: { id: 'proa-placements', version: '0.1.0' },
+      llmModel: 'claude-sonnet-5-5',
+      tier: 'semantic',
+      confidence: 0.8,
+      rationale: 'Passt fachlich.',
+      question: null,
+      label: null,
+      at: NOW,
+    },
+    updatedAt: NOW,
+    ...overrides,
+  };
+}
+
+/** The compact form of a placement in `ValueChainDetail`. */
+export function summary(p: Placement): PlacementSummary {
+  return {
+    id: p.id,
+    elementId: p.elementId,
+    generation: p.generation,
+    stepLive: p.stepLive,
+    process: p.process,
+    status: p.status,
+    endpointState: p.endpointState,
+    tier: p.tier,
+    confidence: p.confidence,
+    version: p.version,
+    source: p.source,
+  };
+}
+
+export function placementAssertion(
+  overrides: Partial<PlacementAssertion> & Pick<PlacementAssertion, 'id'>,
+): PlacementAssertion {
+  return {
+    seq: 1,
+    kind: 'proposal',
+    verdict: null,
+    sourceKind: 'agent',
+    principalId: 'prn_01AGENT',
+    handle: 'agent:claude code',
+    clientId: 'agt_01CLAUDE',
+    procedure: { id: 'proa-placements', version: '0.1.0' },
+    llmModel: 'claude-sonnet-5-5',
+    submissionId: null,
+    tier: 'semantic',
+    confidence: 0.8,
+    rationale: null,
+    evidence: [],
+    question: null,
+    label: null,
+    linkedPlacementId: null,
+    stepFp: 'aaaaaaaaaaaa',
+    processFp: 'bbbbbbbbbbbb',
+    at: NOW,
+    ...overrides,
+  };
+}
+
+export function chainDetail(
+  overrides: Partial<Omit<ValueChainDetail, 'placements'>> & { placements?: Placement[] } = {},
+): ValueChainDetail {
+  const { placements = [], ...rest } = overrides;
+  return {
+    valueChain: {
+      id: 'vch_01DEMO',
+      key: 'main',
+      name: 'Demo – Wertschöpfungskette',
+      headRevisionId: 'vcr_01HEAD',
+      headRev: 3,
+      contentHash: 'a'.repeat(64),
+      structureHash: 'b'.repeat(64),
+      schemaVersion: 1,
+      updatedAt: NOW,
+    },
+    steps: [],
+    orgUnits: [],
+    findings: [],
+    ...rest,
+    placements: placements.map(summary),
+  };
+}
+
+export function impact(overrides: Partial<ValueChainImpact> = {}): ValueChainImpact {
+  return {
+    structureChanged: true,
+    steps: { added: [], removed: [], changed: [] },
+    placements: { stranded: 0, toReconfirm: 0, proposalsWithdrawn: 0 },
     ...overrides,
   };
 }
