@@ -1,8 +1,15 @@
-import { rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { DEFAULT_CORPUS, findLandscapes, landscapeName } from '../../src/commands/seed.ts';
+import {
+  DEFAULT_CORPUS,
+  DEFAULT_VALUE_CHAINS,
+  findLandscapes,
+  landscapeName,
+} from '../../src/commands/seed.ts';
 import { runCli } from '../../src/program.ts';
 import { OWNER_KEY, fakeApi, json, ownerKeyFile, problem, tempDir, testIo } from '../support/io.ts';
 
@@ -302,7 +309,284 @@ describe('proa seed', () => {
     expect(await runCli(['seed', '--help'], t.io)).toBe(0);
     expect(t.out()).toContain('-p, --project <key>');
     expect(t.out()).toContain('--token-name <name>');
-    expect(t.out()).toContain('(default seed)');
+    // Commander wraps descriptions to the widest option (--value-chains-dir since M4 S4).
+    expect(t.out().replace(/\s+/g, ' ')).toContain('(default seed)');
+  });
+});
+
+describe('proa seed --value-chains', () => {
+  const CONTENT = '/api/v1/projects/nordwind-handel/value-chains/main/content';
+  const DOC = { schemaVersion: 1, meta: { name: 'Kette' }, elements: [], connections: [] };
+  let chains: string;
+
+  beforeAll(async () => {
+    // Only the chain file: seeding never reads expected-placements.yaml.
+    chains = path.join(dir, 'value-chains');
+    await mkdir(path.join(chains, 'nordwind-handel'), { recursive: true });
+    await writeFile(
+      path.join(chains, 'nordwind-handel', 'value-chain.vc.json'),
+      `${JSON.stringify(DOC)}\n`,
+    );
+  });
+
+  function saved(outcome: string, dryRun: boolean, rev: number | null) {
+    return {
+      dryRun,
+      outcome,
+      valueChain:
+        rev === null
+          ? null
+          : {
+              id: 'vch_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+              key: 'main',
+              name: 'Kette',
+              headRevisionId: 'vcr_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+              headRev: rev,
+              contentHash: 'a'.repeat(64),
+              structureHash: 'b'.repeat(64),
+              schemaVersion: 1,
+              updatedAt: '2026-10-09T00:00:00.000Z',
+            },
+      revision: null,
+      impact: {
+        structureChanged: false,
+        steps: { added: [], removed: [], changed: [] },
+        placements: { stranded: 0, toReconfirm: 0, proposalsWithdrawn: 0 },
+      },
+    };
+  }
+
+  interface Put {
+    dryRun: boolean;
+    ifMatch: string | null;
+    ifNoneMatch: string | null;
+    body: unknown;
+  }
+
+  /** A seeded project whose chain GETs answer `heads` in turn (null: 404) and PUTs `answers`. */
+  function chainServer(heads: (number | null)[], answers: ((put: Put) => Response)[]) {
+    const puts: Put[] = [];
+    let gets = 0;
+    const api = fakeApi({
+      'GET /api/v1/projects/nordwind-handel': () => json(PROJECT),
+      'POST /api/v1/projects/nordwind-handel/imports': async (req) => {
+        const files = (await req.formData()).getAll('files') as File[];
+        return json({
+          files: files.map((f) => ({
+            path: f.name,
+            modelKey: null,
+            outcome: 'unchanged',
+            problem: null,
+          })),
+        });
+      },
+      'GET /api/v1/projects/nordwind-handel/landscape': () => json(LANDSCAPE),
+      [`GET ${CONTENT}`]: () => {
+        const head = heads[Math.min(gets++, heads.length - 1)] ?? null;
+        return head === null
+          ? problem(404, 'not-found', 'no value chain')
+          : new Response('{}', { status: 200, headers: { etag: `"r${head}"` } });
+      },
+      [`PUT ${CONTENT}`]: async (req, url) => {
+        const put: Put = {
+          dryRun: url.searchParams.get('dryRun') === 'true',
+          ifMatch: req.headers.get('if-match'),
+          ifNoneMatch: req.headers.get('if-none-match'),
+          body: await req.json(),
+        };
+        puts.push(put);
+        const answer = answers[puts.length - 1];
+        if (!answer) throw new Error('unexpected PUT');
+        return answer(put);
+      },
+    });
+    return { ...api, puts };
+  }
+
+  const seed = async (api: { fetch: typeof globalThis.fetch }, ...extra: string[]) => {
+    const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    const code = await runCli(
+      ['seed', 'nordwind-handel', '--value-chains', '--value-chains-dir', chains, ...extra],
+      t.io,
+    );
+    return { code, out: t.out(), err: t.err() };
+  };
+
+  it('resolves the golden chains next to the corpus by default', () => {
+    expect(DEFAULT_VALUE_CHAINS).toBe(path.join(path.dirname(DEFAULT_CORPUS), 'value-chains'));
+    expect(existsSync(path.join(DEFAULT_VALUE_CHAINS, 'nordwind-handel/value-chain.vc.json'))).toBe(
+      true,
+    );
+  });
+
+  it('creates a missing chain with If-None-Match: *, after the import and before the landscape read', async () => {
+    const s = chainServer([null], [() => json(saved('created', false, 1), 201)]);
+    const r = await seed(s);
+    expect(r.err).toBe('');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('  value chain: created r1\n');
+    expect(s.puts).toEqual([{ dryRun: false, ifMatch: null, ifNoneMatch: '*', body: DOC }]);
+    const order = s.seen.map((x) => `${x.method} ${x.path}`);
+    expect(order.indexOf(`PUT ${CONTENT}`)).toBeGreaterThan(
+      order.indexOf('POST /api/v1/projects/nordwind-handel/imports'),
+    );
+    expect(order.indexOf(`PUT ${CONTENT}`)).toBeLessThan(
+      order.indexOf('GET /api/v1/projects/nordwind-handel/landscape'),
+    );
+  });
+
+  it('finds an equal chain unchanged with a dry run on the head', async () => {
+    const s = chainServer([1], [() => json(saved('unchanged', true, 1))]);
+    const r = await seed(s);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain('  value chain: unchanged r1\n');
+    expect(s.puts.map((p) => [p.dryRun, p.ifMatch, p.ifNoneMatch])).toEqual([[true, '"r1"', null]]);
+  });
+
+  it('never overwrites an edited chain: differs, left unchanged, exit 0', async () => {
+    const s = chainServer([2], [() => json(saved('revised', true, 2))]);
+    const r = await seed(s, '--json');
+    expect(r.code).toBe(0);
+    expect(s.puts.every((p) => p.dryRun)).toBe(true);
+    const [result] = JSON.parse(r.out) as [{ valueChain: unknown }];
+    expect(result.valueChain).toEqual({ outcome: 'differs', rev: 2 });
+    const text = await seed(chainServer([2], [() => json(saved('revised', true, 2))]));
+    expect(text.out).toContain(
+      '  value chain: exists r2, differs from the golden chain: left unchanged\n',
+    );
+  });
+
+  it('revives a deleted chain and says so', async () => {
+    const s = chainServer([null], [() => json(saved('revived', false, 3), 201)]);
+    const r = await seed(s);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(
+      "  value chain: revived r3 (the project's deleted chain, saved again with the golden content)\n",
+    );
+  });
+
+  it('reads again after a concurrent save (412)', async () => {
+    const s = chainServer(
+      [null, 1],
+      [
+        () =>
+          json(
+            {
+              type: 'urn:proa:problem:revision-conflict',
+              title: 'revision-conflict',
+              status: 412,
+              code: 'revision-conflict',
+              detail: 'the value chain main exists (r1)',
+              headRev: 1,
+            },
+            412,
+          ),
+        () => json(saved('unchanged', true, 1)),
+      ],
+    );
+    const r = await seed(s, '--json');
+    expect(r.err).toBe('');
+    expect(r.code).toBe(0);
+    expect(s.puts.map((p) => [p.dryRun, p.ifMatch, p.ifNoneMatch])).toEqual([
+      [false, null, '*'],
+      [true, '"r1"', null],
+    ]);
+    expect((JSON.parse(r.out) as [{ valueChain: unknown }])[0].valueChain).toEqual({
+      outcome: 'unchanged',
+      rev: 1,
+    });
+  });
+
+  it('lists the violations of a refused chain', async () => {
+    const s = chainServer(
+      [null],
+      [
+        () =>
+          json(
+            {
+              type: 'urn:proa:problem:value-chain-invalid',
+              title: 'value-chain-invalid',
+              status: 422,
+              code: 'value-chain-invalid',
+              detail: 'the value chain breaks 1 rule',
+              violations: [
+                {
+                  reason: 'step-name-empty',
+                  elementId: 'step-x',
+                  connectionId: null,
+                  path: null,
+                  detail: 'empty',
+                },
+              ],
+              truncated: false,
+            },
+            422,
+          ),
+      ],
+    );
+    const r = await seed(s);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('the server refused the document (1 violation)');
+    expect(r.err).toContain('step-name-empty (element step-x): empty');
+  });
+
+  it('reports a landscape without a golden chain and touches no chain', async () => {
+    const api = fakeApi({
+      'GET /api/v1/projects/sample': () => json({ ...PROJECT, key: 'sample' }),
+      'POST /api/v1/projects/sample/imports': async (req) => {
+        const files = (await req.formData()).getAll('files') as File[];
+        return json({
+          files: files.map((f) => ({
+            path: f.name,
+            modelKey: null,
+            outcome: 'unchanged',
+            problem: null,
+          })),
+        });
+      },
+      'GET /api/v1/projects/sample/landscape': () => json(LANDSCAPE),
+    });
+    const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    const argv = ['seed', '_sample', '--value-chains', '--value-chains-dir', chains];
+    expect(await runCli(argv, t.io)).toBe(0);
+    expect(t.out()).toContain('  value chain: no golden value chain\n');
+    expect(api.seen.some((x) => x.path.includes('/value-chains/'))).toBe(false);
+    const j = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    expect(await runCli([...argv, '--json'], j.io)).toBe(0);
+    expect((JSON.parse(j.out()) as [{ valueChain: unknown }])[0].valueChain).toEqual({
+      outcome: 'none',
+      rev: null,
+    });
+    // Without the flag: no chain request and `valueChain: null`.
+    const plain = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+    expect(await runCli(['seed', '_sample', '--json'], plain.io)).toBe(0);
+    expect((JSON.parse(plain.out()) as [{ valueChain: unknown }])[0].valueChain).toBeNull();
+  });
+
+  it('refuses --value-chains-dir without --value-chains, and a missing directory, before any request', async () => {
+    for (const [argv, message] of [
+      [['seed', 'nordwind-handel', '--value-chains-dir', chains], /needs --value-chains/],
+      [
+        ['seed', 'nordwind-handel', '--value-chains', '--value-chains-dir', `${dir}/none`],
+        /is not a directory/,
+      ],
+    ] as const) {
+      const api = fakeApi({});
+      const t = testIo({ PROA_OWNER_KEY_FILE: keyFile }, api.fetch);
+      expect(await runCli([...argv], t.io), argv.join(' ')).toBe(1);
+      expect(t.err()).toMatch(message);
+      expect(api.seen).toEqual([]);
+    }
+  });
+
+  it('documents --value-chains in seed --help', async () => {
+    const t = testIo();
+    expect(await runCli(['seed', '--help'], t.io)).toBe(0);
+    expect(t.out()).toContain('--value-chains ');
+    expect(t.out()).toContain('--value-chains-dir <dir>');
+    expect(t.out().replace(/\s+/g, ' ')).toContain(
+      "also create each landscape's golden value chain from eval/value-chains, without placements",
+    );
   });
 });
 

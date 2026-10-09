@@ -191,7 +191,7 @@ describe('on create', () => {
         kind: 'proposal',
         sourceKind: 'rule',
         evidence: [RECHNUNG, 'step:step-sonder'],
-        rationale: `Key tier: the step's link names this process (${LINK}).`,
+        rationale: `Schlüsselregel: der Link des Schritts nennt diesen Prozess (${LINK}).`,
       },
     ]);
 

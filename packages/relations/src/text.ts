@@ -308,3 +308,37 @@ export const LEXICAL_MIN_LEVENSHTEIN = 0.75;
 export function hasLexicalEvidence(s: Similarity): boolean {
   return s.jaccard > 0 || s.levenshtein >= LEXICAL_MIN_LEVENSHTEIN;
 }
+
+/**
+ * What {@link quoteDe} escapes: control characters (C0, DEL, C1), format
+ * characters (zero-width, bidi controls, the BOM, tag characters), line and
+ * paragraph separators, lone surrogates, and `“`, the closing quote.
+ */
+const QUOTE_DE_ESCAPED = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}\u201c]/gu;
+
+const SHORT_ESCAPES: Readonly<Record<string, string>> = {
+  '\b': '\\b',
+  '\t': '\\t',
+  '\n': '\\n',
+  '\f': '\\f',
+  '\r': '\\r',
+};
+
+/** `\uXXXX` per UTF-16 code unit (lower-case hex, as `JSON.stringify` writes it). */
+function escapeUnits(ch: string): string {
+  let out = '';
+  for (let i = 0; i < ch.length; i++) out += `\\u${ch.charCodeAt(i).toString(16).padStart(4, '0')}`;
+  return out;
+}
+
+/**
+ * Quotes a name for a German server text: `„…“` around the name, verbatim
+ * (`"` and `\` included) except for what would hide or break the text,
+ * escaped JSON-style: control characters (`\n`, `\t`, `\u0007`), invisible
+ * format characters (zero-width, bidi controls, `\u200b`, `\u202e`), line
+ * and paragraph separators, lone surrogates, and the closing quote `“`
+ * (`\u201c`), so the quote ends only where the name ends.
+ */
+export function quoteDe(s: string): string {
+  return `„${s.replace(QUOTE_DE_ESCAPED, (ch) => SHORT_ESCAPES[ch] ?? escapeUnits(ch))}“`;
+}

@@ -72,6 +72,25 @@ describe('runRules: calls', () => {
     for (const f of findings) expect(() => Finding.parse(f)).not.toThrow();
   });
 
+  it('writes the call finding details in German, the calledElement verbatim', () => {
+    const { findings } = runRules(project(billing, dunning));
+    expect(findings.map((f) => f.detail)).toEqual([
+      'calledElement „${channel}“ ist ein Ausdruck; das Ziel steht erst zur Laufzeit fest.',
+      'calledElement „Process_Collection“ passt zu keiner Prozess-ID im Projekt.',
+      'Die Aufrufaktivität hat kein calledElement.',
+    ]);
+  });
+
+  it('quotes a FEEL calledElement as written, straight quotes unescaped', () => {
+    const feel = model('billing/feel', {
+      processes: [{ id: 'Process_Feel' }],
+      facts: [call('Call_Feel', '="Process_" + typ')],
+    });
+    expect(runRules(project(feel)).findings.map((f) => f.detail)).toEqual([
+      'calledElement „="Process_" + typ“ ist ein Ausdruck; das Ziel steht erst zur Laufzeit fest.',
+    ]);
+  });
+
   it('proposes every duplicate of an ambiguous id and reports the duplicate once', () => {
     const current = model('purchasing/approval', { processes: [{ id: 'Process_Approval' }] });
     const archived = model('purchasing/archive/approval-2019', {
@@ -89,6 +108,9 @@ describe('runRules: calls', () => {
     expect(findingsOf(result.findings)).toEqual([
       'duplicate-process-id purchasing/approval#Process_Approval purchasing/archive/approval-2019#Process_Approval',
     ]);
+    expect(result.findings[0]?.detail).toBe(
+      'Die Prozess-ID „Process_Approval“ ist in 2 Modellen definiert; Aufrufe darauf sind mehrdeutig.',
+    );
   });
 
   it('proposes, never accepts, a match by file stem or process name', () => {
@@ -195,11 +217,33 @@ describe('runRules: messages and signals', () => {
         { id: 'Flow_2', from: 'Participant_Customer', to: 'Start_FromPool' },
       ],
     });
-    expect(findingsOf(runRules(project(lonely)).findings)).toEqual([
+    const { findings } = runRules(project(lonely));
+    expect(findingsOf(findings)).toEqual([
       'dangling-throw ops/lonely#Task_ToBank',
       'dangling-throw ops/lonely#Task_ToCustomer',
       'unmatched-catch ops/lonely#Start_Never',
       'unmatched-catch ops/lonely#Start_Webhook',
+    ]);
+    // German details; message and signal names verbatim in „…“.
+    expect(findings.map((f) => f.detail)).toEqual([
+      'Nachricht „Zahlungsdatei“ wird geworfen, aber von keinem anderen Prozess gefangen und erreicht per Nachrichtenfluss keinen Teilnehmer.',
+      'Eine Nachricht ohne Nachrichtennamen wird geworfen, aber von keinem anderen Prozess gefangen und erreicht per Nachrichtenfluss keinen Teilnehmer.',
+      'Signal „NieGesendet“ wird gefangen, aber von keinem anderen Prozess geworfen und kommt per Nachrichtenfluss von keinem Teilnehmer.',
+      'Nachricht „Webhook“ wird gefangen, aber von keinem anderen Prozess geworfen und kommt per Nachrichtenfluss von keinem Teilnehmer.',
+    ]);
+  });
+
+  it('keeps an odd name visible: control characters escaped inside „…“, quotes verbatim', () => {
+    const odd = model('ops/odd', {
+      processes: [{ id: 'Process_Odd' }],
+      facts: [
+        msgThrow('Task_Odd', 'Zeile 1\nZeile "2"', { element: 'bpmn:SendTask' }),
+        sigThrow('Event_Unnamed', '', { attrs: { signalName: undefined } }),
+      ],
+    });
+    expect(runRules(project(odd)).findings.map((f) => f.detail)).toEqual([
+      'Ein Signal ohne Signalnamen wird geworfen, aber von keinem anderen Prozess gefangen und erreicht per Nachrichtenfluss keinen Teilnehmer.',
+      'Nachricht „Zeile 1\\nZeile "2"“ wird geworfen, aber von keinem anderen Prozess gefangen und erreicht per Nachrichtenfluss keinen Teilnehmer.',
     ]);
   });
 

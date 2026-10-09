@@ -1,15 +1,21 @@
-// Lexical matching of processes to value chain steps (M4-VALUE-CHAIN.md §2
-// "Tiers", §6): the frozen baseline `baseline-prefix/1` and the derived
-// `name-match` stem rule of eval/value-chains/README.md. Pure and
-// deterministic. The server uses both for the `lexical` tier of placement
-// proposals and for the hints of unplaced processes; `eval:placements` (S4)
-// reports the baseline as the floor agents must beat.
+// Matching of processes to value chain steps (M4-VALUE-CHAIN.md §2 "Tiers",
+// §6): the key-tier rule derivation (`derivePlacementRules`: a step's
+// `proa:process/` link or its equal name), the frozen baseline
+// `baseline-prefix/1` and the derived `name-match` stem rule of
+// eval/value-chains/README.md. Pure and deterministic. The server uses them
+// for the rule tier's key proposals, the `lexical` tier of placement
+// proposals and the hints of unplaced processes; `eval:placements` (S4) gates
+// the rule derivation on the golden chains and reports the baseline as the
+// floor agents must beat.
 //
 // It lives here, next to the text normalization, the stopwords, the synonyms
 // and baseline-proa1 it builds on, because both the server domain and
 // eval/tools depend on @proa/relations: a sixth package would break CONCEPT
 // principle 7, and eval/tools must not import from an app. Steps come in as
 // plain `{id, name, parentId}`, so this package needs no schema-model.
+import { normalizeKey } from '@proa/bpmn-facts';
+import { PROA_PROCESS_LINK_PREFIX } from '@proa/contracts';
+
 import { fileStem } from './endpoints.ts';
 import { compareStrings } from './order.ts';
 import { conceptOf, contentWords } from './text.ts';
@@ -257,4 +263,78 @@ export function sharesNameStem(
     }
   }
   return null;
+}
+
+/** A value chain step as the rule tier sees it. */
+export interface RuleStep {
+  id: string;
+  /** `normalizeKey` of the step's name (the server's `name_norm`). */
+  nameNorm: string;
+  /** The step's `link`, or `null`. */
+  link: string | null;
+}
+
+/** A process as the rule tier sees it: a `process` fact. */
+export interface RuleProcess {
+  /** `<model_key>#<process_id>`. */
+  ref: string;
+  /** The fact's label: the process name, else the pool name, else empty. */
+  label: string;
+}
+
+/** One key-tier placement the rules derive. */
+export interface PlacementRuleMatch {
+  stepId: string;
+  processRef: string;
+  /** The step's `link` is `proa:process/<processRef>`. */
+  byLink: boolean;
+  /** The step's normalized name equals the process's. */
+  byName: boolean;
+  /** The step's normalized name (the rationale names it). */
+  nameNorm: string;
+}
+
+/**
+ * The rule tier's key placements (M4 §2 "Tiers", S2): a step whose `link` is
+ * {@link PROA_PROCESS_LINK_PREFIX} followed by the ref of a known process, or
+ * whose non-empty `nameNorm` equals `normalizeKey(label)` of one or more
+ * processes, yields one match per (step, process), with both reasons when
+ * both hold. A link naming no known process, a malformed link and an empty
+ * name yield nothing; a pasted step keeps its link, so a duplicated link
+ * yields one match per step. Order: step id, then process ref, in code point
+ * order. Pure; the server adds rationale and evidence, `eval:placements`
+ * gates the result against the golden placements.
+ */
+export function derivePlacementRules(
+  steps: readonly RuleStep[],
+  processes: readonly RuleProcess[],
+): PlacementRuleMatch[] {
+  const known = new Set<string>();
+  const byName = new Map<string, string[]>();
+  for (const p of processes) {
+    known.add(p.ref);
+    const norm = normalizeKey(p.label);
+    if (norm === '') continue;
+    byName.set(norm, [...(byName.get(norm) ?? []), p.ref]);
+  }
+  const out: PlacementRuleMatch[] = [];
+  for (const step of [...steps].sort((a, b) => compareStrings(a.id, b.id))) {
+    const linked =
+      step.link?.startsWith(PROA_PROCESS_LINK_PREFIX) === true
+        ? step.link.slice(PROA_PROCESS_LINK_PREFIX.length)
+        : null;
+    const named = step.nameNorm === '' ? [] : (byName.get(step.nameNorm) ?? []);
+    const refs = new Set<string>(named);
+    if (linked !== null && known.has(linked)) refs.add(linked);
+    for (const ref of [...refs].sort(compareStrings)) {
+      out.push({
+        stepId: step.id,
+        processRef: ref,
+        byLink: ref === linked,
+        byName: named.includes(ref),
+        nameNorm: step.nameNorm,
+      });
+    }
+  }
+  return out;
 }

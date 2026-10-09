@@ -84,7 +84,9 @@ describe('process-without-step', () => {
       [V, 'none'],
     ]);
     expect(found[0]).toMatchObject({ elementId: null, link: null, calledFrom: [] });
-    expect(found[0]?.detail).toMatch(/no placement is proposed/);
+    expect(found[0]?.detail).toBe(
+      'Keine angenommene Platzierung auf einem Schritt der Wertschöpfungskette (kein Vorschlag).',
+    );
   });
 
   it('reports a pending or held placement on a live step, held first', () => {
@@ -106,6 +108,12 @@ describe('process-without-step', () => {
       [R, 'held'],
       [V, 'none'],
       [A, 'proposed'],
+    ]);
+    expect(found.map((f) => /\((.*)\)/.exec(f.detail)?.[1])).toEqual([
+      'kein Vorschlag',
+      'eine Platzierung ist vorgemerkt',
+      'kein Vorschlag',
+      'ein Vorschlag wartet auf Prüfung',
     ]);
   });
 
@@ -133,7 +141,9 @@ describe('process-without-step', () => {
       { elementId: 'step-eingang', process: A },
       { elementId: 'step-pruefung', process: A },
     ]);
-    expect(versand?.detail).toMatch(/called from step-eingang, step-pruefung/);
+    expect(versand?.detail).toBe(
+      'Keine angenommene Platzierung auf einem Schritt der Wertschöpfungskette (kein Vorschlag); aufgerufen von Prozessen auf step-eingang, step-pruefung.',
+    );
   });
 });
 
@@ -152,8 +162,10 @@ describe('step-without-process', () => {
       'step-without-process',
     );
     expect(found.map((f) => f.elementId)).toEqual(['step-fakt', 'step-logistik', 'step-pruefung']);
-    expect(found[0]?.detail).toBe('No process is accepted on "Fakturierung" or its sub-steps.');
-    expect(found[2]?.detail).toBe('No process is accepted on "Prüfung".');
+    expect(found[0]?.detail).toBe(
+      'Auf „Fakturierung“ und seinen Unterschritten ist kein Prozess angenommen.',
+    );
+    expect(found[2]?.detail).toBe('Auf „Prüfung“ ist kein Prozess angenommen.');
   });
 
   it('does not count an accepted placement of a process that left the head', () => {
@@ -183,9 +195,9 @@ describe('unresolved-link', () => {
       ['step-kasse', 'proa:process/x/fehlt#P'],
     ]);
     expect(found.map((f) => f.detail)).toEqual([
-      'The link does not name a process as proa:process/<model key>#<process id>.',
-      'The link is neither a proa:process/<model key>#<process id> link nor an http(s) URL.',
-      'The linked process x/fehlt#P is not in the head revisions.',
+      'Der Link nennt keinen Prozess in der Form proa:process/<Modellschlüssel>#<Prozess-ID>.',
+      'Der Link ist weder ein Link der Form proa:process/<Modellschlüssel>#<Prozess-ID> noch eine http(s)-URL.',
+      'Der verlinkte Prozess x/fehlt#P ist in keiner aktuellen Revision enthalten.',
     ]);
     // A link to a head process resolves; without the process it does not.
     expect(kinds({ processes: [A, V, X] }, 'unresolved-link').map((f) => f.elementId)).toContain(

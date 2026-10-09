@@ -538,7 +538,7 @@ describe('revisions and step generations', () => {
       sourceKind: 'agent',
       principalId: agent.principalId,
       clientId: 'proa-web',
-      rationale: 'step removed in revision 2',
+      rationale: 'Schritt in Revision 2 entfernt',
       stepFp: null,
     });
     // Proposals only: obsolete, and no live proposal is left on the dead generation.
@@ -686,7 +686,7 @@ describe('revisions and step generations', () => {
     expect((await historyOf(P, placementOutside)).at(-1)).toMatchObject({
       kind: 'withdrawal',
       principalId: agent.principalId,
-      rationale: 'value chain deleted',
+      rationale: 'Wertschöpfungskette gelöscht',
     });
     expect(await placementOf(P, onA.id)).toMatchObject({
       status: 'obsolete',

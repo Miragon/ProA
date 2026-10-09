@@ -10,8 +10,8 @@ see [M2 end to end](#m2-end-to-end-2026-10-08), and again after the
 released procedure `proa-relations@0.2.0`, which judges each pair once
 ([below](#judge-each-pair-once)), the Claude Code plugin, the agent reference setups in
 `examples/agents`, `eval:live` and the live gate; the owner's guide to live runs is
-[M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)). Of [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md), slices S0,
-S1 and S2 are in: the `@miragon/value-chain-*` 0.3.0 packages are dependencies and the golden
+[M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)). Of [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md), slices S0
+to S4 are in, which completes M4a: the `@miragon/value-chain-*` 0.3.0 packages are dependencies and the golden
 value chains are validated with the npm schema-model ([M4 S0](#m4-s0-2026-10-08)); the value
 chain tables, the placement lifecycle and `recomputeStatus` generalised over the subject
 ([M4 S1](#m4-s1-2026-10-09)); the value chain and placements over REST, MCP and
@@ -19,7 +19,9 @@ chain tables, the placement lifecycle and `recomputeStatus` generalised over the
 changes, findings and `baseline-prefix/1` ([below](#value-chain-and-placements-m4),
 [M4 S2](#m4-s2-2026-10-09)); and the value chain page in the web UI: viewer and modeler,
 placement review, save with dry run, conflict and drafts, link editing, drill-down
-([below](#value-chain-in-the-web-ui-m4), [M4 S3](#m4-s3-2026-10-09)). The 1.x tree (`backend/`, `frontend/`,
+([below](#value-chain-in-the-web-ui-m4), [M4 S3](#m4-s3-2026-10-09)); and the LLM-free placement
+eval `eval:placements`, `proa seed --value-chains` and German texts for the rule tier
+([below](#value-chain-and-placements-m4), [M4 S4](#m4-s4-2026-10-09)). The 1.x tree (`backend/`, `frontend/`,
 Maven) lives next to it, untouched, until the cut-over PR.
 
 The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) were run end to end on
@@ -38,17 +40,18 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | `packages/contracts`: schemas, types, REST route configs, OpenAPI 3.1 | working |
 | `packages/client`: hey-api client generated from the contracts | working |
 | `packages/bpmn-facts`: `extractFacts` (C7 and C8, CONCEPT §2), `assertSafeXml` (DOCTYPE/ENTITY, UTF-8, 5 MB), 50k-element limit, `factFingerprint`, `factsHash`, `normalizeKey` | working; tested per construct, against hostile XML and on every eval/corpus model |
-| `packages/relations`: `runRules` (rule tier + findings), `generateCandidates` (key, lexical, compatible; both directions), `baselineProa1` (the 1.x algorithm), endpoint semantics, DE/EN text similarity | working; unit-tested, gated by `eval:candidates` |
+| `packages/relations`: `runRules` (rule tier + findings, German details since M4 S4), `generateCandidates` (key, lexical, compatible; both directions), `baselineProa1` (the 1.x algorithm), endpoint semantics, DE/EN text similarity; for M4 `derivePlacementRules` (the rule tier's key placements), `baselinePrefix` (`baseline-prefix/1`), `sharesNameStem`, `quoteDe` | working; unit-tested, gated by `eval:candidates` and `eval:placements` |
 | `apps/server`: full CONCEPT §2 schema, domain use cases with `policy.require`, ingest/import/delete as one transaction (facts, rule tier, assertions, endpoint state, analysis tasks, events) with the real `@proa/bpmn-facts` and `@proa/relations`, every REST route of the contracts, local mode (Host/Origin guard, owner session cookie, owner key for the CLI, agent tokens), MCP `/mcp` with the eight read tools, the built web UI at `/` | working; importing `nordwind-handel` and `stadtwerke-auental` reproduces the rule relations and findings of `eval:candidates` exactly (integration test); MCP contract test with the SDK client |
 | `packages/procedures`: the procedure `proa-relations@0.2.0` (`relations.md`, status `released`, M3; judge each pair once), the loader for MCP `get_procedure`, and the wrappers for the MCP prompt `work_pipeline` and the Claude Code skill (`renderPipelineWrapper`, `renderSkill`, `pnpm --filter @proa/procedures generate`) ([below](#the-relations-procedure-m3)) | working; unit tests (frontmatter, wrappers, the guard against skill expansion), the drift test of the generated skill and plugin version, a sha256 guard that keeps a released version's skill from changing, and a server test that keeps the procedure's limits, invalid reasons (relations and no-links), tool names and tool arguments in line with the contracts and the MCP tools; three LLM dev runs of `0.1.0` on `nordwind-handel` (Sonnet 5.5: precision 100 %, recall 78.6 %, 0 must_not_link; [M3](#m3-2026-10-08)) |
 | `plugins/proa`: Claude Code plugin `proa` (version = procedure version) with the generated skill `/proa:relations [project] [max-tasks]` and no MCP server; `.claude-plugin/marketplace.json`: the repository as marketplace `proa` (`claude plugin install proa@proa`) | working; `claude plugin validate --strict` passes for both manifests (Claude Code 2.1.294); drift and version tests in `@proa/procedures`; not yet run with a model |
 | `examples/agents` (M3): reference setups for Claude Code (interactive, headless `run-headless.sh`), Claude Desktop (both bridge entries, German start prompt) and Codex; documentation, not workspace packages, not in the image; no Agent SDK setup for now (owner decision 16, [HANDOFF.md](HANDOFF.md) §4) | checked without a model ([M3](#m3-2026-10-08)): shellcheck and dry runs of `run-headless.sh` against fakes (incl. failed batches, a reused log directory and a trailing slash in `PROA_URL`), the Codex TOML parses; no setup has run a model yet |
 | M2 backend: analysis pipeline (claim/submit/release, lease, long-poll), claim input (with the M3 additions: message-flow ends, partner and process documentation, findings, and `judged`/`skip`), submissions, ad-hoc proposals, review (accept/reject/hold/correct, bulk, notes, timeline), model engine, relation provenance, answered findings hidden ([below](#analysis-pipeline-and-review-m2)); judge each pair once (`proa-relations@0.2.0`: the basis of agent judgements, the assignment at the claim, stored no-links, `Relation.noLinks`, `uncovered`; [below](#judge-each-pair-once)) | working over REST and MCP; real-Postgres integration tests incl. concurrent claims, lease expiry, cancellation, decision memory across re-uploads, the claim-input size and additions on both corpus landscapes, judge each pair once (`judge-once.test.ts`); MCP contract test with the SDK client; reviewed in the web UI ([Review in the web UI](#review-in-the-web-ui-m2)); end to end against the Docker stack with the simulation agent (HTTP and the bridge in the container; before 0.2.0) and in the browser (`e2e/pipeline.spec.ts`: review, re-upload, `suppressed` vs. `reopened`) |
-| `apps/cli`: `proa seed` (M3: `--project`, `--token-name`), `import`, `token create/list/revoke`, `status`, `health`, and `proa mcp` (stdio bridge for Claude Desktop) | working; unit tests, an e2e test against a real server, and a live check against the running Docker stack |
+| `apps/cli`: `proa seed` (M3: `--project`, `--token-name`; M4 S4: `--value-chains`), `import`, `token create/list/revoke`, `status`, `health`, and `proa mcp` (stdio bridge for Claude Desktop) | working; unit tests, an e2e test against a real server, and a live check against the running Docker stack |
 | `apps/agent-sim`: `proa-agent-sim`, the LLM-free simulation agent (M2 item 8): works the pipeline over MCP (HTTP or the `proa mcp` bridge) with the deterministic policy `sim-policy-1` and records claim inputs and submissions in `eval/recordings` ([below](#simulation-agent-and-evalreplay-m2)) | working; unit tests (policy, recorder, CLI, the loop against an in-memory MCP server) and an end-to-end server test on both corpus landscapes (every task done, provenance, nothing decided, the committed recordings reproduced byte for byte) |
 | `apps/web`: projects (create), per project the tabs Modelle (engine, revision, stage), Prüfen (M2: inbox by stage, review queue, bulk accept per tier, held list), Wertschöpfungskette (M4 S3, [below](#value-chain-in-the-web-ui-m4)), Relationen (filters, rule vs. key tier, provenance), Befunde, Hochladen (files or a folder via the import endpoint) and Agent verbinden (token, Claude Code/Desktop/generic configurations, revoke); model view with bpmn-js that highlights relation endpoints and switches to the other model; review screen per relation (both models in bpmn-js, rationale, evidence, question, provenance, timeline; accept/reject/hold/correct with A/R/H/C, J/K through the queue); bulk accept that leaves generic or widely shared names, open agent questions and ambiguous call targets unchecked; Miragon design system | working; component tests (Testing Library), Playwright smoke, review and pipeline flows against a running server, the screenshots below |
 | `eval:candidates` | working; passes on `nordwind-handel` (dev) and `stadtwerke-auental` (holdout); report in `eval/reports/candidates.md` |
 | `eval:replay` | working; scores the recordings in `eval/recordings` against `expected.yaml` (precision, recall and F1 per type and tag, must_not_link hits, questions, no-links, pairs judged twice, uncovered pairs); report in `eval/reports/replay.md`, ending with the live gate (it reports the gate, `eval:live` enforces it) |
+| `eval:placements` (M4 S4): the golden value chains against the process facts (validator, coverage, every key-tier rule proposal a must or may), the rule tier and `baseline-prefix/1` with and without votes scored; the holdout as numbers only ([below](#value-chain-and-placements-m4)) | working; passes on `nordwind-handel` (dev) and `stadtwerke-auental` (holdout); report in `eval/reports/placements.md` |
 | `eval:live` (M3): records a live run from its project's stored submissions in `eval/recordings`, scores it and checks the live gate ([below](#live-runs-evallive-and-the-live-gate-m3)) | working; unit tests with fixtures, the server test that rebuilds the simulation agent's recordings from the stored submissions byte for byte (input aside), a smoke test against a seeded server; three LLM dev runs recorded into a scratch directory (not committed); no live run of the owner recorded yet |
 | `docker/compose.yaml`, `docker/Dockerfile` | working; `up -d --build --wait` starts PostgreSQL and ProA (migrations at start, owner key in the `proa-state` volume); CI builds it, seeds it and runs the live check against it; an M1 stack upgrades in place (migrations 0002/0003 on its data, the engine backfill equal to `@proa/bpmn-facts` on all 57 corpus models) |
 | Value chain packages (M4 S0, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §5, §9): `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`; `eval/value-chains/validate-value-chains.mjs` on the npm schema-model | consumed; the server canonicalizes and validates every saved chain with schema-model (S2), the web's lazy chain chunk renders and edits it with the renderer (S3); the server's Node round trip of both golden chains, the validator in `pnpm test` (both modes), the dependency specifier guard; the bundle guard (`apps/web/test/bundle.test.ts`) and the Playwright import check (`e2e/value-chain-import.spec.ts`) since S3 |
@@ -93,7 +96,10 @@ docker compose -p proa2 -f docker/compose.yaml exec proa proa status
 `seed` creates `nordwind-handel` (31 models; 9 accepted and 33 proposed relations; 14 findings)
 and `stadtwerke-auental` (26 models; 3 accepted, 36 proposed; 17 findings) from `eval/corpus`,
 exactly the rule tier that `eval:candidates` computes. Running it again changes nothing.
-`proa seed _sample` loads the three-model sample into the project `sample`. Every model starts
+`proa seed _sample` loads the three-model sample into the project `sample`. `proa seed
+--value-chains` also creates each landscape's golden value chain (r1, without placements; the
+rule tier proposes 4 placements in `nordwind-handel`), and a later run never overwrites a chain
+you edited. Every model starts
 at the stage "waiting for agent": an agent with `proa:propose` works the pipeline
 ([Analysis pipeline and review](#analysis-pipeline-and-review-m2)). A live run with an LLM agent
 gets a fresh project of its own (`proa seed nordwind-handel --project <key> --issue-tokens
@@ -395,7 +401,7 @@ packages/procedures/ agent procedures as Markdown with frontmatter (relations.md
 plugins/proa/     Claude Code plugin: .claude-plugin/plugin.json, skills/relations/SKILL.md (generated, do not edit)
 .claude-plugin/   marketplace.json: this repository as the plugin marketplace `proa`
 examples/agents/  reference setups: claude-code/, claude-desktop/, codex/; not workspace packages
-eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates, eval:replay, eval:live (src/*.ts)
+eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates, eval:replay, eval:live, eval:placements (src/*.ts)
 eval/recordings/  agent recordings <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl (eval:replay input)
 eval/value-chains/  golden value chains + expected placements (M4); validate-value-chains.mjs (deps from eval/tools)
 docker/           compose.yaml (project proa2), Dockerfile
@@ -408,8 +414,8 @@ Package dependencies point one way: `contracts` ← `bpmn-facts` ← `relations`
 only; the server's integration test uses it as a dev dependency); `procedures` (no dependencies)
 ← `server`, `eval-tools`; `eval-tools` (`contracts`, `bpmn-facts`, `relations`, `procedures`) is
 a dev dependency of the server, whose integration test reads a project the way `eval:live` does
-(`eval/tools/src/index.ts` exports only the light modules: the REST reader, the mapping, the gate
-and the recordings loader, not the corpus toolchain). Workspace dependencies use
+(`eval/tools/src/index.ts` exports only the light modules: the REST reader, the mapping, the gate,
+the recordings loader and, since M4 S4, the placement scorer; not the corpus toolchain). Workspace dependencies use
 `workspace:0.0.0`. The value chain packages (M4) come from npm at exactly 0.3.0:
 `@miragon/value-chain-schema-model` in `server` (DOM-free), `web` and `eval-tools` (for
 `eval/value-chains/validate-value-chains.mjs`, which lives outside any package and resolves its
@@ -428,6 +434,7 @@ Node cannot load it).
 | `pnpm eval:candidates` | the LLM-free eval gate; writes `eval/reports/candidates.{md,json}`, exit 1 if a gate fails |
 | `pnpm eval:replay` | scores the recordings in `eval/recordings` against `expected.yaml` and evaluates the live gate; writes `eval/reports/replay.{md,json}`, exit 1 only for an unreadable recording, whatever the gate says, 2 on a usage error (an unknown option, a named `--recordings` directory that does not exist) ([below](#simulation-agent-and-evalreplay-m2)) |
 | `pnpm eval:live --project <key> [--landscape <name>] [--url] [--token] [--agent] [--out] [--corpus] [--no-write] [--json]` | records a live run from the project's stored submissions in `eval/recordings/<procedure>@<version>/<token name>/<llmModel>/<landscape>.jsonl`, scores it and checks the live gate; token: the run's agent token or the owner key (`PROA_TOKEN`); exit 1 when a gate fails or on a runtime error, 2 on a usage error ([below](#live-runs-evallive-and-the-live-gate-m3)) |
+| `pnpm eval:placements [--out <dir>] [--no-write] [landscape…]` | the LLM-free placement eval (M4 §6): per scored landscape the validator, golden placements = process facts, every key-tier rule proposal a must or may; scores the rule tier and `baseline-prefix/1` (with and without votes); writes `eval/reports/placements.{md,json}` (the holdout as numbers only); exit 1 if a gate fails or golden data cannot be read, 2 on a usage error or a validator that cannot run ([below](#value-chain-and-placements-m4)) |
 | `pnpm agent-sim [options]` | the simulation agent `proa-agent-sim` from the checkout (`PROA_URL`, `PROA_TOKEN`; `--help`) |
 | `pnpm --filter @proa/eval-tools check` / `validate:all` / `test` | the corpus: models in sync with their specs, full validation of every landscape, the toolchain tests |
 | `node eval/value-chains/validate-value-chains.mjs [--builtin] [<landscape> ...]` | validates the golden value chains (M4) with `@miragon/value-chain-schema-model` from npm, as `eval/tools` pins it, plus the built-in cross-check; `--builtin` uses the built-in copy alone, `--help` prints the usage; exit 1 on a finding, 2 when it cannot run as configured (failed import, stale install, unverified version) ([eval/value-chains/README.md](../../eval/value-chains/README.md#validation)) |
@@ -435,7 +442,7 @@ Node cannot load it).
 | `pnpm db:up` / `pnpm db:down` | only PostgreSQL up (for `pnpm dev`) / the whole stack down (volumes stay) |
 | `pnpm db:migrate` | applies migrations to `DATABASE_URL` |
 | `pnpm dev` | server (`node --watch`, 127.0.0.1:7400) and Vite (127.0.0.1:7401) in parallel |
-| `pnpm seed` | `proa seed`: one project per scored eval landscape; `pnpm seed <landscape> --project <key> --issue-tokens --token-name <run>` seeds a fresh project for a live run ([below](#the-proa-cli)) |
+| `pnpm seed` | `proa seed`: one project per scored eval landscape; `pnpm seed --value-chains` also creates each golden value chain; `pnpm seed <landscape> --project <key> --issue-tokens --token-name <run>` seeds a fresh project for a live run ([below](#the-proa-cli)) |
 | `pnpm proa <command>` | the `proa` CLI from the checkout; relative paths resolve against the directory you run it in |
 | `PROA_LIVE_URL=http://127.0.0.1:7400 pnpm --filter @proa/cli test:live` | live check of a running, seeded ProA: tokens, MCP over HTTP, the stdio bridge as Claude Desktop starts it (see [Tests](#tests)) |
 | `pnpm --filter @proa/web e2e smoke` | Playwright smoke test against a running ProA (`PROA_E2E_URL`, default http://127.0.0.1:7400); creates its own project `e2e-<time>` |
@@ -1203,9 +1210,12 @@ Contracts: `packages/contracts/src/api/{value-chains,placements}.ts`, OpenAPI ta
   `eval:placements` (S4) reports the same code.
 - **Rule tier** (`rules.ts`): a step whose link is `proa:process/<ref>` of a head process, or
   whose non-empty normalized name equals a head process's, gets a key proposal (confidence 1.0,
-  evidence `[process ref, step:<id>]`) recorded under `proa-rules` without a client, derived
-  again on every create, revival and revision and after every model ingest and deletion, and
-  withdrawn when no longer derived. Human decisions suppress it; it never decides. It always
+  evidence `[process ref, step:<id>]`, a German rationale since S4: `Schlüsselregel: der Link des
+  Schritts nennt diesen Prozess (proa:process/<ref>)` and/or `der Name des Schritts entspricht
+  dem Prozessnamen (normalisiert: „<name_norm>“)`) recorded under `proa-rules` without a client,
+  derived again on every create, revival and revision and after every model ingest and
+  deletion, and withdrawn when no longer derived. The derivation is `derivePlacementRules` of
+  `@proa/relations` (since S4), which `eval:placements` gates on the golden chains. Human decisions suppress it; it never decides. It always
   runs before the endpoint state is refreshed: in a save through the `beforeRefresh` hook of
   S1's write path (after generations, head and the withdrawals on removed steps), after model
   changes in `sync.ts`. So a rename writes no `endpoint_changed` for a rule proposal: a kept
@@ -1219,7 +1229,18 @@ Contracts: `packages/contracts/src/api/{value-chains,placements}.ts`, OpenAPI ta
   after a deletion, `ok` again with the original model).
 - **Findings** are recomputed on read (`findings.ts`), never stored, separate from the relation
   findings. "Unplaced" and "pending" go by placement status on a live step generation: a
-  rejected placement homes nothing.
+  rejected placement homes nothing. Their details are German since S4 (names in „…“ through
+  `quoteDe`, verbatim with straight quotes and backslashes; only control and invisible format
+  characters, line separators, lone surrogates and the closing `“` are escaped JSON-style; refs
+  verbatim), like the relation rule tier's finding details and the chain withdrawal reasons
+  (`Schritt in Revision <n> entfernt`, `Wertschöpfungskette gelöscht`). A database from before
+  S4 keeps English relation finding details until the next ingest or deletion. Undecided rule
+  proposals (`proposed`) are re-asserted in German at the next chain save that stores a revision
+  or at the next model change (a new assertion and `placement.proposed`); a rule placement a
+  human already accepted, rejected or held keeps its English rule proposal in the history until
+  its step or process fingerprint changes (an unchanged rule proposal is suppressed under any
+  human decision, `classifyProposalOf`; no migration). Pipeline and token reasons, API errors,
+  MCP descriptions and CLI output stay English.
 - **Revocation** of an agent token withdraws its live placement proposals (under the token,
   caused by the owner; nothing queued). **Events:** `value_chain.created|revised|deleted` and
   `placement.proposed|withdrawn|decided|noted|endpoint_changed` (S1); a dry run and an
@@ -1229,6 +1250,28 @@ Contracts: `packages/contracts/src/api/{value-chains,placements}.ts`, OpenAPI ta
   `…/steps/<id>`): the value chain page with that placement's card active, or the step view.
   The not-found text of a project without a chain (and `get_value_chain`'s description) names
   the page and `proa value-chain push`.
+- **Eval** (S4, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §6): `pnpm eval:placements`
+  (`eval/tools/src/placements*.ts`) fails unless, per scored landscape,
+  `validate-value-chains.mjs <landscape>` exits 0, the golden placements name exactly the
+  `process` facts, and every key-tier rule proposal of the golden chain is the process's must or
+  a may. It scores the rule tier and `baseline-prefix/1` top-1 and top-3, with votes (neighbours
+  from the `must_link` relations of `expected.yaml`, a neighbour known on its golden must,
+  leave-one-out) and without (a fresh project's hints): hit, may, coarse, trap, wrong, none,
+  precision = hit / (hit + trap + wrong), recall over every (process, must), level 0 by area,
+  trap rate, per tag. Dev (`nordwind-handel`): 4 rule proposals, all hits; the baseline with
+  votes recall@1 43.8 %, precision@1 53.8 %, recall@3 65.6 %, area recall@1 59.4 %, without votes
+  46.9 %, 57.7 %, 62.5 %, 56.3 %. The level-0 trap rate runs over the processes with a top-level
+  must_not (dev: 3 of the 24 with a must_not). The report lists items for the dev landscape only;
+  the holdout shows aggregate numbers, none over fewer than 5 processes (`HOLDOUT_MIN_GROUP`): the
+  rule tier as its gate and count, per-tag numbers only for tags with at least 5 processes. The ProA rules check of the golden chains is a server unit test
+  (`value-chain-golden.test.ts`, in `pnpm test`). `scorePlacementProposals` is the API M4b's
+  `eval:replay` scores recorded placement submissions with.
+- **Seeding** (S4): `proa seed --value-chains [--value-chains-dir <dir>]` creates each
+  landscape's golden chain from `eval/value-chains/<landscape>/value-chain.vc.json` (only that
+  file; the image ships the chain files only) after the model import and before the token,
+  without placements: `created` (`If-None-Match: *`), `revived` for a deleted chain, `unchanged`
+  (a dry run on the head finds it equal) or `differs` (an edited chain is never overwritten; exit
+  0); a 412 reads again. With `--project` for a live run's fresh project.
 
 ### The `proa` CLI
 
@@ -1238,7 +1281,7 @@ token), `--owner-key-file` (`PROA_OWNER_KEY_FILE`).
 
 | Command | Credential | |
 |---|---|---|
-| `proa seed [landscape…] [--corpus dir] [-p\|--project <key>] [--issue-tokens [--token-name <name>]] [--verbose] [--json]` | owner key | one project per landscape of `eval/corpus` (default: every scored one, i.e. not starting with `_`; `_sample` seeds into `sample`), named after `landscape.yaml`; imports `models/`; safe to repeat (unchanged models stay unchanged). `--project` seeds exactly one named landscape into a project of that key, named `<landscape name> (<key>)` (a fresh project per live run; an existing project is refused with exit 1 before any import or token request); `--issue-tokens` creates a read+propose token per project (90 days), named `--token-name` (default `seed`; the name is the agent segment of `eval:live` recordings). Misuse (`--project` without exactly one landscape or with an invalid key, `--token-name` without `--issue-tokens`) is refused before any request. The JSON result names the `landscape` of each project |
+| `proa seed [landscape…] [--corpus dir] [-p\|--project <key>] [--issue-tokens [--token-name <name>]] [--value-chains [--value-chains-dir <dir>]] [--verbose] [--json]` | owner key | one project per landscape of `eval/corpus` (default: every scored one, i.e. not starting with `_`; `_sample` seeds into `sample`), named after `landscape.yaml`; imports `models/`; safe to repeat (unchanged models stay unchanged). `--project` seeds exactly one named landscape into a project of that key, named `<landscape name> (<key>)` (a fresh project per live run; an existing project is refused with exit 1 before any import or token request); `--issue-tokens` creates a read+propose token per project (90 days), named `--token-name` (default `seed`; the name is the agent segment of `eval:live` recordings). `--value-chains` (M4 S4) also creates each landscape's golden value chain from `eval/value-chains/<landscape>/value-chain.vc.json` (or `--value-chains-dir`), after the import and before the token, without placements: a line `value chain: created r1` (`revived` for a deleted chain, `unchanged` when the head equals it, `exists r<n>, differs from the golden chain: left unchanged` for an edited chain, which is never overwritten, `no golden value chain` for `_sample`). Misuse (`--project` without exactly one landscape or with an invalid key, `--token-name` without `--issue-tokens`, `--value-chains-dir` without `--value-chains` or not a directory) is refused before any request. The JSON result names the `landscape` of each project and its `valueChain` (`{outcome, rev}`, `null` without the flag) |
 | `proa import <dir> --project <key> [--create [--name n]] [--json]` | agent token (`proa:write`) or owner key | every `.bpmn`/`.bpmn2`/`.bpmn20.xml` below `<dir>`, in requests of ≤ 50 files and ≤ 25 MB; the model key is the path below `<dir>`; per-file outcome; exit 1 if a file failed |
 | `proa token create --project <key> [--name] [--scopes …] [--expires 90d] [--json]` | owner key | scopes `proa:read`, `proa:propose`, `proa:write` (also `read,propose`); expiry `Nd` or `Nw`, ≤ 365 days |
 | `proa token list` / `proa token revoke <id>` (`--project <key>`) | owner key | |
@@ -2153,6 +2196,33 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   pull and push ("pull first"), `--force` on the head and not with `--base`, `unchanged`,
   `--dry-run`, the `--yes` gate, 412, 422 with violations, agent token and bad files refused
   before any request, verbatim pull with `--rev` and `-o`) and the e2e round trip above.
+- M4 S4 (the placement eval, seeding, German texts; synthetic data and the dev landscape, the
+  holdout only through aggregate gates): `eval/tools/test/placements.test.ts` (every scored
+  landscape passes its gates, gate messages with titles and counts only, no assertion on a
+  property of the holdout's data; two runs render the same bytes; the holdout JSON has no
+  per-item fields, no rule tier numbers and no per-tag numbers of a tag with fewer than 5
+  processes, and its Markdown section no rule rows or cells and no such tag rows, checked
+  without naming a tag; the dev rule proposals, the frozen baseline's top-1 counts and its
+  level-0 trap numbers; the dev chain's steps, parents and content hash; a missing golden
+  directory exit 1 and usage errors exit 2; every class on a synthetic chain incl. a trap
+  subtree, `coarse` and `@outside` as must and may; recall@1/@3, precision, level 0, `none`,
+  trap rate (at level 0 over top-level must_not only), tags; the gates failing on a coarse, trap
+  or unlisted rule proposal, a missing or extra process and a validator exit 1; leave-one-out;
+  an unranked set with confidence as S5 passes it; redaction, a holdout tag with 5 processes
+  kept). `apps/server/test/unit/value-chain-golden.test.ts`:
+  `prepareRevision` accepts every golden chain and keeps its bytes (a failure names violation
+  reasons with counts, never ids). `packages/relations/test/placement.test.ts`
+  (`derivePlacementRules`), `rules.test.ts` and `text.test.ts` (German finding details,
+  `quoteDe` with quotes verbatim and invisible characters escaped); the server's rule, findings
+  and chain tests with the German strings;
+  `value-chain-ingest.test.ts`: a placement proposed with `propose_placement` over the MCP SDK
+  client and an agent token, accepted over REST, survives an unchanged re-import and a
+  layout-only re-save (the M4a criterion over MCP). CLI: `seed-status.test.ts` (`--value-chains`
+  against the fake API: created, unchanged, differs without a non-dry save, revived, 412 read
+  again, 422, `_sample` without a chain, the JSON shape, option misuse, `--help`) and the e2e
+  test (`proa seed nordwind-handel --project vc-seed --value-chains` → created r1 with exactly
+  the four rule proposals; after the push test's r2, `differs`). The agent-sim recordings were
+  re-recorded for the German finding details (only `input.bytes` changed).
 
 ## CI
 
@@ -2165,9 +2235,12 @@ drift check of `@proa/procedures`, and since M4 S0 the dependency specifier guar
 value chain validator), client drift check, `eval/tools` check and validate,
 `eval:candidates` (fails on a gate; `eval/reports` must be up to date), `eval:replay`
 (`eval/reports` and `eval/recordings` must be up to date, the live gate section included; the
-gate itself fails nothing), and the web build. Job `docker`: builds the image and starts the
-Compose stack (`up -d --build --wait`), checks `/health` and `/`, runs `proa seed` and
-`proa status` in the container, then the live check (`test:live`) against it. Actions are pinned
+gate itself fails nothing), since M4 S4 `eval:placements` (fails on a gate; `eval/reports` must
+be up to date, with no untracked file there), and the web build. Job `docker`: builds the image
+and starts the Compose stack (`up -d --build --wait`), checks `/health` and `/`, runs `proa seed`,
+`proa seed --value-chains` and `proa status` in the container, checks that the image holds the
+golden chain files and no `expected.yaml`, `expected-placements.yaml`, `*.md`, `*.mjs` or
+`*.jsonl` under `/app/eval`, then the live check (`test:live`) against it. Actions are pinned
 to commit SHAs. The Playwright tests (also the value chain import harness and CSS check) are not
 in CI; the bundle guard of the web (`apps/web/test/bundle.test.ts`) runs with `pnpm test`. `examples/agents` is outside the workspace:
 CI only runs Prettier over its JSON files; `run-headless.sh` is not shellchecked, and no setup
@@ -2726,3 +2799,51 @@ review fixes"), on macOS with Docker Desktop, Node 24.15.0, pnpm 11.1.3 and Play
 
 Not run: the Docker image build, the holdout chain through the import check, the owner's `proa2`
 stack and the CI workflow itself, other browsers than Chromium, screen readers.
+
+### M4 S4 (2026-10-09)
+
+The placement eval, `proa seed --value-chains` and the German rule-tier texts
+([M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §9 "S4 as delivered"), on macOS with Docker Desktop,
+Node 24.15.0, pnpm 11.1.3 and Playwright's Chromium. The holdout was touched only through
+aggregate gates and count-only checks.
+
+1. A throwaway stack beside the owner's `proa2` stack (7400/55432) and his `proa:local` image,
+   which stayed untouched: PostgreSQL in the compose project `proa2-s4`
+   (`PROA_DB_PORT=55510 docker compose -p proa2-s4 -f docker/compose.yaml up -d --wait db`), the
+   server from the checkout on port 7510 with its own `PROA_OWNER_KEY_FILE`; the server and CLI
+   tests used the same database (`PROA_TEST_DATABASE_URL`). `pnpm seed --value-chains`: both
+   projects and both chains created (r1); a second run: `unchanged r1` twice, `_sample` "no
+   golden value chain"; `proa value-chain pull` printed r1 with the sha256 of the dev chain file
+   (= `golden.contentHash`); a push of an edited name saved r2, and the next
+   `pnpm seed nordwind-handel --value-chains` reported `exists r2, differs from the golden chain:
+   left unchanged` (JSON `{"outcome":"differs","rev":2}`). Over REST the dev project's four rule
+   proposals were listed, and its value chain findings and relation findings came back with the
+   German details.
+2. Playwright against it with the built UI (`PROA_E2E_URL=http://127.0.0.1:7510`):
+   `value-chain.spec.ts`, 15 tests passing (no test reads the changed texts).
+3. The image as `proa:s4-check` (`docker build -f docker/Dockerfile -t proa:s4-check .`; never
+   `proa:local`): BuildKit honours the dockerignore re-include. `docker run --rm --entrypoint sh
+   proa:s4-check -c '<the CI guard>'` passed; `/app/eval` holds `corpus` and `value-chains` with
+   exactly the two chain files, no `expected-placements.yaml` anywhere in the image and no
+   `expected.yaml` under `/app`. A container stack from that image (compose project `proa2-s4c`,
+   an override file with `image: proa:s4-check` and `pull_policy: never`, `up --no-build`,
+   `PROA_HOST_PORT=7511 PROA_DB_PORT=55511`): `proa seed`, then `proa seed --value-chains` in the
+   container (created r1 twice; again: unchanged r1 twice) and the CI guard in the container.
+4. The agent-sim recordings re-recorded (`pnpm --filter @proa/server exec vitest run
+   test/integration/agent-sim.test.ts -u`); a count-only comparison with HEAD: both files keep
+   their line count and differ only in `input.bytes` (`nordwind-handel` 10 of 31 lines, at most
+   88,778 bytes; the holdout file likewise, below the test's ceiling).
+5. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser clean),
+   `CI=1 pnpm -r test` (server 1,115, web 205, cli 83 plus 7 live tests skipped, agent-sim 37,
+   relations 84, bpmn-facts 134, contracts 54, procedures 22, client 4, eval/tools 71),
+   `pnpm eval:candidates` (pass, report unchanged), `pnpm eval:replay` (reports unchanged),
+   `pnpm eval:placements` (pass; a second run wrote identical reports),
+   `node eval/value-chains/validate-value-chains.mjs` (both landscapes ok, cross-check 2 of 2),
+   `pnpm --filter @proa/server db:generate` (no schema changes), `pnpm build`. Then the server
+   stopped by its PID, `down -v` of `proa2-s4` and `proa2-s4c`, and `docker image rm
+   proa:s4-check`.
+
+Not run: the CI workflow itself (the `eval:placements` step and the docker job's guard run on the
+next push; that confirms the M4a criterion "`eval:placements` is green in CI"), the holdout chain
+through the import check (an owner action, `PROA_E2E_VC_EXTRA`), the owner's `proa2` stack, the
+other Playwright suites (no S4 change reaches them), other browsers than Chromium.

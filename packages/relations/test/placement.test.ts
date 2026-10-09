@@ -1,10 +1,13 @@
-// baseline-prefix/1 and the README's name-match stem rule on synthetic chains
-// (M4-VALUE-CHAIN.md §2 "Tiers", §6). No eval landscape is read here.
+// The rule tier's key placements, baseline-prefix/1 and the README's name-match
+// stem rule on synthetic chains (M4-VALUE-CHAIN.md §2 "Tiers", §6). No eval
+// landscape is read here.
 import { describe, expect, it } from 'vitest';
 
 import {
   BASELINE_PREFIX,
   baselinePrefix,
+  derivePlacementRules,
+  normalizeLabel,
   prefixTokensMatch,
   sharedStem,
   sharesNameStem,
@@ -242,5 +245,98 @@ describe('the name-match stem rule (eval/value-chains/README.md)', () => {
         [],
       ),
     ).toBeNull();
+  });
+});
+
+describe('derivePlacementRules (the rule tier’s key placements)', () => {
+  const processes = [
+    { ref: 'finanzen/mahnwesen#P_Mahn', label: 'Mahnverfahren' },
+    { ref: 'finanzen/pruefung#P_Pruef', label: 'Rechnungsprüfung' },
+    { ref: 'lager/versand#P_Versand', label: 'Versand' },
+    { ref: 'lager/versand-alt#P_Versand', label: 'VERSAND' },
+    { ref: 'ops/ohne-name#P_X', label: '' },
+  ];
+  const step = (id: string, name: string, link: string | null = null) => ({
+    id,
+    nameNorm: normalizeLabel(name),
+    link,
+  });
+
+  it('matches a proa:process/ link of a known process', () => {
+    expect(
+      derivePlacementRules(
+        [step('step-mahnwesen', 'Mahnwesen', 'proa:process/finanzen/mahnwesen#P_Mahn')],
+        processes,
+      ),
+    ).toEqual([
+      {
+        stepId: 'step-mahnwesen',
+        processRef: 'finanzen/mahnwesen#P_Mahn',
+        byLink: true,
+        byName: false,
+        nameNorm: 'mahnwesen',
+      },
+    ]);
+  });
+
+  it('matches an equal name after normalization (transliteration, case)', () => {
+    expect(derivePlacementRules([step('step-p', 'Rechnungspruefung')], processes)).toEqual([
+      {
+        stepId: 'step-p',
+        processRef: 'finanzen/pruefung#P_Pruef',
+        byLink: false,
+        byName: true,
+        nameNorm: 'rechnungspruefung',
+      },
+    ]);
+  });
+
+  it('gives both reasons at once, and one match per process sharing the name', () => {
+    expect(
+      derivePlacementRules(
+        [step('step-versand', 'Versand', 'proa:process/lager/versand#P_Versand')],
+        processes,
+      ).map((m) => [m.processRef, m.byLink, m.byName]),
+    ).toEqual([
+      ['lager/versand#P_Versand', true, true],
+      ['lager/versand-alt#P_Versand', false, true],
+    ]);
+  });
+
+  it('yields one match per step for a pasted link, ordered by step id then process ref', () => {
+    const link = 'proa:process/finanzen/mahnwesen#P_Mahn';
+    expect(
+      derivePlacementRules(
+        [step('step-b', 'Zwei', link), step('step-a', 'Eins', link), step('step-c', 'Versand')],
+        processes,
+      ).map((m) => `${m.stepId} ${m.processRef}`),
+    ).toEqual([
+      'step-a finanzen/mahnwesen#P_Mahn',
+      'step-b finanzen/mahnwesen#P_Mahn',
+      'step-c lager/versand#P_Versand',
+      'step-c lager/versand-alt#P_Versand',
+    ]);
+  });
+
+  it('ignores an unknown or malformed link and an empty name', () => {
+    const steps = [
+      step('step-1', 'Eins', 'proa:process/x/fehlt#P'),
+      step('step-2', 'Zwei', 'proa:process/'),
+      step('step-3', 'Drei', 'https://example.com/proa:process/lager/versand#P_Versand'),
+      step('step-4', 'Vier', 'proa:process/lager/versand#P_Versand '),
+      step('step-5', '', null),
+      step('step-6', ' – ', null),
+    ];
+    expect(derivePlacementRules(steps, processes)).toEqual([]);
+  });
+
+  it('is independent of the input order', () => {
+    const steps = [
+      step('step-versand', 'Versand'),
+      step('step-mahnwesen', 'Mahnwesen', 'proa:process/finanzen/mahnwesen#P_Mahn'),
+    ];
+    expect(derivePlacementRules([...steps].reverse(), [...processes].reverse())).toEqual(
+      derivePlacementRules(steps, processes),
+    );
   });
 });

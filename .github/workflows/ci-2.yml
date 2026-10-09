@@ -116,6 +116,17 @@ jobs:
           pnpm eval:replay
           git diff --exit-code -- eval/reports eval/recordings
 
+      # LLM-free placement eval (M4 §6): the golden value chains pass the
+      # validator, name exactly the process facts, and every key-tier rule
+      # proposal is a must or a may; baseline-prefix/1 is reported. The ProA
+      # rules on the golden chains run in "Test" (value-chain-golden.test.ts).
+      # The committed report (and eval/reports/placements.json) must match.
+      - name: eval:placements
+        run: |
+          pnpm eval:placements
+          git diff --exit-code -- eval/reports
+          test -z "$(git status --porcelain -- eval/reports)"
+
       - name: Build
         run: pnpm build
 
@@ -139,7 +150,15 @@ jobs:
           curl -fsS http://127.0.0.1:7400/health
           curl -fsS -o /dev/null http://127.0.0.1:7400/
           docker compose -p proa2 -f docker/compose.yaml exec -T proa proa seed
+          docker compose -p proa2 -f docker/compose.yaml exec -T proa proa seed --value-chains
           docker compose -p proa2 -f docker/compose.yaml exec -T proa proa status
+
+      # The image ships the golden chain files (proa seed --value-chains) but
+      # no ground truth: no expected.yaml, expected-placements.yaml, README,
+      # validator or recording under /app/eval (docker/Dockerfile.dockerignore).
+      - name: Image holds no eval answers
+        run: |
+          docker compose -p proa2 -f docker/compose.yaml exec -T proa sh -c 'ls /app/eval/value-chains/*/value-chain.vc.json >/dev/null && test -z "$(find /app/eval \( -name expected.yaml -o -name expected-placements.yaml -o -name "*.md" -o -name "*.mjs" -o -name "*.jsonl" \) -print)"'
 
       - name: Set up pnpm (version from package.json packageManager)
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0

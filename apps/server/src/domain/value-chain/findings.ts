@@ -23,6 +23,7 @@ import {
   type UnplacedState,
   type ValueChainFinding,
 } from '@proa/contracts';
+import { quoteDe } from '@proa/relations';
 
 import type { PlacementRecord } from '../ports.ts';
 import { OUTSIDE } from './steps.ts';
@@ -95,10 +96,11 @@ export interface FindingsInput {
   calls: readonly AcceptedCall[];
 }
 
+/** The review state in a finding's (German) detail. */
 const STATE_DETAIL: Readonly<Record<UnplacedState, string>> = {
-  none: 'no placement is proposed',
-  proposed: 'a placement waits for review',
-  held: 'a placement is on hold',
+  none: 'kein Vorschlag',
+  proposed: 'ein Vorschlag wartet auf Prüfung',
+  held: 'eine Platzierung ist vorgemerkt',
 };
 
 function processWithoutStep(input: FindingsInput, homes: ProcessHomes): ValueChainFinding[] {
@@ -120,7 +122,7 @@ function processWithoutStep(input: FindingsInput, homes: ProcessHomes): ValueCha
       .sort((a, b) => byCodePoint(a.elementId, b.elementId) || byCodePoint(a.process, b.process));
     const hint =
       calledFrom.length > 0
-        ? `; it is called from ${[...new Set(calledFrom.map((c) => c.elementId))].join(', ')}`
+        ? `; aufgerufen von Prozessen auf ${[...new Set(calledFrom.map((c) => c.elementId))].join(', ')}`
         : '';
     out.push({
       kind: 'process-without-step',
@@ -129,7 +131,7 @@ function processWithoutStep(input: FindingsInput, homes: ProcessHomes): ValueCha
       link: null,
       state,
       calledFrom,
-      detail: `No accepted placement on a step of the value chain (${STATE_DETAIL[state]})${hint}.`,
+      detail: `Keine angenommene Platzierung auf einem Schritt der Wertschöpfungskette (${STATE_DETAIL[state]})${hint}.`,
     });
   }
   return out;
@@ -165,8 +167,8 @@ function stepWithoutProcess(input: FindingsInput, homes: ProcessHomes): ValueCha
       calledFrom: [],
       detail:
         s.childIds.length > 0
-          ? `No process is accepted on ${JSON.stringify(s.name)} or its sub-steps.`
-          : `No process is accepted on ${JSON.stringify(s.name)}.`,
+          ? `Auf ${quoteDe(s.name)} und seinen Unterschritten ist kein Prozess angenommen.`
+          : `Auf ${quoteDe(s.name)} ist kein Prozess angenommen.`,
     }));
 }
 
@@ -178,12 +180,11 @@ function unresolvedLinks(input: FindingsInput): ValueChainFinding[] {
     if (target.kind === 'none' || target.kind === 'url' || target.resolved) continue;
     let detail: string;
     if (target.kind === 'opaque') {
-      detail =
-        'The link is neither a proa:process/<model key>#<process id> link nor an http(s) URL.';
+      detail = `Der Link ist weder ein Link der Form ${PROA_PROCESS_LINK_PREFIX}<Modellschlüssel>#<Prozess-ID> noch eine http(s)-URL.`;
     } else if (target.process === null) {
-      detail = `The link does not name a process as ${PROA_PROCESS_LINK_PREFIX}<model key>#<process id>.`;
+      detail = `Der Link nennt keinen Prozess in der Form ${PROA_PROCESS_LINK_PREFIX}<Modellschlüssel>#<Prozess-ID>.`;
     } else {
-      detail = `The linked process ${target.process} is not in the head revisions.`;
+      detail = `Der verlinkte Prozess ${target.process} ist in keiner aktuellen Revision enthalten.`;
     }
     out.push({
       kind: 'unresolved-link',

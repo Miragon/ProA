@@ -4,7 +4,8 @@
  * `proa mcp` spawned as a child process the way Claude Desktop starts it,
  * spoken to over stdio with the official SDK client (initialize, tools/list,
  * tools/call list_processes) in the 2025-11-25 and the 2026-07-28 revision,
- * and `proa value-chain push|pull` with the golden dev chain.
+ * `proa value-chain push|pull` with the golden dev chain, and `proa seed
+ * --value-chains` (M4 S4).
  */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -176,6 +177,47 @@ describe('proa seed', () => {
     expect(after).toMatchObject({ models: 3, seq: before?.seq });
     const tokens = await proa(['token', 'list', '-p', 'sample-run-1', '--json']);
     expect((JSON.parse(tokens.out) as unknown[]).length).toBe(1);
+  });
+});
+
+describe('proa seed --value-chains', () => {
+  it('seeds the golden dev chain without placements; the rule tier proposes its four key placements', async () => {
+    const r = await proa([
+      'seed',
+      'nordwind-handel',
+      '--project',
+      'vc-seed',
+      '--value-chains',
+      '--json',
+    ]);
+    expect(r.err).toBe('');
+    expect(r.code).toBe(0);
+    const [result] = JSON.parse(r.out) as [Record<string, unknown>];
+    expect(result).toMatchObject({
+      project: 'vc-seed',
+      landscape: 'nordwind-handel',
+      models: 31,
+      valueChain: { outcome: 'created', rev: 1 },
+      token: null,
+    });
+    const ownerKey = (await readFile(keyFile, 'utf8')).trim();
+    const res = await fetch(
+      `${server.url}/api/v1/projects/vc-seed/value-chains/main/placements?limit=200`,
+      { headers: { authorization: `Bearer ${ownerKey}` } },
+    );
+    expect(res.status).toBe(200);
+    const page = (await res.json()) as {
+      items: { elementId: string; process: string; status: string; source: string; tier: string }[];
+    };
+    expect(page.items.map((p) => [p.elementId, p.process])).toEqual([
+      ['step-mahnwesen', 'finanzen/mahnwesen#Process_Mahnwesen'],
+      ['step-rechnungsstellung', 'finanzen/rechnungsstellung#Process_Rechnungsstellung'],
+      ['step-wareneingang', 'lager/wareneingang#Process_Wareneingang'],
+      ['step-zahlungseingang', 'finanzen/zahlungseingang#Process_Zahlungseingang'],
+    ]);
+    for (const p of page.items) {
+      expect(p).toMatchObject({ status: 'proposed', source: 'rule', tier: 'key' });
+    }
   });
 });
 
@@ -374,5 +416,16 @@ describe('proa value-chain', () => {
     ]);
     expect(stale.code).toBe(1);
     expect(stale.err).toContain('the value chain is at r2; pull first');
+  });
+
+  it('seed --value-chains leaves the edited chain unchanged', async () => {
+    const r = await proa(['seed', 'nordwind-handel', '--value-chains']);
+    expect(r.err).toBe('');
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(
+      '  value chain: exists r2, differs from the golden chain: left unchanged\n',
+    );
+    const pulled = await proa(['value-chain', 'pull', '-p', 'nordwind-handel']);
+    expect(pulled.err).toMatch(/^r2 /);
   });
 });

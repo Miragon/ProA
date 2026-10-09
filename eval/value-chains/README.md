@@ -299,15 +299,29 @@ package the way the server will store them
   rules above; outdated copies point to the single current version, lie outside
   and tolerate its step; rationale is one line of at most 300 characters.
 
-`eval:placements` (M4 S4) will run the validator as part of its gate.
+`eval:placements` (M4 S4) runs the validator for each landscape as its first gate (exit 0
+required, only the summary lines kept; an exit 2 makes it exit 2).
 
 ## Use in M4 (`eval:placements`)
 
-M4 embeds the value-chain modeler and stores placements. The eval loads
-`value-chain.vc.json` into a project seeded with the landscape (`pnpm seed`),
-lets an agent propose placements over MCP (the same pipeline and provenance as
-relations: agents propose, humans decide), and scores the proposals per process
-against `expected-placements.yaml`:
+M4 embeds the value-chain modeler and stores placements. `pnpm eval:placements`
+(M4 S4, [eval/README.md](../README.md), report `eval/reports/placements.{md,json}`)
+scores, per landscape and without an LLM:
+
+- **the gates:** the validator passes; the placements name exactly the landscape's
+  `process` facts; every key-tier rule proposal the server would derive from
+  `value-chain.vc.json` (equal names; the files carry no links) is the process's must or a
+  may (`nordwind-handel`: 4 proposals, all must);
+- **`baseline-prefix/1`**, the floor agents must beat: top-1 and top-3, with votes from the
+  must_link neighbours' golden steps (leave-one-out) and without (a fresh project's hints).
+
+Agent proposals follow with M4b: an agent works a project seeded with the landscape and
+its chain (`proa seed --value-chains`) over MCP (the same pipeline and provenance as
+relations: agents propose, humans decide), and `eval:replay` scores the recorded proposals
+per process against `expected-placements.yaml` with the same scorer. **Seeding** reads only
+`value-chain.vc.json` (steps without links, the document an agent reads over MCP anyway); the
+Docker image ships the chain files and nothing else of this directory, so neither the
+expected placements, this README nor the validator are in a container an agent might reach.
 
 | Proposal | Counts as |
 |---|---|
@@ -320,7 +334,11 @@ against `expected-placements.yaml`:
 
 Reported like `eval:candidates`: precision, recall and F1 overall, per tag and
 per landscape, separately at level 0 (the top-level area of the proposed step)
-and at the leaf, the trap hit rate, and the steps that attracted wrong proposals.
+and at the leaf, the trap hit rate, and the steps that attracted wrong proposals
+(per-item lists for the dev landscape only; the holdout's sections show
+aggregate numbers, none over fewer than 5 processes). At level 0, the trap rate
+runs over the processes with a top-level must_not, since a trap on a sub-step
+does not cover its area.
 A `may` that a reviewer keeps rejecting, or a `must` that agents consistently
 dispute with a good argument, is a change to these files with a rationale, not
 a scoring exception.

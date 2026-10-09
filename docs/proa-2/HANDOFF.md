@@ -38,11 +38,15 @@ and code are in English.
   `baseline-prefix/1` in `@proa/relations`), and **M4 S3** (2026-10-09: the value chain page in
   the web UI: viewer and modeler in a lazy chunk, collision-free ids, overlays, placement review
   in the side panel, save with dry run, conflict and drafts, link editing, drill-down; the bundle
-  guard, the import harness and the CSS check in Playwright).
+  guard, the import harness and the CSS check in Playwright), and **M4 S4** (2026-10-09:
+  `eval:placements` with its committed report, `proa seed --value-chains`, German texts for the
+  rule tier; with it **M4a is done**, the CI confirmation of `eval:placements` follows the next
+  push).
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
-  runs per landscape incl. the holdout), then the rest of **M4** (value chain /
-  Wertschöpfungskette, slices S4–S6, on `@miragon/value-chain-*` 0.3.0; the owner accepted the
-  defaults of M4 §11); S4 (`eval:placements`, `proa seed --value-chains`) is next.
+  runs per landscape incl. the holdout), then **M4b** (value chain / Wertschöpfungskette, slices
+  S5–S6: the `placement` pipeline kind, the `proa-placements` procedure, drafts, recordings
+  scored by `eval:replay`; on `@miragon/value-chain-*` 0.3.0; the owner accepted the defaults of
+  M4 §11). Owner actions from S4: the holdout import check, a review of the German server texts.
 
 ## 2. Read in this order
 
@@ -145,11 +149,11 @@ This answers the former open questions "Supersession scope" and "No-links in rev
 | `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
 | `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
 | `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1/S2 the value chain and placements (`src/domain/value-chain/`: storage, lifecycle, `prepareRevision`, rule proposals, findings; REST under `/value-chains`, six MCP tools; the web page since S3) |
-| `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name] / token create\|list\|revoke / value-chain push\|pull / mcp` (stdio bridge) |
+| `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name --value-chains] / token create\|list\|revoke / value-chain push\|pull / mcp` (stdio bridge) |
 | `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen; since M4 S3 the value chain page (`/projects/{key}/value-chain`: renderer viewer/modeler in a lazy chunk, placement review, save with dry run and conflict, drafts, link editing) and the step view |
 | `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP |
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
-| `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate |
+| `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate, `eval:placements` (M4 S4: the golden value chains, the rule tier and `baseline-prefix/1`) |
 | `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.2.0`; the owner's live runs go here too) and generated reports incl. the live gate, pairs judged twice and uncovered pairs |
 | `eval/value-chains` | golden value chains + expected placements for both landscapes (M4); `validate-value-chains.mjs` checks them with `@miragon/value-chain-schema-model` 0.3.0 from npm (pinned in `eval/tools`) and its built-in cross-check, run by `pnpm test` |
 | `docker/` | `compose.yaml` (project `proa2`: PostgreSQL 17 on 127.0.0.1:55432, ProA on 127.0.0.1:7400) and `Dockerfile` |
@@ -180,9 +184,10 @@ pairs twice). Three LLM dev runs of `0.2.0` (Sonnet 5.5, concurrent claims) kept
 ```sh
 pnpm install
 pnpm format:check && pnpm -r typecheck && pnpm -r lint && pnpm -r test   # server tests use Testcontainers (Docker)
-pnpm eval:candidates && pnpm eval:replay
+pnpm eval:candidates && pnpm eval:replay && pnpm eval:placements
 docker compose -p proa2 -f docker/compose.yaml up -d --build --wait     # ProA on http://127.0.0.1:7400
 docker compose -p proa2 -f docker/compose.yaml exec proa proa seed      # loads both landscapes
+docker compose -p proa2 -f docker/compose.yaml exec proa proa seed --value-chains   # and their golden value chains
 docker compose -p proa2 -f docker/compose.yaml exec proa proa status
 PROA_TOKEN=… pnpm eval:live --project <run project> --landscape nordwind-handel   # after a live run
 ```
@@ -225,9 +230,9 @@ tooling are done (`M3-RELATIONS-PROCEDURE.md`). What remains needs the owner's C
    expired, candidate-cap drift; DEVELOPMENT.md "Judge each pair once"): revisit it if the live runs'
    "judged twice" or `uncovered` numbers are not near 0.
 
-### M4 – value chain (after M3)
+### M4 – value chain (M4a done; M4b after M3)
 
-Follow `docs/proa-2/M4-VALUE-CHAIN.md` (slices S0–S6, ~4 weeks). **S0 is done** (2026-10-08,
+Follow `docs/proa-2/M4-VALUE-CHAIN.md` (slices S0–S6, ~4 weeks; S0–S4 done). **S0 is done** (2026-10-08,
 §9 "S0 as delivered"): schema-model 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, the
 renderer 0.3.0 in `apps/web`, exact and without overrides (the published packages pin the
 diagram-js, diagram-js-direct-editing and zod versions ProA already uses; only a type-only `didi`
@@ -309,13 +314,59 @@ run it with `PROA_E2E_VC_EXTRA=<path>`, counts only); the confirm rule also coun
 proposals; the renderer's copy-paste copies nothing in 0.3.0 (no `element.copy` rule), and its
 palette and context pad are English (new upstream asks in M4 §12).
 
-**Next: S4** (M4 §9 "S4 checklist"): `eval:placements` (reports `baseline-prefix/1`) and
-`proa seed --value-chains`, then M4b. After a bump of the renderer, schema-model or zod: rerun the
-bundle guard, the import harness and the CSS check (Playwright is not in CI). The owner
-accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason, one
-home step per process (a second only by a reviewer's decision), a step rename sends accepted
-placements to re-confirm, org units as owners of top-level steps (not agent evidence), one chain
-per project, kinds by colour until upstream has a category.
+**S4 is done** (2026-10-09, M4 §9 "S4 as delivered"; with it **M4a is done**, see M4 §9 "M4a
+done criteria status"): `pnpm eval:placements` (`eval/tools/src/placements*.ts`, report
+`eval/reports/placements.{md,json}`, a CI step with the drift check) gates each scored landscape
+on the validator, on the golden placements naming exactly the process facts and on every
+key-tier rule proposal of the golden chain being a must or may, and scores the rule tier and
+`baseline-prefix/1` with and without votes (dev: 4 rule proposals, all hits; baseline recall@1
+43.8 %, precision@1 53.8 %, recall@3 65.6 %, area recall@1 59.4 %; without votes 46.9 %,
+57.7 %, 62.5 %, 56.3 %; the holdout passes, as aggregate numbers only, none over fewer than 5
+processes). The rule derivation moved into
+`@proa/relations` (`derivePlacementRules`), so the gate checks what the server runs. `proa seed
+--value-chains` creates each golden chain after the import (created, revived, unchanged, or
+differs and left unchanged); the image ships the chain files only, guarded in CI. The rule
+tier's texts are German (placement rationale and withdrawal, value chain finding details, chain
+withdrawal reasons, the relation rule tier's finding details), so the agent-sim recordings were
+re-recorded (only `input.bytes` changed). A new MCP integration case closes the M4a criterion
+"proposed ad hoc over MCP … survive re-ingest and a layout-only re-save". Taken by the
+implementing agent (M4 §9 lists all deviations): the ProA rules check of the golden chains is a
+server unit test (`value-chain-golden.test.ts`), not part of eval:placements, because eval/tools
+must not import from an app; no numeric baseline gate (the committed report pins the numbers);
+the report and console show numbers only for the holdout, unlike `candidates.md` and
+`replay.md`; neighbours for the votes are the `must_link` relations of `expected.yaml`, known
+steps the golden musts (leave-one-out), plus a row without votes; the image ships
+`eval/value-chains/*/value-chain.vc.json` (no ground truth: the document an agent reads over MCP)
+so the container quickstart and M4b live runs can seed; seed never overwrites an edited chain
+and revives a deleted one (it says so); the German finding details land before the M3 live runs
+without a procedure version bump (the claim format and the skill are unchanged).
+
+**Follow-ups and owner actions from S4:**
+- Run the holdout import check once (counts only):
+  `PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm --filter @proa/web e2e value-chain-import`.
+- Review the German server texts (M4 §9 "S4 as delivered"). Still English: the pipeline and token
+  reasons ("superseded by submission …", "superseded by a newer analysis task …", "agent token …
+  revoked"), API error messages, MCP tool descriptions and CLI output; translate them in one
+  slice if wanted. A database from before S4 keeps English relation finding details until the
+  next ingest or deletion. Undecided rule placement proposals are re-asserted in German at the
+  next chain save that stores a revision or at the next model change; rule proposals a human
+  already accepted, rejected or held keep their English rationale in the history until a step or
+  process fingerprint changes (no migration; add a one-off rewrite if the owner wants a full
+  switch).
+- The M3 live runs (above); seed their projects with `--value-chains` only when the run also
+  covers placements (M4b).
+- Confirm "`eval:placements` is green in CI" on the next push.
+
+**Next: M4b, S5** (M4 §9 "S5 checklist"): the task subject migration, the `placement` kind, the
+`proa-placements` procedure and prompts, recordings scored with `scorePlacementProposals`
+(`eval/tools/src/placements-score.ts`; check each recording's chain hash against
+`golden.contentHash`, pick the baseline row of the live gate: recommended with votes), placement
+sections of `replay.md` with the holdout as numbers only. After a bump of the renderer,
+schema-model or zod: rerun the bundle guard, the import harness and the CSS check (Playwright is
+not in CI). The owner accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside`
+with the reason, one home step per process (a second only by a reviewer's decision), a step
+rename sends accepted placements to re-confirm, org units as owners of top-level steps (not agent
+evidence), one chain per project, kinds by colour until upstream has a category.
 
 ### Later (R1 and beyond)
 
@@ -366,7 +417,12 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
   start outside the checkout with MCP tools only (Claude Code `--tools ""`; Codex keeps its shell
   and its sandbox allows reads, so a working directory alone does not isolate it: on the holdout
   it runs only in an environment without read access to the checkout); the Docker image ships
-  none of these files (`docker/Dockerfile.dockerignore`).
+  none of these files (`docker/Dockerfile.dockerignore`) except, since M4 S4, the golden chain
+  files `eval/value-chains/*/value-chain.vc.json` for `proa seed --value-chains`: steps without
+  links, the document an agent reads over MCP in a seeded project anyway; the expected
+  placements stay out (CI checks it). The placement report `eval/reports/placements.*` shows
+  the holdout as aggregate numbers only, none over fewer than 5 processes (no rule tier split,
+  no per-tag numbers of small tags).
 - **Procedure releases are immutable:** recordings are keyed by `<id>@<version>`, and Git-hosted
   plugin installs stay at their version. A change to `relations.md`, to the wrapper
   (`packages/procedures/src/wrappers.ts`) or to the skill frontmatter needs a new version: bump it,

@@ -21,12 +21,14 @@ eval/
     src/live.ts              eval:live: records a live run from a ProA project, scores it, checks the live gate
     src/live-recordings.ts   eval:live's REST reader and the mapping to recording lines
     src/live-gate.ts         the live gate (eval:live enforces it, eval:replay reports it)
+    src/placements*.ts       eval:placements (M4): the golden value chains against the process facts, the rule tier and baseline-prefix/1
     lib/  test/
   recordings/
     <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl   agent runs: simulation agent and live runs (below)
   reports/
     candidates.md, .json     last eval:candidates report (generated, deterministic)
     replay.md, .json         last eval:replay report (generated, deterministic)
+    placements.md, .json     last eval:placements report (generated, deterministic; the holdout as numbers only)
   corpus/
     <landscape>/
       landscape.yaml         metadata (below)
@@ -34,6 +36,8 @@ eval/
       spec/<model-key>.yaml  source specs (edit these)
       models/<model-key>.bpmn  generated, never edited by hand
       expected.yaml          ground truth (below)
+  value-chains/              golden value chains and expected placements (M4, value-chains/README.md)
+    <landscape>/value-chain.vc.json, expected-placements.yaml
 ```
 
 `_sample` is a three-model landscape that doubles as the toolchain's
@@ -70,6 +74,22 @@ recall within the key and lexical candidates and the same numbers for the baseli
 per relation type and per tag. Holdout landscapes are scored but never tuned against;
 a miss that only the holdout shows is documented, not special-cased.
 
+`pnpm eval:placements` (M4 §6) is the LLM-free gate of the value chains in
+[`value-chains/`](value-chains/README.md): per scored landscape it runs
+`validate-value-chains.mjs <landscape>` (exit 0 required; only its summary lines are kept, an
+exit 2 makes eval:placements exit 2), requires the golden placements to name exactly the
+landscape's `process` facts, and requires every key-tier rule proposal derived from the golden
+chain (`derivePlacementRules` in `@proa/relations`, as the server derives it) to be the
+process's `must` or a `may`. It scores those rule proposals and `baseline-prefix/1` (top-1 and
+top-3, with votes from the must_link neighbours' golden steps, leave-one-out, and without votes)
+as hit, may, coarse, trap, wrong or none, with precision, recall@1/@3, level 0, the trap rate
+(at level 0 over the processes with a top-level `must_not`) and per tag, and writes
+`reports/placements.{md,json}` (the holdout as numbers only, see holdout hygiene below);
+`--out <dir>`, `--no-write` and landscape names as for eval:candidates. Exit 1 when a gate fails or golden data cannot be read, 2 on a
+usage error. The baselines are a floor, not a gate; CI requires the committed report to match a
+fresh run. The ProA rules check of the golden chains runs in `pnpm test`
+(`apps/server/test/unit/value-chain-golden.test.ts`).
+
 `generate` owns `models/`: it rewrites changed models and removes `.bpmn` files
 without a spec. Output is byte-stable, so a diff in `models/` always means the
 spec changed.
@@ -96,7 +116,11 @@ traps live between files.
 `pnpm seed` from the repository root (the `proa seed` CLI; `proa seed` in the
 container) creates one project per scored landscape, named after
 `landscape.yaml`, and imports its `models/` through the REST API;
-`pnpm seed _sample` loads the sample into project `sample`. `--issue-tokens`
+`pnpm seed _sample` loads the sample into project `sample`. `--value-chains` also creates
+each landscape's golden value chain from `value-chains/<landscape>/value-chain.vc.json`
+(only that file is read, never `expected-placements.yaml`; the Docker image ships the chain
+files only), without placements; an existing chain is left unchanged (`differs` when it was
+edited). `--issue-tokens`
 also creates a read+propose agent token per project, named `seed` or
 `--token-name <name>`. `--project <key>` seeds exactly one landscape into a
 project of that key, named "<landscape name> (<key>)": the fresh project of a
@@ -299,6 +323,20 @@ and a miss only the holdout shows is documented, not special-cased.
   the console. `reports/replay.md` and `replay.json` do list pairs per recording
   (must_not_link hits, unlisted proposals, missed must_link pairs); whoever
   works on the procedure does not open their holdout sections.
+  `reports/placements.md` and `placements.json` show the holdout as
+  aggregate numbers only, none over fewer than 5 processes: no per-item
+  lists, the rule tier as its gate and proposal count only (its proposals
+  follow from the public chain file and model names, so a class split would
+  name their classes), and per-tag numbers only for tags with at least 5
+  processes (`HOLDOUT_MIN_GROUP`). eval:placements prints gates and
+  whole-landscape numbers only. Whoever works on a procedure may open both
+  files; they still carry the holdout's whole-landscape numbers, so tune
+  nothing against them.
+- **Recordings and server texts.** Since M4 S4 the rule tier's finding details
+  are German; the claim input carries them, so the committed agent-sim
+  recordings were re-recorded (only `input.bytes` changed, checked by a
+  count-only comparison, the holdout file included; `reports/replay.*`
+  unchanged).
 
 ## Engines
 

@@ -18,6 +18,7 @@
     "eval:candidates": "pnpm --filter @proa/eval-tools candidates",
     "eval:replay": "pnpm --filter @proa/eval-tools replay",
     "eval:live": "pnpm --filter @proa/eval-tools live",
+    "eval:placements": "pnpm --filter @proa/eval-tools placements",
     "dev": "pnpm --parallel --filter @proa/server --filter @proa/web dev",
     "docker:up": "docker compose -p proa2 -f docker/compose.yaml up -d --build --wait",
     "db:up": "docker compose -p proa2 -f docker/compose.yaml up -d --wait db",

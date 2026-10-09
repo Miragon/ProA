@@ -166,7 +166,7 @@ async function appendRevision(
     chain.id,
     endpoints,
     plan.removed,
-    `step removed in revision ${rev}`,
+    `Schritt in Revision ${rev} entfernt`,
   );
   await options.beforeRefresh?.(stored);
   await refreshPlacements(tx, projectId, chain.id, endpoints, {
@@ -311,7 +311,7 @@ export async function deleteValueChain(
     chain.id,
     endpoints,
     plan.removed,
-    'value chain deleted',
+    'Wertschöpfungskette gelöscht',
   );
   await refreshPlacements(tx, projectId, chain.id, endpoints, {
     principalId: actor.principalId,

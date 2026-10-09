@@ -12,6 +12,7 @@ import {
   type ProcessEntry,
 } from './endpoints.ts';
 import { compareStrings, compareTriples, round4 } from './order.ts';
+import { quoteDe } from './text.ts';
 
 /** Output of {@link runRules}. */
 export interface RuleResult {
@@ -72,7 +73,7 @@ function callRules(index: LandscapeIndex, relations: DerivedRelation[], findings
       findings.push({
         kind: 'dynamic-call',
         refs: [call.ref],
-        detail: `calledElement ${JSON.stringify(target)} is an expression; the target is decided at runtime.`,
+        detail: `calledElement ${quoteDe(target)} ist ein Ausdruck; das Ziel steht erst zur Laufzeit fest.`,
       });
       continue;
     }
@@ -80,7 +81,7 @@ function callRules(index: LandscapeIndex, relations: DerivedRelation[], findings
       findings.push({
         kind: 'unresolved-call',
         refs: [call.ref],
-        detail: 'The call activity has no calledElement.',
+        detail: 'Die Aufrufaktivität hat kein calledElement.',
       });
       continue;
     }
@@ -90,7 +91,7 @@ function callRules(index: LandscapeIndex, relations: DerivedRelation[], findings
       findings.push({
         kind: 'unresolved-call',
         refs: [call.ref],
-        detail: `calledElement ${JSON.stringify(target)} matches no process id in the project.`,
+        detail: `calledElement ${quoteDe(target)} passt zu keiner Prozess-ID im Projekt.`,
       });
       for (const { process, match } of indirectCallTargets(index, target, call.process)) {
         relations.push({
@@ -142,7 +143,7 @@ function callRules(index: LandscapeIndex, relations: DerivedRelation[], findings
     findings.push({
       kind: 'duplicate-process-id',
       refs: entries.map((e) => e.ref).sort(compareStrings),
-      detail: `Process id ${JSON.stringify(processId)} is defined in ${models.size} models; calls to it are ambiguous.`,
+      detail: `Die Prozess-ID ${quoteDe(processId)} ist in ${models.size} Modellen definiert; Aufrufe darauf sind mehrdeutig.`,
     });
   }
 }
@@ -186,11 +187,19 @@ export function keyPairs(
   return pairs;
 }
 
+/**
+ * The message or signal of a finding, in German, as the subject of its
+ * sentence: `Nachricht „X“`, `Signal mit dem Namensausdruck „E“`, `Eine
+ * Nachricht ohne Nachrichtennamen`. Names stay verbatim ({@link quoteDe}).
+ */
 function describeKey(e: Endpoint, type: 'message' | 'signal'): string {
-  if (e.name !== null) return `${type} ${JSON.stringify(e.name)}`;
+  const noun = type === 'message' ? 'Nachricht' : 'Signal';
+  if (e.name !== null) return `${noun} ${quoteDe(e.name)}`;
   if (e.fact.attrs.dynamic === true)
-    return `${type} name ${JSON.stringify(e.fact.keyRaw)} (an expression)`;
-  return `a ${type} without a ${type} name`;
+    return `${noun} mit dem Namensausdruck ${quoteDe(e.fact.keyRaw)}`;
+  return type === 'message'
+    ? 'Eine Nachricht ohne Nachrichtennamen'
+    : 'Ein Signal ohne Signalnamen';
 }
 
 function eventRules(
@@ -227,7 +236,7 @@ function eventRules(
       findings.push({
         kind: 'dangling-throw',
         refs: [t.ref],
-        detail: `Thrown ${describeKey(t, type)} is caught by no other process and reaches no participant by message flow.`,
+        detail: `${describeKey(t, type)} wird geworfen, aber von keinem anderen Prozess gefangen und erreicht per Nachrichtenfluss keinen Teilnehmer.`,
       });
     }
     for (const c of index.endpoints[type].to) {
@@ -236,7 +245,7 @@ function eventRules(
       findings.push({
         kind: 'unmatched-catch',
         refs: [c.ref],
-        detail: `Caught ${describeKey(c, type)} is thrown by no other process and comes from no participant by message flow.`,
+        detail: `${describeKey(c, type)} wird gefangen, aber von keinem anderen Prozess geworfen und kommt per Nachrichtenfluss von keinem Teilnehmer.`,
       });
     }
   }

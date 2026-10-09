@@ -83,7 +83,7 @@ export function parseRevision(value: string, option: string): number {
 }
 
 /** Reads and parses the document (≤ 2 MiB, JSON) before any request. */
-async function readDocument(io: CliIo, file: string): Promise<unknown> {
+export async function readDocument(io: CliIo, file: string): Promise<unknown> {
   const resolved = path.resolve(io.cwd, file);
   const info = await stat(resolved).catch(() => null);
   if (!info?.isFile()) throw new CliError(`${file} is not a file`);
@@ -155,7 +155,7 @@ function violationLine(v: ValueChainViolation): string {
 }
 
 /** Turns the save problems into messages: 412 (pull first), 422 (the violations). */
-function explain(err: unknown, opts: ValueChainOptions): never {
+export function explain(err: unknown, opts: ValueChainOptions): never {
   if (!(err instanceof ApiError)) throw err;
   const problem = (err.problem ?? {}) as Record<string, unknown>;
   if (err.status === 412 && problem['code'] === 'revision-conflict') {
@@ -185,7 +185,7 @@ function explain(err: unknown, opts: ValueChainOptions): never {
 }
 
 /** The head revision of the chain, or `null` if the project has no (live) chain. */
-async function headRev(api: Api, project: string, key: string): Promise<number | null> {
+export async function headRev(api: Api, project: string, key: string): Promise<number | null> {
   try {
     const { response } = await callWithResponse(
       api,

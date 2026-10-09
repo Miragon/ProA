@@ -1,5 +1,6 @@
-// Loads a scored landscape and runs the deterministic pipeline on it:
-// facts (@proa/bpmn-facts), rules, candidates and baseline-proa1 (@proa/relations).
+// Loads a scored landscape (loadLandscape: metadata, expected.yaml, models,
+// facts from @proa/bpmn-facts) and runs the deterministic pipeline on it
+// (runLandscape): rules, candidates and baseline-proa1 (@proa/relations).
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -103,12 +104,29 @@ export async function proa1Events(model: CorpusModel, engine: 'c7' | 'c8'): Prom
   return events;
 }
 
-/** Loads `landscape.yaml`, `expected.yaml` and the models, and runs rules, candidates and the baseline. */
-export async function runLandscape(dir: string): Promise<LandscapeRun> {
+/** A corpus model with the engine its facts were extracted for. */
+export interface LoadedModel extends CorpusModel {
+  engine: 'c7' | 'c8' | null;
+}
+
+/** A landscape as loaded from the corpus: metadata, ground truth, facts and models. */
+export interface LoadedLandscape {
+  meta: LandscapeMeta;
+  expected: Expected;
+  facts: ProjectFacts;
+  models: LoadedModel[];
+}
+
+/**
+ * Loads `landscape.yaml`, `expected.yaml` and the models, and extracts the
+ * facts (@proa/bpmn-facts; an extraction warning is an error). Shared by
+ * eval:candidates, eval:replay and eval:placements.
+ */
+export async function loadLandscape(dir: string): Promise<LoadedLandscape> {
   const meta = LandscapeMeta.parse(await readYamlFile(path.join(dir, 'landscape.yaml')));
   const expected = Expected.parse(await readYamlFile(path.join(dir, 'expected.yaml')));
-  const models = await loadModels(dir);
-  const extracted = await Promise.all(models.map((m) => extractFacts(m.xml, { modelKey: m.key })));
+  const corpusModels = await loadModels(dir);
+  const extracted = await Promise.all(corpusModels.map((m) => extractFacts(m.xml, { modelKey: m.key })));
   for (const r of extracted) {
     if (r.warnings.length > 0) {
       throw new Error(`${meta.name}/${r.modelKey}: extraction warnings: ${r.warnings.map((w) => w.message).join('; ')}`);
@@ -123,9 +141,14 @@ export async function runLandscape(dir: string): Promise<LandscapeRun> {
       messageFlows: r.messageFlows,
     })),
   };
-  const extraEvents = (
-    await Promise.all(models.map((m, i) => proa1Events(m, extracted[i]?.engine ?? 'c7')))
-  ).flat();
+  const models = corpusModels.map((m, i) => ({ ...m, engine: extracted[i]?.engine ?? null }));
+  return { meta, expected, facts, models };
+}
+
+/** Loads a landscape ({@link loadLandscape}) and runs rules, candidates and the baseline. */
+export async function runLandscape(dir: string): Promise<LandscapeRun> {
+  const { meta, expected, facts, models } = await loadLandscape(dir);
+  const extraEvents = (await Promise.all(models.map((m) => proa1Events(m, m.engine ?? 'c7')))).flat();
   return {
     meta,
     expected,

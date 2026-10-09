@@ -2,7 +2,7 @@
   "name": "@proa/eval-tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Spec format, BPMN generator and validator for the ProA eval corpus; eval:candidates, eval:replay and eval:live",
+  "description": "Spec format, BPMN generator and validator for the ProA eval corpus; eval:candidates, eval:replay, eval:live and eval:placements",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -25,7 +25,8 @@
     "typecheck": "tsc",
     "candidates": "node src/candidates.ts",
     "replay": "node src/replay.ts",
-    "live": "node src/live.ts"
+    "live": "node src/live.ts",
+    "placements": "node src/placements.ts"
   },
   "dependencies": {
     "@miragon/value-chain-schema-model": "0.3.0",

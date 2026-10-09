@@ -8,16 +8,21 @@
  * is withdrawn and comes back with it; unchanged re-imports and layout-only
  * re-saves (model and chain) move nothing; the relations and findings stay
  * exactly those of `eval:candidates`. Every rule proposal of the golden chain
- * is the process's `must` or one of its `may` steps. The holdout is never read.
+ * is the process's `must` or one of its `may` steps. A placement proposed ad
+ * hoc over MCP by an agent token and accepted over REST survives an unchanged
+ * re-import and a layout-only re-save (the M4a done criterion, S4). The
+ * holdout is never read.
  */
 import { readFile } from 'node:fs/promises';
 
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type {
   Finding,
   FindingList,
   ImportResult,
   Placement,
   PlacementPage,
+  PlacementAssertionList,
   PostPlacementsResult,
   Project,
   PutModelResult,
@@ -34,18 +39,22 @@ import { createStore } from '../../src/db/store.ts';
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { corpusFiles, importAll, libraryView, type CorpusFile } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
+import { listen } from '../support/http.ts';
 import { NORDWIND_CHAIN, NORDWIND_PLACEMENTS, chainPath } from '../support/value-chain.ts';
 
 const P = 'vc-ingest';
 const GUTSCHRIFT = 'finanzen/gutschrift#Process_Gutschrift' as Ref;
 const SHIPPING = 'logistik/shipping#Process_Shipping' as Ref;
 const WARENEINGANG = 'lager/wareneingang#Process_Wareneingang' as Ref;
+const ORDER_HANDLING = 'vertrieb/order-handling#Process_OrderHandling' as Ref;
 
 let database: TestDatabase;
 let t: TestApp;
 let project: Project;
 let files: CorpusFile[];
 let rev = 0;
+let server: { url: string; close: () => Promise<void> } | undefined;
+const clients: Client[] = [];
 
 const store = () => createStore(database.db);
 const events = (after = 0) =>
@@ -132,8 +141,31 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  for (const c of clients) await c.close().catch(() => {});
+  await server?.close();
   await database.drop();
 });
+
+/** The head revision from `GET …/content` (`ETag: "r<rev>"`). */
+async function headRev(): Promise<number> {
+  const res = await t.asOwner(chainPath(P, '/content'));
+  expect(res.status).toBe(200);
+  await res.arrayBuffer();
+  return Number(/^"r(\d+)"$/.exec(res.headers.get('etag') ?? '')?.[1] ?? 0);
+}
+
+/** The golden chain with every shape and waypoint moved right by `dx` (a layout-only change). */
+async function shiftedGolden(dx: number): Promise<Record<string, unknown>> {
+  const shifted = await golden();
+  const move = (p: { x: number }) => {
+    p.x += dx;
+  };
+  for (const e of shifted['elements'] as { bounds: { x: number } }[]) move(e.bounds);
+  for (const c of shifted['connections'] as { waypoints: { x: number }[] }[]) {
+    c.waypoints.forEach(move);
+  }
+  return shifted;
+}
 
 describe('the golden dev chain on the dev landscape', () => {
   it('gets the rule tier’s key proposals for equal names, each a must or may step', async () => {
@@ -299,14 +331,7 @@ describe('no-ops', () => {
 
   it('a layout-only chain revision moves no placement', async () => {
     const before = await placements();
-    const shifted = await golden();
-    const move = (p: { x: number }) => {
-      p.x += 20;
-    };
-    for (const e of shifted['elements'] as { bounds: { x: number } }[]) move(e.bounds);
-    for (const c of shifted['connections'] as { waypoints: { x: number }[] }[]) {
-      c.waypoints.forEach(move);
-    }
+    const shifted = await shiftedGolden(20);
     const seq = await lastSeq();
     const saved = await json<SaveValueChainResult>(
       await t.asOwner(chainPath(P, '/content'), {
@@ -329,5 +354,89 @@ describe('the relation side', () => {
     );
     const { items } = await json<FindingList>(await t.asOwner(`/api/v1/projects/${P}/findings`));
     expect(items).toEqual(rules.findings satisfies Finding[]);
+  });
+});
+
+describe('M4a: a placement proposed ad hoc over MCP', () => {
+  it('is accepted over REST and survives an unchanged re-import and a layout-only re-save', async () => {
+    const { secret } = await t.createToken(P, ['proa:read', 'proa:propose']);
+    server = await listen(t.app.fetch);
+    const client = new Client({ name: 'vc-ingest-agent', version: '0' });
+    clients.push(client);
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`${server.url}/mcp`), {
+        requestInit: { headers: { authorization: `Bearer ${secret}` } },
+      }),
+    );
+    await client.listTools();
+    const proposed = await client.callTool({
+      name: 'propose_placement',
+      arguments: {
+        projectId: P,
+        procedure: { id: 'proa-placements', version: '0.1.0' },
+        llmModel: 'vc-ingest-test',
+        placements: [
+          {
+            step: 'step-auftragsabwicklung',
+            process: ORDER_HANDLING,
+            confidence: 0.85,
+            rationale: 'Der Order-to-Cash-Hub wickelt Kundenaufträge ab.',
+            evidence: [ORDER_HANDLING, 'step:step-auftragsabwicklung'],
+          },
+        ],
+      },
+    });
+    expect(proposed.isError, JSON.stringify(proposed.content)).not.toBe(true);
+    const [item] = (
+      proposed.structuredContent as { items: { result: string; placementId: string }[] }
+    ).items;
+    expect(item?.result).toBe('applied');
+    const id = item?.placementId ?? '';
+    expect(await on('step-auftragsabwicklung', ORDER_HANDLING)).toMatchObject({
+      id,
+      status: 'proposed',
+      tier: 'lexical',
+      source: 'agent',
+    });
+
+    await json(
+      await t.asOwner(chainPath(P, `/placements/${id}/decision`), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ verdict: 'accept' }),
+      }),
+    );
+    const accepted = await on('step-auftragsabwicklung', ORDER_HANDLING);
+    expect(accepted).toMatchObject({ id, status: 'accepted', endpointState: 'ok' });
+
+    // An unchanged re-import writes nothing.
+    const seq = await lastSeq();
+    const outcomes = await importAll((path, init) => t.asOwner(path, init), P, files);
+    expect(outcomes.every((o) => o.outcome === 'unchanged')).toBe(true);
+    expect(await lastSeq()).toBe(seq);
+
+    // A layout-only re-save stores a revision and moves no placement.
+    const head = await headRev();
+    const saved = await json<SaveValueChainResult>(
+      await t.asOwner(chainPath(P, '/content'), {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'if-match': `"r${head}"` },
+        body: JSON.stringify(await shiftedGolden(40)),
+      }),
+    );
+    expect(saved).toMatchObject({
+      outcome: 'revised',
+      valueChain: { headRev: head + 1 },
+      impact: { structureChanged: false },
+    });
+    expect((await events(seq)).map((e) => e.type)).toEqual(['value_chain.revised']);
+    expect(await on('step-auftragsabwicklung', ORDER_HANDLING)).toEqual(accepted);
+    const { items: history } = await json<PlacementAssertionList>(
+      await t.asOwner(chainPath(P, `/placements/${id}/assertions`)),
+    );
+    expect(history.map((a) => [a.kind, a.sourceKind])).toEqual([
+      ['proposal', 'agent'],
+      ['decision', 'human'],
+    ]);
   });
 });

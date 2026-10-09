@@ -56,7 +56,7 @@ describe('derivedRulePlacements', () => {
         byLink: true,
         byName: false,
         rationale:
-          "Key tier: the step's link names this process (proa:process/finanzen/mahnwesen#P_Mahn).",
+          'Schlüsselregel: der Link des Schritts nennt diesen Prozess (proa:process/finanzen/mahnwesen#P_Mahn).',
         evidence: ['finanzen/mahnwesen#P_Mahn', 'step:step-a'],
       },
       {
@@ -65,7 +65,7 @@ describe('derivedRulePlacements', () => {
         byLink: false,
         byName: true,
         rationale:
-          'Key tier: the step\'s name equals the process name (normalized: "rechnungspruefung").',
+          'Schlüsselregel: der Name des Schritts entspricht dem Prozessnamen (normalisiert: „rechnungspruefung“).',
         evidence: ['finanzen/rechnung#P_Rechnung', 'step:step-b'],
       },
     ]);
@@ -81,7 +81,7 @@ describe('derivedRulePlacements', () => {
       ['logistik/versand#P_Versand', false, true],
     ]);
     expect(derived[0]?.rationale).toBe(
-      'Key tier: the step\'s link names this process (proa:process/lager/versand#P_Versand); the step\'s name equals the process name (normalized: "versand").',
+      'Schlüsselregel: der Link des Schritts nennt diesen Prozess (proa:process/lager/versand#P_Versand); der Name des Schritts entspricht dem Prozessnamen (normalisiert: „versand“).',
     );
   });
 

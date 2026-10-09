@@ -10,6 +10,7 @@ import {
   hasLexicalEvidence,
   levenshtein,
   normalizeLabel,
+  quoteDe,
   relativeLevenshtein,
   similarity,
   splitCamelCase,
@@ -22,6 +23,27 @@ describe('normalization', () => {
   it('normalizes labels like fact keys (transliteration, punctuation)', () => {
     expect(normalizeLabel('Antrag prüfen')).toBe(normalizeLabel('Antrag pruefen'));
     expect(normalizeLabel('Order received.')).toBe('order received');
+  });
+
+  it('quotes names for German texts in „…“, verbatim except what would hide or close the quote', () => {
+    expect(quoteDe('Mahnwesen')).toBe('„Mahnwesen“');
+    expect(quoteDe('')).toBe('„“');
+    // Straight quotes and backslashes stay as they are (a FEEL expression, a quoted message name).
+    expect(quoteDe('="Process_" + typ')).toBe('„="Process_" + typ“');
+    expect(quoteDe('Auftrag "Express" C:\\temp')).toBe('„Auftrag "Express" C:\\temp“');
+    expect(quoteDe('Prüfung ✓ 😀 ‚x‘ «y» ”z”')).toBe('„Prüfung ✓ 😀 ‚x‘ «y» ”z”“');
+    // Control characters, JSON-style.
+    expect(quoteDe('Zeile\nzwei\t\u0007\r\b\f')).toBe('„Zeile\\nzwei\\t\\u0007\\r\\b\\f“');
+    expect(quoteDe('a\u007fb\u0085c')).toBe('„a\\u007fb\\u0085c“');
+    // Invisible format characters, separators and lone surrogates.
+    expect(quoteDe('a\u200bb\u202ec\u2066d\ufeffe\u00adf')).toBe(
+      '„a\\u200bb\\u202ec\\u2066d\\ufeffe\\u00adf“',
+    );
+    expect(quoteDe('a\u2028b\u2029c')).toBe('„a\\u2028b\\u2029c“');
+    expect(quoteDe('x\u{e0041}y')).toBe('„x\\udb40\\udc41y“');
+    expect(quoteDe('a\ud800b\udc00')).toBe('„a\\ud800b\\udc00“');
+    // The closing quote is escaped, so the quote ends only where the name ends.
+    expect(quoteDe('Auftrag „Express“')).toBe('„Auftrag „Express\\u201c“');
   });
 
   it('splits camelCase names', () => {

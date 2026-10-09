@@ -13,8 +13,8 @@
  * proposal (`classifyPlacementProposal`), and supersession and token
  * revocation, which end agent proposals, never touch rule proposals.
  */
-import { normalizeKey } from '@proa/bpmn-facts';
 import { PROA_PROCESS_LINK_PREFIX, type PrincipalId, type Ref } from '@proa/contracts';
+import { derivePlacementRules, quoteDe } from '@proa/relations';
 
 import type { Actor } from '../actor.ts';
 import type { HeadFact, PlacementAssertionRecord, PlacementRecord, Tx } from '../ports.ts';
@@ -31,9 +31,9 @@ import type { ChainStep } from './structure.ts';
 /** Confidence of a rule proposal. */
 export const RULE_CONFIDENCE = 1;
 
-/** The rationale of a withdrawn rule proposal. */
+/** The rationale of a withdrawn rule proposal (German, like the review UI). */
 export const RULE_WITHDRAWAL =
-  "no longer derived: neither the step's link nor its name names the process";
+  'Nicht mehr abgeleitet: Weder der Link noch der Name des Schritts nennt den Prozess.';
 
 /** A placement the rule tier proposes. */
 export interface DerivedRulePlacement {
@@ -51,17 +51,31 @@ export interface DerivedRulePlacement {
 
 const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/**
+ * The German rationale of a rule proposal: the link (ref verbatim) and/or the
+ * normalized name in „…“. Stable while the fingerprints are, so a case-only
+ * rename records nothing.
+ */
 function ruleRationale(processRef: Ref, nameNorm: string, byLink: boolean, byName: boolean) {
   const parts: string[] = [];
-  if (byLink)
-    parts.push(`the step's link names this process (${PROA_PROCESS_LINK_PREFIX}${processRef})`);
-  if (byName) parts.push(`the step's name equals the process name (normalized: "${nameNorm}")`);
-  return `Key tier: ${parts.join('; ')}.`;
+  if (byLink) {
+    parts.push(
+      `der Link des Schritts nennt diesen Prozess (${PROA_PROCESS_LINK_PREFIX}${processRef})`,
+    );
+  }
+  if (byName) {
+    parts.push(
+      `der Name des Schritts entspricht dem Prozessnamen (normalisiert: ${quoteDe(nameNorm)})`,
+    );
+  }
+  return `Schlüsselregel: ${parts.join('; ')}.`;
 }
 
 /**
  * The rule tier's placements of a chain revision, in code point order of
- * step id, then process ref. Pure.
+ * step id, then process ref: `derivePlacementRules` of `@proa/relations`
+ * (the derivation `eval:placements` gates on the golden chains), plus the
+ * rationale and the evidence. Pure.
  *
  * @param steps the head's steps (`ChainStructure.steps`)
  * @param processFacts the head's `process` facts
@@ -70,38 +84,18 @@ export function derivedRulePlacements(
   steps: readonly Pick<ChainStep, 'elementId' | 'nameNorm' | 'link'>[],
   processFacts: readonly Pick<HeadFact, 'kind' | 'ref' | 'label'>[],
 ): DerivedRulePlacement[] {
-  const processes = new Set<string>();
-  const byName = new Map<string, string[]>();
-  for (const f of processFacts) {
-    if (f.kind !== 'process') continue;
-    processes.add(f.ref);
-    const norm = normalizeKey(f.label);
-    if (norm === '') continue;
-    byName.set(norm, [...(byName.get(norm) ?? []), f.ref]);
-  }
-  const out: DerivedRulePlacement[] = [];
-  for (const step of [...steps].sort((a, b) => byCodePoint(a.elementId, b.elementId))) {
-    const linked =
-      step.link?.startsWith(PROA_PROCESS_LINK_PREFIX) === true
-        ? step.link.slice(PROA_PROCESS_LINK_PREFIX.length)
-        : null;
-    const named = step.nameNorm === '' ? [] : (byName.get(step.nameNorm) ?? []);
-    const refs = new Set<string>(named);
-    if (linked !== null && processes.has(linked)) refs.add(linked);
-    for (const ref of [...refs].sort(byCodePoint)) {
-      const viaLink = ref === linked;
-      const viaName = named.includes(ref);
-      out.push({
-        elementId: step.elementId,
-        processRef: ref as Ref,
-        byLink: viaLink,
-        byName: viaName,
-        rationale: ruleRationale(ref as Ref, step.nameNorm, viaLink, viaName),
-        evidence: [ref, `step:${step.elementId}`],
-      });
-    }
-  }
-  return out;
+  const matches = derivePlacementRules(
+    steps.map((s) => ({ id: s.elementId, nameNorm: s.nameNorm, link: s.link })),
+    processFacts.filter((f) => f.kind === 'process').map((f) => ({ ref: f.ref, label: f.label })),
+  );
+  return matches.map((m) => ({
+    elementId: m.stepId,
+    processRef: m.processRef as Ref,
+    byLink: m.byLink,
+    byName: m.byName,
+    rationale: ruleRationale(m.processRef as Ref, m.nameNorm, m.byLink, m.byName),
+    evidence: [m.processRef, `step:${m.stepId}`],
+  }));
 }
 
 /** The rule tier as an actor (rule proposals are recorded under its principal, no client). */

@@ -1,6 +1,6 @@
 # ProA 2.0 – Milestone M4 "Value chain"
 
-Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3 done (2026-10-09, the chain page in the web UI), S4–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
+Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3 done (2026-10-09, the chain page in the web UI), S4 done (2026-10-09, `eval:placements`, `proa seed --value-chains`, German rule-tier texts; with it **M4a is done**, "`eval:placements` green in CI" pending the next push), S5–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
 
 M4 puts the classic process landscape map ("Prozesslandkarte") on top of the processes: one
 value chain per project (Wertschöpfungskette, ARIS value-added chain diagram), edited in the
@@ -490,26 +490,68 @@ rationale, and `superseded_by` for archived copies. `may` follows one written ru
 landscapes (the steps of callers, the steps that start a cross-domain process, overlapping
 scopes; never an ancestor of the must); the tags
 `name-match`/`semantic`, `domain-prefix`, `ambiguous` and the kind tags are derived by the
-validator. **Scoring:** the must is a hit; a may is neutral; an ancestor of the must is
-`coarse` (reported, neither hit nor error); a step in a `must_not` subtree is an error and a
-trap hit; any other step is a false positive (closed world). Recall runs over the
-`(process, must)` pairs.
+validator. Scoring: below.
 
-**`eval:placements`** (every PR, no LLM, `eval/reports/placements.{md,json}`) fails unless the
-validator passes (importing the npm schema-model at the pinned version, the built-in copy as
-cross-check; both since S0, when `eval/tools/test/value-chains.test.mjs` also put the validator
-into `pnpm test`), the golden chains pass the ProA rules, and the key-tier rule proposals computed
-from them hit only `must` or `may`. It reports precision and recall@1/@3 of
-`baseline-prefix/1` (key folders and process name tokens against step and ancestor names with
-`@proa/relations` normalization, plus votes from neighbours' steps, leave-one-out) per tag, per
-landscape, and separately at level 0 (the top-level area) and at the leaf. The holdout does not
-exercise prefix bias (README), so prefix bias is read from the dev landscape. The baselines are
-a floor, not a gate. **`eval:replay`** scores recorded placement submissions (M4b);
+**`eval:placements`** (every PR, no LLM, `pnpm eval:placements`, `eval/reports/placements.{md,json}`;
+S4) fails (exit 1) unless, per scored landscape:
+
+1. `validate-value-chains.mjs <landscape>` exits 0 (the npm schema-model at the pinned version,
+   the built-in copy as cross-check; both since S0, when `eval/tools/test/value-chains.test.mjs`
+   also put the validator into `pnpm test`). eval:placements spawns it and keeps only its summary
+   lines; an exit 2 (the check could not run) makes eval:placements exit 2.
+2. The golden placements name exactly the landscape's `process` facts (`@proa/bpmn-facts`, the
+   server's view): none missing, none extra, none listed twice.
+3. Every key-tier rule proposal computed from the golden chain is the process's `must` or one of
+   its `may` steps (no `coarse`, trap or other step). The derivation is `derivePlacementRules` in
+   `@proa/relations`, the code the server's rule tier runs.
+
+The golden chains also pass the ProA rules, but that check runs in `pnpm test`
+(`apps/server/test/unit/value-chain-golden.test.ts`: `prepareRevision` accepts both chains and
+their committed bytes are already canonical, so the file's sha256 is the `content_hash` a seeded
+project stores), not in eval:placements: `eval/tools` must not import from an app, and moving
+`prepareRevision` into a package would pull schema-model into `@proa/contracts` or
+`@proa/relations` (S4 deviation; the report header names the test).
+
+**Scoring** (`eval/tools/src/placements-score.ts`, the API S5 plugs recordings into), in this
+order: the must is `hit` (also `@outside`); a may is `may` (neutral); an ancestor of the must is
+`coarse` (neutral, reported); a step in a `must_not` subtree is `trap`; any other step, also an
+unknown process or step, is `wrong` (closed world); a process without a proposal is `none`.
+Precision = hit / (hit + trap + wrong); recall runs over all `(process, must)` pairs, `@outside`
+musts included (the baseline never proposes `@outside`, so those are its misses); recall@1 and
+@3 come from ranks; F1 from both. Level 0 lifts the same classification to the top-level areas:
+the proposal's area against the must's area (`@outside` is its own area), the may steps' areas
+and the top-level `must_not` steps (a trap on a sub-step does not cover its area). Trap rate =
+processes with a trap proposal / processes with a `must_not` (at level 0: with a top-level
+`must_not`, the only processes level 0 can trap). Everything is reported per tag and per
+landscape.
+
+**Systems:** the rule tier's key proposals and `baseline-prefix/1` (frozen v1, `@proa/relations`:
+key folders and process name tokens against step and ancestor names with the package's
+normalization, plus votes from neighbours' steps), top-1 and top-3. With votes, the neighbours
+are the `must_link` relations of `expected.yaml` mapped to their processes (both directions, the
+same process skipped), as the accepted relations of a reviewed project, and a neighbour is known
+on its golden must (`@outside` never votes; leave-one-out holds by construction, since the
+baseline never reads a process's own known steps). A second row without votes (no neighbours,
+nothing known) is what a fresh project's hints show and the fair comparison for M4b live runs.
+The baselines are a floor, not a gate: the committed report and CI's drift check pin their
+numbers. The holdout does not exercise prefix bias (README), so prefix bias is read from the dev
+landscape. **Holdout hygiene:** for a landscape of split `holdout`, the report (Markdown and
+JSON) and the console show aggregate numbers only, none over fewer than 5 processes
+(`HOLDOUT_MIN_GROUP`): no per-item lists (traps, wrong top-1, misses, the steps that attract wrong
+proposals, the rule proposals); the rule tier as its gate and proposal count only (its proposals
+follow from the public chain file and model names, so even a hit/may split of them would name
+classes of identifiable processes); per-tag numbers only for tags with at least 5 processes (a
+tag row over one process is that process's result). Whoever works on a procedure can open the
+report; `candidates.md` and `replay.md` still list holdout pairs.
+
+**`eval:replay`** scores recorded placement submissions (M4b) with the same scorer;
 recordings keep the path `<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl`, and their
 lines name a chain revision instead of a model revision (§8). **Live** (by hand before a
 procedure release, 3 runs): no `must_not` at confidence ≥ 0.8; recall at least 20 points
 above `baseline-prefix/1`; chains drafted with the prompt are rated by the owner.
-`proa seed --value-chains` loads golden chains without placements.
+`proa seed --value-chains` loads each landscape's golden chain (`value-chain.vc.json` only, never
+`expected-placements.yaml`; the Docker image ships the chain files and nothing else of
+`eval/value-chains`) without placements; the rule tier's key proposals appear as after any save.
 
 ## 7. Export, events, permissions
 
@@ -585,7 +627,7 @@ decisions, manual placements and notes.
 | S0 | **done** (2026-10-08): consume the release, see below | 1 d |
 | S2 | **done** (2026-10-09): `domain/value-chain` (canonicalize, ProA rules, kinds, ranks, fingerprints, `structure_hash`, generations); REST with `If-Match` and `dryRun`; events; policy matrix; `proa value-chain push\|pull`; endpoint state on save and model ingest/delete; key-tier rule proposals; server tiers with `baseline-prefix/1` (moved here from S4); decisions incl. bulk; read and propose MCP tools; findings; contract snapshots; see below | 4.5 d |
 | S3 | **done** (2026-10-09): UI: page, viewer/modeler, collision-free ids, save with dry run and conflict, overlays, side panel, link editing, drill-down, Playwright incl. the CSS check; from S0: the bundle guard (one `diagram-js` and one zod v4 copy in the web chunks, chain chunk budget) and the Playwright import check (zero import warnings, stored waypoints equal `layouter.layoutConnection`; the dev chain and synthetic chains, see below); see below | 5.5 d |
-| S4 | `eval:placements` (reports `baseline-prefix/1`, which S2 ships in `@proa/relations`), report, `proa seed --value-chains` | 1 d |
+| S4 | **done** (2026-10-09): `eval:placements` (gates, the rule tier and `baseline-prefix/1` scored, report with the holdout as numbers only, CI drift check), `proa seed --value-chains` (the image ships the chain files only), German rule-tier texts, the ProA rules check of the golden chains, the MCP evidence of the M4a criterion; see below | 1 d (+0.5 d German texts and M4a close-out) |
 
 **S0 as delivered.** `@miragon/value-chain-schema-model` 0.3.0 in `apps/server`, `apps/web` and
 `eval/tools`, `@miragon/value-chain-renderer` 0.3.0 in `apps/web`, exact; no overrides (§5);
@@ -942,7 +984,8 @@ badge counts accepted and held placements as processes), "offen" counted differe
 and the step view, two forms dropped the focus, import warnings covered the header, and the step
 view had a second `h1`. Each fix has a test (component, the canvas unit test or Playwright).
 
-**S4 checklist** (from S3):
+**S4 checklist** (from S3; closed in "S4 as delivered" below, the holdout import check stays the
+owner's):
 - `eval:placements` and its report, `proa seed --value-chains` (unchanged scope).
 - When the renderer, zod or schema-model is bumped, re-run `bundle.test.ts` (the chain-only
   budget has about 4 KB left: 36.1 of 40 KB; the entry ceiling 200 KB gzip, 192.9 KB used), the
@@ -950,6 +993,144 @@ view had a second `h1`. Each fix has a test (component, the canvas unit test or 
 - Run `PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm
   --filter @proa/web e2e value-chain-import` once as the owner (counts only) to close the
   holdout gap of the import check.
+
+**S4 as delivered** (2026-10-09). The placement eval, seeding of golden chains and German texts
+for the rule tier; no schema, route or MCP change.
+- **`eval:placements`** (`eval/tools/src/placements.ts` CLI, `placements-load.ts` loading and the
+  validator spawn, `placements-score.ts` pure scoring, `placements-report.ts` Markdown and
+  redaction; root script `pnpm eval:placements`; `eval/reports/placements.{md,json}`): gates,
+  scoring and systems as §6. `loadLandscape` (metadata, `expected.yaml`, models, facts) is
+  factored out of `runLandscape` and shared. Steps come from the golden document (schema-model
+  `loadDocument`; a `hierarchy` connection runs parent → child), processes from the `process`
+  facts (name = label, `null` when empty, as the server's `lexicalMatcher` sees them); the
+  classification uses the yaml's steps, which the validator keeps equal to the document.
+  `golden.contentHash` is the sha256 of the chain file. Options `--out`, `--no-write`, positional
+  landscapes; relative paths against `INIT_CWD`. Exit 0 pass, 1 a failed gate or unreadable
+  golden data (no message quotes the files), 2 a usage error (an unknown option, a landscape the
+  corpus does not have) or a validator exit 2. Deterministic: sorted keys and items, `formatRatio`,
+  no timestamps; two runs give the same bytes (test). CI runs it after `eval:replay` and fails on
+  a diff or an untracked file in `eval/reports`.
+- **Numbers** (dev, `nordwind-handel`, 32 processes): the rule tier proposes 4 (equal names), all
+  hits (precision 100 %, recall 12.5 %). `baseline-prefix/1` with votes, top-1: 14 hit, 5 may,
+  1 coarse, 7 trap, 5 wrong, 0 none: recall@1 43.8 %, precision@1 53.8 %, recall@3 65.6 %,
+  level-0 recall@1 59.4 %; without votes: 15 hit, 3 may, 0 coarse, 7 trap, 4 wrong, 3 none:
+  46.9 %, 57.7 %, 62.5 %, 56.3 %. Votes give the three processes without a lexical match a
+  hint and lift level-0 recall, but cost one leaf hit (votes for the area of the neighbours'
+  steps outweigh the process's own step). Level 0 can trap only the 3 processes with a top-level
+  `must_not` (24 have one on some step): the top-1 lands in their trapped area for 3 of 3 with
+  votes, 2 of 3 without. The holdout passes all three gates; its numbers are in the report.
+- **One rule derivation.** `derivePlacementRules(steps {id, nameNorm, link}, processes {ref,
+  label})` in `@proa/relations` (`placement.ts`) is the logic of S2's `derivedRulePlacements`
+  without the texts; the server maps its steps, calls it and adds rationale and evidence, so the
+  gate checks the code the server runs (the reasoning that put `baseline-prefix/1` there in S2).
+  Signature, order and events of `derivedRulePlacements` are unchanged.
+- **German server texts** (names and refs verbatim in „…“ through `quoteDe` in
+  `@proa/relations`, straight quotes and backslashes included; only control characters,
+  invisible format characters such as zero-width and bidi controls, line separators, lone
+  surrogates and the closing `“` are escaped JSON-style, so a name with a line break stays
+  visible and the quote ends where the name ends): the
+  rule tier's placement rationale (`Schlüsselregel: der Link des Schritts nennt diesen Prozess
+  (proa:process/<ref>); der Name des Schritts entspricht dem Prozessnamen (normalisiert: „…“).`)
+  and its withdrawal reason; the value chain finding details (`Keine angenommene Platzierung auf
+  einem Schritt der Wertschöpfungskette (kein Vorschlag)…`, `Auf „…“ ist kein Prozess
+  angenommen.`, the three `unresolved-link` texts); the chain withdrawal reasons (`Schritt in
+  Revision <n> entfernt`, `Wertschöpfungskette gelöscht`); the relation rule tier's finding
+  details (`dynamic-call`, `unresolved-call`, `duplicate-process-id`, `dangling-throw`,
+  `unmatched-catch`; relation rule assertions store no rationale, so these are the relation
+  side's rule-tier texts). They address nobody, so no "du". Still English (HANDOFF follow-up): the
+  pipeline and token reasons ("superseded by submission …", "agent token … revoked"), API error
+  messages, MCP tool descriptions and CLI output. **Existing databases:** stored relation findings
+  keep their English details until the next recompute (an ingest or deletion in the project).
+  Undecided rule placement proposals (status `proposed`) with an English rationale are
+  re-asserted in German at the next chain save that stores a revision or at the next model change
+  (a new assertion, a version bump and a `placement.proposed` event; a reviewer deciding at that
+  moment may get 409). A rule placement a human accepted, rejected or held keeps its English rule
+  proposal in the history (the timeline shows it) until its step or process fingerprint changes:
+  a rule proposal on unchanged fingerprints is suppressed under any human decision, a hold
+  included, because it carries no basis (`classifyProposalOf`). No migration: the text is
+  display-only.
+- **Recordings.** The claim input carries the relation finding details and the agent-sim
+  recordings store its `bytes`, so both committed recordings were re-recorded
+  (`vitest … agent-sim.test.ts -u`); a count-only comparison with HEAD shows that only
+  `input.bytes` changed (dev: 10 of 31 lines, at most 88,778 bytes of the 100 KB ceiling), and
+  `eval:replay` leaves `eval/reports` unchanged. The claim format `proa-claim/1` and the skill are
+  unchanged, so no procedure version bump. The German details land before the owner's M3 live
+  runs, so every live run sees the same text.
+- **`proa seed --value-chains`** (`apps/cli/src/commands/seed.ts`): after the model import (the rule
+  tier sees the process facts when the chain is created) and before the token, per landscape it
+  reads only `<dir>/<landscape directory>/value-chain.vc.json` (`DEFAULT_VALUE_CHAINS`, resolved
+  like `DEFAULT_CORPUS`, so `/app/eval/value-chains` in the image; `--value-chains-dir` overrides
+  it and needs `--value-chains`). `GET …/content`: 404 → `PUT` with `If-None-Match: *`
+  (`created`, or `revived` for a deleted chain, which the output says); 200 → a dry run with
+  `If-Match: "r<head>"`: `unchanged`, or `differs` ("exists r<n>, differs from the golden chain:
+  left unchanged", exit 0; an edited chain is never overwritten, so a re-run changes nothing); a
+  412 reads again (3 attempts); a 422 lists the violations (`explain` of `value-chain.ts`). A
+  landscape without a chain (`_sample`) prints "no golden value chain". `SeedResult.valueChain`
+  is `{outcome, rev}` or `null` without the flag. Works with `--project` for M4b live runs.
+- **Image.** `docker/Dockerfile.dockerignore` excludes `eval/value-chains/**` and re-includes
+  `eval/value-chains/*/value-chain.vc.json` (BuildKit honours it: verified with an image tagged
+  `proa:s4-check`), and the runtime stage copies `eval/value-chains`. A chain file is no ground
+  truth: steps without links, the document an agent reads over MCP once a project is seeded.
+  CI's docker job runs `proa seed --value-chains` in the container and checks that the chain
+  files are there and that no `expected.yaml`, `expected-placements.yaml`, `*.md`, `*.mjs` or
+  `*.jsonl` is under `/app/eval`.
+- **M4a evidence over MCP:** `value-chain-ingest.test.ts` proposes with `propose_placement` through
+  the SDK client and an agent token, accepts over REST, re-imports the models unchanged (no event)
+  and re-saves the layout only (one `value_chain.revised`): the placement stays accepted and `ok`,
+  its timeline a proposal (agent) and a decision (human). The Playwright test
+  `value-chain.spec.ts:819` proposes over REST; MCP shares the use case.
+- **Tests:** `packages/relations/test/placement.test.ts` (`derivePlacementRules`: link, equal
+  name, both reasons, several processes with one name, a pasted link, unknown or malformed links,
+  empty names, input order), `rules.test.ts` and `text.test.ts` (the German details, `quoteDe`:
+  quotes and backslashes verbatim, control and format characters, separators, lone surrogates
+  and the closing `“` escaped); `apps/server/test/unit/value-chain-golden.test.ts`; the server's
+  rule, findings and chain tests with the German strings; `eval/tools/test/placements.test.ts`
+  (both landscapes pass on their gates, two runs identical, the holdout without per-item fields,
+  rule tier numbers or per-tag numbers of a tag with fewer than 5 processes, in JSON and
+  Markdown; every class on a synthetic chain, the metrics, the level-0 trap rate over top-level
+  `must_not` only, failing gates, leave-one-out, an unranked set with confidence as S5 passes it,
+  redaction);
+  `apps/cli/test/unit/seed-status.test.ts` (created, unchanged, differs, revived, none, 412, 422,
+  option misuse, `--help`) and the e2e test (`proa seed nordwind-handel --project vc-seed
+  --value-chains` → created r1 with the four rule proposals; after the push test's r2 edit,
+  `differs`).
+- **Deviations from the plan:** the ProA rules check runs in a server unit test (§6);
+  `loadPlacementRun` is not exported from the `@proa/eval-tools` entry, which only exports light
+  modules (it extracts the corpus facts through `loadLandscape`, which loads bpmn-moddle): S5's
+  eval:replay imports it from `src/placements-load.ts`, the pure scorer and its types are exported;
+  level 0 is the lifted classification above (the plan said "the same numbers by area"); the
+  report adds F1 (the README names it); the CI step also fails on untracked report files.
+
+**S5 checklist** (from S4):
+- Score recordings with `scorePlacementProposals(run.golden, items)`: the union of a run's valid
+  items per (process, step), unranked, each with its confidence (a duplicate keeps the highest);
+  `trapsHighConfidence` is the live gate's "no `must_not` at confidence ≥ 0.8"; load the run with
+  `loadPlacementRun` (`eval/tools/src/placements-load.ts`).
+- Check that a recording's chain content hash equals `golden.contentHash`; a run on an edited
+  chain is not comparable.
+- Decide which baseline row the live gate's "recall at least 20 points above `baseline-prefix/1`"
+  uses. Recommendation: with votes, as §6 describes the baseline; report the row without votes
+  next to it.
+- The placement sections of `replay.md` show numbers only for the holdout, as `placements.md`
+  does: no per-item lists and no number over fewer than `HOLDOUT_MIN_GROUP` (5) processes, so
+  per-tag numbers only for large tags and nothing split over a handful of identifiable
+  proposals.
+- Seed fresh projects for live runs with `proa seed <landscape> --project <key> --value-chains
+  --issue-tokens --token-name <run>`.
+
+**M4a done criteria status** (2026-10-09; M4a is done, the CI confirmation follows the next push):
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| The golden `nordwind-handel` chain pushed with the CLI renders | done | DEVELOPMENT.md "M4 S3" item 1 (pushed r1, rendered by the page); `cli.e2e.test.ts` (push, pull byte for byte) |
+| An edit saves revision 2 and a concurrent save gets 412 | done | S2's "concurrent saves" in `value-chain-api.test.ts` (one `If-Match` wins, the other gets 412), `value-chain.spec.ts:483` in the browser |
+| A step deleted and re-added in a new session gets a fresh id and no old placements | done | `value-chain.spec.ts:631` |
+| Placements proposed ad hoc over MCP and decided survive re-ingest and a layout-only re-save | done | `value-chain-ingest.test.ts` (S4, over MCP), `value-chain.spec.ts:819` (over REST) |
+| The bpmn-js review screen passes its check after visiting the chain page | done | `value-chain.spec.ts:976` (the CSS check) |
+| `eval:placements` is green in CI | green locally; CI pending | `pnpm eval:placements` passes and its report is committed with S4; the `ci-2.yml` step runs on the next push |
+
+Owner action (counts only, closes S3's holdout gap of the import check):
+`PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm --filter @proa/web e2e value-chain-import`.
 
 **M4b "Pipeline and drafts"**
 

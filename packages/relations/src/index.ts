@@ -7,8 +7,9 @@
  * - {@link generateCandidates}: candidate pairs for agents (key, lexical,
  *   compatible), in both directions around a focus model;
  * - {@link baselineProa1}: the 1.x algorithm, for comparison in the eval;
- * - {@link baselinePrefix} (`baseline-prefix/1`) and {@link sharesNameStem}:
- *   lexical matching of processes to value chain steps (M4);
+ * - {@link derivePlacementRules} (the rule tier's key placements),
+ *   {@link baselinePrefix} (`baseline-prefix/1`) and {@link sharesNameStem}:
+ *   matching of processes to value chain steps (M4);
  * - the shared endpoint semantics, compatibility matrix and text similarity.
  */
 import { normalizeKey } from '@proa/bpmn-facts';
@@ -53,12 +54,21 @@ export {
   PREFIX_TOP,
   PREFIX_VOTE,
   baselinePrefix,
+  derivePlacementRules,
   prefixTokensMatch,
   sharedStem,
   sharesNameStem,
   stemWords,
 } from './placement.ts';
-export type { PrefixHint, PrefixInput, PrefixProcess, PrefixStep } from './placement.ts';
+export type {
+  PlacementRuleMatch,
+  PrefixHint,
+  PrefixInput,
+  PrefixProcess,
+  PrefixStep,
+  RuleProcess,
+  RuleStep,
+} from './placement.ts';
 export {
   EVENT_DEF_COMPATIBILITY,
   LINK_TYPES,
@@ -81,6 +91,7 @@ export {
   contentWords,
   hasLexicalEvidence,
   levenshtein,
+  quoteDe,
   relativeLevenshtein,
   similarity,
   splitCamelCase,

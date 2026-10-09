@@ -182,7 +182,7 @@ export function buildProgram(io: CliIo = processIo): Command {
   program
     .command('seed')
     .description(
-      'create one project per eval landscape and import its models (default: every scored landscape)',
+      'create one project per eval landscape and import its models (default: every scored landscape); --value-chains also creates its golden value chain',
     )
     .argument('[landscape...]', 'landscape names, e.g. nordwind-handel stadtwerke-auental')
     .option('--corpus <dir>', 'corpus directory (default: eval/corpus of this checkout)')
@@ -195,6 +195,14 @@ export function buildProgram(io: CliIo = processIo): Command {
       '--token-name <name>',
       `name of the tokens --issue-tokens creates (default ${SEED_TOKEN_NAME}); eval:live records under it`,
     )
+    .option(
+      '--value-chains',
+      "also create each landscape's golden value chain from eval/value-chains, without placements (an existing chain is never overwritten)",
+    )
+    .option(
+      '--value-chains-dir <dir>',
+      'golden value chains directory (default: eval/value-chains of this checkout)',
+    )
     .option('--verbose', 'list every imported file')
     .option('--json', 'print JSON')
     .action(
@@ -205,6 +213,8 @@ export function buildProgram(io: CliIo = processIo): Command {
           project?: string;
           issueTokens?: boolean;
           tokenName?: string;
+          valueChains?: boolean;
+          valueChainsDir?: string;
           verbose?: boolean;
           json?: boolean;
         },

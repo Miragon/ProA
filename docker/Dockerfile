@@ -56,6 +56,7 @@ COPY --from=prod /app/packages ./packages
 COPY --from=prod /app/apps/server ./apps/server
 COPY --from=prod /app/apps/cli ./apps/cli
 COPY --from=prod /app/eval/corpus ./eval/corpus
+COPY --from=prod /app/eval/value-chains ./eval/value-chains
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 # `proa` CLI, e.g. `docker exec -i <container> proa mcp` (CONCEPT §6).
 RUN printf '#!/bin/sh\nexec node /app/apps/cli/src/main.ts "$@"\n' > /usr/local/bin/proa \
