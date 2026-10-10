@@ -13,4 +13,4 @@ export { childEnv, spawnProcess, stop, waitFor } from './processes.ts';
 export type { Child, Exit, Spawn, Spawned, SpawnOptions } from './processes.ts';
 export { APPS, DEMO_LANDSCAPES, SEED_TOKEN_NAME, seedDemo } from './seed.ts';
 export type { ProjectSeed, SeedInfo } from './seed.ts';
-export { publicOrigins, serveDemo, serverEnv } from './serve.ts';
+export { DEMO_LINK_SETTINGS, publicOrigins, serveDemo, serverEnv } from './serve.ts';

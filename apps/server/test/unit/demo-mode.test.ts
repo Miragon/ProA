@@ -55,6 +55,51 @@ describe('read-only demo: health', () => {
     expect(await local.text()).toBe('{"status":"ok","version":"9.9.9","db":"ok"}');
   });
 
+  it('reports the operator’s legal links when set, each one on its own', async () => {
+    const links = {
+      imprintUrl: 'https://example.org/impressum',
+      privacyUrl: 'https://example.org/datenschutz/',
+    };
+    const withLinks = createApp({
+      config: { authMode: 'local', webDist: null, demo: { publicOrigins: [ORIGIN], ...links } },
+      database: fakeDatabase(),
+      version: '9.9.9',
+    });
+    const res = await withLinks.request(`${ORIGIN}/health`, {
+      headers: { host: 'proa-demo.fly.dev' },
+    });
+    expect(await res.text()).toBe(
+      '{"status":"ok","version":"9.9.9","db":"ok","demo":"readonly",' +
+        '"imprintUrl":"https://example.org/impressum","privacyUrl":"https://example.org/datenschutz/"}',
+    );
+    const privacyOnly = createApp({
+      config: {
+        authMode: 'local',
+        webDist: null,
+        demo: { publicOrigins: [ORIGIN], privacyUrl: links.privacyUrl },
+      },
+      database: fakeDatabase(),
+      version: '9.9.9',
+    });
+    const only = await privacyOnly.request(`${ORIGIN}/health`, {
+      headers: { host: 'proa-demo.fly.dev' },
+    });
+    expect(Health.parse(await only.json())).toEqual({
+      status: 'ok',
+      version: '9.9.9',
+      db: 'ok',
+      demo: 'readonly',
+      privacyUrl: links.privacyUrl,
+    });
+    // Without links the demo's answer has neither key (the test above).
+    expect(Object.keys((await (await request('/health')).json()) as object)).toEqual([
+      'status',
+      'version',
+      'db',
+      'demo',
+    ]);
+  });
+
   it('answers the platform health checker under any Host, GET and HEAD only', async () => {
     for (const method of ['GET', 'HEAD']) {
       const res = await demoApp.request('http://172.19.0.2:8080/health', {

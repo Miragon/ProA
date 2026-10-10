@@ -6,6 +6,10 @@ import { runDemo } from '../src/program.ts';
 import { fakeFetch, type FakeRoute } from './fakes.ts';
 
 const URL_ = 'https://proa-demo.fly.dev';
+const LINKS = {
+  imprintUrl: 'https://example.org/impressum',
+  privacyUrl: 'https://example.org/datenschutz/',
+};
 const writeRoutes = Object.entries(apiRoutes).filter(
   ([name, r]) =>
     r.method !== 'get' && !(DEMO_WRITE_EXEMPT_OPERATIONS as readonly string[]).includes(name),
@@ -22,13 +26,24 @@ function demo(
     handle?: string;
     /** The role the projects are listed with (default: viewer). */
     role?: string;
+    /** The legal links `/health` reports (default: {@link LINKS}). */
+    links?: Record<string, unknown>;
   } = {},
 ) {
   return (method: string, url: string, init: RequestInit): FakeRoute | undefined => {
     const headers = (init.headers ?? {}) as Record<string, string>;
     const path = url.split('?')[0] ?? url;
-    if (path === '/health')
-      return { body: { status: 'ok', version: '1', db: 'ok', demo: 'readonly' } };
+    if (path === '/health') {
+      return {
+        body: {
+          status: 'ok',
+          version: '1',
+          db: 'ok',
+          demo: 'readonly',
+          ...(broken.links ?? LINKS),
+        },
+      };
+    }
     if (path === '/api/v1/session' && method === 'POST') {
       return {
         body: { handle: broken.handle ?? 'visitor' },
@@ -84,6 +99,7 @@ describe('proa-demo check', () => {
     const result = await checkDemo({ url: `${URL_}/`, fetch });
     expect(result.failures).toEqual([]);
     expect(result.url).toBe(URL_);
+    expect(result.links).toEqual(LINKS);
     // Every write route, three ways each.
     const writes = calls.filter(
       (c) => c.method !== 'GET' && c.path !== '/api/v1/session' && !c.path.startsWith('/mcp'),
@@ -113,6 +129,26 @@ describe('proa-demo check', () => {
         'stadtwerke-auental: no agent no-link',
       ]),
     );
+  });
+
+  it('names a missing or malformed legal link, and still walks the rest', async () => {
+    const { fetch, calls } = fakeFetch(demo({ links: { privacyUrl: 'http://example.org/p' } }));
+    const result = await checkDemo({ url: URL_, fetch });
+    expect(result.failures).toEqual([
+      'GET /health: no legal notice (Impressum) link (imprintUrl=absent)',
+      'GET /health: no privacy policy (Datenschutz) link (privacyUrl="http://example.org/p")',
+    ]);
+    expect(result.links).toEqual({ imprintUrl: null, privacyUrl: null });
+    expect(calls.filter((c) => c.method !== 'GET').length).toBeGreaterThan(writeRoutes.length);
+    const one = await checkDemo({
+      url: URL_,
+      fetch: fakeFetch(demo({ links: { imprintUrl: LINKS.imprintUrl, privacyUrl: 'datenschutz' } }))
+        .fetch,
+    });
+    expect(one.failures).toEqual([
+      'GET /health: no privacy policy (Datenschutz) link (privacyUrl="datenschutz")',
+    ]);
+    expect(one.links).toEqual({ imprintUrl: LINKS.imprintUrl, privacyUrl: null });
   });
 
   it('sends nothing but GET /health to a server that is no demo (local mode: the owner)', async () => {
@@ -191,7 +227,15 @@ describe('proa-demo command line', () => {
     vi.stubGlobal('fetch', fakeFetch(demo()).fetch);
     const ok = io();
     expect(await runDemo(['check', '--url', URL_, '--json'], ok.io)).toBe(0);
-    expect(JSON.parse(ok.out.join('')) as { failures: string[] }).toMatchObject({ failures: [] });
+    expect(JSON.parse(ok.out.join('')) as { failures: string[] }).toMatchObject({
+      failures: [],
+      links: LINKS,
+    });
+    const text = io();
+    expect(await runDemo(['check', '--url', URL_], text.io)).toBe(0);
+    expect(text.out.join('')).toContain(
+      `legal links: imprint ${LINKS.imprintUrl}, privacy ${LINKS.privacyUrl}`,
+    );
     vi.unstubAllGlobals();
   });
 });

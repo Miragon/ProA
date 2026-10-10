@@ -85,6 +85,7 @@ import {
   DEMO_SAFE_METHODS,
   DEMO_WRITE_EXEMPT_OPERATIONS,
   Health,
+  MAX_DEMO_LINK_LENGTH,
 } from '../src/index.ts';
 
 describe('refs', () => {
@@ -352,6 +353,29 @@ describe('read-only demo (issue #3)', () => {
     expect(Health.parse(local)).toEqual(local);
     expect(Health.parse({ ...local, demo: 'readonly' }).demo).toBe('readonly');
     expect(Health.safeParse({ ...local, demo: 'writable' }).success).toBe(false);
+  });
+
+  it('carries the demo operator’s legal links as absolute https URLs only', () => {
+    const demo = { status: 'ok', version: '1', db: 'ok', demo: 'readonly' } as const;
+    const links = {
+      imprintUrl: 'https://example.org/impressum',
+      privacyUrl: 'https://example.org/datenschutz/',
+    };
+    expect(Health.parse({ ...demo, ...links })).toEqual({ ...demo, ...links });
+    expect(Health.parse({ ...demo, imprintUrl: links.imprintUrl })).toEqual({
+      ...demo,
+      imprintUrl: links.imprintUrl,
+    });
+    for (const bad of [
+      'http://example.org/impressum',
+      'javascript:alert(1)',
+      '/impressum',
+      '',
+      `https://example.org/${'x'.repeat(MAX_DEMO_LINK_LENGTH)}`,
+    ]) {
+      expect(Health.safeParse({ ...demo, imprintUrl: bad }).success, bad).toBe(false);
+      expect(Health.safeParse({ ...demo, privacyUrl: bad }).success, bad).toBe(false);
+    }
   });
 });
 

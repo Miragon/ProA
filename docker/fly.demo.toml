@@ -19,6 +19,13 @@ primary_region = "fra"
 kill_signal = "SIGTERM"
 kill_timeout = 15
 
+# The operator's legal pages (owner, 2026-10-10: the demo is Miragon's, whose
+# Impressum and privacy policy cover it); /health reports them and the banner
+# links them as „Impressum“ and „Datenschutz“. Absolute https URLs.
+[env]
+  PROA_DEMO_IMPRINT_URL = "https://miragon.io/impressum"
+  PROA_DEMO_PRIVACY_URL = "https://miragon.io/datenschutz/"
+
 [build]
   # Never the 1.x Dockerfile at the repository root.
   dockerfile = "Dockerfile.demo"

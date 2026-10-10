@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
+import { parseDemoLink } from '../../src/config.ts';
+
 const root = new URL('../../../../', import.meta.url);
 const read = (file: string) => readFileSync(new URL(file, root), 'utf8');
 
@@ -92,6 +94,12 @@ describe('docker/Dockerfile.demo', () => {
   });
 });
 
+/** The demo operator's legal pages (owner, 2026-10-10): Miragon's Impressum and privacy policy. */
+const LEGAL_LINKS = {
+  PROA_DEMO_IMPRINT_URL: 'https://miragon.io/impressum',
+  PROA_DEMO_PRIVACY_URL: 'https://miragon.io/datenschutz/',
+};
+
 describe('docker/compose.demo.yaml', () => {
   const compose = parse(read('docker/compose.demo.yaml')) as {
     name: string;
@@ -117,6 +125,12 @@ describe('docker/compose.demo.yaml', () => {
     expect(service?.environment['PROA_PUBLIC_ORIGIN']).toContain(
       'http://127.0.0.1:${PROA_DEMO_PORT:-7480}',
     );
+  });
+
+  it('sets the same legal links as the Fly.io configuration', () => {
+    const environment = compose.services['demo']?.environment ?? {};
+    expect(environment['PROA_DEMO_IMPRINT_URL']).toBe(LEGAL_LINKS.PROA_DEMO_IMPRINT_URL);
+    expect(environment['PROA_DEMO_PRIVACY_URL']).toBe(LEGAL_LINKS.PROA_DEMO_PRIVACY_URL);
   });
 });
 
@@ -145,6 +159,20 @@ describe('docker/fly.demo.toml', () => {
     expect(value('memory')).toBe('"1gb"');
     expect(toml).not.toMatch(/swap_size_mb|\[mounts\]|\[\[mounts\]\]/);
     expect(value('kill_signal')).toBe('"SIGTERM"');
+  });
+
+  it('links the operator’s legal pages in [env], valid for the server', () => {
+    const lines = toml.split('\n');
+    const start = lines.indexOf('[env]');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = lines.findIndex((l, i) => i > start && /^\[/.test(l));
+    const env = lines.slice(start + 1, end < 0 ? undefined : end).join('\n');
+    for (const [name, url] of Object.entries(LEGAL_LINKS)) {
+      expect(env, name).toMatch(new RegExp(`^\\s*${name} = "${url.replaceAll('.', '\\.')}"$`, 'm'));
+      expect(parseDemoLink(url)).toEqual({ url });
+    }
+    // Nothing secret and nothing that would open the demo: only the links.
+    expect(env.split('\n').filter((l) => /^\s*[A-Z_]+ =/.test(l))).toHaveLength(2);
   });
 });
 

@@ -106,6 +106,12 @@ export async function runDemo(argv: readonly string[], io: DemoIo = processIo): 
           io.stdout(
             `${result.url}: ${result.passed} checks passed, ${result.failures.length} failed\n`,
           );
+          const { imprintUrl, privacyUrl } = result.links;
+          if (imprintUrl ?? privacyUrl) {
+            io.stdout(
+              `  legal links: imprint ${imprintUrl ?? '-'}, privacy ${privacyUrl ?? '-'}\n`,
+            );
+          }
           for (const f of result.failures) io.stdout(`  FAIL ${f}\n`);
         }
         return result.failures.length === 0 ? 0 : 1;

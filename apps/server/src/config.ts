@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { defaultOwnerKeyFile } from '@proa/contracts';
+import { MAX_DEMO_LINK_LENGTH, defaultOwnerKeyFile } from '@proa/contracts';
 import { z } from 'zod';
 
 /** Default database: the Compose service `db` of docker/compose.yaml (project `proa2`). */
@@ -57,6 +57,13 @@ const EnvSchema = z.object({
    * the Host and Origin checks accept them instead of localhost. Demo only.
    */
   PROA_PUBLIC_ORIGIN: z.string().optional(),
+  /**
+   * The demo operator's legal notice (Impressum) and privacy policy, absolute
+   * https URLs: `/health` reports them and the web UI's banner links them.
+   * Optional, demo only.
+   */
+  PROA_DEMO_IMPRINT_URL: z.string().optional(),
+  PROA_DEMO_PRIVACY_URL: z.string().optional(),
 });
 
 type Env = z.infer<typeof EnvSchema>;
@@ -97,7 +104,17 @@ export interface Config {
 export interface DemoConfig {
   /** Canonical origins (`https://host[:port]`, or `http://` on a loopback host), deduplicated. */
   publicOrigins: string[];
+  /** The operator's legal notice (`PROA_DEMO_IMPRINT_URL`, normalized); absent when unset. */
+  imprintUrl?: string;
+  /** The operator's privacy policy (`PROA_DEMO_PRIVACY_URL`, normalized); absent when unset. */
+  privacyUrl?: string;
 }
+
+/** The demo's optional legal links: setting name → {@link DemoConfig} field. */
+const DEMO_LINK_SETTINGS = [
+  ['PROA_DEMO_IMPRINT_URL', 'imprintUrl'],
+  ['PROA_DEMO_PRIVACY_URL', 'privacyUrl'],
+] as const;
 
 /** Thrown for invalid environment variables; the message lists every problem. */
 export class ConfigError extends Error {
@@ -112,12 +129,13 @@ export class ConfigError extends Error {
  * `PROA_ORIGIN_PORTS` (`PROA_PORT,7401`), `PROA_SESSION_SECRET` (random),
  * `PROA_OWNER_KEY_FILE` (`~/.local/state/proa/owner-key`),
  * `PROA_ALLOW_NON_LOOPBACK` (`0`), and for the read-only demo `PROA_DEMO`
- * (unset) and `PROA_PUBLIC_ORIGIN` (demo only).
+ * (unset), `PROA_PUBLIC_ORIGIN`, `PROA_DEMO_IMPRINT_URL` and
+ * `PROA_DEMO_PRIVACY_URL` (demo only; the last two optional).
  *
  * @throws {ConfigError} if a variable is invalid, if local mode would bind a
  *   non-loopback address without `PROA_ALLOW_NON_LOOPBACK=1`, if
- *   `PROA_PUBLIC_ORIGIN` is set outside the demo, or if the demo is combined
- *   with anything that would let a visitor write
+ *   `PROA_PUBLIC_ORIGIN` or a legal link is set outside the demo, or if the
+ *   demo is combined with anything that would let a visitor write
  */
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = EnvSchema.safeParse(env);
@@ -131,6 +149,13 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new ConfigError(
       'PROA_PUBLIC_ORIGIN is set without PROA_DEMO=readonly: only the read-only demo has a public ' +
         'origin (server mode with a login is R1). Local mode serves localhost only.',
+    );
+  }
+  const links = DEMO_LINK_SETTINGS.map(([name]) => name).filter((name) => e[name] !== undefined);
+  if (links.length > 0) {
+    throw new ConfigError(
+      `${links.join(' and ')} ${links.length === 1 ? 'is' : 'are'} set without PROA_DEMO=readonly: ` +
+        'only the public read-only demo links its operator’s legal pages. Local mode serves localhost only.',
     );
   }
   const allowNonLoopback = e.PROA_ALLOW_NON_LOOPBACK === '1';
@@ -211,12 +236,38 @@ export function parsePublicOrigins(value: string): { origins: string[]; problems
 }
 
 /**
+ * Parses a legal link of the demo (`PROA_DEMO_IMPRINT_URL`,
+ * `PROA_DEMO_PRIVACY_URL`): an absolute `https:` URL without credentials, at
+ * most {@link MAX_DEMO_LINK_LENGTH} characters once normalized.
+ *
+ * @returns the normalized URL (`URL.href`), or the problem found
+ */
+export function parseDemoLink(value: string): { url: string } | { problem: string } {
+  const raw = value.trim();
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return { problem: `${raw === '' ? 'empty' : raw}: not an absolute URL` };
+  }
+  if (url.protocol !== 'https:') return { problem: `${raw}: must be https` };
+  if (url.username !== '' || url.password !== '') {
+    return { problem: `${url.host}: must not carry a user name or password` };
+  }
+  if (url.href.length > MAX_DEMO_LINK_LENGTH) {
+    return { problem: `longer than ${MAX_DEMO_LINK_LENGTH} characters` };
+  }
+  return { url: url.href };
+}
+
+/**
  * The read-only demo (issue #3): a variant of local mode for public hosting.
  * It needs its public origins and refuses everything that would let a
  * visitor write or act as the owner: an owner key file, extra localhost
  * origin ports, `PROA_ALLOW_NON_LOOPBACK` (a non-loopback `PROA_HOST` needs
  * no opt-in here, since nothing can be changed), and migrations at start
  * (the database is prepared before; `PROA_MIGRATE` defaults to `off`).
+ * The operator's legal links are optional and reported by `/health`.
  */
 function loadDemoConfig(e: Env, env: Record<string, string | undefined>): Config {
   const problems: string[] = [];
@@ -247,6 +298,14 @@ function loadDemoConfig(e: Env, env: Record<string, string | undefined>): Config
       'PROA_MIGRATE=auto: the demo database is read-only and migrated before; leave it unset or off',
     );
   }
+  const links: Pick<DemoConfig, 'imprintUrl' | 'privacyUrl'> = {};
+  for (const [name, field] of DEMO_LINK_SETTINGS) {
+    const value = e[name];
+    if (value === undefined) continue;
+    const link = parseDemoLink(value);
+    if ('problem' in link) problems.push(`${name}: ${link.problem}`);
+    else links[field] = link.url;
+  }
   if (problems.length > 0) {
     throw new ConfigError(
       `invalid read-only demo configuration (PROA_DEMO=readonly):\n  ${problems.join('\n  ')}`,
@@ -263,6 +322,6 @@ function loadDemoConfig(e: Env, env: Record<string, string | undefined>): Config
     sessionSecret: e.PROA_SESSION_SECRET ?? null,
     ownerKeyFile: null,
     allowNonLoopback: false,
-    demo: { publicOrigins: origins },
+    demo: { publicOrigins: origins, ...links },
   };
 }

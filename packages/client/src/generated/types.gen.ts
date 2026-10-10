@@ -242,6 +242,14 @@ export type Health = {
    * Present only on a read-only demo: nothing can be changed.
    */
   demo?: 'readonly';
+  /**
+   * Only on a read-only demo whose operator set one: the absolute https URL of its legal notice (Impressum).
+   */
+  imprintUrl?: string;
+  /**
+   * Only on a read-only demo whose operator set one: the absolute https URL of its privacy policy.
+   */
+  privacyUrl?: string;
 };
 
 /**

@@ -44,6 +44,10 @@ import { chainDetail, model, placement, provenance, relation } from './support/f
 import { stubApi, type Call } from './support/render';
 
 const DEMO_HEALTH: Health = { status: 'ok', version: '2.0.0-test', db: 'ok', demo: 'readonly' };
+const LINKS = {
+  imprintUrl: 'https://example.org/impressum',
+  privacyUrl: 'https://example.org/datenschutz/',
+};
 const LOCAL_HEALTH: Health = { status: 'ok', version: '2.0.0-test', db: 'ok' };
 
 function project(role: Project['role']): Project {
@@ -177,6 +181,49 @@ describe('the demo banner', () => {
     expect(link.getAttribute('href')).toBe('https://github.com/Miragon/ProA');
     expect(link.getAttribute('rel')).toBe('noreferrer');
     await waitFor(() => expect(document.documentElement.dataset['proaDemo']).toBe('readonly'));
+  });
+
+  it('links the operator’s Impressum and Datenschutz in a new tab when health reports them', async () => {
+    setup('/', { health: { ...DEMO_HEALTH, ...LINKS }, role: 'viewer' });
+    const banner = await screen.findByTestId('demo-banner');
+    const legal = within(banner).getByRole('navigation', { name: 'Rechtliches' });
+    const links = within(legal).getAllByRole('link');
+    expect(links.map((l) => [l.textContent, l.getAttribute('href')])).toEqual([
+      ['Impressum', LINKS.imprintUrl],
+      ['Datenschutz', LINKS.privacyUrl],
+    ]);
+    for (const link of links) {
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe('noreferrer');
+      // Never shrunk or truncated away by the flex line (the sentence truncates instead).
+      expect(link.className).toContain('whitespace-nowrap');
+    }
+    expect(legal.className).toContain('shrink-0');
+  });
+
+  it('shows only the links health reports, and only absolute https ones', async () => {
+    setup('/', {
+      health: { ...DEMO_HEALTH, privacyUrl: LINKS.privacyUrl },
+      role: 'viewer',
+    });
+    const banner = await screen.findByTestId('demo-banner');
+    expect(within(banner).queryByRole('link', { name: 'Impressum' })).toBeNull();
+    expect(within(banner).getByRole('link', { name: 'Datenschutz' })).toBeDefined();
+  });
+
+  it('has no legal links without them or with a non-https one', async () => {
+    setup('/', {
+      // A server checks the scheme; the UI never renders another as a link either.
+      health: { ...DEMO_HEALTH, imprintUrl: 'javascript:alert(1)' },
+      role: 'viewer',
+    });
+    const banner = await screen.findByTestId('demo-banner');
+    expect(within(banner).queryByRole('navigation', { name: 'Rechtliches' })).toBeNull();
+    expect(
+      within(banner)
+        .getAllByRole('link')
+        .map((l) => l.textContent),
+    ).toEqual(['ProA auf GitHub']);
   });
 
   it('is absent outside the demo, and the document is not marked', async () => {

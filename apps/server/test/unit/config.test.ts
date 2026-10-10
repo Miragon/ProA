@@ -6,6 +6,7 @@ import {
   ConfigError,
   DEFAULT_DATABASE_URL,
   loadConfig,
+  parseDemoLink,
   parsePublicOrigins,
 } from '../../src/config.ts';
 
@@ -177,6 +178,72 @@ describe('loadConfig: the read-only demo (PROA_DEMO=readonly, issue #3)', () => 
     expect(() => loadConfig({ ...demo, PROA_OWNER_KEY_FILE: '/k', PROA_MIGRATE: 'auto' })).toThrow(
       /PROA_OWNER_KEY_FILE[\s\S]*PROA_MIGRATE=auto/,
     );
+  });
+
+  it('reads the operator’s optional legal links, each an absolute https URL', () => {
+    const imprint = 'https://example.org/impressum';
+    const privacy = 'https://example.org/datenschutz/';
+    expect(
+      loadConfig({ ...demo, PROA_DEMO_IMPRINT_URL: imprint, PROA_DEMO_PRIVACY_URL: privacy }).demo,
+    ).toEqual({
+      publicOrigins: ['https://proa-demo.fly.dev'],
+      imprintUrl: imprint,
+      privacyUrl: privacy,
+    });
+    // Each one alone; unset, the demo has none (and the object no such key).
+    expect(loadConfig({ ...demo, PROA_DEMO_PRIVACY_URL: privacy }).demo).toEqual({
+      publicOrigins: ['https://proa-demo.fly.dev'],
+      privacyUrl: privacy,
+    });
+    expect(Object.keys(loadConfig(demo).demo ?? {})).toEqual(['publicOrigins']);
+    // Normalized as the browser would: host case, surrounding blanks, an empty path.
+    expect(
+      loadConfig({ ...demo, PROA_DEMO_IMPRINT_URL: ' https://Example.ORG ' }).demo?.imprintUrl,
+    ).toBe('https://example.org/');
+    for (const [bad, problem] of [
+      ['http://example.org/impressum', /must be https/],
+      ['javascript:alert(1)', /must be https/],
+      ['/impressum', /not an absolute URL/],
+      ['', /empty: not an absolute URL/],
+      ['https://user:secret@example.org/', /must not carry a user name or password/],
+      [`https://example.org/${'x'.repeat(2048)}`, /longer than 2048 characters/],
+    ] as const) {
+      for (const name of ['PROA_DEMO_IMPRINT_URL', 'PROA_DEMO_PRIVACY_URL']) {
+        expect(() => loadConfig({ ...demo, [name]: bad }), `${name}=${bad}`).toThrow(
+          new RegExp(`${name}: .*${problem.source}`),
+        );
+      }
+    }
+    expect(parseDemoLink('https://user:secret@example.org/')).toEqual({
+      problem: 'example.org: must not carry a user name or password',
+    });
+    // Listed with every other problem of the demo configuration.
+    expect(() =>
+      loadConfig({
+        ...demo,
+        PROA_MIGRATE: 'auto',
+        PROA_DEMO_IMPRINT_URL: 'http://a.example',
+        PROA_DEMO_PRIVACY_URL: 'ftp://a.example',
+      }),
+    ).toThrow(/PROA_MIGRATE=auto[\s\S]*PROA_DEMO_IMPRINT_URL[\s\S]*PROA_DEMO_PRIVACY_URL/);
+  });
+
+  it('keeps local mode as it was: no legal links without the demo', () => {
+    for (const name of ['PROA_DEMO_IMPRINT_URL', 'PROA_DEMO_PRIVACY_URL']) {
+      expect(() => loadConfig({ PROA_WEB_DIST: '', [name]: 'https://example.org/' })).toThrow(
+        new RegExp(`^${name} is set without PROA_DEMO=readonly`),
+      );
+      // Even empty: a demo setting outside the demo is a mistake worth a word.
+      expect(() => loadConfig({ PROA_WEB_DIST: '', [name]: '' })).toThrow(ConfigError);
+    }
+    expect(() =>
+      loadConfig({
+        PROA_WEB_DIST: '',
+        PROA_DEMO_IMPRINT_URL: 'https://example.org/i',
+        PROA_DEMO_PRIVACY_URL: 'https://example.org/p',
+      }),
+    ).toThrow(/PROA_DEMO_IMPRINT_URL and PROA_DEMO_PRIVACY_URL are set without PROA_DEMO=readonly/);
+    expect(loadConfig({ PROA_WEB_DIST: '' }).demo).toBeNull();
   });
 
   it('keeps local mode as it was: no public origin without the demo', () => {

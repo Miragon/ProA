@@ -27,7 +27,8 @@ try {
 if (config.demo) {
   console.log(
     `read-only demo (PROA_DEMO=readonly): public origins ${config.demo.publicOrigins.join(', ')}; ` +
-      'every write answers 403 demo-readonly, MCP is off, sessions are viewers',
+      'every write answers 403 demo-readonly, MCP is off, sessions are viewers; ' +
+      `legal links: imprint ${config.demo.imprintUrl ?? 'none'}, privacy ${config.demo.privacyUrl ?? 'none'}`,
   );
 } else if (!isLoopbackHost(config.host)) {
   console.warn(

@@ -5,7 +5,9 @@
  * 1. the public origins: `PROA_PUBLIC_ORIGIN`, else `https://$FLY_APP_NAME.fly.dev`;
  * 2. a fresh copy of the data directory template in a run directory;
  * 3. PostgreSQL on loopback;
- * 4. the server with `PROA_DEMO=readonly`, as the read-only database role.
+ * 4. the server with `PROA_DEMO=readonly`, as the read-only database role,
+ *    with the operator's legal links when set (`PROA_DEMO_IMPRINT_URL`,
+ *    `PROA_DEMO_PRIVACY_URL`).
  *
  * SIGTERM or SIGINT stop the server, then PostgreSQL, and exit 0. If either
  * exits on its own, the other is stopped and the supervisor exits 1, so the
@@ -52,12 +54,27 @@ export function publicOrigins(env: Record<string, string | undefined>): string {
   );
 }
 
-/** The server's environment: read-only demo, read-only role, no owner key, no migrations. */
+/**
+ * The operator's legal links (Impressum, privacy policy): optional, passed to
+ * the server as given; the server checks them and reports them in `/health`.
+ */
+export const DEMO_LINK_SETTINGS = ['PROA_DEMO_IMPRINT_URL', 'PROA_DEMO_PRIVACY_URL'] as const;
+
+/**
+ * The server's environment: read-only demo, read-only role, no owner key, no
+ * migrations, and each of {@link DEMO_LINK_SETTINGS} that is set.
+ */
 export function serverEnv(
   env: Record<string, string | undefined>,
   origins: string,
 ): Record<string, string> {
+  const links: Record<string, string> = {};
+  for (const name of DEMO_LINK_SETTINGS) {
+    const value = env[name];
+    if (value !== undefined) links[name] = value;
+  }
   return childEnv(env, {
+    ...links,
     NODE_ENV: 'production',
     PROA_DEMO: 'readonly',
     PROA_PUBLIC_ORIGIN: origins,

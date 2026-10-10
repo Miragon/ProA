@@ -33,10 +33,13 @@ const WEB = resolve(import.meta.dirname, '..');
 const BUDGET = 40 * 1024;
 /**
  * The entry chunk with its static imports, gzip (Node's default level): 192.9 KB
- * measured after the S3 review moved the value chain routes out of it. Raise
- * it on purpose, with the new measurement, when the app shell grows.
+ * measured after the S3 review moved the value chain routes out of it, 199.8 KB
+ * on 2026-10-10 with the demo banner's legal links, against the former 200 KB.
+ * The owner raised the ceiling to 240 KB that day („du kannst die Grenze dann
+ * anheben jetzt schon“). Raise it on purpose, with the new measurement, when
+ * the app shell grows; that is an owner decision, like the budget above.
  */
-const ENTRY_CEILING = 200 * 1024;
+const ENTRY_CEILING = 240 * 1024;
 
 interface ChunkInfo {
   fileName: string;

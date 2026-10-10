@@ -62,7 +62,7 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | The `placement` pipeline kind (M4 S5, [below](#the-placement-pipeline-and-proa-placements-m4-s5)): task kinds and subjects (migration 0008), judge each process once (input hashes, `placement_input`, one open task per chain, follow-ups at submit), the claim input `proa-claim-placement/1`, placement submissions with supersession and unsure verdicts, the chain's stage, the procedure, prompts and skill, the placement live gate | working over REST and MCP; unit and real-PostgreSQL tests (`placement-pipeline.test.ts`: every trigger and stage, supersession, the unsure memory, truncation with one follow-up, saves during a lease), the simulation agent on both landscapes, the procedure drift test, Playwright for the Import; no LLM run yet |
 | Value chain and placements over REST, MCP and CLI (M4 S2, [below](#value-chain-and-placements-m4)): `prepareRevision` (canonical bytes, ProA rules, kinds, ranks, fingerprints, `structure_hash`), 19 routes (`If-Match`/`If-None-Match`, `dryRun`, decisions incl. bulk, unplaced processes, findings), six MCP tools, `proa value-chain push\|pull`, the rule tier's key proposals, placements that follow model ingest and deletion, server tiers with `baseline-prefix/1` (`@proa/relations`), token revocation | working over REST, MCP and the CLI (and since S3 in the web UI); unit tests (document rules, structure incl. the golden dev chain, impact, items, tiers, rules, findings, `baseline-prefix/1`), real-PostgreSQL tests (REST, placements, rule tier, the dev landscape with its golden chain through model changes, policy matrix, MCP contract), the CLI against a fake API and end to end |
 | Auto-accept rules (owner decision 19, [below](#auto-accept-rules-owner-decision-19)): the tables `auto_accept_rule` and `auto_accept_rule_revision` and the assertion marker (migrations 0009/0010), the evaluator with its safeguards in all four agent write paths, apply and revoke with dry runs, the preview and the ledger (`src/domain/auto-accept/`), seven owner-only routes and the ledger for every reviewer, `proa rules …`, the tab „Regeln“ with marks and filters in the review views, the „Auto-accept what-if“ of `eval:replay` | working over REST, the CLI and the web UI (no MCP by design); unit tests (evaluator, status with revocations, preview, rules, the what-if), real-PostgreSQL tests (relations and placements end to end, revocation, migration on existing data, constraints, policy matrix), CLI unit and e2e tests, web component tests and Playwright (`e2e/auto-accept.spec.ts`) against a throwaway stack; MCP snapshots and recordings unchanged |
-| Read-only demo on Fly.io (issue #3, owner decision 20, [below](#demo-deployment-flyio)): `PROA_DEMO=readonly` in the server (the read-only guard before authentication, the viewer session, `demo-readonly`, MCP off, credentials refused, the public Host/Origin guard, `Health.demo`), the read-only database role and the visitor (`demo-bootstrap.ts`), the web UI's banner and role gating, `apps/demo` (`proa-demo seed\|serve\|check`), `docker/Dockerfile.demo` with the seed baked in, `docker/compose.demo.yaml`, `docker/fly.demo.toml`, `.github/workflows/demo-deploy.yml` and the CI job `demo`; after the review round: the session body capped at 4 KiB, `proa-demo check` never writes to a non-demo, the agents' no-links in the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, every role and mode) | built and checked locally (the image, `proa-demo check`, the Playwright walk, restart = seed, no eval file in the image; [Read-only demo, issue #3](#read-only-demo-issue-3-2026-10-10)); unit and real-PostgreSQL tests (every write route 403 with three credentials and none forgotten, every GET route over the read-only role, a 700 MB session body cut off at 4 KiB); **not deployed**: no Fly account was available, so flyctl, the remote builder, suspend and the workflow have not run |
+| Read-only demo on Fly.io (issue #3, owner decision 20, [below](#demo-deployment-flyio)): `PROA_DEMO=readonly` in the server (the read-only guard before authentication, the viewer session, `demo-readonly`, MCP off, credentials refused, the public Host/Origin guard, `Health.demo`), the read-only database role and the visitor (`demo-bootstrap.ts`), the web UI's banner and role gating, `apps/demo` (`proa-demo seed\|serve\|check`), `docker/Dockerfile.demo` with the seed baked in, `docker/compose.demo.yaml`, `docker/fly.demo.toml`, `.github/workflows/demo-deploy.yml` and the CI job `demo`; after the review round: the session body capped at 4 KiB, `proa-demo check` never writes to a non-demo, the agents' no-links in the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, every role and mode); the operator's legal links (`PROA_DEMO_IMPRINT_URL`, `PROA_DEMO_PRIVACY_URL`, „Impressum“ and „Datenschutz“ in the banner; Miragon's pages in `fly.demo.toml`) | built and checked locally (the image, `proa-demo check`, the Playwright walk, restart = seed, no eval file in the image; [Read-only demo, issue #3](#read-only-demo-issue-3-2026-10-10)); unit and real-PostgreSQL tests (every write route 403 with three credentials and none forgotten, every GET route over the read-only role, a 700 MB session body cut off at 4 KiB); **not deployed**: no Fly account was available, so flyctl, the remote builder, suspend and the workflow have not run |
 
 ## Quickstart (Docker)
 
@@ -446,7 +446,8 @@ Camunda engine, no LLM credential, no Fly secret.
   cookie is `Secure` and the server sends `Strict-Transport-Security` when every origin is https.
 - **The web UI** shows the banner „Demo – nur lesen. Du kannst dir alles ansehen, aber nichts
   ändern. Die Vorschläge stammen vom Simulationsagenten (ohne LLM).“ with a link to the
-  repository (it promises no nightly reset) and hides every write action: no „Neues Projekt“, no
+  repository (it promises no nightly reset) and the operator's „Impressum“ and „Datenschutz“
+  ([below](#legal-pages)), and hides every write action: no „Neues Projekt“, no
   tabs „Hochladen“, „Agent verbinden“, „Regeln“ (their URLs show a notice and send no request),
   no bulk accept, „Erneut einplanen“, answer field or decision panel (A/R/H/C do nothing), no
   value chain editing. Read views stay: models, model view, relations, findings, the inbox with
@@ -470,6 +471,31 @@ Camunda engine, no LLM credential, no Fly secret.
   `docker/fly.demo.toml` for flyctl's own upload) keeps answers, recordings and reports out of the
   build context, the stage `prod-seed` removes them again and the runtime stage checks.
 
+### Legal pages
+
+The owner, 2026-10-10: „nimm die dinge vom miragon.io impressum“. Miragon GmbH runs the demo,
+and its own pages cover it: the Impressum at https://miragon.io/impressum and the privacy policy
+at https://miragon.io/datenschutz/, whose section „Wenn du unsere Tools nutzt“ says that
+Miragon's own tools run on Fly.io in the EU region Frankfurt, that server logs are kept for 30
+days, and that tools without a login collect no further data. The demo is such a tool: no login,
+no form, no analytics, no third-party request (fonts and scripts come from the demo itself; the
+CSP allows `'self'` only).
+
+- **The cookie.** The demo's only cookie, `proa_session` (HttpOnly, `SameSite=Strict`, `Secure`
+  on https, 12 hours), holds the viewer session without which the web UI cannot read the API:
+  strictly necessary, so there is no consent banner. The local storage the UI uses for value
+  chain drafts and agent setups holds nothing on the demo (both are write paths).
+- **The settings.** `docker/fly.demo.toml` (`[env]`) and `docker/compose.demo.yaml` set
+  `PROA_DEMO_IMPRINT_URL` and `PROA_DEMO_PRIVACY_URL` to those two pages. ProA's code holds no
+  operator data and the repository copies no Impressum text; another operator sets its own URLs
+  there. The server checks both at start (absolute `https://` URLs, refused outside the demo),
+  `/health` reports them (`imprintUrl`, `privacyUrl`; local mode's answer is unchanged) and
+  `proa-demo serve` passes them through.
+- **The banner** shows „Impressum“ and „Datenschutz“ at every width, a phone's 320 px included,
+  in its one line of `--proa-banner-h`, each opening in a new tab (`rel="noreferrer"`); the
+  sentences and the repository link give way first ([phone](screenshots/demo-07-phone.png)).
+  `proa-demo check` fails when `/health` lacks either link.
+
 ### Run it locally
 
 ```sh
@@ -485,7 +511,12 @@ The image tag is `proa-demo:local` (`PROA_DEMO_IMAGE` sets another), never the p
 machine. `--build` reuses the cached seed while nothing changed; `PROA_DEMO_SEED=$(date +%s)
 docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --build --wait` seeds afresh (the
 compose file passes it as the build arg). The other Playwright specs skip themselves on a demo server,
-`demo.spec.ts` on any other. `proa-demo check` sends nothing but `GET /health` to a server that
+`demo.spec.ts` on any other; `demo.spec.ts` also checks the banner's legal links at 320, 390,
+768, 1024 and 1440 px (visible, whole, inside the viewport, the banner as high as
+`--proa-banner-h`, no sideways scroll). That test is the file's last: the spec runs serially, and
+the links are optional settings, so a demo without them fails that test alone while the read walk
+and the write checks still run. `proa-demo check` requires both legal links in `/health`
+(absolute https URLs) and prints them; it sends nothing but `GET /health` to a server that
 is not a read-only demo, and no write unless the session is the visitor and a viewer of every
 listed project; its write walk names the project `proa-demo-check-none` and the chain key
 `none`, so a mistyped URL (the owner's `proa2` stack on 7400) cannot lose data.
@@ -586,7 +617,8 @@ often suspended. Links into the demo survive a restart, not a deploy (a new seed
 | The build fails in stage `seed` | The seed's log names the failed step (`demo seed: …`, the server's and PostgreSQL's lines). The running release keeps serving. |
 | 403 `forbidden` "answers only under its public address" | The address is not in `PROA_PUBLIC_ORIGIN`: set `FLY_DEMO_PUBLIC_ORIGIN` with every origin (custom domain and fly.dev) and deploy. |
 | 403 `demo-readonly` | Expected for every write; the web UI shows „Das ist eine Demo: Hier kannst du nichts ändern.“ if one slips through. |
-| The machine restarts again and again | `fly logs --app proa-demo`: the supervisor exits 1 when the server or PostgreSQL dies (`demo: … ended unexpectedly`), the server when its role is not read-only or the visitor is missing. |
+| The machine restarts again and again | `fly logs --app proa-demo`: the supervisor exits 1 when the server or PostgreSQL dies (`demo: … ended unexpectedly`), the server when its role is not read-only or the visitor is missing, or when a legal link is malformed (`PROA_DEMO_IMPRINT_URL: …: must be https`; fix `[env]` in `docker/fly.demo.toml`). |
+| `proa-demo check`: "no legal notice (Impressum) link" or "no privacy policy (Datenschutz) link" | The machine runs without `PROA_DEMO_IMPRINT_URL` or `PROA_DEMO_PRIVACY_URL`: `[env]` in `docker/fly.demo.toml` lost them, or an older release serves. The start log names the links the server took (`legal links: imprint …, privacy …`). |
 
 ### Configuration of the demo
 
@@ -594,6 +626,7 @@ often suspended. Links into the demo survive a restart, not a deploy (a new seed
 |---|---|---|
 | `PROA_DEMO` | server | `readonly`: the read-only demo; anything else is refused. Refused together with a non-empty `PROA_OWNER_KEY_FILE`, `PROA_ORIGIN_PORTS`, `PROA_ALLOW_NON_LOOPBACK=1` and `PROA_MIGRATE=auto` (migrations default to off) |
 | `PROA_PUBLIC_ORIGIN` | server, `proa-demo serve` | required with `PROA_DEMO`: comma-separated bare origins, `https://` (or `http://` on a loopback host); refused without `PROA_DEMO`. `proa-demo serve` defaults it to `https://$FLY_APP_NAME.fly.dev` (Fly sets `FLY_APP_NAME`) |
+| `PROA_DEMO_IMPRINT_URL`, `PROA_DEMO_PRIVACY_URL` | server, `proa-demo serve`; `docker/fly.demo.toml` `[env]`, `docker/compose.demo.yaml` | the operator's legal notice and privacy policy ([Legal pages](#legal-pages)): optional absolute `https://` URLs, refused without `PROA_DEMO`; `proa-demo serve` passes them through as given; set to https://miragon.io/impressum and https://miragon.io/datenschutz/ |
 | `PROA_HOST`, `PROA_PORT`, `PROA_WEB_DIST` | image | `0.0.0.0`, `8080`, `/app/apps/web/dist` |
 | `PROA_DEMO_SEED` | build arg | the seed id in `seed.json` and the log; default `local`. The seed layer's only changing input: the workflow passes `<run_id>.<run_attempt>`, a manual build a value of its own (an unchanged value reuses the cached seed); `docker/compose.demo.yaml` passes it through |
 | `FLY_API_TOKEN` | repository secret | the deploy token; without it the workflow skips |
@@ -693,6 +726,7 @@ Node cannot load it).
 | `PROA_OWNER_KEY_FILE` | `$XDG_STATE_HOME/proa/owner-key`, else `~/.local/state/proa/owner-key` | the CLI's owner key, created on first start; `/var/lib/proa/owner-key` in the image; empty string: no owner key |
 | `PROA_DEMO` | unset | `readonly`: the public read-only demo ([Demo deployment](#demo-deployment-flyio)); needs `PROA_PUBLIC_ORIGIN` and a read-only database role; refused with an owner key file, `PROA_ORIGIN_PORTS`, `PROA_ALLOW_NON_LOOPBACK=1` or `PROA_MIGRATE=auto` |
 | `PROA_PUBLIC_ORIGIN` | unset | the demo's public origins (comma-separated `https://host[:port]`, `http://` on loopback only); refused without `PROA_DEMO`, so local mode can never be opened by it |
+| `PROA_DEMO_IMPRINT_URL`, `PROA_DEMO_PRIVACY_URL` | unset | optional, demo only: the operator's legal notice and privacy policy, absolute `https://` URLs (no user name or password, at most 2048 characters, normalized); `/health` reports them as `imprintUrl` and `privacyUrl` and the banner links them; refused without `PROA_DEMO` and when malformed |
 
 `docker/compose.yaml` reads `PROA_HOST_PORT` (default `7400`) and `PROA_DB_PORT` (default
 `55432`) for the published ports, and sets `PROA_CONTAINER=proa2-proa-1`, so `proa token create`
@@ -2071,7 +2105,8 @@ manual placements, notes), `drafts.ts`, `ulid.ts`, `zod-csp.ts`, `download.ts`.
 - **The chunk.** Only `src/components/value-chain/canvas/` imports the renderer, schema-model,
   diagram-js or zod values (ESLint; the bundle guard checks the build): it is loaded with the page,
   whose own route chunk holds the panels, dialogs and save logic, so the entry chunk every page
-  loads carries neither (the bundle guard checks both and keeps the entry under a gzip ceiling).
+  loads carries neither (the bundle guard checks both and keeps the entry under a gzip ceiling,
+  240 KB since the owner raised it on 2026-10-10).
   The canvas reports a change 300 ms after an executed, undone or redone command, never for an
   import (which only clears the command stack); before deciding about unsaved changes ("Fertig",
   leaving) the page takes a change that is still waiting, so an edit committed by that very click
@@ -2639,7 +2674,8 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   tab, 404), `bundle.test.ts` (node environment, two production builds in memory with
   `NODE_ENV=production`, as `pnpm build` makes them: one `diagram-js`, one zod v4, one renderer
   and schema-model, the entry chunk free of them and of the chain page and step view, the entry
-  ≤ 200 KB gzip, no renderer rule in the main CSS, the chain-only code ≤ 40 KB gzip beyond the
+  ≤ 240 KB gzip (the owner raised the ceiling from 200 KB on 2026-10-10 at 199.8 KB used), no
+  renderer rule in the main CSS, the chain-only code ≤ 40 KB gzip beyond the
   shared diagram-js chunk, with a printed breakdown), plus `app.test.tsx` (both routes)
   and `limits.test.ts` (every `MAX_VALUE_CHAIN_*`, the value chain constants and label maps). The
   tests stub `fetch` and talk through the real generated client; components with links render in
@@ -3903,3 +3939,57 @@ gaps in the demo walk and the role tests.
 9. Then the server stopped by its PID, `docker compose -p proa2-demo-review2 … down -v`,
    `docker image rm proa-demo:review2` and `docker compose -p proa2-rvdb … down -v`; the owner's
    `proa2` stack and `proa:local` untouched.
+
+**Legal links and the entry ceiling (2026-10-10, decision 21, same machine).** The banner's
+„Impressum“ and „Datenschutz“ ([Legal pages](#legal-pages)) and the entry ceiling raised to
+240 KB.
+
+1. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser: no
+   violations, 125 modules), `CI=1 pnpm -r test` with `PROA_TEST_DATABASE_URL` on a throwaway
+   `proa2-legaldb` (server 1,392 in 63 files, web 298 in 30, cli 116 plus 7 skipped, eval/tools
+   95, agent-sim 57, demo 27, relations 85, bpmn-facts 134, contracts 67, procedures 37, client
+   4), `pnpm eval:candidates`, `pnpm eval:replay` and `pnpm eval:placements` (pass, no change
+   under `eval/`); the client regenerated (`Health.imprintUrl`, `Health.privacyUrl`), a second
+   generation changes nothing. The bundle guard: entry chunk 199.8 KB gzip (ceiling now 240 KB),
+   chain-only code 37.0 of 40 KB.
+2. The banner measured in Chromium at 320, 360, 375, 390, 414, 600, 640, 768, 1024, 1280 and
+   1440 px: 40 px high everywhere, both links whole and inside the viewport, nothing truncated,
+   no sideways scroll (below 360 px the text is `text-xs`; the repository link from 480 px, the
+   two sentences from 1024 and 1280 px).
+3. The demo image under its own tag with a fresh seed: `PROA_DEMO_SEED=legal-<time>
+   PROA_DEMO_IMAGE=proa-demo:legal PROA_DEMO_PORT=7487 docker compose -p proa2-demo-legal -f
+   docker/compose.demo.yaml up -d --build --wait`. `/health` answered
+   `{"status":"ok","version":"2.0.0-alpha.0","db":"ok","demo":"readonly","imprintUrl":"https://miragon.io/impressum","privacyUrl":"https://miragon.io/datenschutz/"}`,
+   the start log named both links; `proa-demo check`: 126 passed, 0 failed (the two link checks
+   new), and it printed both links. The runtime image still holds no eval file.
+4. The same image with `PROA_DEMO_IMPRINT_URL=http://miragon.io/impressum` and an empty
+   `PROA_DEMO_PRIVACY_URL` (`docker compose -p proa2-demo-legalbad … run --rm`): the server
+   refused to start and named both, the supervisor exited 1.
+5. Playwright against the demo: `demo.spec.ts` 13 passed (the legal links at five widths new),
+   the screenshots `demo-0*.png` retaken, `demo-07-phone.png` new.
+6. Then `docker compose -p proa2-demo-legal … down -v`, `docker image rm proa-demo:legal` and
+   `docker compose -p proa2-legaldb … down -v`; the owner's `proa2` stack and `proa:local`
+   untouched. Not checked: the links on Fly.io (nothing is deployed); Miragon's pages were not
+   opened in this run (what they say is as the owner's request of 2026-10-10 describes).
+
+**Review fixes for the legal links (2026-10-10, same machine).** Two findings, both fixed:
+M4-VALUE-CHAIN.md §5 "Bundle guard" named the former 200 KB entry ceiling as current (now 240 KB,
+pointing here and to `ENTRY_CEILING`), and the legal-links test was the first of the serial
+`demo.spec.ts`, so a demo without the optional links skipped the whole read walk and the write
+checks; it is now the file's last test.
+
+1. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser: no
+   violations, 125 modules), `CI=1 pnpm -r test` with `PROA_TEST_DATABASE_URL` on a throwaway
+   `proa2-fixdb` (server 1,392 in 63 files, web 298 in 30, cli 116 plus 7 skipped, eval/tools 95,
+   agent-sim 57, demo 27, relations 85, bpmn-facts 134, contracts 67, procedures 37, client 4),
+   `pnpm eval:candidates` and `pnpm eval:replay` (pass, no change under `eval/`).
+2. The demo image as `proa-demo:fix` with a fresh seed, compose project `proa2-demo-fix` on
+   7489: `proa-demo check` 126 passed, 0 failed, both links printed; `demo.spec.ts` 13 passed,
+   the legal links last.
+3. The same image without the two links (`proa2-demo-fixnolinks` on 7490, a compose override
+   with `environment: !override` keeping only `PROA_PUBLIC_ORIGIN`; `/health` without
+   `imprintUrl` and `privacyUrl`): `demo.spec.ts` 12 passed and 1 failed, the legal-links test
+   alone (as the serial file's first test, its failure would have skipped the 12 others; that
+   order was not rerun).
+4. Then both demo projects `down -v`, `docker image rm proa-demo:fix`, `proa2-fixdb` `down -v`;
+   the owner's `proa2` stack and `proa:local` untouched.

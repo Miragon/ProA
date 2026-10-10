@@ -175,4 +175,27 @@ describe('public origins', () => {
       'PROA_ALLOW_NON_LOOPBACK',
     );
   });
+
+  it('passes the operator’s legal links through as given, and only those that are set', () => {
+    const links = {
+      PROA_DEMO_IMPRINT_URL: 'https://example.org/impressum',
+      PROA_DEMO_PRIVACY_URL: 'https://example.org/datenschutz/',
+    };
+    expect(serverEnv({ PATH: '/bin', ...links }, 'https://a.example')).toMatchObject(links);
+    const privacyOnly = serverEnv(
+      { PROA_DEMO_PRIVACY_URL: links.PROA_DEMO_PRIVACY_URL },
+      'https://a.example',
+    );
+    expect(privacyOnly['PROA_DEMO_PRIVACY_URL']).toBe(links.PROA_DEMO_PRIVACY_URL);
+    expect(privacyOnly).not.toHaveProperty('PROA_DEMO_IMPRINT_URL');
+    // A malformed value reaches the server, which refuses to start and names it.
+    expect(serverEnv({ PROA_DEMO_IMPRINT_URL: 'http://x' }, 'https://a.example')).toMatchObject({
+      PROA_DEMO_IMPRINT_URL: 'http://x',
+    });
+    // Never instead of the supervisor's own settings.
+    expect(serverEnv(links, 'https://a.example')).toMatchObject({
+      PROA_DEMO: 'readonly',
+      PROA_OWNER_KEY_FILE: '',
+    });
+  });
 });

@@ -1,7 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { expect, test, type Page, type Request, type Response } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+  type Request,
+  type Response,
+} from '@playwright/test';
 
 import { probeServer } from './server-mode';
 
@@ -13,7 +20,10 @@ import { probeServer } from './server-mode';
  * on a CSP violation and on any write action shown (by its text or its test
  * id). The review shows the simulation agent's proposals, questions,
  * no-links (tab „Kein Zusammenhang“) and placement proposals (owner decision
- * 20(4)). Skips itself unless the server reports `demo: "readonly"`.
+ * 20(4)). The banner links the operator's „Impressum“ and „Datenschutz“ (from
+ * `/health`) at every width, phone included, in one line of the height of
+ * `--proa-banner-h`; that test runs last, so a demo without the optional links
+ * fails it alone. Skips itself unless the server reports `demo: "readonly"`.
  * PROA_SCREENSHOTS_DIR=<dir> saves `demo-*.png` screenshots there.
  */
 
@@ -229,4 +239,78 @@ test('the API refuses writes and MCP from the browser context too', async ({ req
   expect(write.status()).toBe(403);
   expect(((await write.json()) as { code: string }).code).toBe('demo-readonly');
   expect((await request.post('/mcp', { data: {} })).status()).toBe(404);
+});
+
+/** The banner's legal links as `/health` reports them (`docker/compose.demo.yaml` sets both). */
+async function legalLinks(
+  request: APIRequestContext,
+): Promise<{ name: string; href: string | undefined }[]> {
+  const health = (await (await request.get('/health')).json()) as {
+    imprintUrl?: string;
+    privacyUrl?: string;
+  };
+  return [
+    { name: 'Impressum', href: health.imprintUrl },
+    { name: 'Datenschutz', href: health.privacyUrl },
+  ];
+}
+
+/*
+ * Last on purpose: the file runs serially, so a failed test skips every test
+ * after it. The links are optional settings (an older image, or a demo started
+ * without them), and their absence must not hide whether the read-only walk
+ * and the write barrier above hold.
+ */
+test('the banner links the Impressum and Datenschutz at every width, phone included', async ({
+  page,
+  request,
+}) => {
+  const links = await legalLinks(request);
+  for (const { href } of links) expect(href, 'both legal links in /health').toMatch(/^https:\/\//);
+  for (const [width, height] of [
+    [320, 568],
+    [390, 844],
+    [768, 1024],
+    [1024, 768],
+    [1440, 900],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto('/');
+    const banner = page.getByTestId('demo-banner');
+    await expect(banner).toContainText('Demo – nur lesen.');
+    const legal = banner.getByRole('navigation', { name: 'Rechtliches' });
+    for (const { name, href } of links) {
+      const link = legal.getByRole('link', { name, exact: true });
+      await expect(link, `${name} at ${width}px`).toBeVisible();
+      await expect(link).toHaveAttribute('href', href ?? '');
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noreferrer');
+      await expect(link).toHaveText(name);
+      // Whole, inside the banner and the viewport: never cut off or truncated.
+      const box = await link.boundingBox();
+      expect(box, `${name} at ${width}px`).not.toBeNull();
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+      expect(await link.evaluate((a) => a.scrollWidth <= a.clientWidth)).toBe(true);
+    }
+    // One line: the banner's height is --proa-banner-h, and the page does not scroll sideways.
+    const fit = await banner.evaluate((b) => {
+      const probe = document.createElement('div');
+      probe.style.height = 'var(--proa-banner-h)';
+      document.body.append(probe);
+      const expected = probe.getBoundingClientRect().height;
+      probe.remove();
+      return {
+        height: b.getBoundingClientRect().height,
+        expected,
+        sideways: document.documentElement.scrollWidth > window.innerWidth,
+        bannerOverflow: b.scrollWidth > b.clientWidth,
+      };
+    });
+    expect(fit.expected, `--proa-banner-h at ${width}px`).toBeGreaterThan(0);
+    expect(fit.height, `banner height at ${width}px`).toBe(fit.expected);
+    expect(fit.sideways, `horizontal scroll at ${width}px`).toBe(false);
+    expect(fit.bannerOverflow, `banner overflow at ${width}px`).toBe(false);
+    if (width === 320) await shot(page, '07-phone');
+  }
 });

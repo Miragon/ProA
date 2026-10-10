@@ -573,8 +573,10 @@ proposals (stricter than the CLI, which ignores withdrawn proposals).
   none of them. The first S3 build had both routes in the entry (the review measured 729.5 KB /
   217.9 KB gzip as Vite reports it, 628.8 KB / 192.8 KB at S2); with the route chunks it is 638.4 KB
   / 195.9 KB, the page chunk 81.0 KB / 22.7 KB. The guard checks that no module of the page, its
-  components or the step view is in the entry closure and keeps the entry under 200 KB gzip (192.9
-  KB measured with Node's default level). It builds with `NODE_ENV=production`, as `pnpm build`
+  components or the step view is in the entry closure and keeps the entry under a gzip ceiling
+  (Node's default level), now 240 KB: 192.9 KB measured at S3 against the original 200 KB, which
+  the owner raised on 2026-10-10 at 199.8 KB used (HANDOFF decision 21; the current value is in
+  `ENTRY_CEILING` and DEVELOPMENT.md). It builds with `NODE_ENV=production`, as `pnpm build`
   does; under vitest's `NODE_ENV=test` it had built React's development code. Raising the chain-only
   budget is an owner decision. **CSS check** (Playwright, `e2e/value-chain.spec.ts`): the computed
   styles of the bpmn-js review screen (container font, task, flow, label, ProA's overlay and

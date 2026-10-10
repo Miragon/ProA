@@ -586,6 +586,18 @@
               "readonly"
             ],
             "description": "Present only on a read-only demo: nothing can be changed."
+          },
+          "imprintUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri",
+            "description": "Only on a read-only demo whose operator set one: the absolute https URL of its legal notice (Impressum)."
+          },
+          "privacyUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri",
+            "description": "Only on a read-only demo whose operator set one: the absolute https URL of its privacy policy."
           }
         },
         "required": [

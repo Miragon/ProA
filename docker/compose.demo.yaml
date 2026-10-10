@@ -31,6 +31,9 @@ services:
     environment:
       # The browser's origins of the published port (http on loopback only).
       PROA_PUBLIC_ORIGIN: 'http://127.0.0.1:${PROA_DEMO_PORT:-7480},http://localhost:${PROA_DEMO_PORT:-7480}'
+      # The operator's legal pages, as in docker/fly.demo.toml [env].
+      PROA_DEMO_IMPRINT_URL: 'https://miragon.io/impressum'
+      PROA_DEMO_PRIVACY_URL: 'https://miragon.io/datenschutz/'
     ports:
       - '127.0.0.1:${PROA_DEMO_PORT:-7480}:8080'
     restart: 'no'

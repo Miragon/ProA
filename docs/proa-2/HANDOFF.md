@@ -55,12 +55,15 @@ and code are in English.
   what-if“ at 0.8/0.9/0.95; a review round's fixes are in, see §7), and the **public read-only
   demo** (issue [#3](https://github.com/Miragon/ProA/issues/3), owner decision 20, 2026-10-10:
   `PROA_DEMO=readonly`, the demo image with the seed baked in, Fly.io
-  configuration and deploy workflow, built and checked locally, a review round's fixes are in;
-  **not deployed**, the owner's Fly setup is open, see §7 "Demo deployment, issue #3").
+  configuration and deploy workflow, built and checked locally, a review round's fixes are in,
+  Miragon's Impressum and privacy policy linked in the banner (decision 21); **not deployed**,
+  the owner's Fly setup is open, see §7 "Demo deployment, issue #3").
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` and `proa-placements@0.1.0`
   (`docs/proa-2/M3-LIVE-RUNS.md`, steps 1–6 and 6a: 3 runs per landscape and model incl. the
-  holdout), a chain drafted in Claude Desktop and rated, the holdout import check; **S6** (the OKF
-  extension) waits for the R1 OKF export. After the live runs the owner chooses auto-accept
+  holdout), a chain drafted in Claude Desktop and rated, the holdout import check. **The next
+  milestone** is the process network map (issue [#4](https://github.com/Miragon/ProA/issues/4),
+  owner decision 22), on hold until the owner resumes; OKF (the R1 export and **S6**) is deferred
+  (decision 22). After the live runs the owner chooses auto-accept
   thresholds from the what-if (§7 "Auto-accept rules"). The public demo needs the owner's
   one-time Fly.io setup and first deploy (§7 "Demo deployment, issue #3";
   DEVELOPMENT.md "Demo deployment (Fly.io)").
@@ -82,7 +85,7 @@ and code are in English.
 | Item | State |
 |---|---|
 | `develop` | 1.x platform overhaul (squash `eb3539b`). Protected by ruleset "main": PRs only, **squash merges only**, linear history, **signed commits**, no bypass actors, no required checks yet. |
-| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs · `ada3fdc` judge-once review fixes · `01cd1cf` docs · `d21401f` token test fix · M4: `be4308f` S0 · `b9481b7` S1 · `e90fbba` S2 · `e4890ef` S3 · `bef64e0` S4 · S5 with its review fixes (`53e7acf`) · `9b7bcb0` decision 19 (auto-accept rules) · decision 20 (read-only demo, issue #3) in the commit after `9b7bcb0`. |
+| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs · `ada3fdc` judge-once review fixes · `01cd1cf` docs · `d21401f` token test fix · M4: `be4308f` S0 · `b9481b7` S1 · `e90fbba` S2 · `e4890ef` S3 · `bef64e0` S4 · S5 with its review fixes (`53e7acf`) · `9b7bcb0` decision 19 (auto-accept rules) · `f6988dc` decision 20 (read-only demo, issue #3) · decisions 21 and 22 (demo legal links, entry ceiling; process network map next, OKF deferred) in the commit after `f6988dc`. |
 | PR #2 | Draft, base `develop`, CI (`ci-2.yml`: typecheck/lint/test, docker image + compose live check) green. **Merge only with the owner's explicit OK.** |
 | 1.x tree | `backend/`, `frontend/`, `pom.xml`, `mvnw*`, `.mvn/`, `Dockerfile`, `eclipse-formatter.xml`, `Makefile`, `scripts/`, `docker-compose.yml`, `.githooks/` and the 1.x workflows (`backend-tests.yml`, `frontend-checks.yml`, `deploy.yml`, `release.yml`) are still present and **must not be modified** on this branch. The cut-over PR removes them (CONCEPT §9). |
 | Tags/releases | None in ProA yet. Plan: tag `v1.3.0` on `eb3539b` + branch `maintenance/1.x` + 1.x image **right before the cut-over merge** (owner decision), not now. |
@@ -156,6 +159,21 @@ and code are in English.
     one documented action; visitors have no reset endpoint. No Camunda engines; ProA holds no LLM
     credentials. **Built 2026-10-10** (not deployed): CONCEPT §6 "Read-only demo", DEVELOPMENT.md
     "Demo deployment (Fly.io)" with "Reset the demo".
+21. **Demo legal links and the entry ceiling** (2026-10-10): (1) the demo links Miragon's own
+    legal pages („nimm die dinge vom miragon.io impressum“): the Impressum
+    https://miragon.io/impressum and the privacy policy https://miragon.io/datenschutz/, whose
+    section „Wenn du unsere Tools nutzt“ covers Miragon's tools on Fly.io (Frankfurt, server logs
+    30 days, no further data without a login); the repository copies no Impressum text and ProA's
+    code stays generic (two optional demo settings). (2) The web entry chunk's gzip ceiling in the
+    bundle guard rises from 200 to **240 KB** („du kannst die Grenze dann anheben jetzt schon“;
+    199.8 KB used with the legal links); the 40 KB chain-only budget is unchanged. **Done
+    2026-10-10**: DEVELOPMENT.md "Legal pages", `apps/web/test/bundle.test.ts`.
+22. **Process network map next, OKF deferred** (2026-10-10): the next milestone is the process
+    network map, the successor of the 1.x Prozesskarte (issue #4; the owner asked how it differs
+    from the value chain: top-down structure vs the bottom-up network of relations). OKF is not
+    needed for now („okf brauchen wir erstmal nicht“): the R1 OKF export and M4 S6 are deferred.
+    The owner paused the work after the issue („mach erstmal eine pause“); the concept comes when
+    the owner resumes.
 
 **Taken during issue #3 by the implementing agent (the owner may overrule; details in
 DEVELOPMENT.md "Demo deployment (Fly.io)"):** the seed is made **while the image is built** and
@@ -527,9 +545,10 @@ drift test; an import on the empty state asks before it replaces a stored new-ch
 - The holdout import check (from S3/S4, counts only):
   `PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm --filter @proa/web e2e value-chain-import`.
 
-**Next: S6** (M4 §9 "S6 checklist"): the OKF extension, **blocked** until the R1 OKF export
-exists. After a bump of the renderer, schema-model or zod: rerun the bundle guard (chain-only
-37.0 of 40 KB used since S5), the import harness and the CSS check (Playwright is not in CI). The
+**S6** (M4 §9 "S6 checklist"): the OKF extension, **deferred** with the OKF export (owner
+decision 22). After a bump of the renderer, schema-model or zod: rerun the bundle guard (chain-only
+37.0 of 40 KB used since S5; the entry 199.8 KB of the 240 KB ceiling the owner set on
+2026-10-10, decision 21), the import harness and the CSS check (Playwright is not in CI). The
 owner accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason,
 one home step per process (a second only by a reviewer's decision), a step rename sends accepted
 placements to re-confirm, org units as owners of top-level steps (not agent evidence), one chain
@@ -593,6 +612,19 @@ once it has run), the local `fly deploy … --build-arg PROA_DEMO_SEED=manual-$(
 fallback, "Re-run all jobs" only with its limits (30 days, same commit and inputs), and the
 deploy token's one-year expiry with its renewal.
 
+**Legal links (2026-10-10, decision 21): done.** The optional demo settings
+`PROA_DEMO_IMPRINT_URL` and `PROA_DEMO_PRIVACY_URL` (absolute https URLs, checked at start,
+refused outside the demo) appear in `/health` as `imprintUrl` and `privacyUrl` (local mode's
+answer unchanged), `proa-demo serve` passes them through, and the banner shows „Impressum“ and
+„Datenschutz“ at every width down to 320 px, opening in a new tab. `docker/fly.demo.toml`
+(`[env]`) and `docker/compose.demo.yaml` set Miragon's two pages; `proa-demo check` fails without
+both links, `demo.spec.ts` checks them at five widths. Miragon's privacy policy covers the demo
+(Fly.io Frankfurt, logs 30 days, no login); the session cookie is strictly necessary, so there is
+no consent banner (DEVELOPMENT.md "Legal pages"). With them the entry chunk reached 199.8 KB of
+the former 200 KB ceiling, which the owner raised to 240 KB the same day. A review round's two
+fixes are in: the legal-links test runs last in the serial `demo.spec.ts` (a demo without the
+optional links fails it alone, the read walk still runs), and M4 §5 names the new ceiling.
+
 **Owner actions** (the commands are in DEVELOPMENT.md "Demo deployment (Fly.io)"):
 - One-time: `fly auth login`, `fly apps create proa-demo --org <org>` (another name if taken,
   then the repository variable `FLY_DEMO_APP`), `fly tokens create deploy --app proa-demo --expiry
@@ -614,16 +646,22 @@ deploy token's one-year expiry with its renewal.
   30 days and only on the newest run that deployed the current head (it repeats commit and
   inputs).
 - Optional: a custom domain (`fly certs add`, DNS, `FLY_DEMO_PUBLIC_ORIGIN`), a comment on issue
-  #3 with the URL, and the open questions in §8 (legal notice, no-links in the review).
+  #3 with the URL, and the open question in §8 (no-links in the review).
 
 Unverified until the first deploy: the seed inside Fly's remote builder (an amd64 build; locally
 arm64), `fly.demo.toml` as flyctl reads it (`flyctl config validate` needs a login), suspend and
 resume, the workflow's skip, deploy, restart and check steps.
 
+### Next milestone: process network map (issue #4)
+
+The successor of the 1.x Prozesskarte (diagram-js + elkjs, value chain steps as groups, saved
+views, impact analysis, end-to-end paths, MCP `impact_of` and `trace_landscape_path`), scope and
+open questions in issue [#4](https://github.com/Miragon/ProA/issues/4). First step when the
+owner resumes: the concept `docs/proa-2/M5-PROCESS-MAP.md` (as M4-VALUE-CHAIN.md), then slices.
+
 ### Later (R1 and beyond)
 
-Process network map (diagram-js + elkjs, saved views, impact analysis, end-to-end paths), lint
-workflow, descriptions/glossary by agents, OKF export, server mode (OIDC, users, invitations,
+Lint workflow, descriptions/glossary by agents, OKF export (deferred, decision 22), server mode (OIDC, users, invitations,
 public URL for claude.ai/ChatGPT/Routines), runtime overlays from Camunda 7/8, Web Modeler and
 Git/bpmiq.yml import, MCP App widget.
 
@@ -655,7 +693,6 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | Auto-accept: results | Submission and ad-hoc results report the status before rules ran (an agent's `proposed` may already be accepted; `get_relations` shows the truth). Keeps recordings comparable and agents uninformed. Keep? | Decision 19 |
 | Auto-accept: marks for editors | Editors see which acceptances a rule made (the ledger names rule, revision, agent and confidence, never the criteria); only owners see the rules, apply and revoke. Keep, or show the marks to viewers too? | Decision 19 review |
 | Auto-accept: take-over | A rule whose author lost the owner role matches nothing until an owner saves it; saving it, also unchanged, makes that owner its author (its later acceptances are recorded under them). Keep, or add an explicit „Übernehmen“ action? | Decision 19 review |
-| Demo: legal notice | A public website run by Miragon likely needs an Impressum and a privacy notice (Fly logs IP addresses; the demo sets a functional session cookie). Provide the links and the banner gets them. | Issue #3 |
 | Demo: no-links in the review | Decision 20(4) asks the review to show no-links; the simulation agent's are all on pairs without a relation, where no „Einwand“ can appear. The review round added the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, read-only, every role and mode, model and stage filters). Keep it there, move it (e.g. per model in the model view), or also want example disagreements („Einwand“ on proposals, which needs a second agent's verdict on judged pairs and so conflicts with decision 17)? | Issue #3, review round |
 
 ## 9. Working agreements and pitfalls

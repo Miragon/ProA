@@ -2,7 +2,9 @@
  * `proa-demo check --url <demo>`: proves a running demo is what issue #3
  * promises, from the outside (CI, the deploy workflow, local runs):
  *
- * - health says `demo: "readonly"`;
+ * - health says `demo: "readonly"` and reports the operator's legal links
+ *   (`imprintUrl`, `privacyUrl`: absolute https URLs, which the banner shows
+ *   as „Impressum“ and „Datenschutz“);
  * - the session is a viewer; both landscapes are listed with role viewer;
  *   each has models, agent proposals with questions, agent no-links (the
  *   inbox tab „Kein Zusammenhang“), a value chain with placement proposals,
@@ -33,6 +35,24 @@ export interface CheckResult {
   url: string;
   passed: number;
   failures: string[];
+  /** The legal links `/health` reported (`null`: none, or no demo). */
+  links: { imprintUrl: string | null; privacyUrl: string | null };
+}
+
+/** The legal links a demo must report in `/health`, with what they are for the failure text. */
+const LEGAL_LINKS = [
+  ['imprintUrl', 'legal notice (Impressum)'],
+  ['privacyUrl', 'privacy policy (Datenschutz)'],
+] as const;
+
+/** An absolute https URL (what the server accepts for a legal link). */
+function isHttpsUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 /** A syntactically valid agent token that exists nowhere. */
@@ -98,11 +118,29 @@ export async function checkDemo(options: CheckOptions): Promise<CheckResult> {
   };
 
   const health = await request('/health');
-  const body = health.ok ? ((await health.json().catch(() => ({}))) as { demo?: string }) : {};
+  const body = health.ok
+    ? ((await health.json().catch(() => ({}))) as Record<string, unknown> & { demo?: unknown })
+    : {};
   const isDemo = health.status === 200 && body.demo === 'readonly';
   expect(isDemo, `GET /health: ${health.status}, demo=${String(body.demo)}`);
+  const links = { imprintUrl: null as string | null, privacyUrl: null as string | null };
+  const result = (extra: string[] = []): CheckResult => ({
+    url: base,
+    passed,
+    failures: [...failures, ...extra],
+    links,
+  });
   // Never a session or a write against a server that may hold real data (local mode: the owner).
-  if (!isDemo) return { url: base, passed, failures: [...failures, NOT_A_DEMO] };
+  if (!isDemo) return result([NOT_A_DEMO]);
+  // The operator's Impressum and privacy policy: the banner links them on every page.
+  for (const [field, what] of LEGAL_LINKS) {
+    const value = body[field];
+    if (isHttpsUrl(value)) links[field] = value;
+    expect(
+      isHttpsUrl(value),
+      `GET /health: no ${what} link (${field}=${value === undefined ? 'absent' : JSON.stringify(value)})`,
+    );
+  }
 
   const session = await request('/api/v1/session', {
     method: 'POST',
@@ -114,7 +152,7 @@ export async function checkDemo(options: CheckOptions): Promise<CheckResult> {
   expect(session.status === 200 && cookie !== undefined, `POST /api/v1/session: ${session.status}`);
   const visitor = me.handle === 'visitor';
   expect(visitor, `the session is ${String(me.handle)}, not the visitor`);
-  if (!visitor) return { url: base, passed, failures: [...failures, NOT_A_DEMO] };
+  if (!visitor) return result([NOT_A_DEMO]);
   const asVisitor = { cookie: `proa_session=${cookie ?? ''}`, origin };
   const get = async <T>(path: string): Promise<T | null> => {
     const res = await request(path, { headers: asVisitor });
@@ -169,9 +207,7 @@ export async function checkDemo(options: CheckOptions): Promise<CheckResult> {
 
   // The write walk only as a viewer of every listed project (the visitor's role on the demo).
   const roles = (listed?.items ?? []).map((i) => i.role);
-  if (roles.length === 0 || roles.some((r) => r !== 'viewer')) {
-    return { url: base, passed, failures: [...failures, NOT_A_DEMO] };
-  }
+  if (roles.length === 0 || roles.some((r) => r !== 'viewer')) return result([NOT_A_DEMO]);
 
   const safe: readonly string[] = DEMO_SAFE_METHODS;
   const exempt: readonly string[] = DEMO_WRITE_EXEMPT_OPERATIONS;
@@ -212,7 +248,7 @@ export async function checkDemo(options: CheckOptions): Promise<CheckResult> {
   });
   expect(bearer.status === 401, `a bearer token on a read: ${bearer.status}, expected 401`);
 
-  return { url: base, passed, failures };
+  return result();
 }
 
 /**

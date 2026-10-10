@@ -13,6 +13,23 @@ export interface ServerMode {
    * nothing can be changed there, so the UI offers no write action at all.
    */
   demo: boolean;
+  /**
+   * The demo operator's legal notice (Impressum) and privacy policy
+   * (`Health.imprintUrl`, `Health.privacyUrl`), linked from the banner; `null`
+   * outside the demo, when unset, or when not an absolute https URL.
+   */
+  imprintUrl: string | null;
+  privacyUrl: string | null;
+}
+
+/** `value` if it is an absolute https URL (what the server accepts), else `null`. */
+function httpsUrl(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  try {
+    return new URL(value).protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -22,8 +39,11 @@ export interface ServerMode {
  */
 export function useServerMode(): ServerMode {
   const health = useQuery(healthQuery);
+  const demo = health.data?.demo === 'readonly';
   return {
     known: !health.isPending,
-    demo: health.data?.demo === 'readonly',
+    demo,
+    imprintUrl: demo ? httpsUrl(health.data?.imprintUrl) : null,
+    privacyUrl: demo ? httpsUrl(health.data?.privacyUrl) : null,
   };
 }

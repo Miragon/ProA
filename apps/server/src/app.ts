@@ -144,7 +144,7 @@ export function createProaApp(deps: AppDeps): ProaApp {
     ),
   );
 
-  registerSystemRoutes(app, { database: deps.database, version, demo: demo !== null });
+  registerSystemRoutes(app, { database: deps.database, version, demo });
   registerSessionRoutes(app, {
     useCases,
     sessions,
