@@ -604,7 +604,8 @@ remote build seeded in the build step and the smoke check passed 126 checks agai
 https://proa-demo.fly.dev with both legal links. One machine (`shared-cpu-1x`, 1 GB, `fra`), no
 volume, a shared IPv4 and a dedicated IPv6 (both free). The owner asked the same day that an idle
 demo shuts down and costs nothing ("wenn sie 30 Minuten nicht genutzt wird"):
-`auto_stop_machines` went from `suspend` to `stop` (`min_machines_running = 0`).
+`auto_stop_machines` went from `suspend` to `stop` (`min_machines_running = 0`); verified: the
+machine stopped about 4 minutes after the last request, and a cold start takes about 13 s.
 
 **Review round (2026-10-10, same day):** `POST /api/v1/session` reads at most 4 KiB (a single
 anonymous 700 MB request had killed the 1 GB machine; now 413 before reading, in local mode

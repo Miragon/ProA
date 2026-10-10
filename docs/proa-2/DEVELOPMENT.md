@@ -552,7 +552,9 @@ listed project; its write walk names the project `proa-demo-check-none` and the 
 asked (2026-10-10) that an idle demo shuts down and costs nothing: `auto_stop_machines = "stop"`
 with `min_machines_running = 0`, so Fly's proxy stops the machine within minutes without traffic
 (well before the 30 minutes the owner named) and starts it again on the next request; the first
-visitor after a pause waits a few seconds (the baked seed is copied at start). A stopped machine
+visitor after a pause waits about 15 seconds (machine start, PostgreSQL from the baked seed, the
+server; 13 s measured on 2026-10-10). Verified the same day: after the deploy the machine was
+`stopped` about 4 minutes after the last request, and the next request started it again. A stopped machine
 bills only the storage of its root file system (cents per month), no CPU, RAM or snapshot; a
 blue-green deploy runs a second machine for a few minutes. Check it with
 `fly machine list --app proa-demo` (state `stopped`). Current prices:
