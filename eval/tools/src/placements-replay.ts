@@ -21,6 +21,7 @@ import path from 'node:path';
 
 import { isPlacementLine, type PlacementRecordingLine } from '@proa/contracts';
 
+import { placementWhatIf, type PlacementWhatIf } from './auto-accept-whatif.ts';
 import { CORPUS_DIR } from './corpus.ts';
 import { VALUE_CHAINS_DIR, loadPlacementRun } from './placements-load.ts';
 import {
@@ -144,7 +145,12 @@ export interface PlacementReplayScore {
   /** The scorer's view of the run; for the holdout without items and small tags. */
   system: SystemScore;
   /** Dev only: per-item lists. */
-  lists?: { traps: ScoredItem[]; wrongAt1: ScoredItem[]; missed: MissedProcess[]; unsure: string[] };
+  lists?: {
+    traps: ScoredItem[];
+    wrongAt1: ScoredItem[];
+    missed: MissedProcess[];
+    unsure: string[];
+  };
   /** Set for the holdout: what the score leaves out. */
   note?: string;
 }
@@ -211,7 +217,10 @@ export function rankedPlacements(lines: readonly PlacementRecordingLine[]): Plac
  *
  * @throws {NotComparableError} if a line worked on another chain than the golden one
  */
-export function scorePlacementRecording(file: RecordingFile, run: PlacementRun): PlacementReplayScore {
+export function scorePlacementRecording(
+  file: RecordingFile,
+  run: PlacementRun,
+): PlacementReplayScore {
   const lines = placementLines(file, run.golden.contentHash);
   const outcomes: Record<string, number> = {};
   const invalid: Record<string, number> = {};
@@ -290,7 +299,11 @@ export function scorePlacementRecording(file: RecordingFile, run: PlacementRun):
           return {
             process: p.process,
             top: t?.step ?? null,
-            class: t ? t.class : unsureProcesses.has(p.process) ? ('unsure' as const) : ('none' as const),
+            class: t
+              ? t.class
+              : unsureProcesses.has(p.process)
+                ? ('unsure' as const)
+                : ('none' as const),
           };
         })
         .sort((a, b) => byCodePoint(a.process, b.process)),
@@ -310,6 +323,11 @@ export interface PlacementReplay {
   baselines: PlacementBaselines[];
 }
 
+/** A placement replay with the auto-accept what-if of each recording (replay.json keeps them apart). */
+export interface PlacementReplayWithWhatIf extends PlacementReplay {
+  whatIf: PlacementWhatIf[];
+}
+
 export interface PlacementReplayDirs {
   corpusDir?: string;
   valueChainsDir?: string;
@@ -317,7 +335,8 @@ export interface PlacementReplayDirs {
 
 /**
  * Loads the golden data of every landscape the placement recordings name
- * (once each) and scores them, sorted by path.
+ * (once each) and scores them, sorted by path, each with its auto-accept
+ * what-if (auto-accept-whatif.ts).
  *
  * @throws {NotComparableError} for a recording on an edited chain
  * @throws {PlacementDataError} for missing or unreadable golden data (e.g. `_sample`)
@@ -325,11 +344,12 @@ export interface PlacementReplayDirs {
 export async function replayPlacements(
   files: readonly RecordingFile[],
   dirs: PlacementReplayDirs = {},
-): Promise<PlacementReplay> {
+): Promise<PlacementReplayWithWhatIf> {
   const corpusDir = dirs.corpusDir ?? CORPUS_DIR;
   const valueChainsDir = dirs.valueChainsDir ?? VALUE_CHAINS_DIR;
   const runs = new Map<string, PlacementRun>();
   const recordings: PlacementReplayScore[] = [];
+  const whatIf: PlacementWhatIf[] = [];
   for (const f of [...files].sort((a, b) => byCodePoint(a.path, b.path))) {
     let run = runs.get(f.landscape);
     if (!run) {
@@ -338,9 +358,10 @@ export async function replayPlacements(
       runs.set(f.landscape, run);
     }
     recordings.push(scorePlacementRecording(f, run));
+    whatIf.push(placementWhatIf(f, run));
   }
   const baselines = [...runs.entries()]
     .sort(([a], [b]) => byCodePoint(a, b))
     .map(([landscape, run]) => placementBaselines(landscape, run));
-  return { recordings, baselines };
+  return { recordings, baselines, whatIf };
 }

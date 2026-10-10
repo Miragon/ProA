@@ -225,6 +225,44 @@ describe('placementInputHash', () => {
     }
   });
 
+  it('ignores auto-accept acceptances and their revocations (owner decision 19)', () => {
+    const p = placement('step-antrag', P, 'accepted');
+    const ruleId = 'aar_01J9Z3N4X5Q6R7S8T9V0W1X2Y1' as const;
+    const history = [
+      assertion(p, 5),
+      assertion(p, 7, {
+        kind: 'decision',
+        verdict: 'accept',
+        sourceKind: 'human',
+        autoAcceptRuleId: ruleId,
+        autoAcceptRuleRevision: 1,
+      }),
+      assertion(p, 9, {
+        kind: 'withdrawal',
+        sourceKind: 'human',
+        autoAcceptRuleId: ruleId,
+        autoAcceptRuleRevision: 1,
+      }),
+    ];
+    const seqs = lastNonAgentSeqs([p], new Map([[p.id, history]]));
+    expect(seqs.get(P)).toBeUndefined();
+    expect(hash({ lastNonAgentSeq: seqs })).toBe(hash());
+    // A human's own decision after them counts as before.
+    const decided = lastNonAgentSeqs(
+      [p],
+      new Map([
+        [
+          p.id,
+          [
+            ...history,
+            assertion(p, 11, { kind: 'decision', verdict: 'accept', sourceKind: 'human' }),
+          ],
+        ],
+      ]),
+    );
+    expect(decided.get(P)).toBe(11);
+  });
+
   it('ignores notes on obsolete placements, which no claim shows', () => {
     const gone = placement('step-antrag', P, 'obsolete');
     const seqs = lastNonAgentSeqs(

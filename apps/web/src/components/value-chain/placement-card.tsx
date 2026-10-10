@@ -13,9 +13,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
+import { AutoAcceptMark } from '@/components/auto-accept-mark';
 import { EndpointStateBadge, StatusBadge, TierBadge } from '@/components/badges';
 import { PlainText } from '@/components/review/plain-text';
 import { ProvenanceList } from '@/components/review/provenance';
+import { AutoAcceptProvenance } from '@/components/rules/auto-accept-provenance';
 import { AssertionTimeline } from '@/components/review/timeline';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +25,8 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { errorMessage } from '@/lib/api';
+import type { AutoAcceptIndex } from '@/lib/auto-accept';
+import { useIsOwner } from '@/lib/auto-accept-actions';
 import { formatConfidence } from '@/lib/labels';
 import { MAX_NOTE_CHARS } from '@/lib/limits';
 import { placementAssertionsQuery } from '@/lib/queries';
@@ -52,6 +56,12 @@ export interface PlacementCardProps {
   onSelectStep: (elementId: string) => void;
   onDecided: (outcome: PlacementOutcome) => void;
   onReload: () => void;
+  /**
+   * The auto-accept ledger (owner decision 19, every reviewer): marks a
+   * placement an auto-accept rule accepted, with a single-item revoke for
+   * owners.
+   */
+  autoIndex?: AutoAcceptIndex;
 }
 
 /** The current proposal of a placement: the one its status rests on, else the latest. */
@@ -195,9 +205,12 @@ export function PlacementCard({
   onSelectStep,
   onDecided,
   onReload,
+  autoIndex,
 }: PlacementCardProps) {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Revoking an auto-acceptance is the owners' (the marks are every reviewer's).
+  const owner = useIsOwner(project);
   const self = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (active) self.current?.scrollIntoView({ block: 'nearest' });
@@ -210,6 +223,8 @@ export function PlacementCard({
   const { modelKey, elementId: processId } = splitRef(p.process);
   const name = p.processName ?? processId;
   const prov = p.provenance;
+  const auto = autoIndex?.inForce.get(p.id);
+  const autoEntries = autoIndex?.bySubject.get(p.id) ?? [];
   const proposal = assertions.data ? currentProposal(p, assertions.data) : null;
   const evidence = proposal ? placementEvidenceItems(proposal.evidence, modelKeys) : [];
   const answers = held && assertions.data ? answersSinceHold(p, assertions.data) : [];
@@ -230,6 +245,7 @@ export function PlacementCard({
       data-placement-id={p.id}
       data-status={p.status}
       data-active={active ? 'true' : 'false'}
+      data-auto={auto ? 'true' : undefined}
       aria-current={active ? 'true' : undefined}
       onClick={() => {
         if (!active) onActivate();
@@ -264,6 +280,7 @@ export function PlacementCard({
         ) : !p.stepLive ? (
           <Badge variant="outline">Schritt entfernt</Badge>
         ) : null}
+        {auto ? <AutoAcceptMark entry={auto} /> : null}
       </div>
 
       {prov?.sourceKind === 'rule' ? (
@@ -300,7 +317,10 @@ export function PlacementCard({
       {prov ? (
         <details className="group text-xs">
           <summary className="cursor-pointer text-muted-foreground select-none">Herkunft</summary>
-          <div className="pt-2">
+          <div className="flex flex-col gap-2 pt-2">
+            {autoEntries.length > 0 ? (
+              <AutoAcceptProvenance project={project} entries={autoEntries} canRevoke={owner} />
+            ) : null}
             <ProvenanceList provenance={prov} />
           </div>
         </details>
@@ -380,6 +400,7 @@ export function PlacementCard({
             assertions={assertions.data}
             basisId={prov?.assertionId ?? null}
             renderLink={(a) => <PlacementLink project={project} assertion={a} />}
+            marks={autoIndex?.byAssertion}
           />
         ) : (
           <Skeleton className="h-16 w-full" />

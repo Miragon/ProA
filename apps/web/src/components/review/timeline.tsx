@@ -4,6 +4,7 @@ import { cn } from 'cn';
 import {
   BookmarkIcon,
   CircleCheckIcon,
+  WandSparklesIcon,
   CircleDashedIcon,
   CircleXIcon,
   MessageSquareTextIcon,
@@ -14,6 +15,7 @@ import type { ReactNode } from 'react';
 
 import { TierBadge } from '@/components/badges';
 import { Badge } from '@/components/ui/badge';
+import type { TimelineMark } from '@/lib/auto-accept';
 import { formatConfidence, formatDateTime, procedureText } from '@/lib/labels';
 
 import { PlainText } from './plain-text';
@@ -47,7 +49,24 @@ export type TimelineAssertion = Pick<
   | 'at'
 >;
 
-function lookOf(a: TimelineAssertion): EntryLook {
+function lookOf(a: TimelineAssertion, mark: TimelineMark | undefined): EntryLook {
+  // Owner decision 19: a decision an auto-accept rule recorded, and its revocation.
+  if (mark?.kind === 'decision') {
+    return {
+      icon: WandSparklesIcon,
+      title: 'Automatisch angenommen',
+      textLabel: 'Notiz',
+      tone: 'text-success',
+    };
+  }
+  if (mark?.kind === 'revocation') {
+    return {
+      icon: Undo2Icon,
+      title: 'Automatische Annahme widerrufen',
+      textLabel: 'Grund',
+      tone: 'text-muted-foreground',
+    };
+  }
   switch (a.kind) {
     case 'proposal':
       return {
@@ -99,6 +118,8 @@ export interface AssertionTimelineProps<T extends TimelineAssertion> {
   basisId?: string | null;
   /** A link of an entry, e.g. between a correction and the corrected proposal. */
   renderLink?: (assertion: T) => ReactNode;
+  /** Auto-accept decisions and revocations by assertion id (owner decision 19, owners only). */
+  marks?: ReadonlyMap<string, TimelineMark> | undefined;
 }
 
 /** The link between a corrected relation proposal and the manual relation that replaced it. */
@@ -133,6 +154,7 @@ export function AssertionTimeline<T extends TimelineAssertion>({
   assertions,
   basisId,
   renderLink,
+  marks,
 }: AssertionTimelineProps<T>) {
   if (assertions.length === 0) {
     return <p className="text-sm text-muted-foreground">Noch keine Einträge.</p>;
@@ -140,7 +162,8 @@ export function AssertionTimeline<T extends TimelineAssertion>({
   return (
     <ol aria-label="Verlauf" className="flex flex-col">
       {assertions.map((a, i) => {
-        const look = lookOf(a);
+        const mark = marks?.get(a.id);
+        const look = lookOf(a, mark);
         const Icon = look.icon;
         const procedure = procedureText(a.procedure);
         const last = i === assertions.length - 1;
@@ -150,6 +173,7 @@ export function AssertionTimeline<T extends TimelineAssertion>({
             data-testid="timeline-entry"
             data-kind={a.kind}
             data-verdict={a.verdict ?? undefined}
+            data-auto={mark?.kind}
             className="relative flex gap-3 pb-4"
           >
             {last ? null : (
@@ -162,6 +186,11 @@ export function AssertionTimeline<T extends TimelineAssertion>({
                 {a.id === basisId ? (
                   <Badge variant="outline" title="Auf diesem Eintrag beruht der Status">
                     maßgeblich
+                  </Badge>
+                ) : null}
+                {mark ? (
+                  <Badge variant="outline" data-testid="timeline-rule">
+                    Regel „{mark.ruleName}“ (Revision {mark.revision})
                   </Badge>
                 ) : null}
                 {a.tier ? <TierBadge tier={a.tier} /> : null}

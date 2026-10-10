@@ -62,6 +62,16 @@ Never reuse a project across runs:
 3. A worked project has nothing left to claim, and `eval:live` reads every done analysis of the
    project.
 
+**Never create auto-accept rules in a run project** (owner decision 19, tab „Regeln“, `proa rules
+…`). A seeded project has none, and it should stay so: a rule would accept proposals while the
+agent works, and accepted relations and placements change the next claims (settled pairs, homed
+processes, neighbours' steps). The submission results, and so the recording, would not change
+(they report the state before rules ran), but the run would no longer measure the agent alone.
+After the runs, read the „Auto-accept what-if“ sections of `eval/reports/replay.md` (written by
+`pnpm eval:replay`, step 5): what a rule at 0.8, 0.9 or 0.95 would have accepted in each run,
+right and wrong, per tier; choose a threshold from the dev runs of the model you use, and check the
+holdout only as its aggregate rows.
+
 Never reuse a token name for another run on the same landscape: `eval:live` writes each recording
 file afresh, so a second `claude-code-1` run with the same model on `nordwind-handel` overwrites the
 first one's file (`eval:live: replacing <file> (n lines before, m now)` on stderr). Number the runs
@@ -522,6 +532,8 @@ pnpm eval:replay                        # commit the recording with the reports
   the relations tasks the import queued stay queued, and relation proposals of a relations run
   would change the placement claim input (neighbours). The live gate compares the run with
   `baseline-prefix/1` as a fresh project's hints show it.
+- **No auto-accept rules** in a run project (see [step 0](#what-one-run-is)); the placement
+  what-if of `eval:replay` shows afterwards what a placement rule would have accepted.
 - **Never edit the chain** of a run project: a placement recording counts only on the golden
   chain, and `eval:live` refuses a run whose task saw another chain content ("not comparable
   (edited chain)"). Reviewing placements is fine afterwards; it does not change the recording.

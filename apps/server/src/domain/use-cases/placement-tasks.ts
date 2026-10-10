@@ -21,6 +21,7 @@ import {
 } from '@proa/contracts';
 
 import { sourceKindOf, type Actor } from '../actor.ts';
+import { autoAcceptPlacements, type PlacementTrigger } from '../auto-accept/apply.ts';
 import { DomainError } from '../errors.ts';
 import type {
   ChainTaskDetail,
@@ -302,6 +303,7 @@ export async function submitPlacementAnalysis(
     },
   };
   const placementItems: PlacementSubmissionResult['placements']['items'] = [];
+  const recorded: PlacementTrigger[] = [];
   const counts = { applied: 0, duplicate: 0, suppressed: 0, reopened: 0, invalid: 0 };
   const seen = new Map<string, PlacementRecord>();
   const placed = new Set<string>();
@@ -344,7 +346,8 @@ export async function submitPlacementAnalysis(
       counts.duplicate++;
       continue;
     }
-    const { effect, placement } = await applyPlacementProposal(ctx, v);
+    const { effect, placement, assertion } = await applyPlacementProposal(ctx, v);
+    if (assertion) recorded.push({ placement, assertion });
     byProcess.set(v.processRef, (byProcess.get(v.processRef) ?? new Set()).add(k));
     seen.set(k, placement);
     repeated.add(placement.id);
@@ -509,6 +512,17 @@ export async function submitPlacementAnalysis(
   if (followUpDue.length > 0) {
     await insertPlacementTask(tx, actor, chain, state.head, followUpDue, 'follow-up');
   }
+  // 7. The owner's auto-accept rules (owner decision 19) on the proposals just recorded; the
+  //    result above reports the state before them. `inputs.rows` are the verdicts before this
+  //    submission's.
+  await autoAcceptPlacements(ctx, recorded, {
+    procedure: c.procedure,
+    chainDigest: inputs.hashContext.chainDigest,
+    processDigests: inputs.hashContext.processDigests,
+    hashOf: (ref) => inputs.hashOf(ref),
+    priorRows: inputs.rows,
+    live: state.live,
+  });
   return result;
 }
 

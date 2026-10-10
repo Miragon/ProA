@@ -10,6 +10,7 @@ import {
   type AgentTokenId,
   type AnalysisTaskId,
   type AssertionId,
+  type AutoAcceptRuleId,
   type Fact,
   type Finding,
   type ModelFacts,
@@ -49,6 +50,7 @@ import { alias } from 'drizzle-orm/pg-core';
 
 import type {
   AgentTokenRecord,
+  AutoAcceptRuleHead,
   ChainTaskRecord,
   EventRecord,
   HeadFact,
@@ -63,6 +65,7 @@ import type {
   RelationRecord,
   RevisionRecord,
   StoredAssertion,
+  StoredAutoAcceptRuleRevision,
   StoredNoLink,
   StoredPlacementAssertion,
   StoredPlacementInput,
@@ -176,9 +179,31 @@ const toAssertion = (r: AssertionRow, handle: string): StoredAssertion => ({
   toFp: r.toFp,
   fromHash: r.fromHash,
   toHash: r.toHash,
+  ...autoAcceptMarker<AssertionId>(r),
   handle,
   createdAt: r.createdAt,
 });
+
+/**
+ * The auto-accept marker of an assertion row (owner decision 19); unmarked
+ * rows read back without the fields, as before the marker existed.
+ */
+function autoAcceptMarker<T extends string>(r: {
+  autoAcceptRuleId: string | null;
+  autoAcceptRuleRevision: number | null;
+  autoAcceptTriggerId: string | null;
+}): {
+  autoAcceptRuleId?: AutoAcceptRuleId;
+  autoAcceptRuleRevision?: number;
+  autoAcceptTriggerId?: T | null;
+} {
+  if (r.autoAcceptRuleId === null || r.autoAcceptRuleRevision === null) return {};
+  return {
+    autoAcceptRuleId: r.autoAcceptRuleId as AutoAcceptRuleId,
+    autoAcceptRuleRevision: r.autoAcceptRuleRevision,
+    autoAcceptTriggerId: r.autoAcceptTriggerId as T | null,
+  };
+}
 
 /** A `relations` task row (the subject check guarantees its model columns). */
 function toModelTaskRecord(r: TaskRow): ModelTaskRecord {
@@ -408,9 +433,37 @@ const toPlacementAssertion = (
   processFp: r.processFp,
   stepHash: r.stepHash,
   processHash: r.processHash,
+  ...autoAcceptMarker<PlacementAssertionId>(r),
   handle,
   createdAt: r.createdAt,
 });
+
+type RuleRevisionRow = typeof s.autoAcceptRuleRevision.$inferSelect;
+
+const toRuleRevision = (r: RuleRevisionRow, handle: string): StoredAutoAcceptRuleRevision => {
+  if (r.sourceKind !== 'human') throw new Error(`rule ${r.ruleId} not written by a human`);
+  return {
+    projectId: r.projectId as ProjectId,
+    ruleId: r.ruleId as AutoAcceptRuleId,
+    kind: r.kind,
+    revision: r.revision,
+    name: r.name,
+    enabled: r.enabled,
+    tier: r.tier,
+    minConfidence: r.minConfidence,
+    note: r.note,
+    relationType: r.relationType,
+    agentPrincipalId: r.agentPrincipalId as PrincipalId | null,
+    llmModel: r.llmModel,
+    includeAdHoc: r.includeAdHoc,
+    principalId: r.principalId as PrincipalId,
+    clientId: r.clientId,
+    sourceKind: 'human',
+    seq: r.seq,
+    handle,
+    createdAt: r.createdAt,
+  };
+};
 
 // ------------------------------------------------------------- repositories
 
@@ -580,6 +633,42 @@ function repos(db: Conn): Tx {
   const noLinkTo = alias(s.model, 'no_link_to_model');
   const noLinkToHead = alias(s.modelRevision, 'no_link_to_head');
   const noLinkOrigin = alias(s.model, 'no_link_origin');
+  const ruleCreator = alias(s.principal, 'rule_creator');
+
+  /** Rules at their head revision (one `DISTINCT ON` query), in creation order. */
+  async function ruleHeads(
+    projectId: ProjectId,
+    where: SQL | undefined,
+  ): Promise<AutoAcceptRuleHead[]> {
+    const rev = s.autoAcceptRuleRevision;
+    const rows = await db
+      .selectDistinctOn([rev.ruleId], {
+        rev,
+        handle: s.principal.handle,
+        createdBy: s.autoAcceptRule.createdBy,
+        createdByHandle: ruleCreator.handle,
+        ruleSeq: s.autoAcceptRule.seq,
+        ruleCreatedAt: s.autoAcceptRule.createdAt,
+      })
+      .from(rev)
+      .innerJoin(
+        s.autoAcceptRule,
+        and(eq(s.autoAcceptRule.projectId, rev.projectId), eq(s.autoAcceptRule.id, rev.ruleId)),
+      )
+      .innerJoin(s.principal, eq(s.principal.id, rev.principalId))
+      .innerJoin(ruleCreator, eq(ruleCreator.id, s.autoAcceptRule.createdBy))
+      .where(and(eq(rev.projectId, projectId), where))
+      .orderBy(rev.ruleId, desc(rev.revision));
+    return rows
+      .map((r) => ({
+        ...toRuleRevision(r.rev, r.handle),
+        createdBy: r.createdBy as PrincipalId,
+        createdByHandle: r.createdByHandle,
+        ruleSeq: r.ruleSeq,
+        ruleCreatedAt: r.ruleCreatedAt,
+      }))
+      .sort((a, b) => a.ruleSeq - b.ruleSeq);
+  }
 
   return {
     projects: {
@@ -1443,6 +1532,29 @@ function repos(db: Conn): Tx {
             createdAt: r.nl.createdAt,
           }));
       },
+      async listHistory(projectId) {
+        const rows = await db
+          .select({
+            type: s.noLink.type,
+            fromRef: s.noLink.fromRef,
+            toRef: s.noLink.toRef,
+            principalId: s.noLink.principalId,
+            seq: s.noLink.seq,
+            withdrawnSeq: s.noLinkWithdrawal.seq,
+          })
+          .from(s.noLink)
+          .leftJoin(s.noLinkWithdrawal, eq(s.noLinkWithdrawal.noLinkId, s.noLink.id))
+          .where(eq(s.noLink.projectId, projectId))
+          .orderBy(asc(s.noLink.seq), asc(s.noLink.id));
+        return rows.map((r) => ({
+          type: r.type,
+          fromRef: r.fromRef as Ref,
+          toRef: r.toRef as Ref,
+          principalId: r.principalId as PrincipalId,
+          seq: r.seq,
+          withdrawnSeq: r.withdrawnSeq,
+        }));
+      },
       async withdraw(projectId, ids, by) {
         for (const chunk of chunks(ids, INSERT_CHUNK)) {
           await db.insert(s.noLinkWithdrawal).values(
@@ -1895,6 +2007,53 @@ function repos(db: Conn): Tx {
           refs: r.refs as Ref[],
           detail: r.detail,
         }));
+      },
+    },
+
+    autoAcceptRules: {
+      async insertRule(r) {
+        await db.insert(s.autoAcceptRule).values(r);
+      },
+      async insertRevision(r) {
+        await db.insert(s.autoAcceptRuleRevision).values(r);
+      },
+      async heads(projectId, filter = {}) {
+        const heads = await ruleHeads(
+          projectId,
+          filter.kind === undefined ? undefined : eq(s.autoAcceptRuleRevision.kind, filter.kind),
+        );
+        return filter.enabledOnly ? heads.filter((h) => h.enabled) : heads;
+      },
+      async find(projectId, ruleId) {
+        const [head] = await ruleHeads(projectId, eq(s.autoAcceptRuleRevision.ruleId, ruleId));
+        if (!head) return null;
+        const rows = await db
+          .select({ rev: s.autoAcceptRuleRevision, handle: s.principal.handle })
+          .from(s.autoAcceptRuleRevision)
+          .innerJoin(s.principal, eq(s.principal.id, s.autoAcceptRuleRevision.principalId))
+          .where(
+            and(
+              eq(s.autoAcceptRuleRevision.projectId, projectId),
+              eq(s.autoAcceptRuleRevision.ruleId, ruleId),
+            ),
+          )
+          .orderBy(asc(s.autoAcceptRuleRevision.revision));
+        return { head, revisions: rows.map((r) => toRuleRevision(r.rev, r.handle)) };
+      },
+      async revisions(projectId, ruleIds) {
+        if (ruleIds.length === 0) return [];
+        const rows = await db
+          .select({ rev: s.autoAcceptRuleRevision, handle: s.principal.handle })
+          .from(s.autoAcceptRuleRevision)
+          .innerJoin(s.principal, eq(s.principal.id, s.autoAcceptRuleRevision.principalId))
+          .where(
+            and(
+              eq(s.autoAcceptRuleRevision.projectId, projectId),
+              inArray(s.autoAcceptRuleRevision.ruleId, [...new Set(ruleIds)]),
+            ),
+          )
+          .orderBy(asc(s.autoAcceptRuleRevision.ruleId), asc(s.autoAcceptRuleRevision.revision));
+        return rows.map((r) => toRuleRevision(r.rev, r.handle));
       },
     },
 

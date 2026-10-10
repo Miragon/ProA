@@ -31,6 +31,7 @@ ProA 2.0 is a headless store for process landscapes. It holds BPMN models, the f
 | Analysis task | `ana_` |
 | Value chain (M4) | `vch_` with an immutable `key` (`main`); revisions `vcr_` hold immutable canonical bytes; step generations `(chain, element_id, generation)` |
 | Placement (M4) | `plc_`, natural key `(chain, element_id, generation, process_ref)`; assertions `pas_`, append-only |
+| Auto-accept rule (owner decision 19) | `aar_`, an immutable head row plus append-only revisions `(rule, revision)`; never deleted, only disabled |
 | Event | `(project, seq)`; both change feed and audit log |
 
 **Refs** have the form `<model_key>#<element_id>`, or `<model_key>#<process_id>` for a process.
@@ -66,7 +67,9 @@ Endpoints lie in different processes; start and end events inside embedded subpr
 
 **Assertions** record kind and verdict; `source_kind` (`human`, `agent`, `rule`) with the authenticated principal and client; the declared procedure version and LLM model; the server-computed tier (`key`, `lexical`, `semantic`, `manual`); confidence, rationale and evidence; both endpoint fingerprints; for a pipeline proposal also its basis, the `facts_hash` of both endpoint models as the agent saw them (§3, judge each pair once). **No-links** record the typed pair, the reason, the same provenance and basis, and the analysed model as origin.
 
-**Status.** `recomputeStatus` is a pure function. The latest decision wins, except that a newer proposal whose fingerprints differ from those stored with a rejection reopens the relation as `proposed`. Without a decision, a live proposal means `proposed`; otherwise the relation is `obsolete` and hidden. Human verdicts are `accept`, `reject` and `hold` ("vormerken": a note is required, a question and a label are optional). A held relation has status `held`: it is still open, leaves the review inbox for its own list, appears in agents' claim input, and a later accept or reject replaces the hold.
+**Auto-accept marker** (owner decision 19). An owner's auto-accept rule accepts an agent proposal as a `decision`/`accept` with `source_kind = 'human'` under the **author of the rule revision in force** (whoever created, edited or enabled it); agents still only propose, and the checks `agents_never_decide` and `placement_assertion_rules_never_decide` are unchanged. Three marker columns name the rule, its immutable revision and the agent proposal that triggered it (`auto_accept_rule_id`, `auto_accept_rule_revision`, `auto_accept_trigger_id`). A composite foreign key `(project_id, rule_id, revision, principal_id) → auto_accept_rule_revision` pins the decider to the revision's author, a second one makes the trigger an assertion of the same relation or placement, and a check allows a marker only on a human accept with a trigger and no tier, or on a human withdrawal without one: the **revocation**. Unmarked rows are untouched (the foreign keys are MATCH SIMPLE). Code that equates `human` with "reviewed by a person" must check the marker: the R1 OKF export (`verified: human:<handle>`) and `eval-export` treat a marked decision as machine-confirmed, never as ground truth (the rule preview already does).
+
+**Status.** `recomputeStatus` is a pure function. The latest decision wins, except that a newer proposal whose fingerprints differ from those stored with a rejection reopens the relation as `proposed`. A revoked auto-acceptance is no decision in force: a marked decision ends when a later withdrawal of the same principal carries the same rule id (the revocation), without falling back to that principal's older decisions (the safeguards guarantee there are none). The revocation ends exactly that acceptance: when the principal has proposed or withdrawn since (say, the rule's author proposed the pair again after an endpoint change), that later stance stays. Every other decision behaves as before, so histories without markers compute exactly as they did (a golden digest over random histories pins it). Without a decision, a live proposal means `proposed`; otherwise the relation is `obsolete` and hidden. Human verdicts are `accept`, `reject` and `hold` ("vormerken": a note is required, a question and a label are optional). A held relation has status `held`: it is still open, leaves the review inbox for its own list, appears in agents' claim input, and a later accept or reject replaces the hold.
 
 **Endpoint state** (`ok`, `changed`, `missing`) is recomputed on every ingest and delete; an accepted relation with an endpoint not `ok` is an open item (re-anchoring in R2). A task submission for model M withdraws the live agent judgements (pipeline proposals and no-links, any agent) touching M that were made on another version of M or under another procedure; current ones stay without repetition (§3), and ad-hoc proposals stay.
 
@@ -106,10 +109,26 @@ placement(id, project_id, value_chain_id, element_id, generation, process_ref, s
          tier, confidence, version, step_fp, process_fp)
 placement_assertion(<relation_assertion columns>, placement_id, linked_placement_id, step_fp, process_fp,
          step_hash, process_hash)
+-- Owner decision 19 (auto-accept rules; migrations 0009/0010):
+auto_accept_rule(id, project_id, kind in ('relation','placement'), created_by, seq, unique(project_id, id, kind))
+auto_accept_rule_revision(project_id, rule_id, kind, revision >= 1, name, enabled, tier, min_confidence
+         between 0.5 and 1, note, relation_type, agent_principal_id, llm_model, include_ad_hoc,
+         principal_id, client_id, source_kind = 'human', seq, pk(rule_id, revision),
+         unique(project_id, rule_id, revision, principal_id),
+         check((kind = 'relation' and tier in ('key','lexical','semantic'))
+               or (kind = 'placement' and tier in ('lexical','semantic') and relation_type is null)))
+-- marker columns on relation_assertion and placement_assertion:
+  auto_accept_rule_id, auto_accept_rule_revision, auto_accept_trigger_id,
+  fk (project_id, auto_accept_rule_id, auto_accept_rule_revision, principal_id)
+     → auto_accept_rule_revision(project_id, rule_id, revision, principal_id),
+  fk (project_id, relation_id | placement_id, auto_accept_trigger_id) → same table (same subject),
+  check((rule_id is null) = (rule_revision is null) and (rule_id is not null or trigger_id is null)
+        and (rule_id is null or (source_kind = 'human' and ((kind = 'decision' and verdict = 'accept'
+             and trigger_id is not null and tier is null) or (kind = 'withdrawal' and trigger_id is null)))))
 ```
 
 `seq` comes from `UPDATE project SET last_seq = last_seq + 1 RETURNING last_seq` in the writing transaction, which serializes writes per project and keeps `seq` dense for cursors. Triggers block UPDATE and DELETE on `event` and the other append-only tables (since M4 also
-`value_chain_revision` and `placement_assertion`; a `value_chain_step` row only takes its tombstone). The policy limits rule decisions to `call` relations.
+`value_chain_revision` and `placement_assertion`; a `value_chain_step` row only takes its tombstone; since owner decision 19 both auto-accept rule tables). The policy limits rule decisions to `call` relations.
 
 ## 3. Analysis pipeline
 
@@ -144,7 +163,8 @@ The stage shows in `GET /projects/{p}/models?stage=` and MCP `list_processes`; h
 2. **Key tier:** identical message and signal names arrive as proposals with confidence 1.0; a reviewer checks them briefly and accepts them in bulk per tier.
 3. **Agent proposals** (lexical, semantic, trigger) form the inbox, sorted by confidence and by how many open items a decision closes. Each card shows both endpoints in bpmn-js, the rationale, the evidence and the agent's optional question. Actions: **accept**; **reject** with a reason, which agents see in their next claim; **hold** with a note and an optional question or label (e.g. "mit Fachbereich Finanzen klären"); **correct**, i.e. accept a different endpoint as a `manual` relation linked to the proposal.
 4. **Held items** have their own list. An answer is a note on the relation and reaches the next agent run; the decision is made when the answer is known.
-5. **Learning loop (R1):** `GET /projects/{p}/eval-export` writes the project's models and decisions in the corpus format (§7), so real review work becomes eval cases.
+5. **Auto-accept rules** (owner decision 19, tab „Regeln“): an owner may let agent proposals up to a chosen confidence accept themselves. A rule names the kind (relations or placements), the server-computed tier (relations `key`, `lexical`, `semantic`; placements `lexical`, `semantic`), an inclusive minimum confidence (at least 0.5) and optionally one relation type, one agent (its token's principal) and one declared LLM model; ad-hoc proposals count only with „Auch Ad-hoc-Vorschläge“. Rules are off by default (no project and no seed has any), never visible to agents, and never retroactive: they evaluate only agent proposals newly recorded by a write (`applied` or `reopened`), at the end of that write's transaction under the project lock, in all four write paths (relations and placement submissions, `propose_relation`, `propose_placement`); open proposals need the explicit **apply** (dry run, then the head revision and `expectedCount`). The first matching rule in creation order is recorded; its author must still be an owner. **Safeguards**, in this order (the first failing one is the reason the preview shows): not an agent proposal; no matching rule; a pipeline proposal whose basis is no longer current; the item not `proposed`; an endpoint not `ok`; for placements `@outside`, a removed step, a home step already accepted or held (decision 18) and another live proposal of the process on another step (ambiguity, also the agent's own second step); for relations another proposed, held or accepted call from the same element (a call has one target); any human assertion on the pair or on any placement of the process (decisions, corrections, holds, notes, human proposals, an earlier auto-acceptance or its revocation); an agent question on any live agent proposal; a live no-link on the typed pair; another agent's current `unsure` verdict on the process. So a revoked or human-touched item is never auto-accepted again, and a rule never re-confirms after an endpoint change. An agent's ad-hoc placement proposal never replaces another agent's current `unsure` verdict on the process, so that doubt keeps blocking in later writes, in the preview and in apply alike. Submission and ad-hoc results (and the stored `analysis_submission.result`) report the state **before** the owner's rules ran, so recordings and replays stay independent of a project's rules and agents get no per-item feedback (the claim inputs of later tasks do reflect what a rule accepted). The **preview** replays the project's history (what the rule would have accepted at each agent proposal before the first human decision, with the safeguards as of that moment and what its own earlier firing would have blocked, and how humans then decided: accepted, rejected, corrected, held, giving an empirical precision; an item a human never decided but whose competitor, another target of the call element or another step of the process, a human accepted counts as corrected; items only a rule decided are shown apart as „nicht geprüft“, never as ground truth), what it would accept now among open proposals with the blocked reasons, and a curve over minimum confidences. **Revoking** (per rule, revision, triggering agent, kind or ids; dry run, then `expectedCount`) records a marked human withdrawal under the decision's principal: an item returns to `proposed` while a live proposal remains (an agent's judgement stays current, so judge-once assigns nothing again), else it turns `obsolete` and is treated as a lost judgement; an item a human decided since is never touched. **Marks:** every human reviewer (editors and owners) sees which acceptances a rule made: „Automatisch angenommen – Regel „…““ in the relation table, review screen, history, queue, chain page and step view, filterable; only the rules themselves, apply and revoke are the owners'. Edits, enables and disables are new immutable revisions; rules are never deleted, and saving a rule whose author is no longer an owner takes it over (also without a change). Decision 9 stays as it is and appears in the tab as the read-only system rule „Eindeutige Aufrufe“.
+6. **Learning loop (R1):** `GET /projects/{p}/eval-export` writes the project's models and decisions in the corpus format (§7), so real review work becomes eval cases.
 
 **Claim and lease:**
 - `claim_analysis({projectId?, modelKey?, kinds?, max ≤ 5})` is one `UPDATE … WHERE id IN (SELECT … ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT n)` over queued tasks and expired leases with fewer than 3 attempts, in projects where the caller is at least `editor`; `modelKey` narrows it to one model, `kinds` (default `["relations"]`, so a client written for relations never gets another kind; `GET /analyses/pending` counts the same default) to the task kinds the caller handles. It sets a hashed lease token, `lease_until = now() + 15 min` and `attempts + 1`; expired tasks with 3 attempts become `failed` in the same transaction, so no cron job is needed.
@@ -206,6 +226,7 @@ Git only wins in rows a read-only export covers too. **Decision: hybrid, but asy
 | proposed | draft | `generated.by`: `proa-relations/0.1.0`, `proa-rules/1.0.0` or `human:<handle>` |
 | accepted by a human | stable | `verified: [{by: human:<handle>, at}]` |
 | accepted by a rule | stable | `verified: [{by: proa-rules/1.0.0, at}]` (machine-confirmed) |
+| accepted by an owner's auto-accept rule (decision 19) | stable | `verified: [{by: auto-accept:<rule id>@r<revision>, at}]` (machine-confirmed under the owner's rule, never `human:<handle>`) |
 | rejected | deprecated | `proa.decision`, no `verified` |
 
 Rejected relations are exported on purpose, so offline agents do not propose them again. Freshness binds to fingerprints, not to `verified.at` versus `generated.at`. Handles are pseudonymous; no e-mail addresses or `sub` values. The export is deterministic (sorted keys, no timestamp; tested for byte-identical output and resolvable links). Compost compatibility is not a goal. One renderer feeds the zip, `GET …/okf/{path}` and MCP resources; ProA never reads its `.md` files back.
@@ -226,6 +247,7 @@ Rejected relations are exported on purpose, so offline agents do not propose the
 | `…/relations/{rel}/decision` (`accept`, `reject`, `hold`), `…/decisions` | POST; bulk needs ids, versions and `expectedCount` |
 | `/projects/{p}/value-chains[/{key}]`, `…/{key}/content` (`If-Match: "r<rev>"`, `If-None-Match: *`, `?dryRun=true`), `…/revisions[/{rev}/content]`, `…/steps/{id}`, `…/findings`, `…/unplaced-processes` (M4) | GET, POST, PUT, DELETE (writes: humans only) |
 | `…/value-chains/{key}/placements[/{plc}]`, `…/{plc}/decision`, `…/placements/decisions`, `…/{plc}/notes`, `…/{plc}/assertions`, `…/{plc}/proposal` (M4) | GET; POST to propose or add a manual placement; decisions, bulk and notes by humans; DELETE own proposal |
+| `/projects/{p}/auto-accept-rules[/{rule}]` (`ETag`/`If-Match: "r<rev>"` on the rule), `…/auto-accept-rules/preview`, `…/auto-accept-rules/{rule}/apply?dryRun=`, `/projects/{p}/auto-accept-revocations?dryRun=`, `/projects/{p}/auto-accepted?kind=&ruleId=&state=&agentPrincipalId=` (owner decision 19) | GET, POST (201 with `"r1"`), PUT (a new revision; 428 without `If-Match`, 412 `revision-conflict`); POST preview, apply and revocation (409 `conflict` with the fresh count); GET the ledger. Owners only, except the ledger (every human reviewer: permission `review`); no MCP counterpart |
 | `/projects/{p}/eval-export` | GET (R1) |
 | `/analyses/claim`, `/analyses/{a}/submission\|release`, `/analyses/pending?wait=30` | POST, POST, GET |
 | `/projects/{p}/analyses[/requeue]`, `…/events?after=&wait=30` | GET/POST, GET long-poll |
@@ -244,7 +266,7 @@ Problem types: 422 `validation-failed`, `bpmn-invalid`, `value-chain-invalid` (w
 
 There is no decide tool; an attempt returns `human-decision-required` with the review URL (the stubs `decide_relation` and `decide_placement` exist only to say so). Prompts and `instructions`: §7. Resources: `proa://projects/{p}/models/{key}.bpmn` and `…/landscape.json`.
 
-**Events:** `model.revised|deleted`, `analysis.queued|claimed|done|failed`, `relation.proposed|decided|endpoint_changed`, `value_chain.created|revised|deleted`, `placement.proposed|withdrawn|decided|noted|endpoint_changed` (M4), `member.changed`, `agent_token.created|revoked`. Long-polls wait on Postgres `LISTEN`; webhooks will read the same table.
+**Events:** `model.revised|deleted`, `analysis.queued|claimed|done|failed`, `relation.proposed|decided|endpoint_changed`, `value_chain.created|revised|deleted`, `placement.proposed|withdrawn|decided|noted|endpoint_changed` (M4), `auto_accept_rule.created|revised|applied` and `auto_accept.revoked` (owner decision 19; ids, revision and counts, never criteria), `member.changed`, `agent_token.created|revoked`. An auto-acceptance is a `relation.decided`/`placement.decided` event whose principal is the causer (the agent whose proposal triggered it, or the owner who applied the rule) and whose payload names the deciding owner and `autoAccept: {ruleId, revision, triggerId}`; a revocation is a `*.withdrawn` event with the same marker. Unmarked events are unchanged. Long-polls wait on Postgres `LISTEN`; webhooks will read the same table.
 
 ## 6. Auth and authorization
 
@@ -285,7 +307,7 @@ WorkOS: CIMD, DCR and a resource indicator for the canonical resource. Tokens re
 
 **IdP client credentials** need no extra code: an owner registers `(iss, client_id)` as a service with a role of at most `editor`.
 
-**Principals and provenance.** The system principal `proa-rules` may only accept `call` relations during ingest. Interactive clients are listed in `PROA_INTERACTIVE_CLIENTS` (default `proa-web,proa-cli`), never `proa-mcp`, DCR or CIMD ids. `source_kind` is derived, never sent: `human` is a user on an interactive client, `rule` the system principal, `agent` everything else, including a person chatting in claude.ai or ChatGPT.
+**Principals and provenance.** The system principal `proa-rules` may only accept `call` relations during ingest. An owner's auto-accept rule (owner decision 19) decides as the human author of the rule revision in force, with `source_kind = 'human'` and the marker of §2; the event names the agent (or the owner applying the rule) as causer. Agent tokens get 403 `forbidden` on every rule route (403 `human-decision-required` on the ledger of acceptances, which every human reviewer reads), and no MCP tool, resource or claim input carries rule data: claim inputs show an auto-accepted item as a plain human `accept`, and a revocation's rationale („Automatische Annahme widerrufen“) names no rule. Interactive clients are listed in `PROA_INTERACTIVE_CLIENTS` (default `proa-web,proa-cli`), never `proa-mcp`, DCR or CIMD ids. `source_kind` is derived, never sent: `human` is a user on an interactive client, `rule` the system principal, `agent` everything else, including a person chatting in claude.ai or ChatGPT.
 
 **Permission = scope ∩ role ∩ principal rule:**
 
@@ -296,6 +318,8 @@ WorkOS: CIMD, DCR and a resource indicator for the canonical resource. Tokens re
 | Ingest, delete models, requeue | `proa:write` | editor | any |
 | Decide, create an accepted manual relation | `proa:review` | editor | user on an interactive client |
 | Members, invitations, services, agent tokens, delete project | `proa:write` | owner | user on an interactive client |
+| Auto-accept rules: list, preview, create, edit, apply, revoke (owner decision 19; permission `admin`) | `proa:write` | owner | user on an interactive client |
+| Auto-accept ledger: which acceptances a rule made, for the marks (owner decision 19; permission `review`) | `proa:review` | editor | user on an interactive client |
 
 Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come through a 403 challenge. An agent token acts as `editor` (`viewer` if read-only). Any user may create a project and owns it.
 
@@ -309,6 +333,8 @@ Scopes nest (review ⊇ propose ⊇ read, write ⊇ read); higher scopes come th
 | Flooding, careless bulk accept | ≤ 200 relations per submission, one open task per model, `expectedCount` on bulk accept; revoking a token or service withdraws its proposals. |
 | An agent on a human channel | No agent setup holds a `proa-web` or `proa-cli` token. **Remaining risk:** an agent driving the user's browser or CLI. |
 | Lease replay, spoofed provenance | 256-bit lease tokens, hashed, bound to principal and task. `source_kind` and client come from the credential; procedure and model are only declared. |
+| Confidence gaming once auto-accept rules exist (owner decision 19) | Rules are invisible to agents (no MCP tool, no rule data in resources, results report the state before rules ran); procedure texts are unchanged; rules can be narrowed to one agent and one declared model; a 0.5 floor; the safeguards (stale basis, questions, no-links, competing calls and steps, any human involvement); the preview's empirical precision and the `eval:replay` what-if before choosing a threshold; bulk revoke per rule or agent. **Remaining risk:** an agent can still notice acceptances through `get_relations` and its timing. |
+| A leaked agent token with rules in force | The token is project-bound and revocable; its open proposals are withdrawn on revocation, its auto-acceptances stay (they are owner decisions) and are revoked in one step per agent (the agents page offers it with the token revocation; the tab „Regeln“ revokes per agent at any time). |
 
 ## 7. Agents and procedures
 
@@ -443,11 +469,11 @@ Starting point (checked 2026-10-05): the remote has only `develop` and no tags o
 - **Relations and content:** cross-project relations, external placeholders, error/escalation/link/compensation relations, DMN refs, fuzzy data-store matching, agent findings, comments, embeddings, runtime data.
 - **Sync and export:** linked Git sync, OKF restore, foreign OKF, the Web Modeler, `messages/`, `findings/` and `log.md` in the export.
 - **Platform and auth:** stdio MCP, MCP subscriptions, an authorization server or OAuth proxy in ProA, Keycloak CIMD while experimental, Enterprise-Managed Authorization (ID-JAG), token exchange, DPoP/mTLS, WorkOS API keys, personal user tokens (`proa-cli` uses device flow), row-level security, a shared multi-tenant instance.
-- **Decisions:** auto-accept beyond `call`, and deciding via MCP.
+- **Decisions:** deciding via MCP; beyond the owner's auto-accept rules (decision 19): a glossary, fixed mappings, rules that re-confirm after an endpoint change, narrowing a rule by procedure.
 
 ## 12. Open questions for the owner
 
-1. **Auto-accept.** Should only an unambiguous `calledElement` match be accepted without a click? Identical message and signal names would stay proposed, bulk-acceptable per tier.
+1. **Auto-accept.** Answered: decision 9 accepts only unambiguous calls built in; decision 19 lets the owner add auto-accept rules for agent proposals of relations and placements (§3 review workflow step 5). Identical message and signal names stay proposed, bulk-acceptable per tier, unless an owner's rule accepts them.
 2. **First users.** Will they upload through the UI, or work from bpmiq.yml/Git repositories? The answer decides whether folder and bpmiq.yml import move into v1.
 3. **Held items.** Is a note plus an optional question enough for "vormerken" in v1, or do you need routing to people (assignee, due date, notification)?
 4. **License** (prerequisite for `v2.0.0` and for publishing the bridge as npm package or Desktop Extension). Which license applies to 2.0 code? The test landscapes in `eval/corpus` are synthetic and written for 2.0.

@@ -91,7 +91,7 @@ describe('RelationsView', () => {
         .getByRole('button', { name: /Alle 4/ })
         .getAttribute('aria-pressed'),
     ).toBe('true');
-    await user.click(within(presets).getByRole('button', { name: /Durch Regel angenommen/ }));
+    await user.click(within(presets).getByRole('button', { name: /Durch Systemregel angenommen/ }));
     expect(rowIds()).toEqual(['rel_01CALL000000000000000000001']);
     await user.click(within(presets).getByRole('button', { name: /Schlüssel-Vorschläge 3/ }));
     expect(

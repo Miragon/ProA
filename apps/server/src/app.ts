@@ -16,6 +16,7 @@ import type { AppEnv } from './http/context.ts';
 import { problemFromError, problemResponse, validationHook } from './http/problem.ts';
 import { registerAgentTokenRoutes } from './http/routes/agent-tokens.ts';
 import { registerAnalysisRoutes } from './http/routes/analyses.ts';
+import { registerAutoAcceptRoutes } from './http/routes/auto-accept.ts';
 import { registerModelRoutes } from './http/routes/models.ts';
 import { registerPlacementRoutes } from './http/routes/placements.ts';
 import { mountNotImplementedRoutes } from './http/routes/not-implemented.ts';
@@ -117,6 +118,7 @@ export function createProaApp(deps: AppDeps): ProaApp {
   registerAgentTokenRoutes(app, useCases);
   registerValueChainRoutes(app, useCases);
   registerPlacementRoutes(app, useCases);
+  registerAutoAcceptRoutes(app, useCases);
 
   mountMcp(app, { version, useCases, auth: { sessions } });
   const placeholders = mountNotImplementedRoutes(app);

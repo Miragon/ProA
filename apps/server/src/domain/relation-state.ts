@@ -82,9 +82,31 @@ export async function prepareAssertion(
       ...(input.tier ? { tier: input.tier, confidence: input.confidence } : {}),
       ...(input.submissionId ? { submissionId: input.submissionId } : {}),
       ...(input.linkedRelationId ? { linkedRelationId: input.linkedRelationId } : {}),
+      ...autoAcceptPayload(input),
     },
   });
   return { ...input, id: newId('assertion'), projectId, relationId: relation.id, seq };
+}
+
+/**
+ * The `autoAccept` member of an assertion event (owner decision 19): the
+ * rule, its revision and the trigger of a marked assertion (ids only, never
+ * the rule's criteria); nothing for an unmarked one, so its event stays as
+ * before.
+ */
+export function autoAcceptPayload(input: {
+  autoAcceptRuleId?: string | null;
+  autoAcceptRuleRevision?: number | null;
+  autoAcceptTriggerId?: string | null;
+}): { autoAccept?: { ruleId: string; revision: number; triggerId: string | null } } {
+  if (!input.autoAcceptRuleId || input.autoAcceptRuleRevision == null) return {};
+  return {
+    autoAccept: {
+      ruleId: input.autoAcceptRuleId,
+      revision: input.autoAcceptRuleRevision,
+      triggerId: input.autoAcceptTriggerId ?? null,
+    },
+  };
 }
 
 /** The derived columns of a relation, from its history and the head fingerprints of its endpoints. */

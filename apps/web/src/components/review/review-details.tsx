@@ -1,13 +1,15 @@
-import type { Relation, RelationAssertion } from '@proa/client';
+import type { AutoAcceptLedgerEntry, Relation, RelationAssertion } from '@proa/client';
 import { Link } from '@tanstack/react-router';
 import { CircleHelpIcon, CrosshairIcon, ExternalLinkIcon, UnlinkIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { EndpointStateBadge, StatusBadge, TierBadge, TypeLabel } from '@/components/badges';
+import { AutoAcceptProvenance } from '@/components/rules/auto-accept-provenance';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatConfidence, formatDateTime, provenanceOf } from '@/lib/labels';
+import type { TimelineMark } from '@/lib/auto-accept';
 import type { RefResolver } from '@/lib/refs';
 import { currentProposal, evidenceItems, type EvidenceItem } from '@/lib/review';
 
@@ -43,6 +45,16 @@ export interface ReviewDetailsProps {
   paneModels?: ReadonlySet<string>;
   /** Shows a cited element in its canvas. */
   onEvidence?: (item: Extract<EvidenceItem, { kind: 'ref' }>) => void;
+  /**
+   * Owner decision 19, from the ledger (every reviewer): the relation's
+   * auto-acceptances (oldest first), the marks of their assertions, and
+   * whether the caller may revoke (owners).
+   */
+  autoAccept?: {
+    entries: readonly AutoAcceptLedgerEntry[];
+    marks: ReadonlyMap<string, TimelineMark>;
+    canRevoke: boolean;
+  };
 }
 
 /**
@@ -59,6 +71,7 @@ export function ReviewDetails({
   modelKeys,
   paneModels,
   onEvidence,
+  autoAccept,
 }: ReviewDetailsProps) {
   const proposal = assertions ? currentProposal(relation, assertions) : null;
   const evidence = proposal ? evidenceItems(proposal.evidence, modelKeys) : [];
@@ -215,6 +228,13 @@ export function ReviewDetails({
 
       <Separator />
       <Section title="Herkunft">
+        {autoAccept && autoAccept.entries.length > 0 ? (
+          <AutoAcceptProvenance
+            project={project}
+            entries={autoAccept.entries}
+            canRevoke={autoAccept.canRevoke}
+          />
+        ) : null}
         {relation.provenance ? (
           <ProvenanceList provenance={relation.provenance} />
         ) : (
@@ -233,6 +253,7 @@ export function ReviewDetails({
             assertions={assertions}
             renderLink={(a) => <RelationLink project={project} assertion={a} />}
             basisId={relation.provenance?.assertionId ?? null}
+            marks={autoAccept?.marks}
           />
         )}
       </Section>

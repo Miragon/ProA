@@ -5,6 +5,7 @@
 // renders no per-item list for it.
 import { BASELINE_PREFIX } from '@proa/relations';
 
+import { renderPlacementWhatIf, type PlacementWhatIf } from './auto-accept-whatif.ts';
 import { MIN_LIVE_RUNS, SIM_AGENT, gateLabel } from './live-gate.ts';
 import { PLACEMENT_RECALL_MARGIN, type PlacementLiveGate } from './placement-live-gate.ts';
 import { HOLDOUT_MIN_GROUP, type ScoredItem } from './placements-score.ts';
@@ -99,7 +100,9 @@ function itemList(items: readonly ScoredItem[]): string {
 
 function missedList(items: readonly MissedProcess[]): string {
   if (items.length === 0) return '_none_';
-  return items.map((m) => `- ${m.process}: ${m.top === null ? m.class : `\`${m.top}\` (${m.class})`}`).join('\n');
+  return items
+    .map((m) => `- ${m.process}: ${m.top === null ? m.class : `\`${m.top}\` (${m.class})`}`)
+    .join('\n');
 }
 
 function liveGateSection(gates: readonly PlacementLiveGate[]): string {
@@ -196,7 +199,9 @@ function section(s: PlacementReplayScore, b: PlacementBaselines | undefined): st
         ),
   );
   if (s.note !== undefined || !s.lists) {
-    parts.push(`_${s.note ?? `aggregate numbers only (tags with at least ${HOLDOUT_MIN_GROUP} processes)`}._`);
+    parts.push(
+      `_${s.note ?? `aggregate numbers only (tags with at least ${HOLDOUT_MIN_GROUP} processes)`}._`,
+    );
     return parts.join('\n\n');
   }
   parts.push('### Traps');
@@ -208,8 +213,14 @@ function section(s: PlacementReplayScore, b: PlacementBaselines | undefined): st
   return parts.join('\n\n');
 }
 
-/** The placement sections of replay.md (summary, baselines, live gate, one section per recording). */
-export function renderPlacementReplaySections(report: PlacementReplayReport): string[] {
+/**
+ * The placement sections of replay.md (summary, baselines, live gate, one
+ * section per recording) and, when given, the auto-accept what-if after them.
+ */
+export function renderPlacementReplaySections(
+  report: PlacementReplayReport,
+  whatIf?: readonly PlacementWhatIf[],
+): string[] {
   const parts: string[] = [];
   parts.push('## Placements');
   parts.push(
@@ -241,7 +252,7 @@ export function renderPlacementReplaySections(report: PlacementReplayReport): st
   parts.push('### Baselines');
   parts.push(
     `${BASELINE_PREFIX} on the golden chain (eval:placements): top-1 and top-3 hints, with votes (the must_link ` +
-      'neighbours known on their golden musts) and without (a fresh project\'s hints).',
+      "neighbours known on their golden musts) and without (a fresh project's hints).",
   );
   parts.push(
     table(
@@ -254,5 +265,6 @@ export function renderPlacementReplaySections(report: PlacementReplayReport): st
   );
   parts.push(liveGateSection(report.liveGate));
   for (const s of report.recordings) parts.push(section(s, baselineOf(s.landscape)));
+  if (whatIf) parts.push(renderPlacementWhatIf(whatIf));
   return parts;
 }

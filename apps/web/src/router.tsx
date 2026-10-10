@@ -9,6 +9,7 @@ import { projectFindingsRoute } from './routes/project-findings';
 import { projectModelsRoute } from './routes/project-models';
 import { projectRelationsRoute } from './routes/project-relations';
 import { projectReviewRoute } from './routes/project-review';
+import { projectRulesRoute } from './routes/project-rules';
 import { projectUploadRoute } from './routes/project-upload';
 import { reviewRoute } from './routes/review';
 import { rootRoute } from './routes/root';
@@ -25,6 +26,7 @@ export const routeTree = rootRoute.addChildren([
     projectFindingsRoute,
     projectUploadRoute,
     projectAgentsRoute,
+    projectRulesRoute,
     valueChainStepRoute,
   ]),
   modelViewRoute,

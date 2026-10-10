@@ -12,9 +12,11 @@
 // version, landscape and declared llmModel). Placement recordings (M4b):
 // scores each file against eval/value-chains/<landscape>/expected-placements.yaml
 // (placements-replay.ts, next to baseline-prefix/1) and evaluates the
-// placement live gate (placement-live-gate.ts). Writes
-// eval/reports/replay.{md,json}, the placement sections after the relations
-// sections. Relative paths resolve against INIT_CWD, the repository root for
+// placement live gate (placement-live-gate.ts). The auto-accept what-if
+// (auto-accept-whatif.ts, owner decision 19) adds what owner auto-accept
+// rules at 0.8 / 0.9 / 0.95 would have accepted, after the relations and
+// after the placement sections. Writes eval/reports/replay.{md,json}, the
+// placement sections after the relations sections. Relative paths resolve against INIT_CWD, the repository root for
 // `pnpm eval:replay`, as eval:live's do. It only reports (eval:live enforces
 // the live gates): exit 1 only if a recording cannot be read, names a
 // landscape the corpus (or eval/value-chains) does not have, mixes task kinds
@@ -26,6 +28,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
+import { WHAT_IF_THRESHOLDS, relationWhatIf } from './auto-accept-whatif.ts';
 import { REPORTS_DIR } from './candidates.ts';
 import { CORPUS_DIR } from './corpus.ts';
 import { runLandscape, type LandscapeRun } from './landscape.ts';
@@ -47,6 +50,7 @@ export async function replay(
   const files = await loadRecordings(recordingsDir);
   const runs = new Map<string, LandscapeRun>();
   const recordings = [];
+  const relationWhatIfs = [];
   for (const f of files.filter((x) => recordingKind(x) === 'relations')) {
     let run = runs.get(f.landscape);
     if (!run) {
@@ -54,17 +58,33 @@ export async function replay(
       runs.set(f.landscape, run);
     }
     recordings.push(scoreRecording(f, run));
+    relationWhatIfs.push(relationWhatIf(f, run));
   }
   const report: ReplayReport = { recordings, liveGate: liveGates(recordings) };
   const placementFiles = files.filter((x) => recordingKind(x) === 'placement');
+  let placementWhatIfs: NonNullable<ReplayReport['autoAcceptWhatIf']>['placements'] = [];
   if (placementFiles.length > 0) {
-    const placements = await replayPlacements(placementFiles, { corpusDir, valueChainsDir });
-    report.placements = { ...placements, liveGate: placementLiveGates(placements.recordings, placements.baselines) };
+    const { whatIf, ...placements } = await replayPlacements(placementFiles, {
+      corpusDir,
+      valueChainsDir,
+    });
+    report.placements = {
+      ...placements,
+      liveGate: placementLiveGates(placements.recordings, placements.baselines),
+    };
+    placementWhatIfs = whatIf;
   }
+  // Owner decision 19: what auto-accept rules would have accepted (report only).
+  report.autoAcceptWhatIf = {
+    thresholds: WHAT_IF_THRESHOLDS,
+    relations: relationWhatIfs,
+    placements: placementWhatIfs,
+  };
   return report;
 }
 
-export const USAGE = 'usage: pnpm eval:replay [--recordings <dir>] [--corpus <dir>] [--out <dir>] [--no-write]\n';
+export const USAGE =
+  'usage: pnpm eval:replay [--recordings <dir>] [--corpus <dir>] [--out <dir>] [--no-write]\n';
 
 export interface ReplayIo {
   stdout(text: string): void;
@@ -93,7 +113,10 @@ const USAGE_EXIT = 2;
  * gate says; 1: a recording cannot be scored or the report not written;
  * 2: usage) and never throws.
  */
-export async function runReplay(argv: readonly string[], io: ReplayIo = processIo): Promise<number> {
+export async function runReplay(
+  argv: readonly string[],
+  io: ReplayIo = processIo,
+): Promise<number> {
   try {
     return await replayCommand(argv, io);
   } catch (err) {
@@ -145,7 +168,12 @@ async function replayCommand(argv: readonly string[], io: ReplayIo): Promise<num
   if (report.placements) {
     const { recordings, baselines, liveGate } = report.placements;
     for (const s of recordings) {
-      io.stdout(`${placementScoreLine(s, baselines.find((b) => b.landscape === s.landscape))}\n`);
+      io.stdout(
+        `${placementScoreLine(
+          s,
+          baselines.find((b) => b.landscape === s.landscape),
+        )}\n`,
+      );
     }
     for (const g of liveGate) io.stdout(`${formatPlacementLiveGate(g)}\n`);
     if (liveGate.length === 0) io.stdout('placement live gate: no live runs yet\n');
@@ -159,6 +187,9 @@ async function replayCommand(argv: readonly string[], io: ReplayIo): Promise<num
   return 0;
 }
 
-if (process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   process.exitCode = await runReplay(process.argv.slice(2));
 }

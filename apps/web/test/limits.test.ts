@@ -53,6 +53,17 @@ describe('constants copied from @proa/contracts', () => {
     ).toEqual(names.map((n) => `MAX_VALUE_CHAIN_${n}`).sort());
   });
 
+  it('match the auto-accept constants (owner decision 19)', () => {
+    expect(limits.MIN_AUTO_ACCEPT_CONFIDENCE).toBe(contracts.MIN_AUTO_ACCEPT_CONFIDENCE);
+    expect(limits.AUTO_ACCEPT_TIERS).toEqual(contracts.AUTO_ACCEPT_TIERS);
+    expect(limits.MAX_AUTO_ACCEPT_NAME_CHARS).toBe(contracts.MAX_AUTO_ACCEPT_NAME_CHARS);
+    expect(limits.MAX_AUTO_ACCEPT_NOTE_CHARS).toBe(contracts.MAX_AUTO_ACCEPT_NOTE_CHARS);
+    expect(limits.MAX_AUTO_ACCEPT_MODEL_CHARS).toBe(contracts.MAX_AUTO_ACCEPT_MODEL_CHARS);
+    expect(limits.MAX_AUTO_ACCEPT_REASON_CHARS).toBe(contracts.MAX_AUTO_ACCEPT_REASON_CHARS);
+    expect(limits.AUTO_ACCEPT_PREVIEW_ITEMS).toBe(contracts.AUTO_ACCEPT_PREVIEW_ITEMS);
+    expect(limits.AUTO_ACCEPT_CURVE).toEqual(contracts.AUTO_ACCEPT_CURVE);
+  });
+
   it('label maps cover every enum value of the contracts', async () => {
     const labels = await import('../src/lib/labels');
     expect(Object.keys(labels.STAGES).sort()).toEqual([...contracts.ModelStage.options].sort());
@@ -88,5 +99,16 @@ describe('constants copied from @proa/contracts', () => {
     for (const text of Object.values(labels.VALUE_CHAIN_VIOLATION_TEXTS)) {
       expect(text).toMatch(/^[A-ZÄÖÜ].*\.$/);
     }
+    // auto-accept rules (owner decision 19)
+    const auto = await import('../src/lib/auto-accept-rules');
+    expect(Object.keys(auto.AUTO_ACCEPT_BLOCK_LABELS).sort()).toEqual(
+      [...contracts.AUTO_ACCEPT_BLOCK_REASONS].sort(),
+    );
+    expect(Object.keys(auto.AUTO_ACCEPT_KINDS).sort()).toEqual(
+      [...contracts.AutoAcceptKind.options].sort(),
+    );
+    expect(Object.keys(auto.LEDGER_STATES).sort()).toEqual(
+      [...contracts.AutoAcceptLedgerState.options].sort(),
+    );
   });
 });

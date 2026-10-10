@@ -61,3 +61,19 @@ export const STEP_KIND_COLORS = {
 } as const;
 /** Bidirectional formatting characters (`BIDI_CHARACTERS`): refused in names and links. */
 export const BIDI_CHARACTERS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/u;
+
+/**
+ * Auto-accept rules (owner decision 19; `packages/contracts/src/api/auto-accept.ts`):
+ * the confidence floor, the tiers per kind, the text limits and the preview's curve.
+ */
+export const MIN_AUTO_ACCEPT_CONFIDENCE = 0.5;
+export const AUTO_ACCEPT_TIERS = {
+  relation: ['key', 'lexical', 'semantic'],
+  placement: ['lexical', 'semantic'],
+} as const;
+export const MAX_AUTO_ACCEPT_NAME_CHARS = 100;
+export const MAX_AUTO_ACCEPT_NOTE_CHARS = 500;
+export const MAX_AUTO_ACCEPT_MODEL_CHARS = 100;
+export const MAX_AUTO_ACCEPT_REASON_CHARS = 500;
+export const AUTO_ACCEPT_PREVIEW_ITEMS = 50;
+export const AUTO_ACCEPT_CURVE = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1] as const;

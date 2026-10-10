@@ -205,6 +205,7 @@ export function toAnalysisTask(t: TaskDetail): AnalysisTask {
 export function toAgentToken(t: AgentTokenRecord): AgentToken {
   return {
     id: t.id,
+    principalId: t.principalId,
     name: t.name,
     prefix: t.prefix,
     scopes: t.scopes,

@@ -5,6 +5,17 @@ import { Command, CommanderError } from 'commander';
 import { healthCommand } from './commands/health.ts';
 import { importCommand } from './commands/import.ts';
 import { mcpCommand } from './commands/mcp.ts';
+import {
+  rulesAddCommand,
+  rulesApplyCommand,
+  rulesEditCommand,
+  rulesListCommand,
+  rulesPreviewCommand,
+  rulesRevokeCommand,
+  rulesShowCommand,
+  rulesSwitchCommand,
+  type CriteriaFlags,
+} from './commands/rules.ts';
 import { SEED_TOKEN_NAME, seedCommand } from './commands/seed.ts';
 import { statusCommand } from './commands/status.ts';
 import {
@@ -37,7 +48,7 @@ interface GlobalOptions {
 export function buildProgram(io: CliIo = processIo): Command {
   const program = new Command('proa')
     .description(
-      'ProA 2.0 command line: seed and import models, push and pull the value chain, manage agent tokens, bridge MCP over stdio',
+      'ProA 2.0 command line: seed and import models, push and pull the value chain, manage agent tokens and auto-accept rules, bridge MCP over stdio',
     )
     .version(rootPackage.version, '-v, --version')
     .option('--url <url>', `ProA server URL (env PROA_URL, default ${DEFAULT_PROA_URL})`)
@@ -186,6 +197,156 @@ export function buildProgram(io: CliIo = processIo): Command {
     .option('--json', 'print JSON')
     .action((opts: { project: string; json?: boolean }) =>
       valueChainRequeueCommand(io, { ...globals(), ...opts }),
+    );
+
+  const rules = program
+    .command('rules')
+    .description(
+      "manage a project's auto-accept rules (owner key; owner decision 19): agent proposals at or above a confidence are accepted as the owner's decision",
+    );
+  /** The criteria flags of add, edit and preview. */
+  const criteria = (cmd: Command): Command =>
+    cmd
+      .option('--name <name>', 'rule name (unique in the project)')
+      .option('--kind <kind>', 'relation or placement (never changes)')
+      .option(
+        '--tier <tier>',
+        'proposal tier: key, lexical, semantic (placements: lexical, semantic)',
+      )
+      .option('--min <confidence>', 'minimum confidence, inclusive: 0.9 or 90% (at least 50%)')
+      .option('--type <type>', 'relations only: call, message, signal or trigger (any: every type)')
+      .option(
+        '--agent <agent>',
+        'only this agent: token id agt_…, token name or principal prn_… (any: every agent)',
+      )
+      .option(
+        '--model <llmModel>',
+        'only proposals declaring exactly this LLM model (any: every model)',
+      )
+      .option('--ad-hoc', 'also ad-hoc proposals (default: pipeline proposals only)')
+      .option('--no-ad-hoc', 'pipeline proposals only')
+      .option('--note <text>', 'a note for reviewers ("" removes it)');
+  rules
+    .command('list')
+    .description(
+      'list the rules with their head revision and what they accepted, and the system rule',
+    )
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--json', 'print JSON')
+    .action((opts: { project: string; json?: boolean }) =>
+      rulesListCommand(io, { ...globals(), ...opts }),
+    );
+  rules
+    .command('show')
+    .description('show a rule and its immutable revisions')
+    .argument('<id>', 'rule id (aar_…)')
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--json', 'print JSON')
+    .action((id: string, opts: { project: string; json?: boolean }) =>
+      rulesShowCommand(io, id, { ...globals(), ...opts }),
+    );
+  criteria(
+    rules
+      .command('add')
+      .description(
+        'create a rule (off unless --enable; never retroactive) and print its preview; needs --name, --kind, --tier, --min',
+      ),
+  )
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--enable', 'enable the rule right away')
+    .option('--json', 'print JSON')
+    .action((opts: CriteriaFlags & { project: string; enable?: boolean; json?: boolean }) =>
+      rulesAddCommand(io, { ...globals(), ...opts }),
+    );
+  criteria(
+    rules
+      .command('edit')
+      .description('save the flags as the next revision of a rule (If-Match on its head)')
+      .argument('<id>', 'rule id (aar_…)'),
+  )
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--json', 'print JSON')
+    .action((id: string, opts: CriteriaFlags & { project: string; json?: boolean }) =>
+      rulesEditCommand(io, id, { ...globals(), ...opts }),
+    );
+  for (const [name, enabled] of [
+    ['enable', true],
+    ['disable', false],
+  ] as const) {
+    rules
+      .command(name)
+      .description(
+        enabled
+          ? 'enable a rule (a new revision); reports how many open proposals already match'
+          : 'disable a rule (a new revision); its acceptances stay and remain revocable',
+      )
+      .argument('<id>', 'rule id (aar_…)')
+      .requiredOption('-p, --project <project>', 'project key or id')
+      .option('--json', 'print JSON')
+      .action((id: string, opts: { project: string; json?: boolean }) =>
+        rulesSwitchCommand(io, id, enabled, { ...globals(), ...opts }),
+      );
+  }
+  criteria(
+    rules
+      .command('preview')
+      .description(
+        'what a rule would have accepted so far (with the precision of the human decisions), would accept now, and the confidence curve; a saved rule (<id>, changed by flags) or an unsaved one (--kind, --tier, --min)',
+      )
+      .argument('[id]', 'rule id (aar_…)'),
+  )
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--json', 'print JSON')
+    .action((id: string | undefined, opts: CriteriaFlags & { project: string; json?: boolean }) =>
+      rulesPreviewCommand(io, id, { ...globals(), ...opts }),
+    );
+  rules
+    .command('apply')
+    .description(
+      "accept the open proposals a rule's head revision matches: prints the dry run; accepts only with --yes",
+    )
+    .argument('<id>', 'rule id (aar_…)')
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--dry-run', 'only print what would be accepted')
+    .option('--yes', "accept them (the dry run's count must still hold)")
+    .option('--json', 'print JSON')
+    .action(
+      (id: string, opts: { project: string; dryRun?: boolean; yes?: boolean; json?: boolean }) =>
+        rulesApplyCommand(io, id, { ...globals(), ...opts }),
+    );
+  rules
+    .command('revoke')
+    .description(
+      'revoke auto-acceptances still in force (by rule, revision, agent, kind or ids): back to review, or obsolete when no proposal remains; a human decision taken since is never touched. Prints the dry run; revokes only with --yes',
+    )
+    .argument('[id]', 'rule id (aar_…)')
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--revision <rev>', 'only acceptances of this revision of the rule')
+    .option(
+      '--agent <agent>',
+      'only acceptances triggered by this agent (token id, name or principal)',
+    )
+    .option('--kind <kind>', 'relation or placement')
+    .option('--ids <id...>', 'relation or placement ids (rel_…, plc_…; also comma-separated)')
+    .option('--reason <text>', 'added to the revocation in the history')
+    .option('--dry-run', 'only print what would be revoked')
+    .option('--yes', "revoke them (the dry run's count must still hold)")
+    .option('--json', 'print JSON')
+    .action(
+      (
+        id: string | undefined,
+        opts: {
+          project: string;
+          revision?: string;
+          agent?: string;
+          kind?: string;
+          ids?: string[];
+          reason?: string;
+          dryRun?: boolean;
+          yes?: boolean;
+          json?: boolean;
+        },
+      ) => rulesRevokeCommand(io, id, { ...globals(), ...opts }),
     );
 
   program

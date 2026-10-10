@@ -127,7 +127,11 @@ top 3 of `baseline-prefix/1` for that process or shares a name stem with it (the
 `name-match` rule of the golden README; an equal `name_norm` is a shared stem, a matching
 `link` alone is not); `semantic` for every other agent proposal, including `@outside`;
 `manual` for humans. Rule proposals are recorded with `source_kind = 'rule'`, so supersession
-and token revocation, which end agent proposals, never touch them. Nothing is auto-accepted.
+and token revocation, which end agent proposals, never touch them. Nothing is auto-accepted by
+the rule tier; since owner decision 19 an owner's auto-accept rule may accept an agent placement
+proposal (tiers `lexical` and `semantic`, never `@outside`, never a process with a home step or with
+proposals on more than one step), recorded as a human decision of the rule's author with the rule
+and its revision (CONCEPT §2 "Auto-accept marker", §3 review workflow step 5).
 
 **The `link` field** is one opaque string per step (upstream: "opaque reference to a more
 detailed model"), so ProA accepts any string ≤ 2,000 characters and never rewrites it. It
@@ -1400,7 +1404,9 @@ recordings, `eval/reports` relations sections and the released relations skill u
   proposals stay); D5 follow-ups at submit (truncation with progress, or `requeue_after`); D6 one
   open placement task per chain; D7 an empty due set cancels and claims again; D8
   `invalid:outside-task-input`; D9 ad-hoc agent proposals count as verdicts (`judged`; relations do
-  not count ad-hoc proposals that way); D10/D11 `kind` on both claim and result variants, a flat
+  not count ad-hoc proposals that way; since owner decision 19 an ad-hoc proposal never replaces
+  another agent's current `unsure` row, which stays as the verdict, so that doubt keeps blocking
+  auto-accept rules; the process counts as judged either way); D10/D11 `kind` on both claim and result variants, a flat
   MCP output; D12 `work_pipeline` one kind per run; D13 plugin 0.3.0 with a release table; D14
   German withdrawal reasons for the placement pipeline (the relation ones stay English) and German
   web texts, English MCP descriptions and procedure text; D15 the live gate's bar is the higher of
@@ -1489,8 +1495,9 @@ recordings, `eval/reports` relations sections and the released relations skill u
 The graphical process network (landscape map, R1), relation tables between steps and
 `sequence-contradiction` (R1); several chains per project and `proa:chain/` or `proa:view/`
 links; draft entities, project-subject tasks and server-side layout; org unit ↔ lane matching
-and org units as agent evidence; auto-accepting placements (owner-configured auto-accept rules
-follow as their own slice, HANDOFF decision 19); agents saving revisions; merging
+and org units as agent evidence; auto-accepting placements in M4 itself (owner-configured
+auto-accept rules were delivered after S5 as their own slice, HANDOFF decision 19, for relations
+and placements; DEVELOPMENT.md "Auto-accept rules (owner decision 19)"); agents saving revisions; merging
 concurrent edits or real-time co-editing; server-side SVG (the renderer needs a DOM; the UI
 offers `saveSVG()` as a download); linked Git sync of `*.vc.json`; cross-project chains; KPIs on
 steps; ARIS (AML) import; dismissing findings; changes to the modeler itself.

@@ -1,5 +1,5 @@
 import type { Placement, UnplacedProcess, ValueChainDetail, ValueChainStep } from '@proa/client';
-import { CheckCheckIcon, RotateCcwIcon, TriangleAlertIcon } from 'lucide-react';
+import { CheckCheckIcon, RotateCcwIcon, TriangleAlertIcon, WandSparklesIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { STAGE_ICONS, ToneBadge } from '@/components/badges';
@@ -7,6 +7,7 @@ import { PlainText } from '@/components/review/plain-text';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage } from '@/lib/api';
+import type { AutoAcceptIndex } from '@/lib/auto-accept';
 import { CHAIN_STAGES, STEP_KINDS, VALUE_CHAIN_FINDING_KINDS } from '@/lib/labels';
 import { MAX_VALUE_CHAIN_NAME_CHARS, OUTSIDE_STEP } from '@/lib/limits';
 import { useRequeueChain } from '@/lib/review-actions';
@@ -252,6 +253,11 @@ export interface ChainOverviewProps {
   missingSteps?: readonly ValueChainStep[];
   /** The tree item to focus when the overview opens (back from that step's panel). */
   focusStepId?: string | null;
+  /**
+   * The auto-accept ledger (owner decision 19, owners only): marks on the
+   * cards and the filter „Nur automatisch angenommene“.
+   */
+  autoIndex?: AutoAcceptIndex;
 }
 
 /**
@@ -376,8 +382,11 @@ export function ChainOverview(props: ChainOverviewProps) {
     onSelectPlacement,
     onDecided,
     onReload,
+    autoIndex,
   } = props;
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [onlyAuto, setOnlyAuto] = useState(false);
+  const autoAccepted = autoIndex ? placements.filter((p) => autoIndex.inForce.has(p.id)) : [];
   const steps = detail?.steps ?? [];
   const queue = placementQueue(placements, steps);
   const reconfirm = reconfirmCandidates(placements);
@@ -412,8 +421,45 @@ export function ChainOverview(props: ChainOverviewProps) {
       onSelectStep={onSelectStep}
       onDecided={(outcome) => onDecided(p.id, outcome)}
       onReload={onReload}
+      autoIndex={autoIndex}
     />
   );
+
+  // Owner decision 19: the panel filter shows only what auto-accept rules accepted (in force).
+  const autoFilter =
+    autoIndex && (autoAccepted.length > 0 || onlyAuto) ? (
+      <div className="flex items-center gap-2">
+        <Button
+          size="xs"
+          variant={onlyAuto ? 'default' : 'outline'}
+          aria-pressed={onlyAuto}
+          onClick={() => setOnlyAuto((on) => !on)}
+          data-testid="filter-auto"
+        >
+          <WandSparklesIcon data-icon="inline-start" />
+          Nur automatisch angenommene
+          <span className="tabular-nums opacity-80">{autoAccepted.length}</span>
+        </Button>
+      </div>
+    ) : null;
+  if (onlyAuto && autoIndex) {
+    return (
+      <div className="flex flex-col gap-5" data-testid="chain-overview">
+        {autoFilter}
+        <Section title="Automatisch angenommen" count={autoAccepted.length}>
+          {autoAccepted.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Keine Platzierung ist automatisch angenommen.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2" data-testid="auto-accepted-list">
+              {autoAccepted.map(card)}
+            </ul>
+          )}
+        </Section>
+      </div>
+    );
+  }
 
   const outsideSection =
     outside.length > 0 ? (
@@ -434,6 +480,7 @@ export function ChainOverview(props: ChainOverviewProps) {
 
   return (
     <div className="flex flex-col gap-5" data-testid="chain-overview">
+      {autoFilter}
       {mode === 'edit' && props.onChainName ? (
         <CommitField
           id="vc-chain-name"

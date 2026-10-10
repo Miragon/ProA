@@ -59,6 +59,7 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | Value chain in the web UI (M4 S3, [below](#value-chain-in-the-web-ui-m4)): the page `/projects/{key}/value-chain` (NavigatedViewer, Modeler in edit mode, lazy chunk), collision-free ids, overlays, side panel with placement review (A/R/H/C, J/K, bulk re-confirm, manual placements), save with dry run, conflict and drafts, link editing, drill-down, the step view; since S5 Import of a `.vc.json` (re-laid out) and the agent's stage and unsure list | working; component tests with a stand-in canvas, the bundle guard, the import harness and the value chain flow in Playwright (Chromium) against a throwaway stack incl. the CSS check, the screenshots `m4-*.png` |
 | The `placement` pipeline kind (M4 S5, [below](#the-placement-pipeline-and-proa-placements-m4-s5)): task kinds and subjects (migration 0008), judge each process once (input hashes, `placement_input`, one open task per chain, follow-ups at submit), the claim input `proa-claim-placement/1`, placement submissions with supersession and unsure verdicts, the chain's stage, the procedure, prompts and skill, the placement live gate | working over REST and MCP; unit and real-PostgreSQL tests (`placement-pipeline.test.ts`: every trigger and stage, supersession, the unsure memory, truncation with one follow-up, saves during a lease), the simulation agent on both landscapes, the procedure drift test, Playwright for the Import; no LLM run yet |
 | Value chain and placements over REST, MCP and CLI (M4 S2, [below](#value-chain-and-placements-m4)): `prepareRevision` (canonical bytes, ProA rules, kinds, ranks, fingerprints, `structure_hash`), 19 routes (`If-Match`/`If-None-Match`, `dryRun`, decisions incl. bulk, unplaced processes, findings), six MCP tools, `proa value-chain push\|pull`, the rule tier's key proposals, placements that follow model ingest and deletion, server tiers with `baseline-prefix/1` (`@proa/relations`), token revocation | working over REST, MCP and the CLI (and since S3 in the web UI); unit tests (document rules, structure incl. the golden dev chain, impact, items, tiers, rules, findings, `baseline-prefix/1`), real-PostgreSQL tests (REST, placements, rule tier, the dev landscape with its golden chain through model changes, policy matrix, MCP contract), the CLI against a fake API and end to end |
+| Auto-accept rules (owner decision 19, [below](#auto-accept-rules-owner-decision-19)): the tables `auto_accept_rule` and `auto_accept_rule_revision` and the assertion marker (migrations 0009/0010), the evaluator with its safeguards in all four agent write paths, apply and revoke with dry runs, the preview and the ledger (`src/domain/auto-accept/`), seven owner-only routes and the ledger for every reviewer, `proa rules …`, the tab „Regeln“ with marks and filters in the review views, the „Auto-accept what-if“ of `eval:replay` | working over REST, the CLI and the web UI (no MCP by design); unit tests (evaluator, status with revocations, preview, rules, the what-if), real-PostgreSQL tests (relations and placements end to end, revocation, migration on existing data, constraints, policy matrix), CLI unit and e2e tests, web component tests and Playwright (`e2e/auto-accept.spec.ts`) against a throwaway stack; MCP snapshots and recordings unchanged |
 
 ## Quickstart (Docker)
 
@@ -1467,6 +1468,131 @@ fällig“ and „Agent unsicher (n)“ with „Platzieren“; when the task fai
 without a queued or claimed task, reviewers get „Erneut einplanen“ or „Aufgabe einplanen“
 (`POST …/analyses/requeue {valueChain: true}`), viewers the hint alone.
 
+### Auto-accept rules (owner decision 19)
+
+The owner's wish "bis zu x % Confidence darf der Agent die Verknüpfungen selbst machen", scope
+auto-accept only, for relations and placements ([HANDOFF.md](HANDOFF.md) §4 decision 19,
+CONCEPT §2 "Auto-accept marker", §3 review workflow step 5). Code:
+`src/domain/auto-accept/{evaluate,record,apply,preview,ledger,rules}.ts` (pure, no adapters),
+`src/domain/use-cases/auto-accept.ts`, `src/http/routes/auto-accept.ts`; contracts in
+`packages/contracts/src/api/auto-accept.ts`. In code the concept is always "auto-accept rule"
+(`auto_accept_rule`, `autoAcceptRule`, ids `aar_`), never just "rule", which stays the rule tier
+(`proa-rules`, decision 9); the German UI says „Annahmeregel“ in the tab „Regeln“.
+
+**What a rule is.** Kind (`relation` or `placement`, never changes), tier (relations `key`,
+`lexical`, `semantic`; placements `lexical`, `semantic`: the server-computed proposal tier), an
+inclusive minimum confidence (0.5–1, also a database check), optionally one relation type
+(relations), one agent principal (an agent token's `principalId`, which `AgentToken` now carries;
+an R1 service member is accepted too), one declared `llmModel` (exact), and `includeAdHoc`
+(default off: only pipeline proposals with a claim basis). Names are unique per project ignoring
+case. Every create, edit, enable and disable is an immutable revision (`auto_accept_rule_revision`,
+append-only like the rule head row, migration 0010); the head is the highest revision; rules are
+never deleted, only disabled. A new project and every seed have no rules.
+
+**When a rule accepts.** Only agent proposals newly recorded by a write (outcome `applied` or
+`reopened`), at the end of the write's transaction under the project lock, after the result was
+computed: relations submissions (after `touchRelations`, before the follow-up), placement
+submissions (after the `placement_input` upsert), `propose_relation` and `propose_placement`.
+With no enabled rule of the kind it costs one indexed query. The first matching rule in creation
+order whose author is still an owner (`memberships.roleOf`) is recorded; the safeguards (CONCEPT
+§3, the reasons `AUTO_ACCEPT_BLOCK_REASONS` in the contracts) are checked in a fixed order and the
+first failing one is the reason. The acceptance is a `decision`/`accept`, `source_kind 'human'`,
+under the revision's author and client, without tier, confidence or rationale, anchored on the
+current fingerprints, with the marker (rule id, revision, trigger assertion); its event
+`relation.decided`/`placement.decided` names the causer (the agent, or the owner for apply) and
+carries `payload.autoAccept {ruleId, revision, triggerId}`. Auto-accepting never queues a task (a
+human decision does not either). **Submission and ad-hoc results report the status before the
+rules ran** (only the JSDoc of `SubmissionItemResult.status` and `PlacementItemResult.status` says
+so; no schema change), so `analysis_submission.result`, replays, recordings and `eval:live` do not
+depend on a project's rules, and agents learn nothing per item.
+
+**Rules are never retroactive.** Enabling changes nothing until the owner applies the rule:
+`POST …/auto-accept-rules/{rule}/apply?dryRun=true` lists what the head revision would accept
+now (the trigger is the highest-confidence matching current agent proposal, ties by the earliest),
+with the blocked-reason histogram and whether the head is `enabled` and its author still an owner
+(`authorIsOwner`; a dry run evaluates the head also while it is off); the real call needs
+`{revision, expectedCount}` equal to the head and the fresh count, an enabled head and an author
+who is still an owner, else 409 `conflict` with `{count, revision, reason}` (`rule-disabled`,
+`author-not-owner`, `revision-changed`, `count-changed`; 422 `expected-count-required` without
+them). It appends `auto_accept_rule.applied {ruleId, revision, count}`. A rule whose author lost
+the owner role matches nothing until an owner saves it again: a save by another owner takes it over
+also when nothing changed (a new revision authored by the caller, `If-Match` as always; the event
+carries `takenOverFrom`).
+
+**Revoking.** `POST /projects/{p}/auto-accept-revocations?dryRun=true` with at least one of
+`ruleId` (optionally `revision`), `agentPrincipalId` (the triggering agent), `ids` (≤ 1000
+relation or placement ids; the single-item revoke of the review screen), plus `kind`, `reason`
+(≤ 500) and, for the real call, `expectedCount`. Only acceptances still in force are revoked: a
+human withdrawal with the same marker under the decision's principal (`by` = the revoker), the
+rationale „Automatische Annahme widerrufen[: <reason>]“ (no rule name: an obsolete item's
+provenance reaches agents). The revocation ends exactly the acceptance: `currentStances` lets it
+replace the principal's stance only while that stance is the marked decision, so a proposal or
+withdrawal the rule's author made since (say, after an endpoint change) stays as it is. The item
+returns to `proposed` while a live proposal remains (an agent judgement is still current:
+judge-once assigns nothing again, and `lastNonAgentSeqs` skips marked assertions, so a placement's
+input hash is as before the acceptance); without one it turns `obsolete` and counts as a lost
+judgement (relations: both endpoint models requeued; placements:
+`queuePlacementTasks` queues what is due). An item a human decided since is never touched and
+counted as `humanDecidedSince`; `alreadyRevoked` counts earlier revocations. Event
+`auto_accept.revoked {ruleId?, revision?, agentPrincipalId?, kind?, ids?, count}`.
+
+**Preview and ledger.** `POST …/auto-accept-rules/preview` takes criteria (also of an unsaved
+draft) and reads a snapshot: the history (each relation or placement walked in seq order; the rule
+"would have accepted" at the first matching agent proposal before the first human assertion no
+rule recorded, with the safeguards as of that proposal and what its own earlier firing blocks: a
+call it fired on stays accepted until a human decides it, so later calls from the same element
+never fire; per process only the earliest firing counts, since it gives the process a home step
+and a human assertion; calls with competitors are replayed together per point of the curve; the
+outcome is the first unmarked human decision after it: accepted, rejected, corrected, held, and an
+item without one counts as corrected when a human accepted a competitor of it after its first agent
+proposal, another target of its call element or another step of its process, also in the
+denominator; items only a rule decided are `autoUnreviewed`, never ground truth; precision =
+accepted / (accepted + rejected + corrected)),
+the open proposals it would accept now (count, the first 50, blocked reasons), a nine-point curve
+(0.5 … 1.0) with `open` per point, and the agents and declared models seen. Approximation: the
+other-agent-unsure safeguard of placements cannot be rebuilt historically (`placement_input` is
+mutable). The denominator counts items of the rule's kind (and type) with an agent proposal before
+the first unmarked human decision; agent and model narrowing do not apply to it. `GET
+/projects/{p}/auto-accepted?kind=&ruleId=&state=&agentPrincipalId=` is the ledger: one entry per
+acceptance (subject, decision, trigger, rule name of the deciding revision, decider, agent, model,
+tier, confidence, `state` `in-force` | `revoked` | `human-decided` with the later verdict), oldest
+first, live chains only. Rule statistics (`inForce`, `revoked`, `confirmed`, `overruled`,
+`lastAcceptedAt`) come from it. `Relation`, `Placement` and the assertion resources carry no marker
+on purpose; the web joins the ledger. The ledger names rules and revisions, never their criteria,
+and every human reviewer reads it (permission `review`), so editors see the marks too.
+
+**Routes and permission.** All under `/api/v1/projects/{project}`, every one `admin` (an owner on
+an interactive client with `proa:write`) except the ledger: agent tokens get 403 `forbidden`,
+foreign projects 404, anonymous 401. `GET`/`POST auto-accept-rules` (201 with `{outcome, rule}`
+and `ETag: "r1"`), `GET`/`PUT auto-accept-rules/{rule}` (`ETag: "r<rev>"`; PUT the whole draft
+with `If-Match`: 428 without, 412 `revision-conflict` with `headRev` on a stale tag, `unchanged`
+when the draft equals the head whatever the tag, unless the author is no longer an owner (then the
+save takes the rule over)), `POST auto-accept-rules/preview`, `POST auto-accept-rules/{rule}/apply`,
+`POST auto-accept-revocations`, and `GET auto-accepted`, the ledger, with permission `review`
+(editors and owners on an interactive client; agent tokens get 403 `human-decision-required`,
+viewers 403 `forbidden`). A refused draft is 422 `validation-failed`: with `reason`
+`unknown-agent`, `name-taken` or `kind-changed` from the domain, or with the schema's `errors`
+(field paths) for a tier of another kind, a type on a placement rule, a confidence outside 0.5–1 or
+control characters, which the contract refuses before the domain (it checks them again for other
+callers). Item lists of apply and revocations stop at 1000 (`truncated`). No MCP tool, resource or prompt; the MCP
+snapshots are unchanged. The list also carries the **system rule** of decision 9
+(`proa-rules/1.0.0` „Eindeutige Aufrufe“, read-only, with the count of relations whose acceptance
+rests on the rule tier), never stored as a rule row.
+
+**Interactions.** Judge-once: an auto-accepted item is a human decision for every purpose
+(`settles`, `suppressed`, claim inputs show `decision: accept, source: human` without a marker;
+placements are homed and count for neighbours). Facts changes, re-confirmation and supersession
+behave exactly as for human acceptances (an endpoint change makes an open item for a human; a rule
+never re-confirms: `human-involved`); the trigger proposal is superseded like any pipeline
+proposal while the decision stays. Token revocation withdraws the token's open proposals as before
+and keeps its auto-acceptances (owner decisions); the agents page offers to revoke them too
+(HANDOFF §8), and the tab „Regeln“ revokes one agent's acceptances across rules. A manual placement
+on an auto-accepted placement now counts as confirming it. An agent's ad-hoc placement proposal
+still counts as its verdict, except that it never replaces another agent's current `unsure` row
+of the process (`placement_input` keeps one row per process): that doubt stays the safeguard
+`agent-unsure` for the write itself, later writes, the preview and "apply" (the process counts as
+judged either way).
+
 ### The `proa` CLI
 
 `node apps/cli/src/main.ts` (`pnpm proa` from the checkout, `proa` in the container). Global
@@ -1484,6 +1610,12 @@ token), `--owner-key-file` (`PROA_OWNER_KEY_FILE`).
 | `proa value-chain push <file> --project <key> [--key main] [--base <rev> \| --force] [--dry-run] [--yes] [--json]` | owner key only (an agent token is refused before any request: agents never edit the chain) | reads the file (≤ 2 MiB, JSON) and the head revision (`GET …/content`); `If-Match` names `--base`, the revision the file was pulled from (`r<rev>` from `pull`); for an existing chain it refuses to save without `--base` (exit 1), since the head read at push time would let it silently revert a save made after the pull; `--force` saves on the current head; content equal to the head is `unchanged` and `--dry-run` works without either; `If-None-Match: *` when the project has no chain. A dry run first; stops with exit 1 before stranding placements or sending accepted ones to re-confirm unless `--yes`, then saves; `--dry-run` prints the impact only; 412 "pull first", 422 lists the violations with their element ids |
 | `proa value-chain pull --project <key> [--key main] [--rev <n>] [-o <file>]` | agent token or owner key | writes the canonical `.vc.json` of the head (or revision `n`) verbatim (stdout by default) and `r<rev> <sha256>` on stderr (`r<rev>` is the `--base` of the next push) |
 | `proa value-chain requeue --project <key> [--json]` (M4 S5) | owner key, or an agent token with `proa:write` | `POST …/analyses/requeue {valueChain: true}`: queues the chain's placement task when an open process is due (after a failed task, or for processes human decisions and notes made due, which never queue a task themselves); prints `queued placement task <id>`, that one is already queued or claimed, or `nothing due`; exit 1 without a chain |
+| `proa rules list\|show <id> -p <key> [--json]` (owner decision 19) | owner key only (an agent token is refused before any request) | `list`: the system rule (decision 9, read-only, its count) and every rule with its head revision, criteria, author and what it accepted (in force, revoked, confirmed, overruled; a warning when its author is no longer an owner); `show`: the immutable revisions |
+| `proa rules add --name <n> --kind relation\|placement --tier <tier> --min 0.9\|90% [--type <t>] [--agent <agt_…\|token name\|prn_…>] [--model <id>] [--ad-hoc] [--note <text>] [--enable] -p <key> [--json]` | owner key only | creates a rule, **off unless `--enable`**, and prints its preview; flags are checked before any request (kind, tiers per kind, the 50 % floor, a type only for relations); the agent is resolved through the token list (`AgentToken.principalId`; a name with one live token, else ask for the id) |
+| `proa rules edit <id> [flags] -p <key>`, `enable <id>`, `disable <id>` | owner key only | reads the head, merges the flags (`any` drops a narrowing: `--type any`, `--agent any`, `--model any`; `--no-ad-hoc`; `--note ""` removes the note; the kind never changes) and saves the next revision with `If-Match: "r<head>"` (412: "changed meanwhile, run again"; a 422 names the server's reason or the refused fields); saving a rule whose author is no longer an owner takes it over, also `edit <id>` without flags ("taken over"); `enable` reports how many open proposals already match and points to `apply` (rules are never retroactive); thresholds print with every decimal they have (`90.04%`) |
+| `proa rules preview [<id>] [flags] -p <key> [--json]` | owner key only | a saved rule (changed by flags) or an unsaved one (`--kind --tier --min`): history with precision, open now with blocked reasons, the curve |
+| `proa rules apply <id> [--dry-run] [--yes] -p <key> [--json]` | owner key only | prints the dry run; accepts only with `--yes`, passing the head revision and the dry run's count as `expectedCount` (409: "nothing changed, run again"); without `--yes` and with matches it exits 1 ("nothing accepted yet"). While the rule is off it says to `enable` it first, while its author is no longer an owner how to take it over (`edit <id>`), and never suggests `--yes` or a rerun (also for the 409 reasons `rule-disabled` and `author-not-owner`) |
+| `proa rules revoke [<id>] [--revision <n>] [--agent <a>] [--kind <k>] [--ids <id…>] [--reason <text>] [--dry-run] [--yes] -p <key> [--json]` | owner key only | the same dry-run pattern for revocations: how many go back to review, become obsolete, were decided by a human since (untouched) or revoked before |
 | `proa mcp` | agent token | the stdio bridge above |
 
 ### Web UI
@@ -1498,10 +1630,11 @@ the server); after `pnpm build` the server serves it at http://127.0.0.1:7400.
 | `/projects/{key}` | **Modelle**: key, name, engine (C7/C8), head revision, stage (CONCEPT §3), open items; stage filter `?stage=` |
 | `/projects/{key}/review` | **Prüfen** (M2, the tab counts open proposals): models per pipeline stage (a stage filters; for "Agent arbeitet" the holder and lease, for "Agent gescheitert" the error and "Erneut einplanen"), then **Vorschläge** (the review queue) and **Vorgemerkt** (`?view=held`); filters `?stage=&tier=&model=` stay in the URL and travel to the review screen ([below](#review-in-the-web-ui-m2)) |
 | `/projects/{key}/review/{relation}` | **Review screen** of one relation, also the relation detail and the `reviewUrl` of `human-decision-required` ([below](#review-in-the-web-ui-m2)) |
-| `/projects/{key}/relations` | **Relationen**: quick filters (all, accepted by rule, key-tier proposals, all proposals), filters status/tier/type/model in the URL (`?status=&tier=&type=&model=`); type, from → to with element label, model key and process, tier, status, endpoint state, confidence, provenance (from `Relation.provenance`), details (refs, version, attributes); "Prüfen" opens the review screen, the crosshair the model view. |
+| `/projects/{key}/relations` | **Relationen**: quick filters (all, accepted by rule, key-tier proposals, all proposals), filters status/tier/type/model in the URL (`?status=&tier=&type=&model=`), for owners also the preset „Automatisch angenommen“ and the filter `?auto=any|aar_…` (owner decision 19); type, from → to with element label, model key and process, tier, status, endpoint state, confidence, provenance (from `Relation.provenance`), details (refs, version, attributes); "Prüfen" opens the review screen, the crosshair the model view. |
 | `/projects/{key}/findings` | **Befunde** grouped by kind, each ref with a link into the model view |
 | `/projects/{key}/upload` | **Hochladen**: drag and drop files or a whole folder, or pick them; `POST …/imports` in batches of ≤ 50 files / 25 MB (models > 5 MB and non-BPMN files are skipped and listed); a dropped or picked folder is the import root, so `models/vertrieb/a.bpmn` becomes `vertrieb/a`, like `proa import models`; outcome per file |
 | `/projects/{key}/agents` | **Agent verbinden**: create an agent token (scopes, expiry), secret shown once with a copy button, then ready-to-paste configurations: Claude Code (`claude mcp add --transport http …`), Claude Desktop (`proa mcp` from the checkout with Node 24, or `docker exec -i … proa2-proa-1 proa mcp`; the Node or Docker path you enter becomes `command`), any other MCP client (URL + bearer header, `.mcp.json`); list and revoke tokens |
+| `/projects/{key}/rules` | **Regeln** (owner decision 19, owners only; the tab is hidden for other roles): the system rule, the project's auto-accept rules, the create/edit dialog with the live preview, apply, revoke, revisions ([below](#auto-accept-rules-in-the-web-ui-owner-decision-19)) |
 | `/projects/{key}/value-chain` | **Wertschöpfungskette** (M4 S3, the tab counts open placement items): the chain on a full-viewport canvas, the side panel, edit mode; `?step=` selects a step, `?placement=plc_…` (the `reviewUrl` of placement writes) a placement and its step ([below](#value-chain-in-the-web-ui-m4)) |
 | `/projects/{key}/value-chain/steps/{element-id}` | **Step view** (drill-down, in the project layout): breadcrumb, sub-steps with counts, the step's processes (own, in the sub-steps, reached by call) with links to the model view and back to the chain |
 | `/projects/{key}/models/{model-key}` | **Model view**: borderless bpmn-js `NavigatedViewer` (lazy chunk) with floating chrome; the panel lists the model's relations and findings; `?relation=rel_…` highlights its endpoints (marker plus "Von"/"Nach" label) and offers "Zu … wechseln" to the other model; `?element=` highlights one element (from findings or a click on the canvas, which also filters the list) |
@@ -1518,6 +1651,79 @@ matched, agent proposals the principal handle plus the declared procedure (`id@v
 model, human decisions the handle and the verdict; only a relation without provenance falls back
 to what tier and attributes say. Element labels come from the facts of every head revision
 (`GET …/revisions/{r}/facts`, cached per revision).
+
+#### Auto-accept rules in the web UI (owner decision 19)
+
+`src/routes/project-rules.tsx` (the route; the page `project-rules-page.tsx` is a lazy chunk),
+`src/components/rules/*`, `src/lib/auto-accept.ts` (the ledger join, the `auto` filter, the texts
+of marks and revocations; in the entry chunk), `src/lib/auto-accept-rules.ts` (labels of kinds,
+tiers and block reasons, percent input, drafts; rules page only), `src/lib/auto-accept-actions.ts`
+(`useIsOwner`, `useAutoAcceptIndex`, revocations), `src/lib/auto-accept-rule-actions.ts` and
+`src/lib/auto-accept-queries.ts` (rule writes, preview, dry runs). The tab, apply and every revoke
+need `project.role === 'owner'`; the ledger query and the marks are every reviewer's
+(`useCanReview`: owner or editor), so a machine acceptance never passes for a human one; for
+viewers every view looks as before. Editors filter by the rules the ledger names (`ledgerRules`),
+owners by all their relation rules. German texts call the role „Inhaber“, as the project list
+does.
+
+- **Tab „Regeln“.** The card „Systemregel: Eindeutige Aufrufe“ (decision 9, „immer aktiv, nicht
+  änderbar“, the count links to the rule-accepted relations); the rules table (name and note;
+  criteria „Relationen · Schlüssel · ab 95 %“ with the narrowing; status „Aktiv“/„Aus“ and
+  „Urheber ist kein Inhaber mehr“ (saving the rule takes it over); „N in Kraft“ (for relation
+  rules a link to exactly those relations, `?auto=aar_…`), „N bestätigt“, „N widerrufen“, „N
+  abgelehnt, korrigiert oder vorgemerkt“; revision, author and time; actions Bearbeiten,
+  Aktivieren/Deaktivieren (a new revision with `If-Match`; on 412 „Neuere Revision laden“, which
+  reloads the table), Vorschau, „Auf offene Vorschläge anwenden…“, „Widerrufen…“, Verlauf); empty
+  state „Noch keine Regeln. Ohne Regeln entscheidest du jeden Vorschlag selbst.“ Below the table
+  „Annahmen eines Agenten widerrufen“: the agents with acceptances in force (from the ledger,
+  revoked tokens included) and the revoke dialog with `agentPrincipalId`.
+- **Create/edit dialog** (`rule-dialog.tsx`): Name, Art (fixed when editing), Stufe (per kind),
+  „ab Konfidenz (%)“ (at least 50, German decimals, up to four: the field shows a rule's threshold
+  with every decimal it has and saves it unchanged unless the text is edited, so an edit of the
+  note never moves a CLI-set 0.9004 to 0.9; tables and history show thresholds the same way, with
+  `formatThreshold`), Typ (relations), Agent (the project's tokens,
+  revoked ones marked, plus agents seen in proposals), LLM-Modell (suggestions from the preview,
+  free text), „Auch Ad-hoc-Vorschläge“, Notiz; for placements the hint that `@outside`, a process
+  with a home step or with several proposed steps are never accepted. Beside it the live preview
+  (debounced 300 ms): „Bisher: X von Y entschiedenen Agentenvorschlägen hätte die Regel angenommen
+  – davon A angenommen, R abgelehnt, K korrigiert (Trefferquote …)“, „Automatisch angenommen,
+  nicht geprüft“, „Jetzt offen: N würden angenommen“ with the blocked reasons in German, and the
+  curve table (ab Konfidenz, würde annehmen, richtig, falsch, Quote, offen; the rule's row marked).
+  „Speichern (aus)“ and „Speichern und aktivieren“; an edit notes that it creates a new revision
+  and sends `If-Match`. On 412 „Neuere Revision laden“ puts the head into the form and lists what
+  the other owner changed („ab Konfidenz: 90 % → 97 %“, „Agent: alle Agenten → …“, „Status: aktiv
+  → aus“); the user's own edits are dropped, so nothing is saved over a revision nobody looked at.
+  A rule whose author is no longer an owner shows that saving takes it over. 422 reasons in
+  German.
+  After enabling with open matches: „N offene Vorschläge erfüllen die Regel bereits – jetzt
+  anwenden?“ → the apply dialog.
+- **Apply and revoke dialogs** run the dry run when they open (a query that is never cached), list
+  up to 20 items, and confirm with the dry run's count (`expectedCount`, plus the head revision for
+  apply); on 409 they show „Die … haben sich geändert“ and the fresh dry run. Apply is disabled,
+  with the reason, while the dry run says the head is off or its author no longer an owner. The
+  revoke dialog says how many go back to review, become obsolete (judged again), were decided by a
+  human since (unchanged) or were revoked before, and takes an optional reason.
+- **Marks.** The ledger (`GET …/auto-accepted`) is indexed by subject and assertion id: the badge
+  „Automatisch angenommen – Regel „…““ in the relation table, the preset „Automatisch angenommen“
+  (beside „Durch Systemregel angenommen“, decision 9) and the select „Annahmeregel“ (`?auto=any` or
+  `?auto=aar_…` in the URL; the table's link of a relation rule opens it); on the review screen the
+  box „Entschieden durch Regel „…“ (Revision n), aktiviert von <owner>; ausgelöst von <agent> mit
+  0,93“ with the single-item revoke for owners („Automatische Annahme widerrufen“) and what became
+  of earlier acceptances (after a revocation by the item's status: back in review, or obsolete and
+  judged again by the agents); in the history „Automatisch
+  angenommen“ and „Automatische Annahme widerrufen“ with the rule and revision; „widerrufen“ in
+  the queue rows of revoked items; on the chain page the badge on the placement card, the same
+  provenance box under „Herkunft“, the panel filter „Nur automatisch angenommene“, and the badge in
+  the step view.
+- **Agents page.** Revoking a token offers „N automatisch angenommene Vorschläge stammen von
+  diesem Agenten – nach dem Widerrufen des Tokens auch diese widerrufen?“ and says that, with the
+  token's proposals withdrawn, they become obsolete and are judged again unless another agent's
+  proposal is open; checked, it runs the revocation with `agentPrincipalId` after the DELETE (dry
+  run, then its count, reason „Token „…“ widerrufen“). If that fails, the toast points to
+  „Annahmen eines Agenten widerrufen“ in the tab „Regeln“.
+- The entry chunk grew from 192.9 to 197.6 KB gzip (ceiling 200 KB): the rules page, its dialogs
+  and helpers load with the route; only the marks, the revoke dialog and the ledger join are in the
+  entry. Screenshots: `docs/proa-2/screenshots/d19-*.png` (Playwright with `PROA_SCREENSHOTS_DIR`).
 
 #### Review in the web UI (M2)
 
@@ -1823,7 +2029,16 @@ and `submission_id`; checks: neither agents nor the rule tier decide, notes by h
 pairing) (`0006_value_chain.sql`, generated); `value_chain_revision` and `placement_assertion`
 append-only, `value_chain_step` tombstone-only (`proa_value_chain_step_tombstone_only`), and the
 deferred `placement_assertion` → submission foreign key (`0007_value_chain_triggers.sql`,
-hand-written).
+hand-written). Owner decision 19 adds `auto_accept_rule` (immutable head row: kind, creator), its revisions
+`auto_accept_rule_revision` (criteria, `enabled`, the human author; checks: humans only, minimum
+confidence 0.5–1, tiers per kind, relation types, name and model lengths), the marker columns
+`auto_accept_rule_id`, `auto_accept_rule_revision`, `auto_accept_trigger_id` on both assertion
+tables with the author-pinning composite foreign key to the revision, the same-subject trigger
+foreign key (new uniques `(project_id, relation_id|placement_id, id)`), the marker check and a
+partial index (`0009_auto_accept.sql`, generated, with the two uniques moved before the foreign
+keys that need them), and the append-only and no-truncate triggers on both rule tables
+(`0010_auto_accept_triggers.sql`, hand-written); `migration-auto-accept.test.ts` applies them to a
+database that already holds data.
 Migrations: `pnpm --filter @proa/server db:generate` for schema changes,
 `pnpm --filter @proa/server exec drizzle-kit generate --custom --name <name>` for SQL drizzle-kit
 does not model.
@@ -2463,6 +2678,51 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   einplanen“ queues it); the server's `draft-prompt-skeleton.test.ts` (the `draft_value_chain`
   skeleton passes `prepareRevision` and shares no step id or name with the dev golden chain; its
   limits, reserved id and kind colours follow the contracts, its tool calls the MCP snapshot).
+
+- Auto-accept rules (owner decision 19). Server unit: `auto-accept-evaluate.test.ts` (every
+  criterion incl. the inclusive boundary, first match by creation order, an author no longer
+  owner; every safeguard for relations and placements and their order), `auto-accept-status.test.ts`
+  (a revoked decision is not in force, a later human decision is untouched, property tests against
+  the old implementation, the golden digest unchanged), `auto-accept-preview.test.ts` (firing
+  point, outcome mapping, rule decisions no ground truth, no-link liveness by seq, the curve, the
+  benchmark), `auto-accept-rules.test.ts`, `placement-pipeline.test.ts` (`lastNonAgentSeqs` skips
+  marked rows). Server integration: `auto-accept.test.ts` (relations and placements through
+  submissions and ad-hoc proposals, results reported before rules, no rules = byte-identical,
+  judge-once after an acceptance, revocation to `proposed` and `obsolete`, apply and revoke with
+  dry runs and 409, edit = new revision, 412/428, token revocation, endpoint change and step
+  rename, seeds without rules), `migration-auto-accept.test.ts` (0009/0010 on a database with
+  data), additions to `db-constraints.test.ts` (append-only rule tables, the checks, the marker
+  foreign keys) and `policy.test.ts` (every rule route by role, scope, foreign project,
+  anonymous); MCP snapshots and the agent-sim recordings unchanged. CLI: `test/unit/rules.test.ts`
+  (percent parsing, agent resolution, the edit merge, If-Match and 412, dry run then `--yes` with
+  `expectedCount`, 409, JSON, an agent token refused, a 403 reported) and the e2e `proa rules
+  (owner decision 19)` in `cli.e2e.test.ts` (add → preview → enable → apply → revoke → disable
+  against a real server, an agent token's 403). Web: `auto-accept-lib.test.ts` (ledger join,
+  `auto` filter, German numbers and texts), `rules-tab.test.tsx` (the dialog's fields per kind,
+  validation, the debounced preview, create, edit with If-Match and 412, German 422 texts; the
+  table's toggle and 412; the system rule; apply and revoke dialogs with dry run, `expectedCount`
+  and 409), `auto-accept-marks.test.tsx` (relation table and filter, queue „widerrufen“, timeline,
+  provenance with single-item revoke, placement card, the token revoke checkbox), `app.test.tsx`
+  (the tab for owners only), `limits.test.ts` (the copied constants, the label maps); Playwright
+  `e2e/auto-accept.spec.ts` (needs a server: the tab, a rule with its live preview, enable, apply,
+  marks and filter, provenance, revoke back to „Prüfen“, a placement rule's mark on the chain
+  page; writes `d19-*.png`). Eval: `auto-accept-whatif.test.ts` (relations per tier with the
+  offline safeguards on `_sample`, placements on a synthetic chain, holdout redaction and the
+  secondary suppression, determinism, the report sections).
+  The review fixes added: a revocation leaves a later stance of the rule's author
+  (`auto-accept-status.test.ts`, and end to end with an endpoint change and the owner's proposal);
+  the preview's counterfactual (X→A then X→B, S1 then S2, each at two minimum confidences); editors
+  read the ledger but not the rules, viewers neither, agent tokens get `human-decision-required`;
+  taking over a rule whose author lost the owner role (412 first, then `revised` once, then
+  `unchanged`, then apply); the 409 reasons of apply; another agent's `unsure` row survives an
+  ad-hoc proposal, and the preview and the dry run count 0 with `agent-unsure`; the CLI's apply on
+  a rule that is off or whose author is no owner, the take-over by `edit`, the schema's `errors`,
+  thresholds with every decimal; the web dialog's 412 reload (the form shows the newer revision and
+  what changed), a threshold kept unless edited, the take-over hint, marks for editors and none
+  for viewers, the single-item revoke for owners only, outcome-aware revocation texts, the
+  per-agent revoke, the rules table's numbers; the what-if in recording order (a later competing
+  call or step and the agent's later no-link or re-judgement do not undo an acceptance) and the
+  holdout's threshold differencing.
 
 ## CI
 
@@ -3184,3 +3444,71 @@ again only through aggregates, digests and counts.
 
 Not run: the Docker image build, a run with a model, Claude Desktop, the owner's `proa2` stack,
 the other Playwright suites (no fix reaches them), other browsers than Chromium.
+
+### Auto-accept rules, owner decision 19 (2026-10-10)
+
+The core and edge of decision 19, on macOS with Docker
+Desktop, Node 24 and Playwright's Chromium; the holdout only through aggregate rows and exit
+codes.
+
+1. A throwaway compose project `proa2-autoaccept` beside the owner's `proa2` stack, which stayed
+   untouched: its `db` (127.0.0.1:55442) for the server and CLI tests (`PROA_TEST_DATABASE_URL`),
+   then the whole stack (`PROA_HOST_PORT=7410 PROA_DB_PORT=55442 docker compose -p
+   proa2-autoaccept -f docker/compose.yaml -f <override> up -d --build --wait`, the override
+   tagging the image `proa2-autoaccept:local` so `proa:local` was never retagged).
+2. Playwright against it (`PROA_E2E_URL=http://127.0.0.1:7410`): `auto-accept.spec.ts` (4) and
+   the suites the change touches, `smoke`, `review`, `pipeline`, `value-chain`,
+   `value-chain-agent`, `value-chain-draft`, `value-chain-import`: 44 passed, 1 skipped (the
+   holdout chain of `PROA_E2E_VC_EXTRA`). The screenshots `d19-01` … `d19-09` come from
+   `auto-accept.spec.ts` with `PROA_SCREENSHOTS_DIR`.
+3. On the core's run of the same stack with nordwind seeded and worked by the simulation agent: a
+   relation rule (key, 0.95) accepted 31 relations during submissions; a placement apply accepted
+   19 (dry run first), revoking them restored everything with nothing due; previews took 10–20 ms.
+4. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser: no
+   violations, 121 modules), `CI=1 pnpm -r test` (server 1,305 in 60 files, web 254 in 29 files,
+   cli 110 plus 7 live tests skipped (the CLI e2e incl. `proa rules` against a real server),
+   eval/tools 92, agent-sim 57, relations 85, bpmn-facts 134, contracts 62, procedures 37, client
+   4), `pnpm eval:candidates` (pass, report unchanged), `pnpm eval:replay` twice (identical bytes;
+   `replay.{md,json}` only gained the what-if sections), `pnpm eval:placements` (pass, report
+   unchanged), `node eval/value-chains/validate-value-chains.mjs` (exit 0), `drizzle-kit
+   generate` (no schema changes); `git status` shows no change under `eval/recordings`,
+   `packages/procedures` and `plugins`; the MCP tool and prompt snapshots unchanged. The bundle
+   guard: entry chunk 197.2 KB gzip (ceiling 200 KB), chain-only code 37.0 of 40 KB.
+5. Then `docker compose -p proa2-autoaccept -f docker/compose.yaml down -v` and the image removed.
+
+Not run: a run with a model, Claude Desktop, the owner's `proa2` stack, other browsers than
+Chromium, `screenshots.spec.ts` (M1 screenshots).
+
+### Auto-accept rules, review fixes (2026-10-10)
+
+The fixes of the decision 19 review round (HANDOFF §7), on
+macOS with Docker Desktop, Node 24 and Playwright's Chromium; the holdout only through aggregate
+rows and exit codes.
+
+1. A throwaway compose project `proa2-aafix` beside the owner's `proa2` stack, which stayed
+   untouched: its `db` (127.0.0.1:55462) for the server and CLI tests (`PROA_TEST_DATABASE_URL`),
+   then the whole stack (`PROA_HOST_PORT=7462 PROA_DB_PORT=55462`, an override tagging the image
+   `proa2-aafix:local`), `proa seed nordwind-handel --value-chains` in its container.
+2. Playwright against it (`PROA_E2E_URL=http://127.0.0.1:7462`): `auto-accept.spec.ts` (5, with
+   the new 412 reload and the per-agent revoke) and `smoke`, `review`, `pipeline`, `value-chain`,
+   `value-chain-agent`, `value-chain-draft`, `value-chain-import`: 45 passed, 1 skipped (the holdout
+   chain of `PROA_E2E_VC_EXTRA`). `d19-01` … `d19-09` were written again with
+   `PROA_SCREENSHOTS_DIR`, and `03-relations.png` (`screenshots.spec.ts -g "relations: rule
+   acceptances"`) for the preset „Durch Systemregel angenommen“.
+3. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser: no
+   violations, 121 modules), `CI=1 pnpm -r test` with `PROA_TEST_DATABASE_URL` (server 1,311 in 60
+   files, web 266 in 29 files, cli 116 plus 7 live tests skipped, eval/tools 95, agent-sim 57,
+   relations 85, bpmn-facts 134, contracts 62, procedures 37, client 4), `pnpm eval:candidates`
+   (pass), `pnpm eval:replay` twice (identical bytes; `replay.{md,json}` changed only in the
+   what-if: the section texts, the holdout without the tier split and with `hidden` rows; the dev
+   rows are unchanged), `pnpm eval:placements` (pass, report unchanged), `node
+   eval/value-chains/validate-value-chains.mjs` (exit 0), `drizzle-kit generate` (no schema
+   changes); `git status` shows no change under `eval/recordings`, `packages/procedures` and
+   `plugins`; the MCP snapshots unchanged; the client regenerated (`ApplyAutoAcceptResult` gained
+   `enabled` and `authorIsOwner`, the ledger route its description and
+   `human-decision-required`). The bundle guard: entry chunk 197.6 KB gzip, chain-only code 37.0
+   of 40 KB.
+4. Then `docker compose -p proa2-aafix … down -v` and the image removed.
+
+Not run: a run with a model, Claude Desktop, the owner's `proa2` stack, other browsers than
+Chromium, the other M1 screenshots.

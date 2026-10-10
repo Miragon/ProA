@@ -481,7 +481,10 @@ export const PlacementItemResult = z
     result: PlacementOutcome,
     /** The placement, unless the item is invalid. */
     placementId: orNull(PlacementId),
-    /** Status after the request, unless the item is invalid. */
+    /**
+     * Status after the request, before the project's auto-accept rules ran
+     * (owner decision 19), unless the item is invalid.
+     */
     status: orNull(RelationStatus),
   })
   .meta({ id: 'PlacementItemResult', description: 'Outcome of one proposed placement.' });

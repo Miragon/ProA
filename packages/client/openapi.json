@@ -6744,6 +6744,9 @@
           "id": {
             "$ref": "#/components/schemas/AgentTokenId"
           },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -6790,6 +6793,7 @@
         },
         "required": [
           "id",
+          "principalId",
           "name",
           "prefix",
           "scopes",
@@ -6820,6 +6824,9 @@
         "properties": {
           "id": {
             "$ref": "#/components/schemas/AgentTokenId"
+          },
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
           },
           "name": {
             "type": "string",
@@ -6870,6 +6877,7 @@
         },
         "required": [
           "id",
+          "principalId",
           "name",
           "prefix",
           "scopes",
@@ -6911,6 +6919,1626 @@
           "name"
         ],
         "description": "Request body to create an agent token."
+      },
+      "AutoAcceptRuleList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptRule"
+            }
+          },
+          "system": {
+            "$ref": "#/components/schemas/AutoAcceptSystemRule"
+          }
+        },
+        "required": [
+          "items",
+          "system"
+        ],
+        "description": "A project's auto-accept rules."
+      },
+      "AutoAcceptRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AutoAcceptRuleId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "$ref": "#/components/schemas/AutoAcceptTier"
+          },
+          "minConfidence": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1
+          },
+          "relationType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agentPrincipalId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptAgent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "includeAdHoc": {
+            "type": "boolean"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "authorIsOwner": {
+            "type": "boolean"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/AutoAcceptRuleStats"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "revision",
+          "name",
+          "enabled",
+          "note",
+          "tier",
+          "minConfidence",
+          "relationType",
+          "agentPrincipalId",
+          "agent",
+          "llmModel",
+          "includeAdHoc",
+          "author",
+          "authorIsOwner",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "stats"
+        ],
+        "description": "An auto-accept rule at its head revision."
+      },
+      "AutoAcceptRuleId": {
+        "type": "string",
+        "pattern": "^aar_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Auto-accept rule id (`aar_` + ULID).",
+        "example": "aar_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "AutoAcceptKind": {
+        "type": "string",
+        "enum": [
+          "relation",
+          "placement"
+        ],
+        "description": "What an auto-accept rule accepts: agent relation or placement proposals."
+      },
+      "AutoAcceptTier": {
+        "type": "string",
+        "enum": [
+          "key",
+          "lexical",
+          "semantic"
+        ],
+        "description": "Server-computed tier of the agent proposals a rule accepts."
+      },
+      "AutoAcceptRelationType": {
+        "type": "string",
+        "enum": [
+          "call",
+          "message",
+          "signal",
+          "trigger"
+        ],
+        "description": "Relation type a relation rule is narrowed to."
+      },
+      "AutoAcceptAgent": {
+        "type": "object",
+        "properties": {
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "tokenId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentTokenId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "principalId",
+          "handle",
+          "tokenId",
+          "revoked"
+        ],
+        "description": "An agent a rule can be narrowed to."
+      },
+      "AutoAcceptPrincipal": {
+        "type": "object",
+        "properties": {
+          "principalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "handle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "principalId",
+          "handle"
+        ],
+        "description": "A principal and its handle."
+      },
+      "AutoAcceptRuleStats": {
+        "type": "object",
+        "properties": {
+          "inForce": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "revoked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "confirmed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "overruled": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lastAcceptedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "inForce",
+          "revoked",
+          "confirmed",
+          "overruled",
+          "lastAcceptedAt"
+        ],
+        "description": "What a rule has accepted so far."
+      },
+      "AutoAcceptSystemRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "proa-rules/1.0.0"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "relation"
+            ]
+          },
+          "relationType": {
+            "type": "string",
+            "enum": [
+              "call"
+            ]
+          },
+          "readOnly": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "kind",
+          "relationType",
+          "readOnly",
+          "accepted"
+        ],
+        "description": "The built-in rule of decision 9."
+      },
+      "SaveAutoAcceptRuleResult": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "created",
+              "revised",
+              "unchanged"
+            ]
+          },
+          "rule": {
+            "$ref": "#/components/schemas/AutoAcceptRuleDetail"
+          }
+        },
+        "required": [
+          "outcome",
+          "rule"
+        ],
+        "description": "The rule after a create or an edit."
+      },
+      "AutoAcceptRuleDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/AutoAcceptRuleId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "$ref": "#/components/schemas/AutoAcceptTier"
+          },
+          "minConfidence": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1
+          },
+          "relationType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agentPrincipalId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptAgent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "includeAdHoc": {
+            "type": "boolean"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "authorIsOwner": {
+            "type": "boolean"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/AutoAcceptRuleStats"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptRuleRevision"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "revision",
+          "name",
+          "enabled",
+          "note",
+          "tier",
+          "minConfidence",
+          "relationType",
+          "agentPrincipalId",
+          "agent",
+          "llmModel",
+          "includeAdHoc",
+          "author",
+          "authorIsOwner",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "stats",
+          "revisions"
+        ],
+        "description": "An auto-accept rule with its revisions."
+      },
+      "AutoAcceptRuleRevision": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/AutoAcceptTier"
+          },
+          "minConfidence": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1
+          },
+          "relationType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agentPrincipalId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "includeAdHoc": {
+            "type": "boolean"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "clientId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "revision",
+          "name",
+          "enabled",
+          "note",
+          "kind",
+          "tier",
+          "minConfidence",
+          "relationType",
+          "agentPrincipalId",
+          "llmModel",
+          "includeAdHoc",
+          "author",
+          "clientId",
+          "at"
+        ],
+        "description": "One immutable revision of a rule."
+      },
+      "AutoAcceptRuleDraft": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "default": null
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/AutoAcceptTier"
+          },
+          "minConfidence": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1
+          },
+          "relationType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "agentPrincipalId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100,
+            "default": null
+          },
+          "includeAdHoc": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "tier",
+          "minConfidence"
+        ],
+        "description": "An auto-accept rule as the owner writes it."
+      },
+      "AutoAcceptPreview": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "history": {
+            "$ref": "#/components/schemas/AutoAcceptPreviewHistory"
+          },
+          "open": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AutoAcceptItem"
+                }
+              },
+              "blocked": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AutoAcceptBlockedCount"
+                }
+              }
+            },
+            "required": [
+              "count",
+              "items",
+              "blocked"
+            ]
+          },
+          "curve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptCurvePoint"
+            }
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptAgent"
+            }
+          },
+          "llmModels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "history",
+          "open",
+          "curve",
+          "agents",
+          "llmModels"
+        ],
+        "description": "What a rule would accept, so far and now."
+      },
+      "AutoAcceptPreviewHistory": {
+        "type": "object",
+        "properties": {
+          "decided": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "wouldAccept": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "corrected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "held": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "autoUnreviewed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "undecided": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "precision": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "decided",
+          "wouldAccept",
+          "accepted",
+          "rejected",
+          "corrected",
+          "held",
+          "autoUnreviewed",
+          "undecided",
+          "precision"
+        ],
+        "description": "What a rule would have accepted so far."
+      },
+      "AutoAcceptItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementId"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueChainKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "process": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "triggerId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              }
+            ]
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "status",
+          "endpointState",
+          "type",
+          "from",
+          "to",
+          "valueChainKey",
+          "step",
+          "process",
+          "triggerId",
+          "agent",
+          "llmModel",
+          "tier",
+          "confidence"
+        ],
+        "description": "An open proposal a rule accepts."
+      },
+      "AutoAcceptBlockedCount": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/AutoAcceptBlockReason"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "count"
+        ],
+        "description": "Open proposals one reason blocked."
+      },
+      "AutoAcceptBlockReason": {
+        "type": "string",
+        "enum": [
+          "not-agent",
+          "no-matching-rule",
+          "stale-proposal",
+          "not-open",
+          "endpoint-not-ok",
+          "outside",
+          "step-removed",
+          "has-home-step",
+          "competing-step",
+          "competing-call",
+          "human-involved",
+          "agent-question",
+          "no-link",
+          "agent-unsure"
+        ],
+        "description": "Why a rule did not accept a proposal."
+      },
+      "AutoAcceptCurvePoint": {
+        "type": "object",
+        "properties": {
+          "minConfidence": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1
+          },
+          "wouldAccept": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "accepted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "corrected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "held": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "precision": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "open": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "minConfidence",
+          "wouldAccept",
+          "accepted",
+          "rejected",
+          "corrected",
+          "held",
+          "precision",
+          "open"
+        ],
+        "description": "The preview at one minimum confidence."
+      },
+      "AutoAcceptCriteria": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/AutoAcceptTier"
+          },
+          "minConfidence": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 1
+          },
+          "relationType": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "agentPrincipalId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrincipalId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100,
+            "default": null
+          },
+          "includeAdHoc": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "kind",
+          "tier",
+          "minConfidence"
+        ],
+        "description": "What an auto-accept rule matches: kind, tier, minimum confidence, narrowing."
+      },
+      "ApplyAutoAcceptResult": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "ruleId": {
+            "$ref": "#/components/schemas/AutoAcceptRuleId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "authorIsOwner": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptItem"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "blocked": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptBlockedCount"
+            }
+          }
+        },
+        "required": [
+          "dryRun",
+          "ruleId",
+          "revision",
+          "enabled",
+          "authorIsOwner",
+          "count",
+          "items",
+          "truncated",
+          "blocked"
+        ],
+        "description": "What applying a rule did or would do."
+      },
+      "ApplyAutoAcceptBody": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "description": "Apply a rule to the open proposals."
+      },
+      "AutoAcceptRevocationResult": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toProposed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toObsolete": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "humanDecidedSince": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "alreadyRevoked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptRevocationItem"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dryRun",
+          "count",
+          "toProposed",
+          "toObsolete",
+          "humanDecidedSince",
+          "alreadyRevoked",
+          "items",
+          "truncated"
+        ],
+        "description": "What a revocation did or would do."
+      },
+      "AutoAcceptRevocationItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementId"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueChainKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "process": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              }
+            ]
+          },
+          "triggerId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              }
+            ]
+          },
+          "ruleId": {
+            "$ref": "#/components/schemas/AutoAcceptRuleId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "decidedBy": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AutoAcceptLedgerState"
+          },
+          "laterVerdict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "accept",
+              "reject",
+              "hold",
+              "correct",
+              null
+            ]
+          },
+          "laterAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revocationId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "obsolete"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "status",
+          "endpointState",
+          "type",
+          "from",
+          "to",
+          "valueChainKey",
+          "step",
+          "process",
+          "decisionId",
+          "triggerId",
+          "ruleId",
+          "revision",
+          "ruleName",
+          "decidedBy",
+          "agent",
+          "llmModel",
+          "tier",
+          "confidence",
+          "at",
+          "state",
+          "laterVerdict",
+          "laterAt",
+          "revocationId",
+          "revokedAt",
+          "outcome"
+        ],
+        "description": "One revoked auto-acceptance."
+      },
+      "AutoAcceptLedgerState": {
+        "type": "string",
+        "enum": [
+          "in-force",
+          "revoked",
+          "human-decided"
+        ],
+        "description": "In force, revoked by an owner, or decided by a human since (a human decision always wins)."
+      },
+      "AutoAcceptRevocationBody": {
+        "type": "object",
+        "properties": {
+          "ruleId": {
+            "$ref": "#/components/schemas/AutoAcceptRuleId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "agentPrincipalId": {
+            "$ref": "#/components/schemas/PrincipalId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RelationId"
+                },
+                {
+                  "$ref": "#/components/schemas/PlacementId"
+                }
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 1000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "expectedCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "description": "Revoke auto-acceptances in bulk."
+      },
+      "AutoAcceptLedger": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoAcceptLedgerEntry"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "A project's auto-acceptances."
+      },
+      "AutoAcceptLedgerEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AutoAcceptKind"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RelationId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementId"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "endpointState": {
+            "$ref": "#/components/schemas/EndpointState"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoAcceptRelationType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueChainKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "process": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              }
+            ]
+          },
+          "triggerId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              }
+            ]
+          },
+          "ruleId": {
+            "$ref": "#/components/schemas/AutoAcceptRuleId"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "decidedBy": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AutoAcceptPrincipal"
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Tier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AutoAcceptLedgerState"
+          },
+          "laterVerdict": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "accept",
+              "reject",
+              "hold",
+              "correct",
+              null
+            ]
+          },
+          "laterAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revocationId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssertionId"
+              },
+              {
+                "$ref": "#/components/schemas/PlacementAssertionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "status",
+          "endpointState",
+          "type",
+          "from",
+          "to",
+          "valueChainKey",
+          "step",
+          "process",
+          "decisionId",
+          "triggerId",
+          "ruleId",
+          "revision",
+          "ruleName",
+          "decidedBy",
+          "agent",
+          "llmModel",
+          "tier",
+          "confidence",
+          "at",
+          "state",
+          "laterVerdict",
+          "laterAt",
+          "revocationId",
+          "revokedAt"
+        ],
+        "description": "One auto-acceptance and its state."
       }
     },
     "parameters": {}
@@ -12043,6 +13671,840 @@
           },
           "403": {
             "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/auto-accept-rules": {
+      "get": {
+        "operationId": "listAutoAcceptRules",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "The project's auto-accept rules with their statistics, and the system rule (owner)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rules in creation order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoAcceptRuleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAutoAcceptRule",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "Create an auto-accept rule (owner, interactive client; off unless `enabled`)",
+        "description": "Revision 1 of a new rule, authored by the caller: while it is enabled, agent proposals recorded afterwards that meet it are accepted as decisions of the author (never retroactive: open proposals need `apply`). 422 `validation-failed` with `reason` `unknown-agent` or `name-taken`; a draft the schema refuses (a tier of another kind, a type on a placement rule, a confidence outside 0.5–1, control characters) is 422 `validation-failed` with `errors` naming the fields instead.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoAcceptRuleDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new rule",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<revision>\"`"
+                },
+                "required": true,
+                "description": "`\"r<revision>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveAutoAcceptRuleResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/auto-accept-rules/preview": {
+      "post": {
+        "operationId": "previewAutoAcceptRule",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "What a rule (saved or not) would have accepted so far and would accept now",
+        "description": "Replays the project history: the agent proposals humans decided that the rule would have accepted, with the humans’ verdicts (an empirical precision; acceptances by auto-accept rules are no ground truth and counted apart), the open proposals it would accept now (what `apply` would do) with the blocked ones per reason, and a curve over minimum confidences. Nothing is written.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoAcceptCriteria"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoAcceptPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/auto-accept-rules/{rule}": {
+      "get": {
+        "operationId": "getAutoAcceptRule",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "One auto-accept rule with every revision (ETag `\"r<revision>\"`)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AutoAcceptRuleId"
+            },
+            "required": true,
+            "description": "Auto-accept rule id (`aar_` + ULID).",
+            "name": "rule",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rule",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<revision>\"`"
+                },
+                "required": true,
+                "description": "`\"r<revision>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoAcceptRuleDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "reviseAutoAcceptRule",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "Edit, enable or disable a rule: a new revision (`If-Match: \"r<revision>\"` required)",
+        "description": "Writes the draft as the next immutable revision, authored by the caller (decisions already recorded keep their revision). `If-Match` must name the head revision: without it 428 `precondition-required`, a stale one 412 `revision-conflict` with `headRev`. A draft equal to the head answers `unchanged`, unless the head’s author is no longer an owner: then the caller takes the rule over (a new revision with the same fields). The kind of a rule never changes (422 `validation-failed` with `reason` `kind-changed`); otherwise the reasons and `errors` of the create route.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AutoAcceptRuleId"
+            },
+            "required": true,
+            "description": "Auto-accept rule id (`aar_` + ULID).",
+            "name": "rule",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "if-match",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoAcceptRuleDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rule",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "`\"r<revision>\"`"
+                },
+                "required": true,
+                "description": "`\"r<revision>\"`"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveAutoAcceptRuleResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Problem: `revision-conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Problem: `precondition-required`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/auto-accept-rules/{rule}/apply": {
+      "post": {
+        "operationId": "applyAutoAcceptRule",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "Apply an enabled rule to the open proposals (`?dryRun=true` first)",
+        "description": "Evaluates the head revision against every open proposal of its kind, with every safeguard. `dryRun=true` lists what it would accept and what is blocked. The real call needs the head `revision`, an enabled rule whose author is still an owner, and `expectedCount` equal to the fresh count: 409 `conflict` with `count`, `revision` and `reason` (`rule-disabled`, `author-not-owner`, `revision-changed`, `count-changed`) otherwise; 422 `validation-failed` with `reason` `expected-count-required` without `revision` and `expectedCount`. The result says whether the head is enabled and its author still an owner.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AutoAcceptRuleId"
+            },
+            "required": true,
+            "description": "Auto-accept rule id (`aar_` + ULID).",
+            "name": "rule",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "dryRun",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyAutoAcceptBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What it did or would do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyAutoAcceptResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/auto-accept-revocations": {
+      "post": {
+        "operationId": "revokeAutoAccepted",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "Revoke auto-acceptances by rule, agent, kind or ids (`?dryRun=true` first)",
+        "description": "Each acceptance still in force is withdrawn (a human withdrawal under the decision’s principal): its item returns to `proposed` while a live proposal remains, else it turns `obsolete` and the agents judge it again. Items a human decided since are never touched. The real call needs `expectedCount` equal to the fresh count (409 `conflict`; 422 `validation-failed` with `reason` `expected-count-required` without it).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "dryRun",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoAcceptRevocationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What it did or would do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoAcceptRevocationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem: `conflict`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/auto-accepted": {
+      "get": {
+        "operationId": "listAutoAccepted",
+        "tags": [
+          "auto-accept"
+        ],
+        "summary": "The auto-acceptances of the project and their state (every human reviewer: the review UI marks)",
+        "description": "One entry per acceptance an auto-accept rule recorded: the item, the rule’s name and revision, the decider, the triggering agent proposal and the state (`in-force`, `revoked`, `human-decided`). Readable by editors and owners on an interactive client (permission `review`), so every reviewer sees which acceptances were made by a rule; agent tokens get 403 `human-decision-required`. The rules themselves stay owner-only.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AutoAcceptKind"
+            },
+            "required": false,
+            "description": "What an auto-accept rule accepts: agent relation or placement proposals.",
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AutoAcceptRuleId"
+            },
+            "required": false,
+            "description": "Auto-accept rule id (`aar_` + ULID).",
+            "name": "ruleId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/AutoAcceptLedgerState"
+            },
+            "required": false,
+            "description": "In force, revoked by an owner, or decided by a human since (a human decision always wins).",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/PrincipalId"
+            },
+            "required": false,
+            "description": "Principal id (`prn_` + ULID).",
+            "name": "agentPrincipalId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The auto-acceptances, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoAcceptLedger"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`, `forbidden`, `human-decision-required`",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -212,6 +212,70 @@ eval:live records placement tasks too (the chain revision's number and content
 hash from the revision listing), refuses a run on an edited chain and exits 1
 on a failing placement gate.
 
+**Auto-accept what-if** (owner decision 19, `tools/src/auto-accept-whatif.ts`):
+what an owner's auto-accept rule at a minimum confidence of 0.8, 0.9 or 0.95
+would have accepted in each recorded run, so the owner can choose the threshold
+"x" from data. Report only, no gate; the sections follow the relation
+recordings ("Auto-accept what-if (relations)") and the placement recordings
+("Auto-accept what-if (placements)") in `replay.md`, `replay.json` has the key
+`autoAcceptWhatIf {thresholds, relations, placements}`. The run is replayed in
+recording order, as the server evaluates rules: at the end of each submission
+(after its own replacements and withdrawals), for the proposals it newly
+recorded (`applied` or `reopened`), with the safeguards checked against what is
+live at that moment; what the rule accepted stays accepted (a later competing
+call or step is blocked, and the agent's later no-link or re-judgement of it
+does not undo it), and the agent's later submissions are taken as recorded.
+Relations per recording, threshold and tier (`all` = one rule per tier at that
+threshold): a pair counts at its first new proposal with confidence ≥ the
+threshold and the rule's tier (the server's, recomputed offline with
+`createPairAssessor` of `@proa/relations` on the landscape's facts) that passes
+the safeguards: no competing call from the same element (a live call proposal
+of the run to another target, one the rule already accepted, or a rule-tier
+call), no question, no live no-link on the typed pair. What is live follows the
+server: a newer proposal on a pair replaces the older; a no-link replaces the
+agent's proposal on the pair from an analysis of the same model, a proposal or
+no-link replaces its no-link from the same model; a submission for a new
+revision of a model withdraws the judgements touching it that rest on an older
+one. Columns: would accept, correct (must_link), acceptable (may_link), wrong
+(unlisted in a closed world, same-process), traps (must_not_link), precision =
+correct / (correct + wrong + traps). Placements per recording and threshold,
+overall (a placement's tier depends on the project's neighbour votes at
+proposal time, so there is no offline tier split; the in-product preview is per
+tier): a process counts at its first new item at the threshold that passes the
+safeguards: never `@outside`, no other step accepted, no live proposal on
+another step (the run's, after the submission withdrew the agent's proposals of
+a process it gave a verdict without repeating them, or the rule tier's key
+proposal, decision 18), no question. Correct = the must, acceptable = a may or
+coarse step, wrong, traps = a must_not step. Exclusions count, at 0.8, the items
+with a qualifying proposal that were never accepted, by the safeguard that held
+the first one back. A single-agent recording has no humans, holds or second
+agent, so those safeguards cannot fire here. Dev recordings also list their
+wrong and trap items at 0.8. **Holdout:** aggregate rows only, relations
+without the tier split (the `all` rows), no item lists; a row with fewer than
+`HOLDOUT_MIN_GROUP` (5) would-accept items shows „< 5“ (in `replay.json` its
+counts are `null` with `redacted: "small"`), and since the rows are cumulative
+(≥ the threshold), a row whose difference to the row of the next lower
+threshold shown is 1 to 4 items shows „hidden“ (`redacted: "difference"`), so
+no two shown rows differ by a small group; the exclusion counts under 5 show
+„< 5“. The simulation agent on `nordwind-handel` (dev): relations at every
+threshold 33 would accept, 30 correct, 3 traps (precision 90.9 %; all key tier,
+which holds the 3 traps: 90.3 %; lexical 2 of 2); placements 19 at 0.8 (12
+correct, 3 acceptable, 1 wrong, 3 traps: 75.0 %), 9 at 0.9 (87.5 %), 4 at 0.95
+(100 %).
+
+**How the owner's live runs feed it.** `eval:live` records every live run and
+`pnpm eval:replay` adds its rows per agent, model and landscape. Submission
+results report the status before the owner's rules ran, so a recording's
+result field does not depend on rules; the claim inputs the agent saw do (what a
+rule accepted is a settled pair, a homed process, a neighbour's step), so a
+recording from a project with rules does not measure the agent alone and is
+not comparable: live runs use fresh projects without rules
+(`docs/proa-2/M3-LIVE-RUNS.md`, step 0). Rule of thumb:
+choose x per tier where the dev runs on the model in use have no trap and the
+precision meets the target, then check the holdout aggregate (never tune on its
+numbers); afterwards the rule's preview in the tab „Regeln“ shows the project's
+own empirical precision.
+
 The simulation agent under `proa-relations@0.2.0`: `nordwind-handel` 48 pairs,
 precision 73.3 %, recall 78.6 %, F1 75.9 %, must_not_link 12 (3 at ≥ 0.8);
 `stadtwerke-auental` 52 pairs, 64.0 %, 80.0 %, 71.1 %, 11 (2); no pair judged
@@ -364,6 +428,11 @@ and a miss only the holdout shows is documented, not special-cased.
   whole-landscape numbers only. Whoever works on a procedure may open both
   files; they still carry the holdout's whole-landscape numbers, so tune
   nothing against them.
+- **The auto-accept what-if** (owner decision 19) shows the holdout as
+  aggregate rows only, relations without the tier split, rows and exclusion
+  counts under 5 items as „< 5“, a row as „hidden“ when its difference to the
+  next lower threshold shown would reveal fewer than 5 items, and no item
+  lists (`auto-accept-whatif.test.ts` checks the redaction).
 - **The holdout placement recording** (`recordings/proa-placements@…/agent-sim/…/stadtwerke-auental.jsonl`)
   is compared by the server test by sha256, line and byte counts only (no diff
   is ever printed; `-u` writes it); nobody opens it.

@@ -608,3 +608,95 @@ describe('value chain and placements (M4: read, propose, review)', () => {
     expect(decide.status).toBe(404);
   });
 });
+
+describe('auto-accept rules (owner decision 19: admin, never agents; the ledger every human reviewer)', () => {
+  const draft = (name: string) => ({
+    name,
+    kind: 'relation',
+    tier: 'key',
+    minConfidence: 0.9,
+  });
+  let ruleId = '';
+  let foreignRuleId = '';
+
+  const routes = (rule: string): [string, string, unknown, Record<string, string>?][] => [
+    ['GET', '/api/v1/projects/p/auto-accept-rules', undefined],
+    ['POST', '/api/v1/projects/p/auto-accept-rules', draft(`neu ${Math.random()}`)],
+    ['POST', '/api/v1/projects/p/auto-accept-rules/preview', draft('x')],
+    ['GET', `/api/v1/projects/p/auto-accept-rules/${rule}`, undefined],
+    ['PUT', `/api/v1/projects/p/auto-accept-rules/${rule}`, draft('Regel'), { 'if-match': '"r1"' }],
+    ['POST', `/api/v1/projects/p/auto-accept-rules/${rule}/apply?dryRun=true`, {}],
+    ['POST', '/api/v1/projects/p/auto-accept-revocations?dryRun=true', { ruleId: rule }],
+    ['GET', '/api/v1/projects/p/auto-accepted', undefined],
+  ];
+  /** The ledger: permission `review` (agent tokens are refused as non-humans). */
+  const isLedger = ([method, path]: ReturnType<typeof routes>[number]) =>
+    method === 'GET' && path.endsWith('/auto-accepted');
+
+  const call = (who: Who, [method, path, body, headers]: ReturnType<typeof routes>[number]) =>
+    as(who, path, {
+      method,
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { 'content-type': 'application/json', ...headers },
+            body: JSON.stringify(body),
+          }),
+    });
+
+  beforeAll(async () => {
+    const res = await as('owner', '/api/v1/projects/p/auto-accept-rules', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(draft('Regel')),
+    });
+    ruleId = ((await res.json()) as { rule: { id: string } }).rule.id;
+    const foreign = await as('owner', '/api/v1/projects/q/auto-accept-rules', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(draft('Fremd')),
+    });
+    foreignRuleId = ((await foreign.json()) as { rule: { id: string } }).rule.id;
+  });
+
+  it.each<Who>(['owner', 'ownerKey'])('lets the owner use every route (%s)', async (who) => {
+    for (const route of routes(ruleId)) {
+      const res = await call(who, route);
+      expect([200, 201], `${who} ${route[0]} ${route[1]}: ${await res.clone().text()}`).toContain(
+        res.status,
+      );
+    }
+  });
+
+  it.each<[Who, number, string]>([
+    ['read', 403, 'forbidden'],
+    ['propose', 403, 'forbidden'],
+    ['write', 403, 'forbidden'],
+    ['other', 404, 'not-found'],
+    ['anonymous', 401, 'unauthorized'],
+  ])('refuses %s with %i %s on every route', async (who, status, code) => {
+    for (const route of routes(ruleId)) {
+      const res = await call(who, route);
+      expect(res.status, `${who} ${route[0]} ${route[1]}`).toBe(status);
+      // Agent tokens are no humans: the ledger (permission `review`) says so.
+      const expected = code === 'forbidden' && isLedger(route) ? 'human-decision-required' : code;
+      expect(await res.json(), `${who} ${route[0]} ${route[1]}`).toMatchObject({ code: expected });
+    }
+  });
+
+  it('answers 404 for a rule of another project', async () => {
+    expect(
+      (await as('owner', `/api/v1/projects/p/auto-accept-rules/${foreignRuleId}`)).status,
+    ).toBe(404);
+    const apply = await as(
+      'owner',
+      `/api/v1/projects/p/auto-accept-rules/${foreignRuleId}/apply?dryRun=true`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      },
+    );
+    expect(apply.status).toBe(404);
+  });
+});

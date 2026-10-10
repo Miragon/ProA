@@ -21,6 +21,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api';
+import type { AutoAcceptIndex } from '@/lib/auto-accept';
 import { LINK_KINDS, REACHED_BY_CALL_LABEL, STEP_KINDS } from '@/lib/labels';
 import { MAX_VALUE_CHAIN_NAME_CHARS } from '@/lib/limits';
 import { valueChainStepQuery } from '@/lib/queries';
@@ -175,6 +176,8 @@ export interface StepPanelProps {
   onSetName: (name: string) => void;
   onSetColor: (color: string | undefined) => void;
   onSetLink: (link: string | null) => void;
+  /** The auto-accept ledger (owner decision 19, owners only): marks on the cards. */
+  autoIndex?: AutoAcceptIndex;
 }
 
 /**
@@ -208,6 +211,7 @@ export function StepPanel(props: StepPanelProps) {
     onDecided,
     onReload,
     onOpen,
+    autoIndex,
   } = props;
   const [adding, setAdding] = useState(false);
   /** Focus goes back to "Prozess hinzufügen" when the form closes. */
@@ -412,6 +416,7 @@ export function StepPanel(props: StepPanelProps) {
                     onSelectStep={onSelectStep}
                     onDecided={(outcome) => onDecided(p.id, outcome)}
                     onReload={onReload}
+                    autoIndex={autoIndex}
                   />
                 ))}
               </ul>

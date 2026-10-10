@@ -20,6 +20,7 @@ import { Kbd } from '@/components/ui/kbd';
 import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ApiError, errorMessage } from '@/lib/api';
+import { useAutoAcceptIndex, useCanReview, useIsOwner } from '@/lib/auto-accept-actions';
 import type { CanvasHighlight } from '@/lib/bpmn-elements';
 import {
   assertionsQuery,
@@ -213,6 +214,9 @@ function ReviewScreen() {
   const landscape = useQuery(landscapeQuery(project));
   const models = useQuery(modelsQuery(project));
   const { resolve, byModel } = useProjectFacts(project, models.data);
+  const owner = useIsOwner(project);
+  const reviewer = useCanReview(project);
+  const autoIndex = useAutoAcceptIndex(project);
   const facts = useMemo<Fact[]>(() => [...byModel.values()].flatMap((f) => f.facts), [byModel]);
   const modelKeys = useMemo(() => new Set((models.data ?? []).map((m) => m.key)), [models.data]);
 
@@ -445,6 +449,15 @@ function ReviewScreen() {
               paneModels={paneModels}
               onEvidence={(item) =>
                 showEvidence({ modelKey: item.modelKey, elementId: item.elementId })
+              }
+              autoAccept={
+                reviewer
+                  ? {
+                      entries: autoIndex.bySubject.get(relation.id) ?? [],
+                      marks: autoIndex.byAssertion,
+                      canRevoke: owner,
+                    }
+                  : undefined
               }
             />
           ) : notFound ? (

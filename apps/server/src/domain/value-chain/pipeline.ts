@@ -164,15 +164,25 @@ export function placementInputHash(ctx: InputHashContext, processRef: string): s
  * removed a proposal the claim showed). Agent proposals and their
  * withdrawals are left out, so agents never make a process due; so are notes
  * on obsolete placements, which no claim shows.
+ *
+ * So are an auto-accept rule's acceptances and their revocations (owner
+ * decision 19): while in force such an acceptance homes the process (no
+ * claim lists it; neighbours see it through their accepted steps), and its
+ * revocation leaves the process's hash as it was before the acceptance, so
+ * the agent's verdict still matches and nothing is judged twice.
  */
 export function lastNonAgentSeqs(
   placements: readonly Pick<PlacementRecord, 'id' | 'processRef' | 'status'>[],
-  histories: ReadonlyMap<PlacementId, readonly { seq: number; sourceKind: string; kind: string }[]>,
+  histories: ReadonlyMap<
+    PlacementId,
+    readonly { seq: number; sourceKind: string; kind: string; autoAcceptRuleId?: string | null }[]
+  >,
 ): Map<string, number> {
   const out = new Map<string, number>();
   for (const p of placements) {
     for (const a of histories.get(p.id) ?? []) {
       if (a.sourceKind === 'agent') continue;
+      if ((a.autoAcceptRuleId ?? null) !== null) continue;
       if (a.kind === 'note' && p.status === 'obsolete') continue;
       out.set(p.processRef, Math.max(out.get(p.processRef) ?? 0, a.seq));
     }

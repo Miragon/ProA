@@ -64,6 +64,20 @@
       "when": 1791557548343,
       "tag": "0008_placement_pipeline",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791594793707,
+      "tag": "0009_auto_accept",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791594812544,
+      "tag": "0010_auto_accept_triggers",
+      "breakpoints": true
     }
   ]
 }

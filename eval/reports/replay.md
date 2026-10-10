@@ -186,6 +186,47 @@ Only expected entries carry tags, so precision within a tag counts must_not_link
 - `message` kundenservice/kundenportal#Event_InstalmentChangeRequested → abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht (de-en)
 - `message` kundenservice/kundenportal#Event_TariffChangeRequested → vertrieb/tarifwechsel#Start_TarifwechselBeantragt (de-en)
 
+## Auto-accept what-if (relations)
+
+What an owner's auto-accept rule (owner decision 19) at a minimum confidence would have accepted in each run, to choose the threshold from data (report only, no gate). The run is replayed in recording order, as the server evaluates rules at the end of each submission: a pair counts at the first proposal the server answered `applied` or `reopened` with confidence ≥ the threshold and the rule's tier that passes the safeguards as of that moment: no competing call from the same element (a live call proposal of the run to another target, one the rule already accepted, or a rule-tier call), no question, no live no-link on the pair. What the rule accepted stays accepted: it blocks later competing calls, and the agent changing its mind later does not undo it. The tier is the server's, recomputed with the pair assessor of @proa/relations; `all` is one rule per tier. correct = must_link, acceptable = may_link, wrong = unlisted (closed world) or same-process, traps = must_not_link; precision = correct / (correct + wrong + traps). Excluded: pairs with a qualifying proposal never accepted, by the safeguard that held the first one back. Rules see no humans here: the live safeguards against human involvement, holds and a second agent cannot fire in a single-agent recording, and the agent's later claims are taken as recorded.
+
+### proa-relations@0.2.0 / agent-sim / sim-policy-1 / nordwind-handel
+
+`proa-relations@0.2.0/agent-sim/sim-policy-1/nordwind-handel.jsonl` · dev · excluded at ≥ 0.8: 0 competing calls, 0 with a question, 0 with a no-link.
+
+| min confidence | tier | would accept | correct | acceptable | wrong | traps | precision |
+|---|---|--:|--:|--:|--:|--:|--:|
+| 0.8 | all | 33 | 30 | 0 | 0 | 3 | 90.9 % |
+| 0.8 | key | 31 | 28 | 0 | 0 | 3 | 90.3 % |
+| 0.8 | lexical | 2 | 2 | 0 | 0 | 0 | 100.0 % |
+| 0.8 | semantic | 0 | 0 | 0 | 0 | 0 | n/a |
+| 0.9 | all | 33 | 30 | 0 | 0 | 3 | 90.9 % |
+| 0.9 | key | 31 | 28 | 0 | 0 | 3 | 90.3 % |
+| 0.9 | lexical | 2 | 2 | 0 | 0 | 0 | 100.0 % |
+| 0.9 | semantic | 0 | 0 | 0 | 0 | 0 | n/a |
+| 0.95 | all | 33 | 30 | 0 | 0 | 3 | 90.9 % |
+| 0.95 | key | 31 | 28 | 0 | 0 | 3 | 90.3 % |
+| 0.95 | lexical | 2 | 2 | 0 | 0 | 0 | 100.0 % |
+| 0.95 | semantic | 0 | 0 | 0 | 0 | 0 | n/a |
+
+Wrong and trap pairs at ≥ 0.8:
+
+- `message` finanzen/kreditpruefung#End_AntwortGesendet → einkauf/bestellanforderung#Event_AntwortErhalten (trap: must_not_link; key, confidence 1.00)
+- `message` service/reklamation#Task_AntwortSenden → einkauf/bestellanforderung#Event_AntwortErhalten (trap: must_not_link; key, confidence 1.00)
+- `message` service/reklamation#Task_AntwortSenden → finanzen/kreditpruefung#Event_AntwortErhalten (trap: must_not_link; key, confidence 1.00)
+
+### proa-relations@0.2.0 / agent-sim / sim-policy-1 / stadtwerke-auental
+
+`proa-relations@0.2.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl` · holdout · excluded at ≥ 0.8: < 5 competing calls, < 5 with a question, < 5 with a no-link.
+
+| min confidence | tier | would accept | correct | acceptable | wrong | traps | precision |
+|---|---|--:|--:|--:|--:|--:|--:|
+| 0.8 | all | 37 | 32 | 0 | 3 | 2 | 86.5 % |
+| 0.9 | all | hidden | – | – | – | – | – |
+| 0.95 | all | hidden | – | – | – | – | – |
+
+_holdout: aggregate rows only (relations without the tier split), no item lists; a row with fewer than 5 would-accept items is shown as „< 5“, a row whose difference to the next lower threshold shown would reveal fewer than 5 items as „hidden“ (eval/README.md, holdout hygiene)._
+
 ## Placements
 
 Recorded submissions of `placement` tasks (M4-VALUE-CHAIN.md §6), scored with the eval:placements scorer against each landscape's `expected-placements.yaml`. A recording counts only on the golden chain: every line's chain content hash must be the golden file's (else eval:replay exits 1). The run's placements are the union of its valid items (applied, duplicate, suppressed, reopened; `@outside` included), one per (process, step) with its highest confidence, ranked per process by confidence (ties by step id). Precision = hit / (hit + trap + wrong) (may and coarse are neutral); recall over every (process, must) pair; recall@1 over each process's most confident step; area recall@1 by top-level area; traps ≥ 0.8 are what the live gate allows none of. Holdout recordings show aggregate numbers only, per-tag numbers only for tags with at least 5 processes.
@@ -296,3 +337,36 @@ _No live runs yet._
 | shared-word | 8 | 50.0 % | 50.0 % | 66.7 % | 0/8 |
 
 _holdout: aggregate numbers only, no per-item lists, per-tag numbers only for tags with at least 5 processes (eval/README.md, holdout hygiene)._
+
+## Auto-accept what-if (placements)
+
+What an owner's placement auto-accept rule would have accepted in each run (report only, no gate), overall: a placement's tier depends on the project's neighbour votes at proposal time, so there is no offline tier split (the in-product preview is per tier). The run is replayed in recording order: a process counts at the first item the server answered `applied` or `reopened` with confidence ≥ the threshold that passes the safeguards as of that submission: never `@outside`, no other step accepted, no live proposal on another step (the run's, after the submission withdrew the agent's unrepeated ones, or the rule tier's key proposal, decision 18), no question. What the rule accepted stays the home step. correct = the must, acceptable = a may or coarse step, wrong = another step, traps = a must_not step; precision = correct / (correct + wrong + traps).
+
+### proa-placements@0.1.0 / agent-sim / sim-policy-1 / nordwind-handel
+
+`proa-placements@0.1.0/agent-sim/sim-policy-1/nordwind-handel.jsonl` · dev · excluded at ≥ 0.8: 0 on `@outside`, 0 with a competing step, 5 with a question.
+
+| min confidence | tier | would accept | correct | acceptable | wrong | traps | precision |
+|---|---|--:|--:|--:|--:|--:|--:|
+| 0.8 | all | 19 | 12 | 3 | 1 | 3 | 75.0 % |
+| 0.9 | all | 9 | 7 | 1 | 0 | 1 | 87.5 % |
+| 0.95 | all | 4 | 4 | 0 | 0 | 0 | 100.0 % |
+
+Wrong and trap placements at ≥ 0.8:
+
+- finanzen/kreditpruefung#Process_AuskunfteiAdapter → `step-kreditorenbuchhaltung` (wrong: wrong; confidence 0.80)
+- finanzen/kreditpruefung#Process_Kreditpruefung → `step-kreditorenbuchhaltung` (trap: trap; confidence 0.80)
+- finanzen/lieferantenrechnung#Process_Lieferantenrechnung → `step-lieferantenmanagement` (trap: trap; confidence 0.80)
+- finanzen/zahlungslauf#Process_Zahlungslauf → `step-zahlungseingang` (trap: trap; confidence 0.90)
+
+### proa-placements@0.1.0 / agent-sim / sim-policy-1 / stadtwerke-auental
+
+`proa-placements@0.1.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl` · holdout · excluded at ≥ 0.8: < 5 on `@outside`, < 5 with a competing step, 6 with a question.
+
+| min confidence | tier | would accept | correct | acceptable | wrong | traps | precision |
+|---|---|--:|--:|--:|--:|--:|--:|
+| 0.8 | all | 14 | 10 | 2 | 2 | 0 | 83.3 % |
+| 0.9 | all | 14 | 10 | 2 | 2 | 0 | 83.3 % |
+| 0.95 | all | < 5 | – | – | – | – | – |
+
+_holdout: aggregate rows only (relations without the tier split), no item lists; a row with fewer than 5 would-accept items is shown as „< 5“, a row whose difference to the next lower threshold shown would reveal fewer than 5 items as „hidden“ (eval/README.md, holdout hygiene)._

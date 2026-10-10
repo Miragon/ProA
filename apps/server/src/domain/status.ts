@@ -26,6 +26,12 @@ export interface StanceView {
   principalId: PrincipalId;
   tier: Tier | null;
   confidence: number | null;
+  /**
+   * The auto-accept rule of a marked assertion (owner decision 19): a human
+   * acceptance an owner's rule recorded, or its revocation (a withdrawal).
+   * Absent or `null` on every other assertion.
+   */
+  autoAcceptRuleId?: string | null;
 }
 
 export interface Fingerprints {
@@ -76,17 +82,40 @@ function stancesOnly<T extends StanceView>(history: readonly T[]): T[] {
   return history.filter((a) => a.kind !== 'note');
 }
 
+/** A revocation of an auto-acceptance: a withdrawal marked with the rule (owner decision 19). */
+function isRevocation(a: StanceView): boolean {
+  return a.kind === 'withdrawal' && (a.autoAcceptRuleId ?? null) !== null;
+}
+
 /**
  * Each principal's current stance: its latest assertion, unless that is a
  * withdrawal. A newer assertion of the same principal replaces its older
  * ones (a new proposal replaces its previous proposal or decision). Notes
  * are ignored. Returns the input objects.
+ *
+ * A revocation of an auto-acceptance (owner decision 19) ends exactly that
+ * acceptance: it replaces the principal's stance only while that stance is
+ * the marked decision itself. When the principal (the rule's author) has
+ * proposed or withdrawn since, the revocation leaves that later stance
+ * alone; {@link decisionsInForce} still ends the acceptance.
  */
 export function currentStances<T extends StanceView>(history: readonly T[]): T[] {
   const latest = new Map<PrincipalId, T>();
-  for (const a of stancesOnly(history)) {
+  const stances = stancesOnly(history);
+  if (stances.some(isRevocation)) stances.sort((a, b) => a.seq - b.seq);
+  for (const a of stances) {
     const prev = latest.get(a.principalId);
-    if (!prev || a.seq > prev.seq) latest.set(a.principalId, a);
+    if (prev && a.seq <= prev.seq) continue;
+    if (
+      isRevocation(a) &&
+      !(
+        prev?.kind === 'decision' &&
+        (prev.autoAcceptRuleId ?? null) === (a.autoAcceptRuleId ?? null)
+      )
+    ) {
+      continue;
+    }
+    latest.set(a.principalId, a);
   }
   return [...latest.values()].filter((a) => a.kind !== 'withdrawal').sort((a, b) => a.seq - b.seq);
 }
@@ -98,7 +127,13 @@ export function currentStances<T extends StanceView>(history: readonly T[]): T[]
  * the supersession of that proposal). Humans change a decision only by
  * deciding again (CONCEPT §2: "the latest decision wins"). The rule
  * principal's later proposal or withdrawal does end its decision, since rule
- * assertions follow the rules. Returns the input objects.
+ * assertions follow the rules.
+ *
+ * The one exception to "only by deciding again" (owner decision 19): an
+ * acceptance an auto-accept rule recorded ends with its revocation, a later
+ * withdrawal of the same principal marked with the same rule. Nothing takes
+ * its place: no older decision of that principal comes back (the rule only
+ * ever accepts items without any human assertion). Returns the input objects.
  */
 export function decisionsInForce<T extends StanceView>(history: readonly T[]): T[] {
   const out = currentStances(history).filter((a) => a.kind === 'decision');
@@ -108,8 +143,26 @@ export function decisionsInForce<T extends StanceView>(history: readonly T[]): T
     const prev = latestHuman.get(a.principalId);
     if (!prev || a.seq > prev.seq) latestHuman.set(a.principalId, a);
   }
-  for (const d of latestHuman.values()) if (!out.includes(d)) out.push(d);
+  for (const d of latestHuman.values()) {
+    if (!out.includes(d) && !isRevokedAutoAccept(history, d)) out.push(d);
+  }
   return out.sort((a, b) => a.seq - b.seq);
+}
+
+/**
+ * An auto-accept rule's acceptance that an owner revoked: a later withdrawal
+ * of its principal carries the same rule (owner decision 19).
+ */
+export function isRevokedAutoAccept<T extends StanceView>(history: readonly T[], d: T): boolean {
+  const ruleId = d.autoAcceptRuleId ?? null;
+  if (ruleId === null || d.kind !== 'decision') return false;
+  return history.some(
+    (w) =>
+      w.kind === 'withdrawal' &&
+      w.principalId === d.principalId &&
+      (w.autoAcceptRuleId ?? null) === ruleId &&
+      w.seq > d.seq,
+  );
 }
 
 const TIER_RANK: Readonly<Record<Tier, number>> = {

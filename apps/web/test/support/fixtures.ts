@@ -1,5 +1,8 @@
 import type {
   AgentToken,
+  AutoAcceptLedgerEntry,
+  AutoAcceptPreview,
+  AutoAcceptRule,
   Fact,
   Model,
   Placement,
@@ -131,6 +134,7 @@ export function agentToken(
   overrides: Partial<AgentToken> & Pick<AgentToken, 'id' | 'name'>,
 ): AgentToken {
   return {
+    principalId: 'prn_01J9Z3N4X5Q6R7S8T9V0W1X2T0',
     prefix: 'Ab3dE5gH',
     scopes: ['proa:read', 'proa:propose'],
     expiresAt: '2027-01-05T09:00:00.000Z',
@@ -383,6 +387,113 @@ export function impact(overrides: Partial<ValueChainImpact> = {}): ValueChainImp
     structureChanged: true,
     steps: { added: [], removed: [], changed: [] },
     placements: { stranded: 0, toReconfirm: 0, proposalsWithdrawn: 0 },
+    ...overrides,
+  };
+}
+
+// ------------------------------------------------------ auto-accept (decision 19)
+
+export const OWNER = { principalId: 'prn_01J9Z3N4X5Q6R7S8T9V0W1X2O0', handle: 'owner' };
+
+/** An auto-accept rule at its head revision (relation, key tier, 95 %, off). */
+export function autoAcceptRule(
+  overrides: Partial<AutoAcceptRule> & Pick<AutoAcceptRule, 'id'>,
+): AutoAcceptRule {
+  return {
+    kind: 'relation',
+    revision: 1,
+    name: 'Schlüssel ab 95 %',
+    enabled: false,
+    note: null,
+    tier: 'key',
+    minConfidence: 0.95,
+    relationType: null,
+    agentPrincipalId: null,
+    agent: null,
+    llmModel: null,
+    includeAdHoc: false,
+    author: OWNER,
+    authorIsOwner: true,
+    createdBy: OWNER,
+    createdAt: NOW,
+    updatedAt: NOW,
+    stats: { inForce: 0, revoked: 0, confirmed: 0, overruled: 0, lastAcceptedAt: null },
+    ...overrides,
+  };
+}
+
+/** One auto-acceptance of the ledger (a relation, in force). */
+export function ledgerEntry(
+  overrides: Partial<AutoAcceptLedgerEntry> & Pick<AutoAcceptLedgerEntry, 'id'>,
+): AutoAcceptLedgerEntry {
+  return {
+    kind: 'relation',
+    status: 'accepted',
+    endpointState: 'ok',
+    type: 'message',
+    from: 'vertrieb/auftragsabwicklung#Event_WareVersandbereit',
+    to: 'finanzen/rechnungsstellung#Start_WareVersandbereit',
+    valueChainKey: null,
+    step: null,
+    process: null,
+    decisionId: 'ast_01AUTODECISION',
+    triggerId: 'ast_01TRIGGER',
+    ruleId: 'aar_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+    revision: 2,
+    ruleName: 'Schlüssel ab 95 %',
+    decidedBy: OWNER,
+    agent: { principalId: 'prn_01AGENT', handle: 'agent:claude code' },
+    llmModel: 'claude-sonnet-5-5',
+    tier: 'key',
+    confidence: 0.97,
+    at: NOW,
+    state: 'in-force',
+    laterVerdict: null,
+    laterAt: null,
+    revocationId: null,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
+/** A rule preview: 15 of 40 decided proposals, 14 accepted, 1 rejected; 3 open. */
+export function autoAcceptPreview(overrides: Partial<AutoAcceptPreview> = {}): AutoAcceptPreview {
+  const curve = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1].map((minConfidence) => ({
+    minConfidence,
+    wouldAccept: minConfidence >= 0.95 ? 15 : 20,
+    accepted: 14,
+    rejected: minConfidence >= 0.95 ? 1 : 5,
+    corrected: 0,
+    held: 0,
+    precision: minConfidence >= 0.95 ? 14 / 15 : 14 / 19,
+    open: minConfidence >= 0.95 ? 3 : 6,
+  }));
+  return {
+    kind: 'relation',
+    history: {
+      decided: 40,
+      wouldAccept: 15,
+      accepted: 14,
+      rejected: 1,
+      corrected: 0,
+      held: 0,
+      autoUnreviewed: 2,
+      undecided: 1,
+      precision: 14 / 15,
+    },
+    open: {
+      count: 3,
+      items: [],
+      blocked: [
+        { reason: 'agent-question', count: 2 },
+        { reason: 'no-link', count: 1 },
+      ],
+    },
+    curve,
+    agents: [
+      { principalId: 'prn_01AGENT', handle: 'agent:claude code', tokenId: null, revoked: false },
+    ],
+    llmModels: ['claude-sonnet-5-5'],
     ...overrides,
   };
 }

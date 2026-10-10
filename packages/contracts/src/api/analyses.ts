@@ -899,7 +899,11 @@ export const SubmissionItemResult = z
     result: ProposalOutcome,
     /** The relation, unless the item is invalid. */
     relationId: orNull(RelationId),
-    /** Status after the submission, unless the item is invalid. */
+    /**
+     * Status after the submission, before the project's auto-accept rules ran
+     * (owner decision 19), unless the item is invalid: the stored result and
+     * replays stay independent of the project's rules.
+     */
     status: orNull(RelationStatus),
   })
   .meta({ id: 'SubmissionItemResult', description: 'Outcome of one item of a submission.' });
@@ -1034,6 +1038,7 @@ export const PlacementSubmissionResult = z
           index: z.number().int().min(0),
           result: PipelinePlacementOutcome,
           placementId: orNull(PlacementId),
+          /** Status after the submission, before the project's auto-accept rules ran. */
           status: orNull(RelationStatus),
         }),
       ),

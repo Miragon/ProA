@@ -12,17 +12,24 @@ import {
   getValueChainStep,
   listAgentTokens,
   listAnalyses,
+  listAutoAcceptRules,
+  listAutoAccepted,
   listModels,
   listPlacements,
   listProjects,
   listUnplacedProcesses,
   listValueChainRevisions,
+  revokeAutoAccepted,
   type Health,
 } from '@proa/client';
 import type {
   AgentToken,
   AnalysisTask,
   AnalysisTaskState,
+  AutoAcceptRevocationBody,
+  AutoAcceptRevocationResult,
+  AutoAcceptLedgerEntry,
+  AutoAcceptRuleList,
   Landscape,
   Model,
   Placement,
@@ -68,6 +75,17 @@ export const keys = {
     ['project', project, 'value-chain', 'step', elementId] as const,
   unplaced: (project: string) => ['project', project, 'value-chain', 'unplaced'] as const,
   chainRevisions: (project: string) => ['project', project, 'value-chain', 'revisions'] as const,
+  // Auto-accept rules (owner decision 19): the rules owner only, the ledger every reviewer.
+  autoAcceptRules: (project: string) => ['project', project, 'auto-accept', 'rules'] as const,
+  autoAcceptRule: (project: string, id: string) =>
+    ['project', project, 'auto-accept', 'rule', id] as const,
+  autoAccepted: (project: string) => ['project', project, 'auto-accept', 'ledger'] as const,
+  autoAcceptPreview: (project: string, criteria: object) =>
+    ['project', project, 'auto-accept', 'preview', criteria] as const,
+  autoAcceptApplyDryRun: (project: string, ruleId: string, revision: number) =>
+    ['project', project, 'auto-accept', 'apply-dry-run', ruleId, revision] as const,
+  autoAcceptRevokeDryRun: (project: string, selection: AutoAcceptRevocationBody) =>
+    ['project', project, 'auto-accept', 'revoke-dry-run', selection] as const,
   // Revisions are immutable: keyed by revision id, cached for good.
   facts: (revisionId: string) => ['revision', revisionId, 'facts'] as const,
   content: (revisionId: string) => ['revision', revisionId, 'content'] as const,
@@ -311,4 +329,43 @@ export const chainRevisionQuery = (project: string) =>
           listValueChainRevisions({ client: api, path: chain(project), query: { limit: 1 } }),
         )
       ).items[0] ?? null,
+  });
+
+// ------------------------------------------------- auto-accept rules (decision 19)
+
+/** The project's auto-accept rules (creation order) and the system rule; owners only. */
+export const autoAcceptRulesQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.autoAcceptRules(project),
+    queryFn: (): Promise<AutoAcceptRuleList> =>
+      unwrap(listAutoAcceptRules({ client: api, path: { project } })),
+  });
+
+/**
+ * The auto-accept ledger (every acceptance a rule recorded and its state):
+ * the review views join it to mark items, since relations and placements
+ * carry no marker of their own. Every reviewer (editors and owners).
+ */
+export const autoAcceptedQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.autoAccepted(project),
+    queryFn: async (): Promise<AutoAcceptLedgerEntry[]> =>
+      (await unwrap(listAutoAccepted({ client: api, path: { project } }))).items,
+  });
+
+/** The dry run of a revocation (never cached). */
+export const autoAcceptRevokeDryRunQuery = (project: string, selection: AutoAcceptRevocationBody) =>
+  queryOptions({
+    queryKey: keys.autoAcceptRevokeDryRun(project, selection),
+    queryFn: (): Promise<AutoAcceptRevocationResult> =>
+      unwrap(
+        revokeAutoAccepted({
+          client: api,
+          path: { project },
+          query: { dryRun: 'true' },
+          body: selection,
+        }),
+      ),
+    staleTime: 0,
+    gcTime: 0,
   });

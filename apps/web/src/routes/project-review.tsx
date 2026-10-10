@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { errorMessage } from '@/lib/api';
+import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
 import { nameUsage } from '@/lib/generic-names';
 import { STAGES, TIERS, TIER_ORDER, formatDateTime } from '@/lib/labels';
 import { analysesQuery, landscapeQuery, modelsQuery, valueChainQuery } from '@/lib/queries';
@@ -230,6 +231,7 @@ function ReviewInbox() {
   const chain = useQuery(valueChainQuery(project));
   const openPlacements = chain.data ? openPlacementCount(chain.data) : 0;
   const { resolve, byModel } = useProjectFacts(project, models.data);
+  const autoIndex = useAutoAcceptIndex(project);
   const [bulkTier, setBulkTier] = useState<Tier | null>(null);
 
   const { stage, tier, model } = search;
@@ -397,7 +399,13 @@ function ReviewInbox() {
         <TabsContent value="proposals" className="pt-2">
           {queue.length > 0 ? (
             <div className="overflow-x-auto rounded-xl border bg-card">
-              <QueueTable project={project} items={queue} resolve={resolve} filters={filters} />
+              <QueueTable
+                project={project}
+                items={queue}
+                resolve={resolve}
+                filters={filters}
+                revoked={autoIndex.revoked}
+              />
             </div>
           ) : (
             <Empty className="border bg-card py-10">

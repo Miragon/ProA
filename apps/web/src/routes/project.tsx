@@ -33,7 +33,8 @@ function TabLink({
     | '/projects/$project/relations'
     | '/projects/$project/findings'
     | '/projects/$project/upload'
-    | '/projects/$project/agents';
+    | '/projects/$project/agents'
+    | '/projects/$project/rules';
   children: ReactNode;
   count?: number | undefined;
   /** What the count counts, for screen readers. */
@@ -133,6 +134,9 @@ function ProjectLayout() {
             </TabLink>
             <TabLink to="/projects/$project/upload">Hochladen</TabLink>
             <TabLink to="/projects/$project/agents">Agent verbinden</TabLink>
+            {info.data?.role === 'owner' ? (
+              <TabLink to="/projects/$project/rules">Regeln</TabLink>
+            ) : null}
           </nav>
           <Outlet />
         </>

@@ -40,6 +40,7 @@ import {
 } from '@proa/contracts';
 
 import { sourceKindOf, type Actor } from '../actor.ts';
+import { autoAcceptRelations, type RelationTrigger } from '../auto-accept/apply.ts';
 import { renderClaimInput, type ClaimModel } from '../claim-input.ts';
 import { decodeCursor, toPage } from '../cursor.ts';
 import { DomainError } from '../errors.ts';
@@ -735,6 +736,7 @@ export function analysisUseCases(deps: UseCaseDeps) {
         // 1. Relation items.
         const items: SubmissionItemResult[] = [];
         const seen = new Set<string>();
+        const recorded: RelationTrigger[] = [];
         for (const [index, item] of body.relations.entries()) {
           const valid = validateProposal(
             {
@@ -769,7 +771,8 @@ export function analysisUseCases(deps: UseCaseDeps) {
             continue;
           }
           seen.add(key);
-          const { effect, relation } = await applyProposal(ctx, valid.value);
+          const { effect, relation, assertion } = await applyProposal(ctx, valid.value);
+          if (assertion) recorded.push({ relation, assertion });
           items.push({ index, result: effect, relationId: relation.id, status: null });
         }
 
@@ -997,6 +1000,9 @@ export function analysisUseCases(deps: UseCaseDeps) {
           [...freshKeys, ...[...supersededNoLinks, ...replacedNoLinks].map(noLinkKey)],
           relations,
         );
+        // 5. The owner's auto-accept rules (owner decision 19) on the proposals just recorded;
+        //    the result above reports the state before them.
+        await autoAcceptRelations(ctx, recorded, { procedure, heads });
         if (task.requeueAfter) await queueFollowUp(tx, actor, project.id, task);
         return result;
       });

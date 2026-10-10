@@ -9,7 +9,9 @@
  * the head facts, limits, evidence; `items.ts`) and the tier matchers
  * (`tiers.ts`) run before; these functions take validated input but refuse a
  * step generation that is not live and an `@outside` proposal without a reason.
- * Nothing is auto-accepted.
+ * The rule tier accepts nothing; an owner's auto-accept rule may accept an
+ * agent proposal afterwards (`auto-accept/`, owner decision 19), recorded as a
+ * human decision of the rule's author.
  */
 import {
   newId,
@@ -151,7 +153,12 @@ type PlacementTarget = Pick<
 export async function applyPlacementProposal(
   ctx: PlacementContext,
   p: ValidPlacementProposal,
-): Promise<{ effect: ProposalEffect; placement: PlacementRecord }> {
+): Promise<{
+  effect: ProposalEffect;
+  placement: PlacementRecord;
+  /** The recorded proposal, `null` when nothing was recorded (the auto-accept step evaluates it). */
+  assertion: PlacementAssertionRecord | null;
+}> {
   const source = proposerOf(ctx);
   if ((source.sourceKind === 'rule') !== (p.tier === 'key')) {
     throw new Error(
@@ -186,7 +193,7 @@ export async function applyPlacementProposal(
     processFp,
     ...(basis && procedure ? { basis: { ...basis, procedure } } : {}),
   });
-  if (!record && existing) return { effect, placement: existing };
+  if (!record && existing) return { effect, placement: existing, assertion: null };
 
   const assertion = await preparePlacementAssertion(ctx.tx, ctx.projectId, target, {
     kind: 'proposal',
@@ -228,7 +235,7 @@ export async function applyPlacementProposal(
     await ctx.tx.placementAssertions.insert(assertion);
   }
   ctx.placements.set(key, placement);
-  return { effect, placement };
+  return { effect, placement, assertion };
 }
 
 type Stance = Pick<PlacementAssertionRecord, 'principalId' | 'sourceKind' | 'clientId'>;
@@ -565,10 +572,13 @@ export async function acceptManualPlacement(
     ? await tx.placementAssertions.listForPlacements(projectId, [existing.id])
     : [];
   const basis = placementBasisOf(history);
+  // An auto-accept rule's acceptance (owner decision 19) is no human review: the
+  // human's manual placement is recorded and confirms it.
   if (
     existing &&
     existing.status === 'accepted' &&
     basis?.sourceKind === 'human' &&
+    (basis.autoAcceptRuleId ?? null) === null &&
     PLACEMENT.sameAnchor(PLACEMENT.anchor(basis), anchor)
   ) {
     return { placement: existing, recorded: false };

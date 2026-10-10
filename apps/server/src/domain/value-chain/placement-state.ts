@@ -26,6 +26,7 @@ import type {
   PlacementTier,
   Tx,
 } from '../ports.ts';
+import { autoAcceptPayload } from '../relation-state.ts';
 import {
   classifyProposalOf,
   pairEndpointState,
@@ -276,6 +277,7 @@ export async function preparePlacementAssertion(
       ...(input.tier ? { tier: input.tier, confidence: input.confidence } : {}),
       ...(input.submissionId ? { submissionId: input.submissionId } : {}),
       ...(input.linkedPlacementId ? { linkedPlacementId: input.linkedPlacementId } : {}),
+      ...autoAcceptPayload(input),
     },
   });
   return {

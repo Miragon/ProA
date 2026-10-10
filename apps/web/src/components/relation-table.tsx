@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 
+import { AutoAcceptMark } from '@/components/auto-accept-mark';
 import { EndpointStateBadge, StatusBadge, TierBadge, TypeLabel } from '@/components/badges';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +44,7 @@ import {
   provenanceOf,
   type Provenance,
 } from '@/lib/labels';
+import type { AutoAcceptIndex, AutoFilter } from '@/lib/auto-accept';
 import {
   RELATION_PRESETS,
   filterRelations,
@@ -126,6 +128,8 @@ export interface RelationTableProps {
   renderActions?: (relation: Relation) => ReactNode;
   /** Highlights a row, e.g. the relation selected in the model view. */
   selectedId?: string;
+  /** The auto-accept ledger (reviewers): marks relations an auto-accept rule accepted. */
+  autoIndex?: AutoAcceptIndex;
 }
 
 /** The relation rows: type, endpoints, tier, status, confidence, provenance, actions. */
@@ -134,6 +138,7 @@ export function RelationTable({
   resolve,
   renderActions,
   selectedId,
+  autoIndex,
 }: RelationTableProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) =>
@@ -180,6 +185,7 @@ export function RelationTable({
         {relations.map((r) => {
           const open = expanded.has(r.id);
           const ruleAccepted = r.status === 'accepted' && r.tier === 'rule';
+          const auto = autoIndex?.inForce.get(r.id);
           return (
             <Fragment key={r.id}>
               <TableRow
@@ -188,6 +194,7 @@ export function RelationTable({
                 data-status={r.status}
                 data-tier={r.tier}
                 data-state={selectedId === r.id ? 'selected' : undefined}
+                data-auto={auto ? 'true' : undefined}
                 className={cn(ruleAccepted && 'bg-success-soft/40')}
               >
                 <TableCell>
@@ -217,9 +224,10 @@ export function RelationTable({
                   <TierBadge tier={r.tier} />
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-col items-start gap-1">
+                  <div className="flex min-w-0 flex-col items-start gap-1">
                     <StatusBadge status={r.status} />
                     <EndpointStateBadge state={r.endpointState} />
+                    {auto ? <AutoAcceptMark entry={auto} wrap /> : null}
                   </div>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
@@ -251,6 +259,12 @@ export interface RelationsViewProps extends RelationTableProps {
   modelKeys: readonly string[];
   filters: RelationFilters;
   onFiltersChange: (filters: RelationFilters) => void;
+  /**
+   * The relation auto-accept rules (reviewers; owners get every rule, editors
+   * the ones the ledger names): with them the preset „Automatisch
+   * angenommen“ and the rule filter appear (`autoIndex` joins).
+   */
+  autoRules?: readonly { id: string; name: string }[];
 }
 
 const ALL = '';
@@ -261,14 +275,21 @@ export function RelationsView({
   modelKeys,
   filters,
   onFiltersChange,
+  autoRules,
   ...table
 }: RelationsViewProps) {
-  const visible = useMemo(() => filterRelations(relations, filters), [relations, filters]);
+  const { autoIndex } = table;
+  const visible = useMemo(
+    () => filterRelations(relations, filters, autoIndex),
+    [relations, filters, autoIndex],
+  );
   const filtered =
     filters.status !== undefined ||
     filters.tier !== undefined ||
     filters.type !== undefined ||
-    filters.model !== undefined;
+    filters.model !== undefined ||
+    filters.auto !== undefined;
+  const presets = RELATION_PRESETS.filter((p) => !p.needsLedger || autoRules !== undefined);
 
   const set = (patch: Partial<RelationFilters>) => {
     const next: RelationFilters = { ...filters, ...patch };
@@ -281,13 +302,14 @@ export function RelationsView({
   return (
     <div className="flex flex-col gap-4">
       <div role="group" aria-label="Schnellfilter" className="flex flex-wrap gap-2">
-        {RELATION_PRESETS.map((preset) => {
+        {presets.map((preset) => {
           const target: RelationFilters = { ...preset.filters, model: filters.model };
           const active =
             filters.status === preset.filters.status &&
             filters.tier === preset.filters.tier &&
+            filters.auto === preset.filters.auto &&
             filters.type === undefined;
-          const count = relations.filter((r) => matchesFilters(r, target)).length;
+          const count = relations.filter((r) => matchesFilters(r, target, autoIndex)).length;
           return (
             <Button
               key={preset.id}
@@ -295,7 +317,12 @@ export function RelationsView({
               size="sm"
               aria-pressed={active}
               onClick={() =>
-                set({ status: preset.filters.status, tier: preset.filters.tier, type: undefined })
+                set({
+                  status: preset.filters.status,
+                  tier: preset.filters.tier,
+                  auto: preset.filters.auto,
+                  type: undefined,
+                })
               }
             >
               {preset.label} <span className="tabular-nums opacity-80">{count}</span>
@@ -378,6 +405,29 @@ export function RelationsView({
             ))}
           </NativeSelect>
         </Field>
+        {autoRules !== undefined && autoRules.length > 0 ? (
+          <Field className="w-auto min-w-56">
+            <FieldLabel htmlFor="filter-auto">Annahmeregel</FieldLabel>
+            <NativeSelect
+              id="filter-auto"
+              className="w-full"
+              value={filters.auto ?? ALL}
+              onChange={(e) =>
+                set({ auto: e.target.value === ALL ? undefined : (e.target.value as AutoFilter) })
+              }
+            >
+              <NativeSelectOption value={ALL}>Alle Relationen</NativeSelectOption>
+              <NativeSelectOption value="any">
+                Automatisch angenommen (alle Regeln)
+              </NativeSelectOption>
+              {autoRules.map((rule) => (
+                <NativeSelectOption key={rule.id} value={rule.id}>
+                  Regel „{rule.name}“
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </Field>
+        ) : null}
         {filtered ? (
           <Button variant="ghost" onClick={() => onFiltersChange({})}>
             <FilterXIcon data-icon="inline-start" />

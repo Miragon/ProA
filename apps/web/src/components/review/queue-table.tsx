@@ -5,6 +5,7 @@ import {
   FlagIcon,
   SearchCheckIcon,
   TriangleAlertIcon,
+  Undo2Icon,
   UnlinkIcon,
 } from 'lucide-react';
 
@@ -37,11 +38,14 @@ export function QueueTable({
   items,
   resolve,
   filters,
+  revoked,
 }: {
   project: string;
   items: readonly QueueItem[];
   resolve: RefResolver;
   filters: QueueFilters;
+  /** Relations whose auto-acceptance an owner revoked (owner decision 19): marked „widerrufen“. */
+  revoked?: ReadonlySet<string>;
 }) {
   return (
     <Table aria-label="Vorschläge" className="min-w-[960px] table-fixed">
@@ -111,6 +115,16 @@ export function QueueTable({
                       >
                         <TriangleAlertIcon className="size-3.5" aria-hidden />
                         Angenommen, {ENDPOINT_STATES[r.endpointState].label}
+                      </span>
+                    ) : null}
+                    {revoked?.has(r.id) ? (
+                      <span
+                        className="inline-flex items-center gap-1"
+                        data-testid="queue-revoked"
+                        title="Eine automatische Annahme wurde widerrufen; der Vorschlag ist wieder zu prüfen."
+                      >
+                        <Undo2Icon className="size-3.5" aria-hidden />
+                        widerrufen
                       </span>
                     ) : null}
                     {question ? (

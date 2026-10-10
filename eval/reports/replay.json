@@ -2776,5 +2776,389 @@
       }
     ],
     "liveGate": []
+  },
+  "autoAcceptWhatIf": {
+    "thresholds": [
+      0.8,
+      0.9,
+      0.95
+    ],
+    "relations": [
+      {
+        "file": "proa-relations@0.2.0/agent-sim/sim-policy-1/nordwind-handel.jsonl",
+        "procedure": "proa-relations@0.2.0",
+        "agent": "agent-sim",
+        "llmModel": "sim-policy-1",
+        "landscape": "nordwind-handel",
+        "split": "dev",
+        "rows": [
+          {
+            "threshold": 0.8,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 33,
+              "correct": 30,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.9090909090909091
+            }
+          },
+          {
+            "threshold": 0.8,
+            "tier": "key",
+            "counts": {
+              "wouldAccept": 31,
+              "correct": 28,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.9032258064516129
+            }
+          },
+          {
+            "threshold": 0.8,
+            "tier": "lexical",
+            "counts": {
+              "wouldAccept": 2,
+              "correct": 2,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": 1
+            }
+          },
+          {
+            "threshold": 0.8,
+            "tier": "semantic",
+            "counts": {
+              "wouldAccept": 0,
+              "correct": 0,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": null
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 33,
+              "correct": 30,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.9090909090909091
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "key",
+            "counts": {
+              "wouldAccept": 31,
+              "correct": 28,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.9032258064516129
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "lexical",
+            "counts": {
+              "wouldAccept": 2,
+              "correct": 2,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": 1
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "semantic",
+            "counts": {
+              "wouldAccept": 0,
+              "correct": 0,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": null
+            }
+          },
+          {
+            "threshold": 0.95,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 33,
+              "correct": 30,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.9090909090909091
+            }
+          },
+          {
+            "threshold": 0.95,
+            "tier": "key",
+            "counts": {
+              "wouldAccept": 31,
+              "correct": 28,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.9032258064516129
+            }
+          },
+          {
+            "threshold": 0.95,
+            "tier": "lexical",
+            "counts": {
+              "wouldAccept": 2,
+              "correct": 2,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": 1
+            }
+          },
+          {
+            "threshold": 0.95,
+            "tier": "semantic",
+            "counts": {
+              "wouldAccept": 0,
+              "correct": 0,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": null
+            }
+          }
+        ],
+        "excluded": {
+          "competingCall": 0,
+          "question": 0,
+          "noLink": 0
+        },
+        "items": [
+          {
+            "type": "message",
+            "from": "finanzen/kreditpruefung#End_AntwortGesendet",
+            "to": "einkauf/bestellanforderung#Event_AntwortErhalten",
+            "tier": "key",
+            "confidence": 1,
+            "class": "trap",
+            "expect": "must_not_link"
+          },
+          {
+            "type": "message",
+            "from": "service/reklamation#Task_AntwortSenden",
+            "to": "einkauf/bestellanforderung#Event_AntwortErhalten",
+            "tier": "key",
+            "confidence": 1,
+            "class": "trap",
+            "expect": "must_not_link"
+          },
+          {
+            "type": "message",
+            "from": "service/reklamation#Task_AntwortSenden",
+            "to": "finanzen/kreditpruefung#Event_AntwortErhalten",
+            "tier": "key",
+            "confidence": 1,
+            "class": "trap",
+            "expect": "must_not_link"
+          }
+        ]
+      },
+      {
+        "file": "proa-relations@0.2.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
+        "procedure": "proa-relations@0.2.0",
+        "agent": "agent-sim",
+        "llmModel": "sim-policy-1",
+        "landscape": "stadtwerke-auental",
+        "split": "holdout",
+        "rows": [
+          {
+            "threshold": 0.8,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 37,
+              "correct": 32,
+              "acceptable": 0,
+              "wrong": 3,
+              "traps": 2,
+              "unknown": 0,
+              "precision": 0.8648648648648649
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "all",
+            "counts": null,
+            "redacted": "difference"
+          },
+          {
+            "threshold": 0.95,
+            "tier": "all",
+            "counts": null,
+            "redacted": "difference"
+          }
+        ],
+        "excluded": {
+          "competingCall": null,
+          "question": null,
+          "noLink": null
+        },
+        "note": "holdout: aggregate rows only (relations without the tier split), no item lists; a row with fewer than 5 would-accept items is shown as „< 5“, a row whose difference to the next lower threshold shown would reveal fewer than 5 items as „hidden“ (eval/README.md, holdout hygiene)"
+      }
+    ],
+    "placements": [
+      {
+        "file": "proa-placements@0.1.0/agent-sim/sim-policy-1/nordwind-handel.jsonl",
+        "procedure": "proa-placements@0.1.0",
+        "agent": "agent-sim",
+        "llmModel": "sim-policy-1",
+        "landscape": "nordwind-handel",
+        "split": "dev",
+        "rows": [
+          {
+            "threshold": 0.8,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 19,
+              "correct": 12,
+              "acceptable": 3,
+              "wrong": 1,
+              "traps": 3,
+              "unknown": 0,
+              "precision": 0.75
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 9,
+              "correct": 7,
+              "acceptable": 1,
+              "wrong": 0,
+              "traps": 1,
+              "unknown": 0,
+              "precision": 0.875
+            }
+          },
+          {
+            "threshold": 0.95,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 4,
+              "correct": 4,
+              "acceptable": 0,
+              "wrong": 0,
+              "traps": 0,
+              "unknown": 0,
+              "precision": 1
+            }
+          }
+        ],
+        "excluded": {
+          "outside": 0,
+          "competingStep": 0,
+          "question": 5
+        },
+        "items": [
+          {
+            "process": "finanzen/kreditpruefung#Process_AuskunfteiAdapter",
+            "step": "step-kreditorenbuchhaltung",
+            "confidence": 0.8,
+            "class": "wrong",
+            "placement": "wrong"
+          },
+          {
+            "process": "finanzen/kreditpruefung#Process_Kreditpruefung",
+            "step": "step-kreditorenbuchhaltung",
+            "confidence": 0.8,
+            "class": "trap",
+            "placement": "trap"
+          },
+          {
+            "process": "finanzen/lieferantenrechnung#Process_Lieferantenrechnung",
+            "step": "step-lieferantenmanagement",
+            "confidence": 0.8,
+            "class": "trap",
+            "placement": "trap"
+          },
+          {
+            "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+            "step": "step-zahlungseingang",
+            "confidence": 0.9,
+            "class": "trap",
+            "placement": "trap"
+          }
+        ]
+      },
+      {
+        "file": "proa-placements@0.1.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl",
+        "procedure": "proa-placements@0.1.0",
+        "agent": "agent-sim",
+        "llmModel": "sim-policy-1",
+        "landscape": "stadtwerke-auental",
+        "split": "holdout",
+        "rows": [
+          {
+            "threshold": 0.8,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 14,
+              "correct": 10,
+              "acceptable": 2,
+              "wrong": 2,
+              "traps": 0,
+              "unknown": 0,
+              "precision": 0.8333333333333334
+            }
+          },
+          {
+            "threshold": 0.9,
+            "tier": "all",
+            "counts": {
+              "wouldAccept": 14,
+              "correct": 10,
+              "acceptable": 2,
+              "wrong": 2,
+              "traps": 0,
+              "unknown": 0,
+              "precision": 0.8333333333333334
+            }
+          },
+          {
+            "threshold": 0.95,
+            "tier": "all",
+            "counts": null,
+            "redacted": "small"
+          }
+        ],
+        "excluded": {
+          "outside": null,
+          "competingStep": null,
+          "question": 6
+        },
+        "note": "holdout: aggregate rows only (relations without the tier split), no item lists; a row with fewer than 5 would-accept items is shown as „< 5“, a row whose difference to the next lower threshold shown would reveal fewer than 5 items as „hidden“ (eval/README.md, holdout hygiene)"
+      }
+    ]
   }
 }

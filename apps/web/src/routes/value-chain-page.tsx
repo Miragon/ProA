@@ -46,6 +46,7 @@ import {
 } from '@/components/value-chain/save-dialogs';
 import { StepPanel } from '@/components/value-chain/step-panel';
 import { ApiError, errorMessage } from '@/lib/api';
+import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
 import { downloadText } from '@/lib/download';
 import { clearDraft, draftOffer, listDrafts, writeDraft, type DraftRef } from '@/lib/drafts';
 import { formatDateTime } from '@/lib/labels';
@@ -114,6 +115,7 @@ export function ValueChainPage() {
   const unplacedQ = useQuery({ ...unplacedQuery(project), enabled: exists });
   const revisionQ = useQuery({ ...chainRevisionQuery(project), enabled: exists });
   const models = useQuery(modelsQuery(project));
+  const autoIndex = useAutoAcceptIndex(project);
   const { byModel } = useProjectFacts(project, models.data);
   const processes = useMemo(() => processOptions(byModel.values()), [byModel]);
   const modelKeys = useMemo(() => new Set((models.data ?? []).map((m) => m.key)), [models.data]);
@@ -991,6 +993,7 @@ export function ValueChainPage() {
                 onSetName={(name) => canvas.current?.setName(selectedId, name)}
                 onSetColor={(color) => canvas.current?.setColor(selectedId, color)}
                 onSetLink={(link) => canvas.current?.setLink(selectedId, link)}
+                autoIndex={autoIndex}
               />
             ) : detail || mode === 'edit' ? (
               <ChainOverview
@@ -1012,6 +1015,7 @@ export function ValueChainPage() {
                 onChainName={(name) => canvas.current?.setChainName(name)}
                 missingSteps={detail && canvasIds ? stepsMissingFromCanvas(detail, canvasIds) : []}
                 focusStepId={returnFocus}
+                autoIndex={autoIndex}
               />
             ) : (
               <div className="grid h-full place-items-center">

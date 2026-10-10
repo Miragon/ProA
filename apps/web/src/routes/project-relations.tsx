@@ -7,7 +7,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage } from '@/lib/api';
-import { landscapeQuery, modelsQuery } from '@/lib/queries';
+import { ledgerRules } from '@/lib/auto-accept';
+import { useAutoAcceptIndex, useCanReview, useIsOwner } from '@/lib/auto-accept-actions';
+import { autoAcceptRulesQuery, landscapeQuery, modelsQuery } from '@/lib/queries';
 import { splitRef } from '@/lib/refs';
 import { parseRelationFilters } from '@/lib/relation-filters';
 import { useProjectFacts } from '@/lib/use-project-facts';
@@ -28,6 +30,16 @@ function RelationsTab() {
   const landscape = useQuery(landscapeQuery(project));
   const models = useQuery(modelsQuery(project));
   const { resolve } = useProjectFacts(project, models.data);
+  const owner = useIsOwner(project);
+  const reviewer = useCanReview(project);
+  const autoIndex = useAutoAcceptIndex(project);
+  const rules = useQuery({ ...autoAcceptRulesQuery(project), enabled: owner });
+  // Owners filter by any of their relation rules; editors by the rules the ledger names.
+  const autoRules = owner
+    ? (rules.data?.items ?? []).filter((r) => r.kind === 'relation')
+    : reviewer
+      ? ledgerRules(autoIndex, 'relation')
+      : undefined;
 
   if (landscape.isPending) return <Skeleton className="h-60 w-full" />;
   if (landscape.isError)
@@ -47,6 +59,8 @@ function RelationsTab() {
       modelKeys={modelKeys}
       filters={filters}
       onFiltersChange={(next) => void navigate({ search: next, replace: true })}
+      autoIndex={autoIndex}
+      autoRules={autoRules}
       renderActions={(relation) => (
         <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" asChild>

@@ -2164,6 +2164,7 @@ export type AgentTokenList = {
  */
 export type AgentToken = {
   id: AgentTokenId;
+  principalId: PrincipalId;
   name: string;
   prefix: string;
   scopes: Array<AgentScope>;
@@ -2188,6 +2189,7 @@ export type AgentScope = 'proa:read' | 'proa:propose' | 'proa:write';
  */
 export type CreatedAgentToken = {
   id: AgentTokenId;
+  principalId: PrincipalId;
   name: string;
   prefix: string;
   scopes: Array<AgentScope>;
@@ -2205,6 +2207,404 @@ export type CreateAgentTokenBody = {
   name: string;
   scopes?: Array<AgentScope>;
   expiresInDays?: number;
+};
+
+/**
+ * A project's auto-accept rules.
+ */
+export type AutoAcceptRuleList = {
+  items: Array<AutoAcceptRule>;
+  system: AutoAcceptSystemRule;
+};
+
+/**
+ * An auto-accept rule at its head revision.
+ */
+export type AutoAcceptRule = {
+  id: AutoAcceptRuleId;
+  kind: AutoAcceptKind;
+  revision: number;
+  name: string;
+  enabled: boolean;
+  note: string | null;
+  tier: AutoAcceptTier;
+  minConfidence: number;
+  relationType: AutoAcceptRelationType | null;
+  agentPrincipalId: PrincipalId | null;
+  agent: AutoAcceptAgent | null;
+  llmModel: string | null;
+  includeAdHoc: boolean;
+  author: AutoAcceptPrincipal;
+  authorIsOwner: boolean;
+  createdBy: AutoAcceptPrincipal;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  stats: AutoAcceptRuleStats;
+};
+
+/**
+ * Auto-accept rule id (`aar_` + ULID).
+ */
+export type AutoAcceptRuleId = string;
+
+/**
+ * What an auto-accept rule accepts: agent relation or placement proposals.
+ */
+export type AutoAcceptKind = 'relation' | 'placement';
+
+/**
+ * Server-computed tier of the agent proposals a rule accepts.
+ */
+export type AutoAcceptTier = 'key' | 'lexical' | 'semantic';
+
+/**
+ * Relation type a relation rule is narrowed to.
+ */
+export type AutoAcceptRelationType = 'call' | 'message' | 'signal' | 'trigger';
+
+/**
+ * An agent a rule can be narrowed to.
+ */
+export type AutoAcceptAgent = {
+  principalId: PrincipalId;
+  handle: string;
+  tokenId: AgentTokenId | null;
+  revoked: boolean;
+};
+
+/**
+ * A principal and its handle.
+ */
+export type AutoAcceptPrincipal = {
+  principalId: PrincipalId;
+  handle: string;
+};
+
+/**
+ * What a rule has accepted so far.
+ */
+export type AutoAcceptRuleStats = {
+  inForce: number;
+  revoked: number;
+  confirmed: number;
+  overruled: number;
+  lastAcceptedAt: Timestamp | null;
+};
+
+/**
+ * The built-in rule of decision 9.
+ */
+export type AutoAcceptSystemRule = {
+  id: 'proa-rules/1.0.0';
+  name: string;
+  description: string;
+  kind: 'relation';
+  relationType: 'call';
+  readOnly: true;
+  accepted: number;
+};
+
+/**
+ * The rule after a create or an edit.
+ */
+export type SaveAutoAcceptRuleResult = {
+  outcome: 'created' | 'revised' | 'unchanged';
+  rule: AutoAcceptRuleDetail;
+};
+
+/**
+ * An auto-accept rule with its revisions.
+ */
+export type AutoAcceptRuleDetail = {
+  id: AutoAcceptRuleId;
+  kind: AutoAcceptKind;
+  revision: number;
+  name: string;
+  enabled: boolean;
+  note: string | null;
+  tier: AutoAcceptTier;
+  minConfidence: number;
+  relationType: AutoAcceptRelationType | null;
+  agentPrincipalId: PrincipalId | null;
+  agent: AutoAcceptAgent | null;
+  llmModel: string | null;
+  includeAdHoc: boolean;
+  author: AutoAcceptPrincipal;
+  authorIsOwner: boolean;
+  createdBy: AutoAcceptPrincipal;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  stats: AutoAcceptRuleStats;
+  revisions: Array<AutoAcceptRuleRevision>;
+};
+
+/**
+ * One immutable revision of a rule.
+ */
+export type AutoAcceptRuleRevision = {
+  revision: number;
+  name: string;
+  enabled: boolean;
+  note: string | null;
+  kind: AutoAcceptKind;
+  tier: AutoAcceptTier;
+  minConfidence: number;
+  relationType: AutoAcceptRelationType | null;
+  agentPrincipalId: PrincipalId | null;
+  llmModel: string | null;
+  includeAdHoc: boolean;
+  author: AutoAcceptPrincipal;
+  clientId: string | null;
+  at: Timestamp;
+};
+
+/**
+ * An auto-accept rule as the owner writes it.
+ */
+export type AutoAcceptRuleDraft = {
+  name: string;
+  enabled?: boolean;
+  note?: string | null;
+  kind: AutoAcceptKind;
+  tier: AutoAcceptTier;
+  minConfidence: number;
+  relationType?: AutoAcceptRelationType | null;
+  agentPrincipalId?: PrincipalId | null;
+  llmModel?: string | null;
+  includeAdHoc?: boolean;
+};
+
+/**
+ * What a rule would accept, so far and now.
+ */
+export type AutoAcceptPreview = {
+  kind: AutoAcceptKind;
+  history: AutoAcceptPreviewHistory;
+  open: {
+    count: number;
+    items: Array<AutoAcceptItem>;
+    blocked: Array<AutoAcceptBlockedCount>;
+  };
+  curve: Array<AutoAcceptCurvePoint>;
+  agents: Array<AutoAcceptAgent>;
+  llmModels: Array<string>;
+};
+
+/**
+ * What a rule would have accepted so far.
+ */
+export type AutoAcceptPreviewHistory = {
+  decided: number;
+  wouldAccept: number;
+  accepted: number;
+  rejected: number;
+  corrected: number;
+  held: number;
+  autoUnreviewed: number;
+  undecided: number;
+  precision: number | null;
+};
+
+/**
+ * An open proposal a rule accepts.
+ */
+export type AutoAcceptItem = {
+  kind: AutoAcceptKind;
+  id: RelationId | PlacementId;
+  status: RelationStatus;
+  endpointState: EndpointState;
+  type: AutoAcceptRelationType | null;
+  from: Ref | null;
+  to: Ref | null;
+  valueChainKey: string | null;
+  step: string | null;
+  process: Ref | null;
+  triggerId: AssertionId | PlacementAssertionId;
+  agent: AutoAcceptPrincipal;
+  llmModel: string | null;
+  tier: Tier;
+  confidence: number;
+};
+
+/**
+ * Open proposals one reason blocked.
+ */
+export type AutoAcceptBlockedCount = {
+  reason: AutoAcceptBlockReason;
+  count: number;
+};
+
+/**
+ * Why a rule did not accept a proposal.
+ */
+export type AutoAcceptBlockReason =
+  | 'not-agent'
+  | 'no-matching-rule'
+  | 'stale-proposal'
+  | 'not-open'
+  | 'endpoint-not-ok'
+  | 'outside'
+  | 'step-removed'
+  | 'has-home-step'
+  | 'competing-step'
+  | 'competing-call'
+  | 'human-involved'
+  | 'agent-question'
+  | 'no-link'
+  | 'agent-unsure';
+
+/**
+ * The preview at one minimum confidence.
+ */
+export type AutoAcceptCurvePoint = {
+  minConfidence: number;
+  wouldAccept: number;
+  accepted: number;
+  rejected: number;
+  corrected: number;
+  held: number;
+  precision: number | null;
+  open: number;
+};
+
+/**
+ * What an auto-accept rule matches: kind, tier, minimum confidence, narrowing.
+ */
+export type AutoAcceptCriteria = {
+  kind: AutoAcceptKind;
+  tier: AutoAcceptTier;
+  minConfidence: number;
+  relationType?: AutoAcceptRelationType | null;
+  agentPrincipalId?: PrincipalId | null;
+  llmModel?: string | null;
+  includeAdHoc?: boolean;
+};
+
+/**
+ * What applying a rule did or would do.
+ */
+export type ApplyAutoAcceptResult = {
+  dryRun: boolean;
+  ruleId: AutoAcceptRuleId;
+  revision: number;
+  enabled: boolean;
+  authorIsOwner: boolean;
+  count: number;
+  items: Array<AutoAcceptItem>;
+  truncated: boolean;
+  blocked: Array<AutoAcceptBlockedCount>;
+};
+
+/**
+ * Apply a rule to the open proposals.
+ */
+export type ApplyAutoAcceptBody = {
+  revision?: number;
+  expectedCount?: number;
+};
+
+/**
+ * What a revocation did or would do.
+ */
+export type AutoAcceptRevocationResult = {
+  dryRun: boolean;
+  count: number;
+  toProposed: number;
+  toObsolete: number;
+  humanDecidedSince: number;
+  alreadyRevoked: number;
+  items: Array<AutoAcceptRevocationItem>;
+  truncated: boolean;
+};
+
+/**
+ * One revoked auto-acceptance.
+ */
+export type AutoAcceptRevocationItem = {
+  kind: AutoAcceptKind;
+  id: RelationId | PlacementId;
+  status: RelationStatus;
+  endpointState: EndpointState;
+  type: AutoAcceptRelationType | null;
+  from: Ref | null;
+  to: Ref | null;
+  valueChainKey: string | null;
+  step: string | null;
+  process: Ref | null;
+  decisionId: AssertionId | PlacementAssertionId;
+  triggerId: AssertionId | PlacementAssertionId;
+  ruleId: AutoAcceptRuleId;
+  revision: number;
+  ruleName: string;
+  decidedBy: AutoAcceptPrincipal;
+  agent: AutoAcceptPrincipal;
+  llmModel: string | null;
+  tier: Tier | null;
+  confidence: number | null;
+  at: Timestamp;
+  state: AutoAcceptLedgerState;
+  laterVerdict: 'accept' | 'reject' | 'hold' | 'correct' | null;
+  laterAt: Timestamp | null;
+  revocationId: AssertionId | PlacementAssertionId | null;
+  revokedAt: Timestamp | null;
+  outcome: 'proposed' | 'obsolete';
+};
+
+/**
+ * In force, revoked by an owner, or decided by a human since (a human decision always wins).
+ */
+export type AutoAcceptLedgerState = 'in-force' | 'revoked' | 'human-decided';
+
+/**
+ * Revoke auto-acceptances in bulk.
+ */
+export type AutoAcceptRevocationBody = {
+  ruleId?: AutoAcceptRuleId;
+  revision?: number;
+  agentPrincipalId?: PrincipalId;
+  kind?: AutoAcceptKind;
+  ids?: Array<RelationId | PlacementId>;
+  reason?: string;
+  expectedCount?: number;
+};
+
+/**
+ * A project's auto-acceptances.
+ */
+export type AutoAcceptLedger = {
+  items: Array<AutoAcceptLedgerEntry>;
+};
+
+/**
+ * One auto-acceptance and its state.
+ */
+export type AutoAcceptLedgerEntry = {
+  kind: AutoAcceptKind;
+  id: RelationId | PlacementId;
+  status: RelationStatus;
+  endpointState: EndpointState;
+  type: AutoAcceptRelationType | null;
+  from: Ref | null;
+  to: Ref | null;
+  valueChainKey: string | null;
+  step: string | null;
+  process: Ref | null;
+  decisionId: AssertionId | PlacementAssertionId;
+  triggerId: AssertionId | PlacementAssertionId;
+  ruleId: AutoAcceptRuleId;
+  revision: number;
+  ruleName: string;
+  decidedBy: AutoAcceptPrincipal;
+  agent: AutoAcceptPrincipal;
+  llmModel: string | null;
+  tier: Tier | null;
+  confidence: number | null;
+  at: Timestamp;
+  state: AutoAcceptLedgerState;
+  laterVerdict: 'accept' | 'reject' | 'hold' | 'correct' | null;
+  laterAt: Timestamp | null;
+  revocationId: AssertionId | PlacementAssertionId | null;
+  revokedAt: Timestamp | null;
 };
 
 export type GetHealthData = {
@@ -4777,3 +5177,401 @@ export type RevokeAgentTokenResponses = {
 };
 
 export type RevokeAgentTokenResponse = RevokeAgentTokenResponses[keyof RevokeAgentTokenResponses];
+
+export type ListAutoAcceptRulesData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/auto-accept-rules';
+};
+
+export type ListAutoAcceptRulesErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListAutoAcceptRulesError = ListAutoAcceptRulesErrors[keyof ListAutoAcceptRulesErrors];
+
+export type ListAutoAcceptRulesResponses = {
+  /**
+   * The rules in creation order
+   */
+  200: AutoAcceptRuleList;
+};
+
+export type ListAutoAcceptRulesResponse =
+  ListAutoAcceptRulesResponses[keyof ListAutoAcceptRulesResponses];
+
+export type CreateAutoAcceptRuleData = {
+  body: AutoAcceptRuleDraft;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/auto-accept-rules';
+};
+
+export type CreateAutoAcceptRuleErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type CreateAutoAcceptRuleError =
+  CreateAutoAcceptRuleErrors[keyof CreateAutoAcceptRuleErrors];
+
+export type CreateAutoAcceptRuleResponses = {
+  /**
+   * The new rule
+   */
+  201: SaveAutoAcceptRuleResult;
+};
+
+export type CreateAutoAcceptRuleResponse =
+  CreateAutoAcceptRuleResponses[keyof CreateAutoAcceptRuleResponses];
+
+export type PreviewAutoAcceptRuleData = {
+  body: AutoAcceptCriteria;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/auto-accept-rules/preview';
+};
+
+export type PreviewAutoAcceptRuleErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type PreviewAutoAcceptRuleError =
+  PreviewAutoAcceptRuleErrors[keyof PreviewAutoAcceptRuleErrors];
+
+export type PreviewAutoAcceptRuleResponses = {
+  /**
+   * The preview
+   */
+  200: AutoAcceptPreview;
+};
+
+export type PreviewAutoAcceptRuleResponse =
+  PreviewAutoAcceptRuleResponses[keyof PreviewAutoAcceptRuleResponses];
+
+export type GetAutoAcceptRuleData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Auto-accept rule id (`aar_` + ULID).
+     */
+    rule: AutoAcceptRuleId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/auto-accept-rules/{rule}';
+};
+
+export type GetAutoAcceptRuleErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type GetAutoAcceptRuleError = GetAutoAcceptRuleErrors[keyof GetAutoAcceptRuleErrors];
+
+export type GetAutoAcceptRuleResponses = {
+  /**
+   * The rule
+   */
+  200: AutoAcceptRuleDetail;
+};
+
+export type GetAutoAcceptRuleResponse =
+  GetAutoAcceptRuleResponses[keyof GetAutoAcceptRuleResponses];
+
+export type ReviseAutoAcceptRuleData = {
+  body: AutoAcceptRuleDraft;
+  headers?: {
+    'if-match'?: string;
+  };
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Auto-accept rule id (`aar_` + ULID).
+     */
+    rule: AutoAcceptRuleId;
+  };
+  query?: never;
+  url: '/api/v1/projects/{project}/auto-accept-rules/{rule}';
+};
+
+export type ReviseAutoAcceptRuleErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `revision-conflict`
+   */
+  412: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+  /**
+   * Problem: `precondition-required`
+   */
+  428: ApiProblem;
+};
+
+export type ReviseAutoAcceptRuleError =
+  ReviseAutoAcceptRuleErrors[keyof ReviseAutoAcceptRuleErrors];
+
+export type ReviseAutoAcceptRuleResponses = {
+  /**
+   * The rule
+   */
+  200: SaveAutoAcceptRuleResult;
+};
+
+export type ReviseAutoAcceptRuleResponse =
+  ReviseAutoAcceptRuleResponses[keyof ReviseAutoAcceptRuleResponses];
+
+export type ApplyAutoAcceptRuleData = {
+  body: ApplyAutoAcceptBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+    /**
+     * Auto-accept rule id (`aar_` + ULID).
+     */
+    rule: AutoAcceptRuleId;
+  };
+  query?: {
+    dryRun?: 'true' | 'false';
+  };
+  url: '/api/v1/projects/{project}/auto-accept-rules/{rule}/apply';
+};
+
+export type ApplyAutoAcceptRuleErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ApplyAutoAcceptRuleError = ApplyAutoAcceptRuleErrors[keyof ApplyAutoAcceptRuleErrors];
+
+export type ApplyAutoAcceptRuleResponses = {
+  /**
+   * What it did or would do
+   */
+  200: ApplyAutoAcceptResult;
+};
+
+export type ApplyAutoAcceptRuleResponse =
+  ApplyAutoAcceptRuleResponses[keyof ApplyAutoAcceptRuleResponses];
+
+export type RevokeAutoAcceptedData = {
+  body: AutoAcceptRevocationBody;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: {
+    dryRun?: 'true' | 'false';
+  };
+  url: '/api/v1/projects/{project}/auto-accept-revocations';
+};
+
+export type RevokeAutoAcceptedErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `conflict`
+   */
+  409: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type RevokeAutoAcceptedError = RevokeAutoAcceptedErrors[keyof RevokeAutoAcceptedErrors];
+
+export type RevokeAutoAcceptedResponses = {
+  /**
+   * What it did or would do
+   */
+  200: AutoAcceptRevocationResult;
+};
+
+export type RevokeAutoAcceptedResponse =
+  RevokeAutoAcceptedResponses[keyof RevokeAutoAcceptedResponses];
+
+export type ListAutoAcceptedData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: {
+    /**
+     * What an auto-accept rule accepts: agent relation or placement proposals.
+     */
+    kind?: AutoAcceptKind;
+    /**
+     * Auto-accept rule id (`aar_` + ULID).
+     */
+    ruleId?: AutoAcceptRuleId;
+    /**
+     * In force, revoked by an owner, or decided by a human since (a human decision always wins).
+     */
+    state?: AutoAcceptLedgerState;
+    /**
+     * Principal id (`prn_` + ULID).
+     */
+    agentPrincipalId?: PrincipalId;
+  };
+  url: '/api/v1/projects/{project}/auto-accepted';
+};
+
+export type ListAutoAcceptedErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`, `forbidden`, `human-decision-required`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListAutoAcceptedError = ListAutoAcceptedErrors[keyof ListAutoAcceptedErrors];
+
+export type ListAutoAcceptedResponses = {
+  /**
+   * The auto-acceptances, oldest first
+   */
+  200: AutoAcceptLedger;
+};
+
+export type ListAutoAcceptedResponse = ListAutoAcceptedResponses[keyof ListAutoAcceptedResponses];

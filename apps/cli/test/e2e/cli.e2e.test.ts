@@ -437,3 +437,167 @@ describe('proa value-chain', () => {
     expect(pulled.err).toMatch(/^r2 /);
   });
 });
+
+describe('proa rules (owner decision 19)', () => {
+  interface LandscapeRelation {
+    id: string;
+    type: string;
+    from: string;
+    to: string;
+    status: string;
+    tier: string;
+  }
+
+  async function owner(pathname: string, init: RequestInit = {}): Promise<Response> {
+    const ownerKey = (await readFile(keyFile, 'utf8')).trim();
+    return fetch(`${server.url}/api/v1/projects/vc-seed${pathname}`, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${ownerKey}`,
+        'content-type': 'application/json',
+        ...init.headers,
+      },
+    });
+  }
+
+  it('add → preview → enable → apply → revoke against a real server', async () => {
+    // The seeded vc-seed project has no rules.
+    const listed = await proa(['rules', 'list', '-p', 'vc-seed', '--json']);
+    expect(listed.err).toBe('');
+    expect(JSON.parse(listed.out)).toMatchObject({
+      items: [],
+      system: { id: 'proa-rules/1.0.0', readOnly: true, accepted: 9 },
+    });
+
+    // An agent proposes a pair the rule tier already proposed (key tier) ad hoc.
+    const token = await proa([
+      'token',
+      'create',
+      '-p',
+      'vc-seed',
+      '--name',
+      'rules-e2e',
+      '--scopes',
+      'read,propose',
+      '--json',
+    ]);
+    const { secret } = JSON.parse(token.out) as { secret: string };
+    const landscape = (await (await owner('/landscape')).json()) as {
+      relations: LandscapeRelation[];
+    };
+    const target = landscape.relations.find(
+      (r) => r.status === 'proposed' && r.tier === 'key' && r.type === 'message',
+    );
+    expect(target).toBeDefined();
+    const proposed = await fetch(`${server.url}/api/v1/projects/vc-seed/relations`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: target?.type,
+        from: target?.from,
+        to: target?.to,
+        confidence: 0.97,
+        rationale: 'Gleicher Nachrichtenname auf beiden Seiten.',
+        llmModel: 'e2e-model',
+      }),
+    });
+    expect(proposed.status).toBe(200);
+
+    // Agents never see rules: the token gets 403 from the server, and the CLI refuses it.
+    const asAgent = await fetch(`${server.url}/api/v1/projects/vc-seed/auto-accept-rules`, {
+      headers: { authorization: `Bearer ${secret}` },
+    });
+    expect(asAgent.status).toBe(403);
+    const refused = await proa(['rules', 'list', '-p', 'vc-seed'], { PROA_TOKEN: secret });
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain('owner-only');
+
+    // add: off by default, with its preview (one open proposal would be accepted).
+    const added = await proa([
+      'rules',
+      'add',
+      '-p',
+      'vc-seed',
+      '--name',
+      'Schlüssel-Nachrichten',
+      '--kind',
+      'relation',
+      '--tier',
+      'key',
+      '--min',
+      '95%',
+      '--type',
+      'message',
+      '--agent',
+      'rules-e2e',
+      '--ad-hoc',
+      '--json',
+    ]);
+    expect(added.err).toBe('');
+    expect(added.code).toBe(0);
+    const created = JSON.parse(added.out) as {
+      outcome: string;
+      rule: { id: string; revision: number; enabled: boolean };
+      preview: { open: { count: number } };
+    };
+    expect(created).toMatchObject({ outcome: 'created', rule: { revision: 1, enabled: false } });
+    expect(created.preview.open.count).toBe(1);
+    const id = created.rule.id;
+
+    const preview = await proa(['rules', 'preview', id, '-p', 'vc-seed', '--min', '0.98']);
+    expect(preview.code).toBe(0);
+    expect(preview.out).toContain('open now: 0 proposals would be accepted');
+
+    // enable: a new revision; never retroactive, so it points to apply.
+    const enabled = await proa(['rules', 'enable', id, '-p', 'vc-seed']);
+    expect(enabled.err).toBe('');
+    expect(enabled.out).toContain('1 open proposal matches the rule already');
+    expect(
+      (await (await owner(`/relations/${target?.id}`)).json()) as { status: string },
+    ).toMatchObject({ status: 'proposed' });
+
+    // apply: the dry run alone changes nothing; --yes accepts with expectedCount.
+    const dry = await proa(['rules', 'apply', id, '-p', 'vc-seed']);
+    expect(dry.code).toBe(1);
+    expect(dry.out).toContain(`dry run: rule ${id} r2 would accept 1 open proposal in vc-seed`);
+    const applied = await proa(['rules', 'apply', id, '-p', 'vc-seed', '--yes']);
+    expect(applied.err).toBe('');
+    expect(applied.code).toBe(0);
+    expect(applied.out).toContain(`rule ${id} r2 accepted 1 proposal in vc-seed`);
+    expect(
+      (await (await owner(`/relations/${target?.id}`)).json()) as { status: string },
+    ).toMatchObject({ status: 'accepted' });
+    const shown = await proa(['rules', 'show', id, '-p', 'vc-seed']);
+    expect(shown.out).toContain('in force 1, revoked 0');
+    expect(shown.out).toMatch(/\n {2}r1 .* off .*\n {2}r2 .* on /);
+
+    // revoke by agent: back to review; a second revocation finds nothing in force.
+    const revoked = await proa([
+      'rules',
+      'revoke',
+      '-p',
+      'vc-seed',
+      '--agent',
+      'rules-e2e',
+      '--reason',
+      'Stichprobe',
+      '--yes',
+    ]);
+    expect(revoked.err).toBe('');
+    expect(revoked.code).toBe(0);
+    expect(revoked.out).toContain('1 auto-acceptance revoked: 1 back to review, 0 obsolete');
+    expect(
+      (await (await owner(`/relations/${target?.id}`)).json()) as { status: string },
+    ).toMatchObject({ status: 'proposed' });
+    const again = await proa(['rules', 'revoke', id, '-p', 'vc-seed', '--dry-run']);
+    expect(again.code).toBe(0);
+    expect(again.out).toContain('0 auto-acceptances would be revoked');
+    expect(again.out).toContain('1 revoked before');
+
+    // disable: its acceptances stay revocable; the list shows the stats.
+    expect((await proa(['rules', 'disable', id, '-p', 'vc-seed'])).code).toBe(0);
+    const final = await proa(['rules', 'list', '-p', 'vc-seed']);
+    expect(final.out).toContain(`${id}  "Schlüssel-Nachrichten"  off`);
+    expect(final.out).toContain('in force 0, revoked 1');
+  });
+});

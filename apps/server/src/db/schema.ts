@@ -11,7 +11,8 @@
  * - `event`, `relation_assertion`, `analysis_submission`, `no_link`,
  *   `no_link_withdrawal`, `value_chain_revision` and `placement_assertion`
  *   are append-only (triggers in migrations 0001_append_only.sql,
- *   0005_judge_once_triggers.sql and 0007_value_chain_triggers.sql);
+ *   0005_judge_once_triggers.sql and 0007_value_chain_triggers.sql), and so
+ *   are `auto_accept_rule` and `auto_accept_rule_revision` (0010);
  *   `value_chain_step` only ever takes its tombstone (0007); `placement_input`
  *   is mutable memory (M4b).
  *
@@ -87,6 +88,24 @@ function oneOf(column: AnyPgColumn, values: readonly string[]): SQL {
   return sql`${column} in (${sql.raw(list)})`;
 }
 
+/**
+ * The auto-accept marker of an assertion (owner decision 19): rule id and
+ * revision come together; only a marked row has a trigger; a marked row is
+ * either a human acceptance with its trigger and no tier (the rule's
+ * decision) or a human withdrawal without one (its revocation).
+ */
+function autoAcceptCheck(t: {
+  autoAcceptRuleId: AnyPgColumn;
+  autoAcceptRuleRevision: AnyPgColumn;
+  autoAcceptTriggerId: AnyPgColumn;
+  sourceKind: AnyPgColumn;
+  kind: AnyPgColumn;
+  verdict: AnyPgColumn;
+  tier: AnyPgColumn;
+}): SQL {
+  return sql`(${t.autoAcceptRuleId} is null) = (${t.autoAcceptRuleRevision} is null) and (${t.autoAcceptRuleId} is not null or ${t.autoAcceptTriggerId} is null) and (${t.autoAcceptRuleId} is null or (${t.sourceKind} = 'human' and ((${t.kind} = 'decision' and ${t.verdict} = 'accept' and ${t.autoAcceptTriggerId} is not null and ${t.tier} is null) or (${t.kind} = 'withdrawal' and ${t.autoAcceptTriggerId} is null))))`;
+}
+
 export const PRINCIPAL_KINDS = ['user', 'service', 'system'] as const;
 export const ASSERTION_KINDS = values(AssertionKind.options);
 export const VERDICTS = ['accept', 'reject', 'hold'] as const;
@@ -98,8 +117,16 @@ export const PLACEMENT_INPUT_OUTCOMES = ['proposed', 'unsure', 'skipped'] as con
 export const TASK_STATES = ['queued', 'claimed', 'done', 'failed', 'cancelled'] as const;
 export const LINK_TYPES = ['call', 'message', 'signal', 'trigger'] as const;
 export const JUDGING_SOURCE_KINDS = ['agent', 'human'] as const;
-/** Tiers of a placement (M4 §2): server-computed, never `rule` (nothing is auto-accepted). */
+/**
+ * Tiers of a placement (M4 §2): server-computed, never `rule` (the rule tier
+ * accepts nothing; only an owner's auto-accept rule may accept an agent's
+ * placement proposal, recorded as a human decision, owner decision 19).
+ */
 export const PLACEMENT_TIERS = ['key', 'lexical', 'semantic', 'manual'] as const;
+/** What an auto-accept rule accepts (owner decision 19). */
+export const AUTO_ACCEPT_KINDS = ['relation', 'placement'] as const;
+/** Tiers an auto-accept rule names: relations `key`, `lexical`, `semantic`; placements `lexical`, `semantic`. */
+export const AUTO_ACCEPT_TIERS = ['key', 'lexical', 'semantic'] as const;
 
 export const project = pgTable('project', {
   id: text().primaryKey(),
@@ -396,9 +423,19 @@ export const relationAssertion = pgTable(
      */
     fromHash: text(),
     toHash: text(),
+    /**
+     * Auto-accept marker (owner decision 19): the rule and its revision that
+     * recorded this human decision, and the agent proposal that triggered
+     * it; a marked withdrawal is the decision's revocation (same rule and
+     * revision, no trigger). Null on every other assertion.
+     */
+    autoAcceptRuleId: text(),
+    autoAcceptRuleRevision: integer(),
+    autoAcceptTriggerId: text(),
     createdAt: createdAt(),
   },
   (t): PgTableExtraConfigValue[] => [
+    unique('relation_assertion_relation_id_unique').on(t.projectId, t.relationId, t.id),
     foreignKey({
       name: 'relation_assertion_relation_fk',
       columns: [t.projectId, t.relationId],
@@ -409,7 +446,29 @@ export const relationAssertion = pgTable(
       columns: [t.projectId, t.submissionId],
       foreignColumns: [analysisSubmission.projectId, analysisSubmission.id],
     }),
+    // The decider is the author of the rule revision (MATCH SIMPLE: unmarked rows skip it).
+    foreignKey({
+      name: 'relation_assertion_auto_accept_rule_fk',
+      columns: [t.projectId, t.autoAcceptRuleId, t.autoAcceptRuleRevision, t.principalId],
+      foreignColumns: [
+        autoAcceptRuleRevision.projectId,
+        autoAcceptRuleRevision.ruleId,
+        autoAcceptRuleRevision.revision,
+        autoAcceptRuleRevision.principalId,
+      ],
+    }),
+    // The trigger is an assertion of the same relation.
+    foreignKey({
+      name: 'relation_assertion_auto_accept_trigger_fk',
+      columns: [t.projectId, t.relationId, t.autoAcceptTriggerId],
+      foreignColumns: [t.projectId, t.relationId, t.id],
+    }),
     index('relation_assertion_relation_idx').on(t.projectId, t.relationId, t.seq),
+    index('relation_assertion_auto_accept_idx')
+      .on(t.projectId, t.autoAcceptRuleId)
+      .where(sql`${t.autoAcceptRuleId} is not null`),
+    // Only a human acceptance with a trigger, or its revocation (a human withdrawal), is marked.
+    check('relation_assertion_auto_accept_check', autoAcceptCheck(t)),
     // Agents only propose; humans (and the rule tier, for calls) decide.
     check(
       'relation_assertion_agents_never_decide',
@@ -904,9 +963,14 @@ export const placementAssertion = pgTable(
      */
     stepHash: text(),
     processHash: text(),
+    /** Auto-accept marker (owner decision 19), as on `relation_assertion`. */
+    autoAcceptRuleId: text(),
+    autoAcceptRuleRevision: integer(),
+    autoAcceptTriggerId: text(),
     createdAt: createdAt(),
   },
   (t): PgTableExtraConfigValue[] => [
+    unique('placement_assertion_placement_id_unique').on(t.projectId, t.placementId, t.id),
     foreignKey({
       name: 'placement_assertion_placement_fk',
       columns: [t.projectId, t.placementId],
@@ -923,13 +987,35 @@ export const placementAssertion = pgTable(
       columns: [t.projectId, t.submissionId],
       foreignColumns: [analysisSubmission.projectId, analysisSubmission.id],
     }),
+    // The decider is the author of the rule revision (MATCH SIMPLE: unmarked rows skip it).
+    foreignKey({
+      name: 'placement_assertion_auto_accept_rule_fk',
+      columns: [t.projectId, t.autoAcceptRuleId, t.autoAcceptRuleRevision, t.principalId],
+      foreignColumns: [
+        autoAcceptRuleRevision.projectId,
+        autoAcceptRuleRevision.ruleId,
+        autoAcceptRuleRevision.revision,
+        autoAcceptRuleRevision.principalId,
+      ],
+    }),
+    // The trigger is an assertion of the same placement.
+    foreignKey({
+      name: 'placement_assertion_auto_accept_trigger_fk',
+      columns: [t.projectId, t.placementId, t.autoAcceptTriggerId],
+      foreignColumns: [t.projectId, t.placementId, t.id],
+    }),
     index('placement_assertion_placement_idx').on(t.projectId, t.placementId, t.seq),
+    index('placement_assertion_auto_accept_idx')
+      .on(t.projectId, t.autoAcceptRuleId)
+      .where(sql`${t.autoAcceptRuleId} is not null`),
+    check('placement_assertion_auto_accept_check', autoAcceptCheck(t)),
     // Agents only propose; humans decide (M4 §7).
     check(
       'placement_assertion_agents_never_decide',
       sql`not (${t.kind} = 'decision' and ${t.sourceKind} = 'agent')`,
     ),
-    // Nothing is auto-accepted (M4 §2 "Tiers"): the rule tier only proposes.
+    // The rule tier only proposes (M4 §2 "Tiers"); an owner's auto-accept rule records a
+    // human decision (owner decision 19), never a `rule` one.
     check(
       'placement_assertion_rules_never_decide',
       sql`not (${t.kind} = 'decision' and ${t.sourceKind} = 'rule')`,
@@ -1007,6 +1093,109 @@ export const placementInput = pgTable(
     check(
       'placement_input_reason_check',
       sql`(${t.outcome} = 'unsure') = (${t.reason} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * An owner's auto-accept rule (owner decision 19): the immutable head row
+ * (id, kind, creator). What it matches lives in its revisions. Never deleted
+ * (a rule is disabled instead), so decisions always resolve their rule;
+ * append-only (trigger in 0010).
+ */
+export const autoAcceptRule = pgTable(
+  'auto_accept_rule',
+  {
+    id: text().primaryKey(),
+    projectId: text()
+      .notNull()
+      .references(() => project.id),
+    kind: text({ enum: AUTO_ACCEPT_KINDS }).notNull(),
+    createdBy: text()
+      .notNull()
+      .references(() => principal.id),
+    /** Seq of `auto_accept_rule.created`: the creation order (the first matching rule wins). */
+    seq: seqColumn().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('auto_accept_rule_project_id_unique').on(t.projectId, t.id),
+    unique('auto_accept_rule_project_id_kind_unique').on(t.projectId, t.id, t.kind),
+    check('auto_accept_rule_kind_check', oneOf(t.kind, AUTO_ACCEPT_KINDS)),
+  ],
+);
+
+/**
+ * A revision of an auto-accept rule: every create, edit, enable and disable
+ * appends one, written by a human owner; the head is the highest revision.
+ * Decisions reference the revision they were recorded under, together with
+ * its author (their principal, pinned by the assertions' composite foreign
+ * key). Append-only (trigger in 0010).
+ */
+export const autoAcceptRuleRevision = pgTable(
+  'auto_accept_rule_revision',
+  {
+    projectId: text().notNull(),
+    ruleId: text().notNull(),
+    /** The rule's kind (fixed; repeated for the kind and tier check). */
+    kind: text({ enum: AUTO_ACCEPT_KINDS }).notNull(),
+    revision: integer().notNull(),
+    name: text().notNull(),
+    enabled: boolean().notNull(),
+    tier: text({ enum: AUTO_ACCEPT_TIERS }).notNull(),
+    /** Inclusive minimum confidence, 0.5 to 1. */
+    minConfidence: doublePrecision().notNull(),
+    note: text(),
+    /** Relations only: accept only this type. */
+    relationType: text({ enum: LINK_TYPES }),
+    /** Only proposals of this principal. */
+    agentPrincipalId: text().references(() => principal.id),
+    /** Only proposals declaring exactly this LLM model. */
+    llmModel: text(),
+    /** Also ad-hoc proposals (default: pipeline proposals only). */
+    includeAdHoc: boolean().notNull().default(false),
+    /** The author: decisions of this revision are recorded under this principal. */
+    principalId: text()
+      .notNull()
+      .references(() => principal.id),
+    clientId: text(),
+    /** Derived from the credential; humans only (check). */
+    sourceKind: text({ enum: values(SourceKind.options) }).notNull(),
+    /** Seq of the `auto_accept_rule.created` or `.revised` event. */
+    seq: seqColumn().notNull(),
+    createdAt: createdAt(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    primaryKey({ columns: [t.ruleId, t.revision] }),
+    unique('auto_accept_rule_revision_project_unique').on(t.projectId, t.ruleId, t.revision),
+    // Target of the assertions' marker: pins the deciding principal to the author.
+    unique('auto_accept_rule_revision_author_unique').on(
+      t.projectId,
+      t.ruleId,
+      t.revision,
+      t.principalId,
+    ),
+    foreignKey({
+      name: 'auto_accept_rule_revision_rule_fk',
+      columns: [t.projectId, t.ruleId, t.kind],
+      foreignColumns: [autoAcceptRule.projectId, autoAcceptRule.id, autoAcceptRule.kind],
+    }),
+    // Only humans write rules; agents can neither create nor change them.
+    check('auto_accept_rule_revision_humans_only', sql`${t.sourceKind} = 'human'`),
+    check('auto_accept_rule_revision_revision_check', sql`${t.revision} >= 1`),
+    check('auto_accept_rule_revision_confidence_check', sql`${t.minConfidence} between 0.5 and 1`),
+    check(
+      'auto_accept_rule_revision_tier_check',
+      sql`(${t.kind} = 'relation' and ${oneOf(t.tier, ['key', 'lexical', 'semantic'])}) or (${t.kind} = 'placement' and ${oneOf(t.tier, ['lexical', 'semantic'])} and ${t.relationType} is null)`,
+    ),
+    check(
+      'auto_accept_rule_revision_type_check',
+      sql`${t.relationType} is null or ${oneOf(t.relationType, LINK_TYPES)}`,
+    ),
+    check('auto_accept_rule_revision_kind_check', oneOf(t.kind, AUTO_ACCEPT_KINDS)),
+    check(
+      'auto_accept_rule_revision_name_check',
+      sql`char_length(${t.name}) between 1 and 100 and (${t.llmModel} is null or char_length(${t.llmModel}) between 1 and 100)`,
     ),
   ],
 );

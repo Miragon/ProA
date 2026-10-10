@@ -32,6 +32,7 @@ import type {
 } from '@proa/contracts';
 
 import { sourceKindOf, type Actor } from '../actor.ts';
+import { autoAcceptPlacements, type PlacementTrigger } from '../auto-accept/apply.ts';
 import { decodeCursor, toPage } from '../cursor.ts';
 import { DomainError } from '../errors.ts';
 import { policy } from '../policy.ts';
@@ -221,6 +222,7 @@ export function placementUseCases(deps: ValueChainDeps) {
       const items: PlacementItemResult[] = [];
       const counts = { applied: 0, duplicate: 0, suppressed: 0, reopened: 0, invalid: 0 };
       const seen = new Map<string, PlacementRecord>();
+      const recorded: PlacementTrigger[] = [];
       for (const [index, item] of body.placements.entries()) {
         const valid = validatePlacementItem(
           {
@@ -256,7 +258,8 @@ export function placementUseCases(deps: ValueChainDeps) {
           counts.duplicate++;
           continue;
         }
-        const { effect, placement } = await applyPlacementProposal(ctx, valid.value);
+        const { effect, placement, assertion } = await applyPlacementProposal(ctx, valid.value);
+        if (assertion) recorded.push({ placement, assertion });
         indexPlacement(placement);
         seen.set(k, placement);
         items.push({ index, result: effect, placementId: placement.id, status: placement.status });
@@ -270,12 +273,22 @@ export function placementUseCases(deps: ValueChainDeps) {
       }
       // An agent's valid proposal is its verdict on the process's current input (agent
       // assertions never change an input hash): a placement task does not judge it again.
+      // Another agent's current `unsure` verdict stays instead (the process is judged either
+      // way): it is a doubt the auto-accept safeguard `agent-unsure` keeps honouring, in
+      // this write, in later writes, in the preview and in "apply" alike (owner decision 19).
       if (sourceKind === 'agent') {
         const judged = new Set<string>();
         for (const [index, item] of items.entries()) {
           if (item.placementId === null) continue;
           const process = body.placements[index]?.process;
-          if (process !== undefined) judged.add(process);
+          if (process === undefined) continue;
+          const row = inputs.rows.get(process);
+          const othersDoubt =
+            row !== undefined &&
+            row.outcome === 'unsure' &&
+            row.principalId !== actor.principalId &&
+            row.inputHash === inputs.hashOf(process);
+          if (!othersDoubt) judged.add(process);
         }
         if (judged.size > 0) {
           const { lastSeq } = await tx.projects.lockForWrite(project.id);
@@ -294,6 +307,16 @@ export function placementUseCases(deps: ValueChainDeps) {
           );
         }
       }
+      // The owner's auto-accept rules (owner decision 19) on the proposals just recorded; the
+      // items above report the state before them. `inputs.rows` are the verdicts before this write.
+      await autoAcceptPlacements(ctx, recorded, {
+        procedure: deps.expectedPlacementProcedure(),
+        chainDigest: inputs.hashContext.chainDigest,
+        processDigests: inputs.hashContext.processDigests,
+        hashOf: (ref) => inputs.hashOf(ref),
+        priorRows: inputs.rows,
+        live: state.live,
+      });
       return { kind: 'propose', items, counts };
     });
   }

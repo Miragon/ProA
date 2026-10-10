@@ -1,10 +1,27 @@
 // Renders eval:replay scores as Markdown (eval/reports/replay.md).
 // Deterministic: no timestamps, stable order.
+import { renderRelationWhatIf, type AutoAcceptWhatIf } from './auto-accept-whatif.ts';
 import type { ExpectedRelation } from './landscape.ts';
-import { MAX_RECALL_DROP, MIN_LIVE_RUNS, SIM_AGENT, baselineLabel, gateLabel, type LiveGate } from './live-gate.ts';
-import { renderPlacementReplaySections, type PlacementReplayReport } from './placements-replay-report.ts';
+import {
+  MAX_RECALL_DROP,
+  MIN_LIVE_RUNS,
+  SIM_AGENT,
+  baselineLabel,
+  gateLabel,
+  type LiveGate,
+} from './live-gate.ts';
+import {
+  renderPlacementReplaySections,
+  type PlacementReplayReport,
+} from './placements-replay-report.ts';
 import { formatRatio } from './score.ts';
-import { HIGH_CONFIDENCE, type Metrics, type PairClass, type ProposedPair, type ReplayScore } from './replay-score.ts';
+import {
+  HIGH_CONFIDENCE,
+  type Metrics,
+  type PairClass,
+  type ProposedPair,
+  type ReplayScore,
+} from './replay-score.ts';
 
 export interface ReplayReport {
   /** The relations recordings. */
@@ -13,6 +30,8 @@ export interface ReplayReport {
   liveGate: LiveGate[];
   /** The placement recordings (M4b); left out when there are none, so a relations-only report is unchanged. */
   placements?: PlacementReplayReport;
+  /** What owner auto-accept rules would have accepted (owner decision 19; report only). */
+  autoAcceptWhatIf?: AutoAcceptWhatIf;
 }
 
 /** One console line per scored recording (eval:replay, eval:live). */
@@ -57,7 +76,17 @@ function metricRow(label: string, m: Metrics): Array<string | number> {
   ];
 }
 
-const METRIC_HEADER = ['', 'must_link found', 'recall', 'precision', 'F1', 'must_not_link', 'may_link', 'unlisted', 'same process'];
+const METRIC_HEADER = [
+  '',
+  'must_link found',
+  'recall',
+  'precision',
+  'F1',
+  'must_not_link',
+  'may_link',
+  'unlisted',
+  'same process',
+];
 /** Tags come from expected entries only: no unlisted or same-process columns. */
 const TAG_HEADER = METRIC_HEADER.slice(0, -2);
 
@@ -105,15 +134,28 @@ function section(s: ReplayScore): string {
         : `${s.uncovered} assigned ${s.uncovered === 1 ? 'pair' : 'pairs'} left uncovered.`),
   );
   parts.push(
-    table(METRIC_HEADER, [metricRow('proposals', s.overall), metricRow('proposals ∪ rule-tier acceptances', s.withRules)]),
+    table(METRIC_HEADER, [
+      metricRow('proposals', s.overall),
+      metricRow('proposals ∪ rule-tier acceptances', s.withRules),
+    ]),
   );
   parts.push('### By relation type');
-  parts.push(table(METRIC_HEADER, Object.entries(s.byType).map(([k, m]) => metricRow(k, m))));
+  parts.push(
+    table(
+      METRIC_HEADER,
+      Object.entries(s.byType).map(([k, m]) => metricRow(k, m)),
+    ),
+  );
   parts.push('### By tag');
   parts.push(
     'Only expected entries carry tags, so precision within a tag counts must_not_link hits, not unlisted pairs.',
   );
-  parts.push(table(TAG_HEADER, Object.entries(s.byTag).map(([k, m]) => metricRow(k, m).slice(0, -2))));
+  parts.push(
+    table(
+      TAG_HEADER,
+      Object.entries(s.byTag).map(([k, m]) => metricRow(k, m).slice(0, -2)),
+    ),
+  );
   parts.push('### Questions and no-links');
   parts.push(
     table(
@@ -205,7 +247,9 @@ export function renderReplayMarkdown(report: ReplayReport): string {
       'results before proa-relations@0.2.0, which do not report them).',
   );
   // The placement sections come after the relations sections, which stay as they were.
-  const placements = report.placements?.recordings.length ? renderPlacementReplaySections(report.placements) : [];
+  const placements = report.placements?.recordings.length
+    ? renderPlacementReplaySections(report.placements, report.autoAcceptWhatIf?.placements)
+    : [];
   if (report.recordings.length === 0) {
     parts.push('_No recordings._');
     return `${[...parts, ...placements].join('\n\n')}\n`;
@@ -248,6 +292,7 @@ export function renderReplayMarkdown(report: ReplayReport): string {
   );
   parts.push(liveGateSection(report.liveGate));
   for (const s of report.recordings) parts.push(section(s));
+  if (report.autoAcceptWhatIf) parts.push(renderRelationWhatIf(report.autoAcceptWhatIf.relations));
   parts.push(...placements);
   return `${parts.join('\n\n')}\n`;
 }

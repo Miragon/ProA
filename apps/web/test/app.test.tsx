@@ -4,7 +4,7 @@ import { renderToString } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { App } from '../src/app';
-import { healthQuery, projectsQuery } from '../src/lib/queries';
+import { healthQuery, projectQuery, projectsQuery } from '../src/lib/queries';
 import { createAppRouter } from '../src/router';
 
 async function render(path: string, queryClient = new QueryClient()) {
@@ -83,6 +83,28 @@ describe('web app', () => {
     expect(stepView).toContain('Projektbereiche');
     expect(stepView).toContain('href="/projects/demo/value-chain"');
     expect(stepView).not.toContain('Seite nicht gefunden');
+  });
+
+  it('shows the tab „Regeln“ to owners only and routes it (owner decision 19)', async () => {
+    const project = (role: 'owner' | 'editor') => ({
+      id: 'prj_01TEST',
+      key: 'demo',
+      name: 'Demo',
+      role,
+      lastSeq: 1,
+      createdAt: '2026-10-07T09:00:00.000Z',
+    });
+    const owner = new QueryClient();
+    owner.setQueryData(projectQuery('demo').queryKey, project('owner'));
+    const html = await render('/projects/demo/rules', owner);
+    expect(html).toContain('href="/projects/demo/rules"');
+    expect(html).toContain('>Regeln<');
+    expect(html).not.toContain('Seite nicht gefunden');
+    const reviewer = new QueryClient();
+    reviewer.setQueryData(projectQuery('demo').queryKey, project('editor'));
+    expect(await render('/projects/demo/relations', reviewer)).not.toContain(
+      'href="/projects/demo/rules"',
+    );
   });
 
   it('answers unknown paths with a German not-found page', async () => {

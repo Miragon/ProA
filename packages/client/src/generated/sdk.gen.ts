@@ -16,12 +16,18 @@ import type {
   AddRelationNoteData,
   AddRelationNoteErrors,
   AddRelationNoteResponses,
+  ApplyAutoAcceptRuleData,
+  ApplyAutoAcceptRuleErrors,
+  ApplyAutoAcceptRuleResponses,
   ClaimAnalysesData,
   ClaimAnalysesErrors,
   ClaimAnalysesResponses,
   CreateAgentTokenData,
   CreateAgentTokenErrors,
   CreateAgentTokenResponses,
+  CreateAutoAcceptRuleData,
+  CreateAutoAcceptRuleErrors,
+  CreateAutoAcceptRuleResponses,
   CreateProjectData,
   CreateProjectErrors,
   CreateProjectResponses,
@@ -54,6 +60,9 @@ import type {
   GetAnalysisSubmissionData,
   GetAnalysisSubmissionErrors,
   GetAnalysisSubmissionResponses,
+  GetAutoAcceptRuleData,
+  GetAutoAcceptRuleErrors,
+  GetAutoAcceptRuleResponses,
   GetHealthData,
   GetHealthErrors,
   GetHealthResponses,
@@ -114,6 +123,12 @@ import type {
   ListAnalysesData,
   ListAnalysesErrors,
   ListAnalysesResponses,
+  ListAutoAcceptedData,
+  ListAutoAcceptedErrors,
+  ListAutoAcceptedResponses,
+  ListAutoAcceptRulesData,
+  ListAutoAcceptRulesErrors,
+  ListAutoAcceptRulesResponses,
   ListFindingsData,
   ListFindingsErrors,
   ListFindingsResponses,
@@ -144,6 +159,9 @@ import type {
   PostPlacementsData,
   PostPlacementsErrors,
   PostPlacementsResponses,
+  PreviewAutoAcceptRuleData,
+  PreviewAutoAcceptRuleErrors,
+  PreviewAutoAcceptRuleResponses,
   ProposeRelationData,
   ProposeRelationErrors,
   ProposeRelationResponses,
@@ -159,9 +177,15 @@ import type {
   RequeueAnalysesData,
   RequeueAnalysesErrors,
   RequeueAnalysesResponses,
+  ReviseAutoAcceptRuleData,
+  ReviseAutoAcceptRuleErrors,
+  ReviseAutoAcceptRuleResponses,
   RevokeAgentTokenData,
   RevokeAgentTokenErrors,
   RevokeAgentTokenResponses,
+  RevokeAutoAcceptedData,
+  RevokeAutoAcceptedErrors,
+  RevokeAutoAcceptedResponses,
   SubmitAnalysisData,
   SubmitAnalysisErrors,
   SubmitAnalysisResponses,
@@ -1000,5 +1024,159 @@ export const revokeAgentToken = <ThrowOnError extends boolean = false>(
   >({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/projects/{project}/agent-tokens/{token}',
+    ...options,
+  });
+
+/**
+ * The project's auto-accept rules with their statistics, and the system rule (owner)
+ */
+export const listAutoAcceptRules = <ThrowOnError extends boolean = false>(
+  options: Options<ListAutoAcceptRulesData, ThrowOnError>,
+): RequestResult<ListAutoAcceptRulesResponses, ListAutoAcceptRulesErrors, ThrowOnError> =>
+  (options.client ?? client).get<
+    ListAutoAcceptRulesResponses,
+    ListAutoAcceptRulesErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accept-rules',
+    ...options,
+  });
+
+/**
+ * Create an auto-accept rule (owner, interactive client; off unless `enabled`)
+ *
+ * Revision 1 of a new rule, authored by the caller: while it is enabled, agent proposals recorded afterwards that meet it are accepted as decisions of the author (never retroactive: open proposals need `apply`). 422 `validation-failed` with `reason` `unknown-agent` or `name-taken`; a draft the schema refuses (a tier of another kind, a type on a placement rule, a confidence outside 0.5–1, control characters) is 422 `validation-failed` with `errors` naming the fields instead.
+ */
+export const createAutoAcceptRule = <ThrowOnError extends boolean = false>(
+  options: Options<CreateAutoAcceptRuleData, ThrowOnError>,
+): RequestResult<CreateAutoAcceptRuleResponses, CreateAutoAcceptRuleErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    CreateAutoAcceptRuleResponses,
+    CreateAutoAcceptRuleErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accept-rules',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * What a rule (saved or not) would have accepted so far and would accept now
+ *
+ * Replays the project history: the agent proposals humans decided that the rule would have accepted, with the humans’ verdicts (an empirical precision; acceptances by auto-accept rules are no ground truth and counted apart), the open proposals it would accept now (what `apply` would do) with the blocked ones per reason, and a curve over minimum confidences. Nothing is written.
+ */
+export const previewAutoAcceptRule = <ThrowOnError extends boolean = false>(
+  options: Options<PreviewAutoAcceptRuleData, ThrowOnError>,
+): RequestResult<PreviewAutoAcceptRuleResponses, PreviewAutoAcceptRuleErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    PreviewAutoAcceptRuleResponses,
+    PreviewAutoAcceptRuleErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accept-rules/preview',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * One auto-accept rule with every revision (ETag `"r<revision>"`)
+ */
+export const getAutoAcceptRule = <ThrowOnError extends boolean = false>(
+  options: Options<GetAutoAcceptRuleData, ThrowOnError>,
+): RequestResult<GetAutoAcceptRuleResponses, GetAutoAcceptRuleErrors, ThrowOnError> =>
+  (options.client ?? client).get<GetAutoAcceptRuleResponses, GetAutoAcceptRuleErrors, ThrowOnError>(
+    {
+      security: [{ scheme: 'bearer', type: 'http' }],
+      url: '/api/v1/projects/{project}/auto-accept-rules/{rule}',
+      ...options,
+    },
+  );
+
+/**
+ * Edit, enable or disable a rule: a new revision (`If-Match: "r<revision>"` required)
+ *
+ * Writes the draft as the next immutable revision, authored by the caller (decisions already recorded keep their revision). `If-Match` must name the head revision: without it 428 `precondition-required`, a stale one 412 `revision-conflict` with `headRev`. A draft equal to the head answers `unchanged`, unless the head’s author is no longer an owner: then the caller takes the rule over (a new revision with the same fields). The kind of a rule never changes (422 `validation-failed` with `reason` `kind-changed`); otherwise the reasons and `errors` of the create route.
+ */
+export const reviseAutoAcceptRule = <ThrowOnError extends boolean = false>(
+  options: Options<ReviseAutoAcceptRuleData, ThrowOnError>,
+): RequestResult<ReviseAutoAcceptRuleResponses, ReviseAutoAcceptRuleErrors, ThrowOnError> =>
+  (options.client ?? client).put<
+    ReviseAutoAcceptRuleResponses,
+    ReviseAutoAcceptRuleErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accept-rules/{rule}',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Apply an enabled rule to the open proposals (`?dryRun=true` first)
+ *
+ * Evaluates the head revision against every open proposal of its kind, with every safeguard. `dryRun=true` lists what it would accept and what is blocked. The real call needs the head `revision`, an enabled rule whose author is still an owner, and `expectedCount` equal to the fresh count: 409 `conflict` with `count`, `revision` and `reason` (`rule-disabled`, `author-not-owner`, `revision-changed`, `count-changed`) otherwise; 422 `validation-failed` with `reason` `expected-count-required` without `revision` and `expectedCount`. The result says whether the head is enabled and its author still an owner.
+ */
+export const applyAutoAcceptRule = <ThrowOnError extends boolean = false>(
+  options: Options<ApplyAutoAcceptRuleData, ThrowOnError>,
+): RequestResult<ApplyAutoAcceptRuleResponses, ApplyAutoAcceptRuleErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    ApplyAutoAcceptRuleResponses,
+    ApplyAutoAcceptRuleErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accept-rules/{rule}/apply',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * Revoke auto-acceptances by rule, agent, kind or ids (`?dryRun=true` first)
+ *
+ * Each acceptance still in force is withdrawn (a human withdrawal under the decision’s principal): its item returns to `proposed` while a live proposal remains, else it turns `obsolete` and the agents judge it again. Items a human decided since are never touched. The real call needs `expectedCount` equal to the fresh count (409 `conflict`; 422 `validation-failed` with `reason` `expected-count-required` without it).
+ */
+export const revokeAutoAccepted = <ThrowOnError extends boolean = false>(
+  options: Options<RevokeAutoAcceptedData, ThrowOnError>,
+): RequestResult<RevokeAutoAcceptedResponses, RevokeAutoAcceptedErrors, ThrowOnError> =>
+  (options.client ?? client).post<
+    RevokeAutoAcceptedResponses,
+    RevokeAutoAcceptedErrors,
+    ThrowOnError
+  >({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accept-revocations',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+/**
+ * The auto-acceptances of the project and their state (every human reviewer: the review UI marks)
+ *
+ * One entry per acceptance an auto-accept rule recorded: the item, the rule’s name and revision, the decider, the triggering agent proposal and the state (`in-force`, `revoked`, `human-decided`). Readable by editors and owners on an interactive client (permission `review`), so every reviewer sees which acceptances were made by a rule; agent tokens get 403 `human-decision-required`. The rules themselves stay owner-only.
+ */
+export const listAutoAccepted = <ThrowOnError extends boolean = false>(
+  options: Options<ListAutoAcceptedData, ThrowOnError>,
+): RequestResult<ListAutoAcceptedResponses, ListAutoAcceptedErrors, ThrowOnError> =>
+  (options.client ?? client).get<ListAutoAcceptedResponses, ListAutoAcceptedErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/auto-accepted',
     ...options,
   });

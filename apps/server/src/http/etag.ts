@@ -1,7 +1,8 @@
 /**
  * Entity tags and conditional requests: relation and placement versions
  * (`"<version>"`, `If-Match` on decisions), value chain revisions (`"r<rev>"`,
- * `If-Match` on content saves, `If-None-Match` on reads) and the landscape
+ * `If-Match` on content saves, `If-None-Match` on reads), auto-accept rule
+ * revisions (`"r<revision>"`, `If-Match` on edits) and the landscape
  * (`"s<seq>"`).
  */
 import { DomainError } from '../domain/errors.ts';
@@ -60,10 +61,19 @@ export function contentPrecondition(
     }
     return { kind: 'if-none-match' };
   }
-  if (ifMatch === undefined) return { kind: 'none' };
-  const tags = ifMatch.split(',').map((t) => t.trim());
-  const rev = tags.length === 1 && tags[0] !== undefined ? revisionOfEtag(tags[0]) : undefined;
+  const rev = ifMatchRevision(ifMatch);
   return rev === undefined ? { kind: 'none' } : { kind: 'if-match', rev };
+}
+
+/**
+ * The revision an `If-Match` header names with exactly one `"r<rev>"` tag
+ * (value chain saves, auto-accept rule edits); `undefined` for a missing
+ * header, `*`, several tags or a tag naming no revision.
+ */
+export function ifMatchRevision(ifMatch: string | undefined): number | undefined {
+  if (ifMatch === undefined) return undefined;
+  const tags = ifMatch.split(',').map((t) => t.trim());
+  return tags.length === 1 && tags[0] !== undefined ? revisionOfEtag(tags[0]) : undefined;
 }
 
 /** Whether an `If-None-Match` header matches `etag` (weak comparison, `*` matches anything). */

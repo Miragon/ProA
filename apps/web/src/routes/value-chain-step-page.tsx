@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { ChevronRightIcon, LocateIcon, MapIcon, SearchCheckIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { AutoAcceptMark } from '@/components/auto-accept-mark';
 import { EndpointStateBadge, StatusBadge, TierBadge, ToneBadge } from '@/components/badges';
 import { PlainText } from '@/components/review/plain-text';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError, errorMessage } from '@/lib/api';
+import type { AutoAcceptIndex } from '@/lib/auto-accept';
+import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
 import { LINK_KINDS, REACHED_BY_CALL_LABEL, STEP_KINDS, formatConfidence } from '@/lib/labels';
 import { valueChainStepQuery } from '@/lib/queries';
 import { splitRef } from '@/lib/refs';
@@ -34,12 +37,16 @@ function ProcessRow({
   project,
   placement: p,
   showStep,
+  autoIndex,
 }: {
   project: string;
   placement: Placement;
   showStep?: boolean;
+  /** Owner decision 19: marks a placement an auto-accept rule accepted. */
+  autoIndex?: AutoAcceptIndex;
 }) {
   const { modelKey, elementId } = splitRef(p.process);
+  const auto = autoIndex?.inForce.get(p.id);
   return (
     <li
       className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-card px-3 py-2 text-sm"
@@ -58,6 +65,7 @@ function ProcessRow({
       <span className="flex flex-wrap items-center gap-1.5">
         <StatusBadge status={p.status} />
         <TierBadge tier={p.tier} />
+        {auto ? <AutoAcceptMark entry={auto} /> : null}
         <EndpointStateBadge state={p.endpointState} />
         <span className="text-xs text-muted-foreground tabular-nums">
           {formatConfidence(p.confidence)}
@@ -135,6 +143,7 @@ function SubStep({
 export function StepView() {
   const { project, elementId } = valueChainStepRoute.useParams();
   const q = useQuery(valueChainStepQuery(project, elementId));
+  const autoIndex = useAutoAcceptIndex(project);
   const notFound = q.error instanceof ApiError && q.error.status === 404;
 
   if (q.isPending) {
@@ -281,7 +290,7 @@ export function StepView() {
         ) : (
           <ul className="flex flex-col gap-2">
             {placements.own.map((p) => (
-              <ProcessRow key={p.id} project={project} placement={p} />
+              <ProcessRow key={p.id} project={project} placement={p} autoIndex={autoIndex} />
             ))}
           </ul>
         )}
@@ -291,7 +300,13 @@ export function StepView() {
         <Group title="In den Unterschritten" count={placements.subtree.length}>
           <ul className="flex flex-col gap-2">
             {placements.subtree.map((p) => (
-              <ProcessRow key={p.id} project={project} placement={p} showStep />
+              <ProcessRow
+                key={p.id}
+                project={project}
+                placement={p}
+                showStep
+                autoIndex={autoIndex}
+              />
             ))}
           </ul>
         </Group>

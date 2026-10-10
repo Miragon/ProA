@@ -14,6 +14,10 @@ import type {
   AnalysisTaskId,
   AssertionId,
   AssertionKind,
+  AutoAcceptKind,
+  AutoAcceptRelationType,
+  AutoAcceptRuleId,
+  AutoAcceptTier,
   Candidate,
   DeclaredProcedure,
   DerivedRelation,
@@ -192,6 +196,16 @@ export interface AssertionRecord {
    */
   fromHash: string | null;
   toHash: string | null;
+  /**
+   * The auto-accept marker (owner decision 19): on a human acceptance, the
+   * rule and revision that recorded it and the agent proposal that
+   * triggered it; on a human withdrawal, the rule and revision whose
+   * acceptance it revokes (no trigger). Absent (or `null`) on unmarked
+   * assertions; the store reads unmarked rows back without these fields.
+   */
+  autoAcceptRuleId?: AutoAcceptRuleId | null;
+  autoAcceptRuleRevision?: number | null;
+  autoAcceptTriggerId?: AssertionId | null;
 }
 
 /** An assertion as read back: with the principal's handle and the time it was recorded. */
@@ -370,6 +384,17 @@ export interface StoredNoLink extends NoLinkRecord {
   createdAt: Date;
 }
 
+/** A no-link as the auto-accept preview replays it: when it was live. */
+export interface NoLinkHistoryRecord {
+  type: TypedPair['type'];
+  fromRef: Ref;
+  toRef: Ref;
+  principalId: PrincipalId;
+  seq: number;
+  /** Seq of its withdrawal; `null` while live. */
+  withdrawnSeq: number | null;
+}
+
 export interface NoLinkFilter {
   /** No-links with an endpoint in this model. */
   touchingModelKey?: string;
@@ -478,7 +503,10 @@ export interface ValueChainStepRecord extends StepKey {
   deletedSeq: number | null;
 }
 
-/** Tiers of a placement: server-computed, never `rule` (nothing is auto-accepted). */
+/**
+ * Tiers of a placement: server-computed, never `rule` (the rule tier only
+ * proposes; an owner's auto-accept rule records a human decision instead).
+ */
 export type PlacementTier = Exclude<Tier, 'rule'>;
 
 export interface PlacementRecord {
@@ -530,6 +558,10 @@ export interface PlacementAssertionRecord {
    */
   stepHash: string | null;
   processHash: string | null;
+  /** The auto-accept marker (owner decision 19), as on {@link AssertionRecord}. */
+  autoAcceptRuleId?: AutoAcceptRuleId | null;
+  autoAcceptRuleRevision?: number | null;
+  autoAcceptTriggerId?: PlacementAssertionId | null;
 }
 
 /** A placement assertion as read back: with the principal's handle and the time it was recorded. */
@@ -853,6 +885,8 @@ export interface NoLinkRepo {
     filter: NoLinkFilter,
     procedure: DeclaredProcedure,
   ): Promise<StoredNoLink[]>;
+  /** Every no-link of the project, withdrawn ones included, oldest first (the auto-accept preview). */
+  listHistory(projectId: ProjectId): Promise<NoLinkHistoryRecord[]>;
   /** Ends live no-links (one withdrawal row each). */
   withdraw(
     projectId: ProjectId,
@@ -986,6 +1020,79 @@ export interface PlacementAssertionRepo {
   ): Promise<StoredPlacementAssertion[]>;
 }
 
+// --------------------------------------- auto-accept rules (owner decision 19)
+
+/** The immutable head row of an auto-accept rule. */
+export interface AutoAcceptRuleRecord {
+  id: AutoAcceptRuleId;
+  projectId: ProjectId;
+  kind: AutoAcceptKind;
+  createdBy: PrincipalId;
+  /** Seq of `auto_accept_rule.created`: the creation order. */
+  seq: number;
+}
+
+/** One revision of an auto-accept rule (every create, edit, enable and disable). */
+export interface AutoAcceptRuleRevisionRecord {
+  projectId: ProjectId;
+  ruleId: AutoAcceptRuleId;
+  kind: AutoAcceptKind;
+  revision: number;
+  name: string;
+  enabled: boolean;
+  tier: AutoAcceptTier;
+  minConfidence: number;
+  note: string | null;
+  relationType: AutoAcceptRelationType | null;
+  agentPrincipalId: PrincipalId | null;
+  llmModel: string | null;
+  includeAdHoc: boolean;
+  /** The author: decisions of this revision are recorded under this principal. */
+  principalId: PrincipalId;
+  clientId: string | null;
+  /** Rules are written by humans only (DB check). */
+  sourceKind: 'human';
+  seq: number;
+}
+
+/** A revision as read back: with the author's handle and the time it was written. */
+export interface StoredAutoAcceptRuleRevision extends AutoAcceptRuleRevisionRecord {
+  handle: string;
+  createdAt: Date;
+}
+
+/** A rule at its head revision, with its head row. */
+export interface AutoAcceptRuleHead extends StoredAutoAcceptRuleRevision {
+  createdBy: PrincipalId;
+  createdByHandle: string;
+  /** Seq of the rule's creation (its order among the rules). */
+  ruleSeq: number;
+  ruleCreatedAt: Date;
+}
+
+export interface AutoAcceptRuleRepo {
+  insertRule(r: AutoAcceptRuleRecord): Promise<void>;
+  insertRevision(r: AutoAcceptRuleRevisionRecord): Promise<void>;
+  /**
+   * Every rule at its head revision, in creation order; `enabledOnly` keeps
+   * the rules whose head is enabled.
+   */
+  heads(
+    projectId: ProjectId,
+    filter?: { kind?: AutoAcceptKind; enabledOnly?: boolean },
+  ): Promise<AutoAcceptRuleHead[]>;
+  /** A rule with every revision, oldest first. */
+  find(
+    projectId: ProjectId,
+    ruleId: AutoAcceptRuleId,
+  ): Promise<{ head: AutoAcceptRuleHead; revisions: StoredAutoAcceptRuleRevision[] } | null>;
+  /** Every revision of these rules, by rule and revision. */
+  revisions(
+    projectId: ProjectId,
+    ruleIds: readonly AutoAcceptRuleId[],
+  ): Promise<StoredAutoAcceptRuleRevision[]>;
+}
+
 export interface FindingRepo {
   replace(projectId: ProjectId, findings: readonly Finding[]): Promise<void>;
   list(projectId: ProjectId): Promise<Finding[]>;
@@ -1017,6 +1124,7 @@ export interface Tx {
   placements: PlacementRepo;
   placementAssertions: PlacementAssertionRepo;
   placementInputs: PlacementInputRepo;
+  autoAcceptRules: AutoAcceptRuleRepo;
   findings: FindingRepo;
   events: EventRepo;
 }

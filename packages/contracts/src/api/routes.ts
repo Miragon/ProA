@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   AgentTokenId,
   AnalysisTaskId,
+  AutoAcceptRuleId,
   ModelId,
   PlacementId,
   RelationId,
@@ -12,6 +13,21 @@ import {
 import { ApiProblem, PROBLEMS, PROBLEM_CONTENT_TYPE, type ProblemCode } from '../problem.ts';
 import { ModelKey } from '../refs.ts';
 import { AgentTokenList, CreateAgentTokenBody, CreatedAgentToken } from './agent-tokens.ts';
+import {
+  ApplyAutoAcceptBody,
+  ApplyAutoAcceptResult,
+  AutoAcceptCriteria,
+  AutoAcceptDryRunQuery,
+  AutoAcceptLedger,
+  AutoAcceptLedgerQuery,
+  AutoAcceptPreview,
+  AutoAcceptRevocationBody,
+  AutoAcceptRevocationResult,
+  AutoAcceptRuleDetail,
+  AutoAcceptRuleDraft,
+  AutoAcceptRuleList,
+  SaveAutoAcceptRuleResult,
+} from './auto-accept.ts';
 import {
   AnalysisQuery,
   AnalysisSubmission,
@@ -123,6 +139,7 @@ const chainRevisionParams = chainParams.extend({
 const stepParams = chainParams.extend({ elementId: z.string().min(1).max(128) });
 const placementParams = chainParams.extend({ placement: PlacementId });
 const projectAnalysisParams = ProjectParam.extend({ analysis: AnalysisTaskId });
+const autoAcceptRuleParams = ProjectParam.extend({ rule: AutoAcceptRuleId });
 
 function jsonBody<T extends z.ZodType>(schema: T) {
   return { required: true, content: { [JSON_TYPE]: { schema } } };
@@ -164,6 +181,15 @@ const CHAIN_WRITE_PROBLEMS = [
 
 /** ETag of a value chain revision: `"r<rev>"`. */
 const REVISION_ETAG = z.object({ ETag: z.string().meta({ description: '`"r<rev>"`' }) });
+/** ETag of an auto-accept rule's head revision: `"r<revision>"`. */
+const RULE_ETAG = z.object({ ETag: z.string().meta({ description: '`"r<revision>"`' }) });
+/**
+ * Problems of the auto-accept rule routes (owner decision 19): owners on an
+ * interactive client only (`forbidden` for agent tokens and editors). The
+ * ledger is for every human reviewer instead (`human-decision-required` for
+ * agent tokens, `forbidden` for viewers).
+ */
+const AUTO_ACCEPT_PROBLEMS = ['forbidden', 'validation-failed'] as const;
 /** ETag of a placement version: `"<version>"`, for `If-Match` on decisions. */
 const VERSION_ETAG = z.object({ ETag: z.string().meta({ description: '`"<version>"`' }) });
 
@@ -963,6 +989,163 @@ export const apiRoutes = {
     summary: 'Revoke an agent token (owner, interactive client)',
     request: { params: projectParams.extend({ token: AgentTokenId }) },
     responses: { 204: { description: 'Revoked' }, ...problems(...READ_PROBLEMS, 'forbidden') },
+  },
+
+  listAutoAcceptRules: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-rules`,
+    operationId: 'listAutoAcceptRules',
+    tags: ['auto-accept'],
+    summary: "The project's auto-accept rules with their statistics, and the system rule (owner)",
+    request: { params: projectParams },
+    responses: {
+      200: json(AutoAcceptRuleList, 'The rules in creation order'),
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS),
+    },
+  },
+  createAutoAcceptRule: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-rules`,
+    operationId: 'createAutoAcceptRule',
+    tags: ['auto-accept'],
+    summary: 'Create an auto-accept rule (owner, interactive client; off unless `enabled`)',
+    description:
+      'Revision 1 of a new rule, authored by the caller: while it is enabled, agent proposals ' +
+      'recorded afterwards that meet it are accepted as decisions of the author (never ' +
+      'retroactive: open proposals need `apply`). 422 `validation-failed` with `reason` ' +
+      '`unknown-agent` or `name-taken`; a draft the schema refuses (a tier of another kind, a ' +
+      'type on a placement rule, a confidence outside 0.5–1, control characters) is 422 ' +
+      '`validation-failed` with `errors` naming the fields instead.',
+    request: { params: projectParams, body: jsonBody(AutoAcceptRuleDraft) },
+    responses: {
+      201: { ...json(SaveAutoAcceptRuleResult, 'The new rule'), headers: RULE_ETAG },
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS),
+    },
+  },
+  previewAutoAcceptRule: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-rules/preview`,
+    operationId: 'previewAutoAcceptRule',
+    tags: ['auto-accept'],
+    summary: 'What a rule (saved or not) would have accepted so far and would accept now',
+    description:
+      'Replays the project history: the agent proposals humans decided that the rule would ' +
+      'have accepted, with the humans’ verdicts (an empirical precision; acceptances by ' +
+      'auto-accept rules are no ground truth and counted apart), the open proposals it would ' +
+      'accept now (what `apply` would do) with the blocked ones per reason, and a curve over ' +
+      'minimum confidences. Nothing is written.',
+    request: { params: projectParams, body: jsonBody(AutoAcceptCriteria) },
+    responses: {
+      200: json(AutoAcceptPreview, 'The preview'),
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS),
+    },
+  },
+  getAutoAcceptRule: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-rules/{rule}`,
+    operationId: 'getAutoAcceptRule',
+    tags: ['auto-accept'],
+    summary: 'One auto-accept rule with every revision (ETag `"r<revision>"`)',
+    request: { params: autoAcceptRuleParams },
+    responses: {
+      200: { ...json(AutoAcceptRuleDetail, 'The rule'), headers: RULE_ETAG },
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS),
+    },
+  },
+  reviseAutoAcceptRule: {
+    method: 'put',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-rules/{rule}`,
+    operationId: 'reviseAutoAcceptRule',
+    tags: ['auto-accept'],
+    summary: 'Edit, enable or disable a rule: a new revision (`If-Match: "r<revision>"` required)',
+    description:
+      'Writes the draft as the next immutable revision, authored by the caller (decisions ' +
+      'already recorded keep their revision). `If-Match` must name the head revision: without ' +
+      'it 428 `precondition-required`, a stale one 412 `revision-conflict` with `headRev`. A ' +
+      'draft equal to the head answers `unchanged`, unless the head’s author is no longer an ' +
+      'owner: then the caller takes the rule over (a new revision with the same fields). The ' +
+      'kind of a rule never changes (422 `validation-failed` with `reason` `kind-changed`); ' +
+      'otherwise the reasons and `errors` of the create route.',
+    request: {
+      params: autoAcceptRuleParams,
+      headers: z.object({ 'if-match': z.string().max(200).optional() }),
+      body: jsonBody(AutoAcceptRuleDraft),
+    },
+    responses: {
+      200: { ...json(SaveAutoAcceptRuleResult, 'The rule'), headers: RULE_ETAG },
+      ...problems(
+        ...READ_PROBLEMS,
+        ...AUTO_ACCEPT_PROBLEMS,
+        'revision-conflict',
+        'precondition-required',
+      ),
+    },
+  },
+  applyAutoAcceptRule: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-rules/{rule}/apply`,
+    operationId: 'applyAutoAcceptRule',
+    tags: ['auto-accept'],
+    summary: 'Apply an enabled rule to the open proposals (`?dryRun=true` first)',
+    description:
+      'Evaluates the head revision against every open proposal of its kind, with every ' +
+      'safeguard. `dryRun=true` lists what it would accept and what is blocked. The real call ' +
+      'needs the head `revision`, an enabled rule whose author is still an owner, and ' +
+      '`expectedCount` equal to the fresh count: 409 `conflict` with `count`, `revision` and ' +
+      '`reason` (`rule-disabled`, `author-not-owner`, `revision-changed`, `count-changed`) ' +
+      'otherwise; 422 `validation-failed` with `reason` `expected-count-required` without ' +
+      '`revision` and `expectedCount`. The result says whether the head is enabled and its ' +
+      'author still an owner.',
+    request: {
+      params: autoAcceptRuleParams,
+      query: AutoAcceptDryRunQuery,
+      body: jsonBody(ApplyAutoAcceptBody),
+    },
+    responses: {
+      200: json(ApplyAutoAcceptResult, 'What it did or would do'),
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS, 'conflict'),
+    },
+  },
+  revokeAutoAccepted: {
+    method: 'post',
+    path: `${API_PREFIX}/projects/{project}/auto-accept-revocations`,
+    operationId: 'revokeAutoAccepted',
+    tags: ['auto-accept'],
+    summary: 'Revoke auto-acceptances by rule, agent, kind or ids (`?dryRun=true` first)',
+    description:
+      'Each acceptance still in force is withdrawn (a human withdrawal under the decision’s ' +
+      'principal): its item returns to `proposed` while a live proposal remains, else it ' +
+      'turns `obsolete` and the agents judge it again. Items a human decided since are never ' +
+      'touched. The real call needs `expectedCount` equal to the fresh count (409 `conflict`; ' +
+      '422 `validation-failed` with `reason` `expected-count-required` without it).',
+    request: {
+      params: projectParams,
+      query: AutoAcceptDryRunQuery,
+      body: jsonBody(AutoAcceptRevocationBody),
+    },
+    responses: {
+      200: json(AutoAcceptRevocationResult, 'What it did or would do'),
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS, 'conflict'),
+    },
+  },
+  listAutoAccepted: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/auto-accepted`,
+    operationId: 'listAutoAccepted',
+    tags: ['auto-accept'],
+    summary:
+      'The auto-acceptances of the project and their state (every human reviewer: the review UI marks)',
+    description:
+      'One entry per acceptance an auto-accept rule recorded: the item, the rule’s name and ' +
+      'revision, the decider, the triggering agent proposal and the state (`in-force`, ' +
+      '`revoked`, `human-decided`). Readable by editors and owners on an interactive client ' +
+      '(permission `review`), so every reviewer sees which acceptances were made by a rule; ' +
+      'agent tokens get 403 `human-decision-required`. The rules themselves stay owner-only.',
+    request: { params: projectParams, query: AutoAcceptLedgerQuery },
+    responses: {
+      200: json(AutoAcceptLedger, 'The auto-acceptances, oldest first'),
+      ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS, 'human-decision-required'),
+    },
   },
 } as const satisfies Record<string, RouteConfig>;
 

@@ -55,6 +55,8 @@ import {
   mcpUrl,
 } from '@/lib/agent-config';
 import { api, errorMessage, unwrap } from '@/lib/api';
+import { inForceByAgent, revocationSummary, type AutoAcceptIndex } from '@/lib/auto-accept';
+import { useRevokeAutoAccepted } from '@/lib/auto-accept-actions';
 import { SCOPES, formatDate, formatDateTime } from '@/lib/labels';
 import { AGENT_TOKEN_DEFAULT_DAYS, AGENT_TOKEN_MAX_DAYS, AGENT_TOKEN_PREFIX } from '@/lib/limits';
 import { agentTokensQuery, keys } from '@/lib/queries';
@@ -369,8 +371,37 @@ function ClientSetup({ origin, secret }: { origin: string; secret: string | null
   );
 }
 
-function RevokeButton({ project, token }: { project: string; token: AgentToken }) {
+function RevokeButton({
+  project,
+  token,
+  autoAccepted,
+}: {
+  project: string;
+  token: AgentToken;
+  /** Auto-acceptances in force that this agent's proposals triggered (owner decision 19). */
+  autoAccepted: number;
+}) {
   const queryClient = useQueryClient();
+  const [alsoAuto, setAlsoAuto] = useState(false);
+  const revokeAuto = useRevokeAutoAccepted(project);
+  /** Revokes the agent's auto-acceptances: the dry run, then with its count. */
+  async function revokeAutoAccepted() {
+    const selection = { agentPrincipalId: token.principalId };
+    const dry = await revokeAuto.mutateAsync({ body: selection, dryRun: true });
+    if (dry.count === 0) return;
+    const done = await revokeAuto.mutateAsync({
+      body: { ...selection, expectedCount: dry.count, reason: `Token „${token.name}“ widerrufen` },
+      dryRun: false,
+    });
+    toast({
+      tone: 'success',
+      title:
+        done.count === 1
+          ? '1 automatische Annahme widerrufen'
+          : `${done.count} automatische Annahmen widerrufen`,
+      description: revocationSummary({ ...done, alreadyRevoked: 0 }),
+    });
+  }
   const revoke = useMutation({
     mutationFn: () => unwrap(revokeAgentToken({ client: api, path: { project, token: token.id } })),
     onSuccess: () => {
@@ -378,12 +409,21 @@ function RevokeButton({ project, token }: { project: string; token: AgentToken }
       void queryClient.invalidateQueries({ queryKey: keys.agentTokens(project) });
       // Its proposals and no-links are withdrawn; its tasks and the models it judged are queued again.
       void queryClient.invalidateQueries({ queryKey: keys.project(project) });
+      if (alsoAuto && autoAccepted > 0) {
+        revokeAutoAccepted().catch((error: unknown) =>
+          toast({
+            tone: 'danger',
+            title: 'Automatische Annahmen nicht widerrufen',
+            description: `${errorMessage(error)} Widerrufe sie im Tab „Regeln“ unter „Annahmen eines Agenten widerrufen“.`,
+          }),
+        );
+      }
     },
     onError: (error) =>
       toast({ tone: 'danger', title: 'Widerruf fehlgeschlagen', description: errorMessage(error) }),
   });
   return (
-    <AlertDialog>
+    <AlertDialog onOpenChange={(open) => (open ? setAlsoAuto(false) : undefined)}>
       <AlertDialogTrigger asChild>
         <Button variant="destructive" size="sm" disabled={revoke.isPending}>
           Widerrufen
@@ -401,6 +441,27 @@ function RevokeButton({ project, token }: { project: string; token: AgentToken }
             stattdessen ablaufen.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {autoAccepted > 0 ? (
+          <label
+            className="flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
+            data-testid="revoke-auto-option"
+          >
+            <Checkbox
+              checked={alsoAuto}
+              onCheckedChange={(checked) => setAlsoAuto(checked === true)}
+              className="mt-0.5"
+            />
+            <span>
+              {autoAccepted === 1
+                ? '1 automatisch angenommener Vorschlag stammt von diesem Agenten'
+                : `${autoAccepted} automatisch angenommene Vorschläge stammen von diesem Agenten`}{' '}
+              – nach dem Widerrufen des Tokens auch diese widerrufen? Seine offenen Vorschläge
+              werden mit dem Token zurückgezogen: Ohne offenen Vorschlag eines anderen Agenten
+              werden sie veraltet und von den Agenten neu beurteilt. Was ein Mensch seither
+              entschieden hat, bleibt.
+            </span>
+          </label>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel>Abbrechen</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={() => revoke.mutate()}>
@@ -412,7 +473,7 @@ function RevokeButton({ project, token }: { project: string; token: AgentToken }
   );
 }
 
-function TokenList({ project }: { project: string }) {
+function TokenList({ project, autoIndex }: { project: string; autoIndex?: AutoAcceptIndex }) {
   const tokens = useQuery(agentTokensQuery(project));
   const [now] = useState(() => Date.now());
   if (tokens.isPending) return <Skeleton className="h-24 w-full" />;
@@ -467,7 +528,13 @@ function TokenList({ project }: { project: string }) {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                {token.revokedAt ? null : <RevokeButton project={project} token={token} />}
+                {token.revokedAt ? null : (
+                  <RevokeButton
+                    project={project}
+                    token={token}
+                    autoAccepted={autoIndex ? inForceByAgent(autoIndex, token.principalId) : 0}
+                  />
+                )}
               </TableCell>
             </TableRow>
           );
@@ -482,7 +549,16 @@ function TokenList({ project }: { project: string }) {
  * paste a ready-made configuration into Claude Code, Claude Desktop or any
  * other MCP client; list and revoke tokens.
  */
-export function ConnectAgent({ project, origin }: { project: string; origin: string }) {
+export function ConnectAgent({
+  project,
+  origin,
+  autoIndex,
+}: {
+  project: string;
+  origin: string;
+  /** The auto-accept ledger (owners): the token revoke offers to revoke the agent's acceptances. */
+  autoIndex?: AutoAcceptIndex;
+}) {
   const [created, setCreated] = useState<CreatedAgentToken | null>(null);
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -521,7 +597,7 @@ export function ConnectAgent({ project, origin }: { project: string; origin: str
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <TokenList project={project} />
+          <TokenList project={project} autoIndex={autoIndex} />
         </CardContent>
       </Card>
     </div>

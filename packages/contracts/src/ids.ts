@@ -6,7 +6,8 @@ import { z } from 'zod';
  * are ProA 2.0 additions for invitations, relation assertions, analysis
  * submissions and stored no-links; `vch`, `vcr`, `plc` and `pas` are M4's
  * value chains, value chain revisions, placements and placement assertions
- * (M4-VALUE-CHAIN.md §2).
+ * (M4-VALUE-CHAIN.md §2); `aar` are the owner's auto-accept rules (owner
+ * decision 19).
  */
 export const ID_PREFIXES = {
   project: 'prj',
@@ -24,6 +25,7 @@ export const ID_PREFIXES = {
   valueChainRevision: 'vcr',
   placement: 'plc',
   placementAssertion: 'pas',
+  autoAcceptRule: 'aar',
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;
@@ -89,6 +91,12 @@ export const PlacementAssertionId = typedId(
   'Placement assertion id (`pas_` + ULID).',
 );
 export type PlacementAssertionId = TypedId<'pas'>;
+export const AutoAcceptRuleId = typedId(
+  'aar',
+  'AutoAcceptRuleId',
+  'Auto-accept rule id (`aar_` + ULID).',
+);
+export type AutoAcceptRuleId = TypedId<'aar'>;
 
 /**
  * Creates a new typed ULID: 48-bit millisecond timestamp plus 80 random bits,

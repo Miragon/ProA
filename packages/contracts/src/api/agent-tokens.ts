@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { AgentTokenId } from '../ids.ts';
+import { AgentTokenId, PrincipalId } from '../ids.ts';
 import { orNull, plainName } from '../zod-utils.ts';
 import { AgentScope } from './auth.ts';
 import { Timestamp } from './common.ts';
@@ -15,6 +15,11 @@ export const AGENT_TOKEN_MAX_DAYS = 365;
 export const AgentToken = z
   .object({
     id: AgentTokenId,
+    /**
+     * The token's own service principal: the agent its proposals are recorded
+     * under (what an auto-accept rule is narrowed to).
+     */
+    principalId: PrincipalId,
     name: z.string().min(1).max(100),
     /** First 8 characters after `proa_at_`, for recognition. */
     prefix: z.string().length(8),

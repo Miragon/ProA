@@ -901,3 +901,204 @@ describe('the placement pipeline (migration 0008)', () => {
     expect(r[0]?.task_state).not.toBe('cancelled');
   });
 });
+
+describe('auto-accept rules (owner decision 19, migrations 0009, 0010)', () => {
+  const RULE = 'aar_01J9Z3N4X5Q6R7S8T9V0W1X2Y1';
+  let ownerId: string;
+  let agentId: string;
+  let relationId: string;
+  let otherRelationId: string;
+  let triggerId: string;
+
+  const one = async (query: string): Promise<Record<string, unknown>> => {
+    const row = (await database.db.execute(sql.raw(query))).rows[0];
+    if (!row) throw new Error(`no row for ${query}`);
+    return row;
+  };
+
+  /** A relation assertion with the given columns (others default). */
+  const assertion = (cols: Record<string, string | number | null>) => {
+    const all: Record<string, string | number | null> = {
+      id: `asr_m${Math.random().toString(36).slice(2, 10)}`,
+      project_id: projectId,
+      relation_id: relationId,
+      seq: 2000,
+      kind: 'decision',
+      verdict: 'accept',
+      source_kind: 'human',
+      principal_id: ownerId,
+      auto_accept_rule_id: RULE,
+      auto_accept_rule_revision: 1,
+      auto_accept_trigger_id: triggerId,
+      ...cols,
+    };
+    const value = (v: string | number | null) =>
+      v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v}'`;
+    return sql.raw(
+      `INSERT INTO relation_assertion (${Object.keys(all).join(', ')}) VALUES (${Object.values(all)
+        .map(value)
+        .join(', ')})`,
+    );
+  };
+
+  const revision = (cols: Record<string, string | number | boolean>) => {
+    const all: Record<string, string | number | boolean> = {
+      project_id: projectId,
+      rule_id: RULE,
+      kind: 'relation',
+      revision: 9,
+      name: 'Regel',
+      enabled: true,
+      tier: 'key',
+      min_confidence: 0.9,
+      principal_id: ownerId,
+      source_kind: 'human',
+      seq: 1,
+      ...cols,
+    };
+    const value = (v: string | number | boolean) => (typeof v === 'string' ? `'${v}'` : String(v));
+    return sql.raw(
+      `INSERT INTO auto_accept_rule_revision (${Object.keys(all).join(', ')}) VALUES (${Object.values(
+        all,
+      )
+        .map(value)
+        .join(', ')})`,
+    );
+  };
+
+  beforeAll(async () => {
+    ownerId = String(
+      (
+        await one(
+          `SELECT principal_id FROM membership WHERE project_id = '${projectId}' AND role = 'owner'`,
+        )
+      )['principal_id'],
+    );
+    agentId = (await t.createToken('db', ['proa:read', 'proa:propose'])).principalId;
+    const rels = (
+      await database.db.execute<{ id: string }>(
+        sql.raw(`SELECT id FROM relation WHERE project_id = '${projectId}' ORDER BY id LIMIT 2`),
+      )
+    ).rows;
+    relationId = rels[0]?.id ?? '';
+    // A second relation of the project (inserted if the project has only one).
+    if (rels[1]) otherRelationId = rels[1].id;
+    else {
+      otherRelationId = 'rel_01J9Z3N4X5Q6R7S8T9V0W1X2Y9';
+      await database.db.execute(
+        sql.raw(
+          `INSERT INTO relation (id, project_id, type, from_ref, to_ref, status, endpoint_state, tier, attrs)
+           VALUES ('${otherRelationId}', '${projectId}', 'message', 'a/caller#X', 'b/callee#Y', 'proposed', 'ok', 'semantic', '{}')`,
+        ),
+      );
+    }
+    triggerId = 'asr_01J9Z3N4X5Q6R7S8T9V0W1X2T1';
+    await database.db.execute(
+      sql.raw(
+        `INSERT INTO relation_assertion (id, project_id, relation_id, seq, kind, source_kind, principal_id, tier, confidence)
+         VALUES ('${triggerId}', '${projectId}', '${relationId}', 1999, 'proposal', 'agent', '${agentId}', 'key', 0.95)`,
+      ),
+    );
+    await database.db.execute(
+      sql.raw(
+        `INSERT INTO auto_accept_rule (id, project_id, kind, created_by, seq)
+         VALUES ('${RULE}', '${projectId}', 'relation', '${ownerId}', 1)`,
+      ),
+    );
+    await database.db.execute(revision({ revision: 1 }));
+  });
+
+  it.each([
+    'UPDATE auto_accept_rule SET seq = seq',
+    'DELETE FROM auto_accept_rule',
+    'TRUNCATE auto_accept_rule CASCADE',
+    'UPDATE auto_accept_rule_revision SET enabled = false',
+    'DELETE FROM auto_accept_rule_revision',
+    'TRUNCATE auto_accept_rule_revision CASCADE',
+  ])('is append-only: %s fails', async (statement) => {
+    expect(await failure(sql.raw(statement))).toMatch(/append-only/);
+  });
+
+  it('writes revisions by humans only, with a tier of the kind and the 0.5 floor', async () => {
+    expect(await failure(revision({ source_kind: 'agent' }))).toMatch(
+      /auto_accept_rule_revision_humans_only/,
+    );
+    expect(await failure(revision({ min_confidence: 0.49 }))).toMatch(
+      /auto_accept_rule_revision_confidence_check/,
+    );
+    expect(await failure(revision({ min_confidence: 1.01 }))).toMatch(
+      /auto_accept_rule_revision_confidence_check/,
+    );
+    expect(await failure(revision({ tier: 'manual' }))).toMatch(
+      /auto_accept_rule_revision_tier_check/,
+    );
+    // The rule is a relation rule: its revisions cannot claim another kind.
+    expect(await failure(revision({ kind: 'placement', tier: 'lexical' }))).toMatch(
+      /auto_accept_rule_revision_rule_fk/,
+    );
+    expect(await failure(revision({ revision: 1 }))).toMatch(/auto_accept_rule_revision/);
+    expect(await failure(revision({ name: '' }))).toMatch(/auto_accept_rule_revision_name_check/);
+  });
+
+  it('marks only a human acceptance with its trigger, or its revocation', async () => {
+    await database.db.execute(assertion({}));
+    await database.db.execute(
+      assertion({ kind: 'withdrawal', verdict: null, auto_accept_trigger_id: null, seq: 2001 }),
+    );
+    expect(await failure(assertion({ auto_accept_trigger_id: null }))).toMatch(
+      /relation_assertion_auto_accept_check/,
+    );
+    expect(await failure(assertion({ kind: 'withdrawal', verdict: null }))).toMatch(
+      /relation_assertion_auto_accept_check/,
+    );
+    expect(await failure(assertion({ verdict: 'reject' }))).toMatch(
+      /relation_assertion_auto_accept_check/,
+    );
+    expect(await failure(assertion({ tier: 'key' }))).toMatch(
+      /relation_assertion_auto_accept_check/,
+    );
+    expect(
+      await failure(assertion({ kind: 'note', verdict: null, auto_accept_trigger_id: null })),
+    ).toMatch(/relation_assertion_auto_accept_check/);
+    expect(await failure(assertion({ auto_accept_rule_revision: null }))).toMatch(
+      /relation_assertion_auto_accept_check/,
+    );
+    expect(
+      await failure(assertion({ auto_accept_rule_id: null, auto_accept_rule_revision: null })),
+    ).toMatch(/relation_assertion_auto_accept_check/);
+  });
+
+  it('pins the decider to the revision’s author and the trigger to the same relation', async () => {
+    // Another principal (marked as human, which only the domain would ever write).
+    expect(await failure(assertion({ principal_id: agentId }))).toMatch(
+      /relation_assertion_auto_accept_rule_fk/,
+    );
+    expect(await failure(assertion({ auto_accept_rule_revision: 2 }))).toMatch(
+      /relation_assertion_auto_accept_rule_fk/,
+    );
+    expect(await failure(assertion({ relation_id: otherRelationId }))).toMatch(
+      /relation_assertion_auto_accept_trigger_fk/,
+    );
+  });
+
+  it('still refuses an agent decision, marked or not', async () => {
+    expect(await failure(assertion({ source_kind: 'agent', principal_id: agentId }))).toMatch(
+      /relation_assertion_(agents_never_decide|auto_accept_check)/,
+    );
+  });
+
+  it('puts the same guarantees on placement assertions', async () => {
+    const names = (
+      await database.db.execute<{ conname: string }>(
+        sql.raw(
+          `SELECT conname FROM pg_constraint WHERE conrelid = 'placement_assertion'::regclass AND conname LIKE '%auto_accept%' ORDER BY conname`,
+        ),
+      )
+    ).rows.map((r) => r.conname);
+    expect(names).toEqual([
+      'placement_assertion_auto_accept_check',
+      'placement_assertion_auto_accept_rule_fk',
+      'placement_assertion_auto_accept_trigger_fk',
+    ]);
+  });
+});

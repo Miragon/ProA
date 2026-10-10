@@ -26,6 +26,7 @@ import {
 } from '@proa/contracts';
 
 import { sourceKindOf, type Actor } from '../actor.ts';
+import { autoAcceptRelations } from '../auto-accept/apply.ts';
 import { DomainError } from '../errors.ts';
 import { headFingerprints, type HeadFingerprints } from '../fingerprints.ts';
 import { requeueAfterLoss } from '../ingest.ts';
@@ -549,8 +550,15 @@ export function reviewUseCases(deps: UseCaseDeps) {
               : { procedure: body.procedure, llmModel: body.llmModel },
           submissionId: null,
         };
-        const { effect, relation } = await applyProposal(ctx, valid.value);
-        return { result: effect, relation: await view(tx, project.id, relation) };
+        const { effect, relation, assertion } = await applyProposal(ctx, valid.value);
+        // The response reports the state before the owner's auto-accept rules ran (owner decision 19).
+        const response = { result: effect, relation: await view(tx, project.id, relation) };
+        if (assertion) {
+          await autoAcceptRelations(ctx, [{ relation, assertion }], {
+            procedure: deps.expectedProcedure(),
+          });
+        }
+        return response;
       });
     },
 

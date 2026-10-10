@@ -149,11 +149,18 @@ export function endpointFingerprints(
  * Classifies a valid proposal and records it if it adds something
  * (`classifyProposal`): creates the relation when new, appends the proposal
  * assertion with its event, and refreshes the relation's derived state.
+ *
+ * @returns the effect, the relation, and the recorded proposal (`null` when
+ *   nothing was recorded), which the auto-accept step evaluates
  */
 export async function applyProposal(
   ctx: ProposalContext,
   p: ValidProposal,
-): Promise<{ effect: ProposalEffect; relation: RelationRecord }> {
+): Promise<{
+  effect: ProposalEffect;
+  relation: RelationRecord;
+  assertion: AssertionRecord | null;
+}> {
   const key = naturalKey(p.type, p.from, p.to);
   const existing = ctx.relations.get(key);
   const target = existing ?? { id: newId('relation'), type: p.type, fromRef: p.from, toRef: p.to };
@@ -174,7 +181,7 @@ export async function applyProposal(
     toFp,
     ...(basis && procedure ? { basis: { ...basis, procedure } } : {}),
   });
-  if (!record && existing) return { effect, relation: existing };
+  if (!record && existing) return { effect, relation: existing, assertion: null };
 
   const assertion = await prepareAssertion(ctx.tx, ctx.projectId, target, {
     kind: 'proposal',
@@ -218,7 +225,7 @@ export async function applyProposal(
     await ctx.tx.assertions.insert(assertion);
   }
   ctx.relations.set(key, relation);
-  return { effect, relation };
+  return { effect, relation, assertion };
 }
 
 /**
