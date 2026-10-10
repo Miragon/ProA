@@ -152,8 +152,9 @@ describe('docker/fly.demo.toml', () => {
     expect(value('primary_region')).toBe('"fra"');
   });
 
-  it('suspends idle machines, restarts on failure, and has no swap (suspend needs none)', () => {
-    expect(value('auto_stop_machines')).toBe('"suspend"');
+  it('stops idle machines (nothing runs, owner 2026-10-10), restarts on failure, has no swap', () => {
+    expect(value('auto_stop_machines')).toBe('"stop"');
+    expect(value('min_machines_running')).toBe('0');
     expect(value('auto_start_machines')).toBe('true');
     expect(value('policy')).toBe('"on-failure"');
     expect(value('memory')).toBe('"1gb"');

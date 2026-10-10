@@ -56,8 +56,9 @@ and code are in English.
   demo** (issue [#3](https://github.com/Miragon/ProA/issues/3), owner decision 20, 2026-10-10:
   `PROA_DEMO=readonly`, the demo image with the seed baked in, Fly.io
   configuration and deploy workflow, built and checked locally, a review round's fixes are in,
-  Miragon's Impressum and privacy policy linked in the banner (decision 21); **not deployed**,
-  the owner's Fly setup is open, see §7 "Demo deployment, issue #3").
+  Miragon's Impressum and privacy policy linked in the banner (decision 21); **live since
+  2026-10-10 at https://proa-demo.fly.dev** (Fly organization `miragon`), see §7 "Demo
+  deployment, issue #3").
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` and `proa-placements@0.1.0`
   (`docs/proa-2/M3-LIVE-RUNS.md`, steps 1–6 and 6a: 3 runs per landscape and model incl. the
   holdout), a chain drafted in Claude Desktop and rated, the holdout import check. **The next
@@ -157,7 +158,7 @@ and code are in English.
     proposals; (5) **no automatic nightly reset** (first asked for, then withdrawn: „doch nicht
     nachts … aber ich muss es machen können“): the owner resets the demo on demand, with
     one documented action; visitors have no reset endpoint. No Camunda engines; ProA holds no LLM
-    credentials. **Built 2026-10-10** (not deployed): CONCEPT §6 "Read-only demo", DEVELOPMENT.md
+    credentials. **Live 2026-10-10** (https://proa-demo.fly.dev): CONCEPT §6 "Read-only demo", DEVELOPMENT.md
     "Demo deployment (Fly.io)" with "Reset the demo".
 21. **Demo legal links and the entry ceiling** (2026-10-10): (1) the demo links Miragon's own
     legal pages („nimm die dinge vom miragon.io impressum“): the Impressum
@@ -193,8 +194,8 @@ outside the demo; the web UI hides write actions **by role** (viewers in general
 prepares server mode), the tab „Regeln“ stays owner-only (so it is hidden in the demo instead of
 read-only), „Agent verbinden“ is now owner-only too (agent tokens are an owner action, CONCEPT
 §6); the banner text promises no nightly reset; Fly: region `fra`, `shared-cpu-1x` with 1 GB,
-**`auto_stop_machines = "suspend"`** (resume in well under a second, storage-only cost; the data
-cannot drift), blue-green deploys behind `/health`, restart policy `on-failure` (not `always`,
+**`auto_stop_machines = "stop"`** (the owner, 2026-10-10: an idle demo shuts down and costs
+nothing; first chosen: `suspend`), blue-green deploys behind `/health`, restart policy `on-failure` (not `always`,
 which keeps machines from stopping), `--ha=false`; flyctl 0.4.108 from the release tarball with
 its sha256 instead of the setup action; the reset is a redeploy (fresh seed) or `fly machine
 stop`/`start` (same seed), and the workflow's manual run offers both; a CI job `demo` builds and
@@ -582,7 +583,7 @@ until the owner creates one.
   open proposals only after reading the dry run list.
 - Decide the new open questions in §8.
 
-### Demo deployment, issue #3 (built 2026-10-10, not deployed)
+### Demo deployment, issue #3 (live since 2026-10-10)
 
 Owner decision 20 (§4). Built on `claude/proa-2` in the commit after the auto-accept rules:
 `PROA_DEMO=readonly` in the server (the read-only guard, the viewer session,
@@ -593,8 +594,17 @@ gating, `apps/demo`, `docker/Dockerfile.demo` (+ `.dockerignore`), `docker/compo
 level and these docs. Verified locally (DEVELOPMENT.md "Read-only demo, issue #3"): the image
 builds with the seed in about 5 s, starts in about 1 s, `proa-demo check` passes, the
 Playwright walk passes, a restart is back at the seed, the image holds no eval file and the
-database no expected answer, every gate passes. **Nothing ran on Fly.io or GitHub:** no Fly
-account was available.
+database no expected answer, every gate passes.
+
+**Deployed 2026-10-10:** the owner logged in to Fly.io; the app `proa-demo` lives in the
+organization `miragon` (the owner's choice, like Miragon's other tools), the deploy token (app
+scope, **expires 2027-10-10**) is the GitHub secret `FLY_API_TOKEN`. The first deploy was a
+`gh workflow run demo-deploy.yml --ref claude/proa-2` (so dispatching from the branch works); the
+remote build seeded in the build step and the smoke check passed 126 checks against
+https://proa-demo.fly.dev with both legal links. One machine (`shared-cpu-1x`, 1 GB, `fra`), no
+volume, a shared IPv4 and a dedicated IPv6 (both free). The owner asked the same day that an idle
+demo shuts down and costs nothing ("wenn sie 30 Minuten nicht genutzt wird"):
+`auto_stop_machines` went from `suspend` to `stop` (`min_machines_running = 0`).
 
 **Review round (2026-10-10, same day):** `POST /api/v1/session` reads at most 4 KiB (a single
 anonymous 700 MB request had killed the 1 GB machine; now 413 before reading, in local mode
@@ -626,18 +636,9 @@ fixes are in: the legal-links test runs last in the serial `demo.spec.ts` (a dem
 optional links fails it alone, the read walk still runs), and M4 §5 names the new ceiling.
 
 **Owner actions** (the commands are in DEVELOPMENT.md "Demo deployment (Fly.io)"):
-- One-time: `fly auth login`, `fly apps create proa-demo --org <org>` (another name if taken,
-  then the repository variable `FLY_DEMO_APP`), `fly tokens create deploy --app proa-demo --expiry
-  8760h` and `gh secret set FLY_API_TOKEN --repo Miragon/ProA`. **The token expires after one
-  year:** note the date; renewing is the same two commands (`fly tokens create deploy --app
-  proa-demo --expiry 8760h | gh secret set FLY_API_TOKEN --repo Miragon/ProA`).
-- The first deploy: commit and push (the workflow runs on the paths it watches), or `gh workflow
-  run demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2`; then open
-  https://proa-demo.fly.dev and run `pnpm --filter @proa/demo check --url
-  https://proa-demo.fly.dev`.
-- After the first push run, try `gh workflow run demo-deploy.yml --repo Miragon/ProA --ref
-  claude/proa-2` once (GitHub documents dispatching a workflow outside the default branch once
-  it has run) and note the result in DEVELOPMENT.md "Reset the demo".
+- Done 2026-10-10: the one-time setup and the first deploy (see above). **The token expires on
+  2027-10-10**; renew it before with `fly tokens create deploy --app proa-demo --expiry 8760h |
+  gh secret set FLY_API_TOKEN --repo Miragon/ProA`.
 - **Reset** whenever wanted, the one documented action for a fresh seed: `gh workflow run
   demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2`. Fallback from the checkout: `fly
   deploy --config docker/fly.demo.toml --app proa-demo --remote-only --ha=false --build-arg

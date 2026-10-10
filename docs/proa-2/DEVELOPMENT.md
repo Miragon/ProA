@@ -22,7 +22,7 @@ placement review, save with dry run, conflict and drafts, link editing, drill-do
 ([below](#value-chain-in-the-web-ui-m4), [M4 S3](#m4-s3-2026-10-09)); and the LLM-free placement
 eval `eval:placements`, `proa seed --value-chains` and German texts for the rule tier
 ([below](#value-chain-and-placements-m4), [M4 S4](#m4-s4-2026-10-09)). The public read-only demo of
-issue #3 (owner decision 20) is built and checked locally, not deployed yet
+issue #3 (owner decision 20) is live at https://proa-demo.fly.dev since 2026-10-10
 ([Demo deployment (Fly.io)](#demo-deployment-flyio)). The 1.x tree (`backend/`, `frontend/`,
 Maven) lives next to it, untouched, until the cut-over PR.
 
@@ -62,7 +62,7 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | The `placement` pipeline kind (M4 S5, [below](#the-placement-pipeline-and-proa-placements-m4-s5)): task kinds and subjects (migration 0008), judge each process once (input hashes, `placement_input`, one open task per chain, follow-ups at submit), the claim input `proa-claim-placement/1`, placement submissions with supersession and unsure verdicts, the chain's stage, the procedure, prompts and skill, the placement live gate | working over REST and MCP; unit and real-PostgreSQL tests (`placement-pipeline.test.ts`: every trigger and stage, supersession, the unsure memory, truncation with one follow-up, saves during a lease), the simulation agent on both landscapes, the procedure drift test, Playwright for the Import; no LLM run yet |
 | Value chain and placements over REST, MCP and CLI (M4 S2, [below](#value-chain-and-placements-m4)): `prepareRevision` (canonical bytes, ProA rules, kinds, ranks, fingerprints, `structure_hash`), 19 routes (`If-Match`/`If-None-Match`, `dryRun`, decisions incl. bulk, unplaced processes, findings), six MCP tools, `proa value-chain push\|pull`, the rule tier's key proposals, placements that follow model ingest and deletion, server tiers with `baseline-prefix/1` (`@proa/relations`), token revocation | working over REST, MCP and the CLI (and since S3 in the web UI); unit tests (document rules, structure incl. the golden dev chain, impact, items, tiers, rules, findings, `baseline-prefix/1`), real-PostgreSQL tests (REST, placements, rule tier, the dev landscape with its golden chain through model changes, policy matrix, MCP contract), the CLI against a fake API and end to end |
 | Auto-accept rules (owner decision 19, [below](#auto-accept-rules-owner-decision-19)): the tables `auto_accept_rule` and `auto_accept_rule_revision` and the assertion marker (migrations 0009/0010), the evaluator with its safeguards in all four agent write paths, apply and revoke with dry runs, the preview and the ledger (`src/domain/auto-accept/`), seven owner-only routes and the ledger for every reviewer, `proa rules …`, the tab „Regeln“ with marks and filters in the review views, the „Auto-accept what-if“ of `eval:replay` | working over REST, the CLI and the web UI (no MCP by design); unit tests (evaluator, status with revocations, preview, rules, the what-if), real-PostgreSQL tests (relations and placements end to end, revocation, migration on existing data, constraints, policy matrix), CLI unit and e2e tests, web component tests and Playwright (`e2e/auto-accept.spec.ts`) against a throwaway stack; MCP snapshots and recordings unchanged |
-| Read-only demo on Fly.io (issue #3, owner decision 20, [below](#demo-deployment-flyio)): `PROA_DEMO=readonly` in the server (the read-only guard before authentication, the viewer session, `demo-readonly`, MCP off, credentials refused, the public Host/Origin guard, `Health.demo`), the read-only database role and the visitor (`demo-bootstrap.ts`), the web UI's banner and role gating, `apps/demo` (`proa-demo seed\|serve\|check`), `docker/Dockerfile.demo` with the seed baked in, `docker/compose.demo.yaml`, `docker/fly.demo.toml`, `.github/workflows/demo-deploy.yml` and the CI job `demo`; after the review round: the session body capped at 4 KiB, `proa-demo check` never writes to a non-demo, the agents' no-links in the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, every role and mode); the operator's legal links (`PROA_DEMO_IMPRINT_URL`, `PROA_DEMO_PRIVACY_URL`, „Impressum“ and „Datenschutz“ in the banner; Miragon's pages in `fly.demo.toml`) | built and checked locally (the image, `proa-demo check`, the Playwright walk, restart = seed, no eval file in the image; [Read-only demo, issue #3](#read-only-demo-issue-3-2026-10-10)); unit and real-PostgreSQL tests (every write route 403 with three credentials and none forgotten, every GET route over the read-only role, a 700 MB session body cut off at 4 KiB); **not deployed**: no Fly account was available, so flyctl, the remote builder, suspend and the workflow have not run |
+| Read-only demo on Fly.io (issue #3, owner decision 20, [below](#demo-deployment-flyio)): `PROA_DEMO=readonly` in the server (the read-only guard before authentication, the viewer session, `demo-readonly`, MCP off, credentials refused, the public Host/Origin guard, `Health.demo`), the read-only database role and the visitor (`demo-bootstrap.ts`), the web UI's banner and role gating, `apps/demo` (`proa-demo seed\|serve\|check`), `docker/Dockerfile.demo` with the seed baked in, `docker/compose.demo.yaml`, `docker/fly.demo.toml`, `.github/workflows/demo-deploy.yml` and the CI job `demo`; after the review round: the session body capped at 4 KiB, `proa-demo check` never writes to a non-demo, the agents' no-links in the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, every role and mode); the operator's legal links (`PROA_DEMO_IMPRINT_URL`, `PROA_DEMO_PRIVACY_URL`, „Impressum“ and „Datenschutz“ in the banner; Miragon's pages in `fly.demo.toml`) | built and checked locally (the image, `proa-demo check`, the Playwright walk, restart = seed, no eval file in the image; [Read-only demo, issue #3](#read-only-demo-issue-3-2026-10-10)); unit and real-PostgreSQL tests (every write route 403 with three credentials and none forgotten, every GET route over the read-only role, a 700 MB session body cut off at 4 KiB); **live since 2026-10-10** at https://proa-demo.fly.dev (Fly organization `miragon`, idle machines stopped) |
 
 ## Quickstart (Docker)
 
@@ -548,9 +548,14 @@ listed project; its write walk names the project `proa-demo-check-none` and the 
    "https://demo.example.org,https://proa-demo.fly.dev"` and a deploy (the workflow passes it as
    `PROA_PUBLIC_ORIGIN` and checks the first origin).
 
-**Costs:** one `shared-cpu-1x` machine with 1 GB, suspended while nobody visits
-(`auto_stop_machines = "suspend"`), so Fly bills its running time and the storage of its root file
-system and snapshot; a blue-green deploy runs a second machine for a few minutes. Current prices:
+**Costs:** one `shared-cpu-1x` machine with 1 GB that runs only while people visit. The owner
+asked (2026-10-10) that an idle demo shuts down and costs nothing: `auto_stop_machines = "stop"`
+with `min_machines_running = 0`, so Fly's proxy stops the machine within minutes without traffic
+(well before the 30 minutes the owner named) and starts it again on the next request; the first
+visitor after a pause waits a few seconds (the baked seed is copied at start). A stopped machine
+bills only the storage of its root file system (cents per month), no CPU, RAM or snapshot; a
+blue-green deploy runs a second machine for a few minutes. Check it with
+`fly machine list --app proa-demo` (state `stopped`). Current prices:
 https://fly.io/docs/about/pricing/. **No Fly secrets:** the issue listed `DATABASE_URL` and
 `PROA_SESSION_SECRET`, but PostgreSQL runs inside the machine (its URL never leaves the
 container) and the session key is random per start, which only ends the visitors' viewer
@@ -568,6 +573,8 @@ is healthy):
 gh workflow run demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2
 gh run watch --repo Miragon/ProA   # optional: pick the new "Demo deploy" run and follow it
 ```
+
+Verified on 2026-10-10: the first deploy was dispatched exactly this way.
 
 GitHub documents both halves of this on its `workflow_dispatch` page ("Events that trigger
 workflows"): the event, and the "Run workflow" button, need the workflow file on the default
@@ -602,7 +609,7 @@ newest run that deployed it, a push run or a `deploy` dispatch; a re-run of a `r
 only restarts, and a re-run of an older push run deploys that older commit again.
 
 `fly apps restart` is not used: it restarts running machines only, and the demo's machine is
-often suspended. Links into the demo survive a restart, not a deploy (a new seed has new ids).
+usually stopped. Links into the demo survive a restart, not a deploy (a new seed has new ids).
 
 ### Troubleshooting the demo
 
@@ -3879,6 +3886,16 @@ resume, `fly machine stop`/`start`, a custom domain, the workflow on GitHub (the
 the secret, `gh workflow run … --ref claude/proa-2`, "Re-run all jobs") and the CI job `demo`.
 `docker/fly.demo.toml` was checked against the Fly configuration reference (docs.fly.io) and the
 flyctl v0.4.108 source (how `dockerfile` and `ignorefile` resolve), and parsed as TOML.
+
+**First deploy (2026-10-10).** The owner logged in; the app `proa-demo` was created in the Fly
+organization `miragon`, an app-scoped deploy token (expires 2027-10-10) became the secret
+`FLY_API_TOKEN` without being printed, and `gh workflow run demo-deploy.yml --repo Miragon/ProA
+--ref claude/proa-2 -f action=deploy` deployed (dispatching from the branch works once the
+workflow has run there): the remote builder ran the seed in the build step, the blue-green deploy
+passed `/health`, and the smoke check passed 126 checks against https://proa-demo.fly.dev with
+both legal links. `fly ips list`: a shared IPv4 and a dedicated IPv6 (no paid dedicated IPv4);
+one machine, no volume. Afterwards `auto_stop_machines` went from `suspend` to `stop` (the owner:
+an idle demo costs nothing).
 
 **Review round (2026-10-10, same machine).** Nine findings were checked against the code; all
 were real and are fixed: the session body cap (an anonymous chunked 700 MB `POST

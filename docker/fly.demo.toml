@@ -41,10 +41,12 @@ kill_timeout = 15
 [http_service]
   internal_port = 8080
   force_https = true
-  # Suspended machines resume in well under a second and cost storage only;
-  # the data is read-only, so a resumed machine still shows the seed. If a
-  # snapshot is gone, a cold start copies the seed again within seconds.
-  auto_stop_machines = "suspend"
+  # The owner (2026-10-10): an idle demo must shut down and cost nothing. The
+  # proxy stops the machine within minutes without traffic (well before the
+  # owner's 30 minutes) and starts it on the next request; a stopped machine
+  # bills only its root file system, no CPU, RAM or memory snapshot. A cold
+  # start copies the baked seed and takes seconds. min 0: nothing stays up.
+  auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
 
@@ -59,13 +61,13 @@ kill_timeout = 15
     method = "GET"
     path = "/health"
 
-# PostgreSQL and Node in one machine. No swap: suspend requires none.
+# PostgreSQL and Node in one machine, no swap.
 [[vm]]
   size = "shared-cpu-1x"
   memory = "1gb"
 
 # A crashed supervisor exits 1 and the machine restarts from the seed;
-# "always" would keep the machine from staying stopped or suspended.
+# "always" would keep the machine from staying stopped.
 [[restart]]
   policy = "on-failure"
   retries = 10

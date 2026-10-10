@@ -92,7 +92,7 @@ jobs:
           if [ -n "$PUBLIC_ORIGIN" ]; then set -- "$@" --env "PROA_PUBLIC_ORIGIN=$PUBLIC_ORIGIN"; fi
           flyctl deploy "$@"
 
-      # Stop and start (not `fly apps restart`, which skips stopped and suspended
+      # Stop and start (not `fly apps restart`, which skips stopped
       # machines): every start copies the seed again.
       - name: Restart (same seed)
         if: steps.fly.outputs.enabled == 'true' && github.event_name == 'workflow_dispatch' && inputs.action == 'restart'
