@@ -1,0 +1,49 @@
+key: finance/payment-collection
+engine: c7
+name: Payment collection
+notes: >-
+  English-speaking finance team, called by vertrieb/auftragsabwicklung.
+  "Invoice sent" is the German "Rechnung versendet" under another message
+  name (de-en). "Invoice paid" vs "Invoice sent" is a near-miss inside one
+  process.
+
+processes:
+  - id: Process_PaymentCollection
+    name: Payment collection
+    dataStores:
+      - { id: DataStore_CrmKunden, name: CRM Kunden }
+    elements:
+      - { type: startEvent, id: Start_PaymentCollectionRequested, name: Payment collection requested }
+      - type: userTask
+        id: Task_CheckPaymentTerms
+        name: Check payment terms
+        reads: [DataStore_CrmKunden]
+      - type: intermediateCatchEvent
+        id: Event_InvoiceSent
+        name: Invoice sent
+        message: InvoiceSent
+      - type: eventBasedGateway
+        id: Gateway_AwaitPayment
+        next: [Event_PaymentReceived, Event_14DaysPassed]
+      - type: intermediateCatchEvent
+        id: Event_PaymentReceived
+        name: Payment received
+        message: PaymentReceived
+      - { type: endEvent, id: End_InvoicePaid, name: Invoice paid }
+      - type: intermediateCatchEvent
+        id: Event_14DaysPassed
+        name: 14 days passed
+        timer: { duration: P14D }
+      - { type: sendTask, id: Task_SendReminder, name: Send reminder }
+      - { type: endEvent, id: End_ReminderSent, name: Reminder sent }
+      - type: eventSubProcess
+        id: EventSub_InvoicingCompleted
+        name: Invoicing completed
+        elements:
+          - type: startEvent
+            id: Start_InvoicingCompleted
+            name: Invoicing completed
+            signal: RechnungsstellungAbgeschlossen
+            interrupting: false
+          - { type: serviceTask, id: Task_UpdateReceivable, name: Update receivable }
+          - { type: endEvent, id: End_ReceivableUpdated, name: Receivable updated }

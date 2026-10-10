@@ -1,0 +1,85 @@
+key: netz/entstoerung
+engine: c8
+name: Entstörung
+notes: >-
+  Single-pool collaboration with two lanes. Started by the repair order from
+  netz/stoerungsannahme. Broadcasts the signals "Großstörung" (caught by four
+  processes in four files) and "Großstörung beendet" (caught by two) when many
+  customers are affected (signal-broadcast). Throws the generic message
+  "Rueckmeldung" back to the fault desk; netz/pv-einspeisung waits for a
+  message with the same name but from messwesen/zaehlerwechsel (generic-name).
+
+collaboration:
+  participants:
+    - { id: Participant_Netzbetrieb, name: Auental Netz - Netzbetrieb, process: Process_Entstoerung }
+
+processes:
+  - id: Process_Entstoerung
+    name: Entstörung
+    documentation: >-
+      Behebung von Versorgungsstörungen: Lage bewerten, bei vielen Betroffenen
+      eine Großstörung ausrufen, Bereitschaftstrupp disponieren, Störung vor Ort
+      beheben, Bericht erfassen und der Störungsannahme zurückmelden.
+    lanes:
+      - { id: Lane_Netzleitstelle, name: Netzleitstelle }
+      - { id: Lane_Bereitschaftsdienst, name: Bereitschaftsdienst }
+    dataStores:
+      - { id: DataStore_Nis, name: Netzinformationssystem }
+      - { id: DataStore_Stoerungen, name: Störungsdatenbank }
+    elements:
+      - type: startEvent
+        id: Start_EntstoerauftragEingegangen
+        name: Entstörauftrag eingegangen
+        lane: Lane_Netzleitstelle
+        message: Entstoerauftrag
+      - type: userTask
+        id: Task_LageBewerten
+        name: Lage im Netz bewerten
+        candidateGroups: netzleitstelle
+        reads: [DataStore_Nis]
+      - type: exclusiveGateway
+        id: Gateway_Grossstoerung
+        name: Mehr als 500 Kunden betroffen?
+        next:
+          - { to: Event_GrossstoerungAusgerufen, name: ja, condition: "=betroffeneKunden > 500" }
+          - { to: Gateway_GrossstoerungJoin, name: nein, default: true }
+      - type: intermediateThrowEvent
+        id: Event_GrossstoerungAusgerufen
+        name: Großstörung ausgerufen
+        signal: Großstörung
+      - { type: exclusiveGateway, id: Gateway_GrossstoerungJoin }
+      - type: userTask
+        id: Task_TruppDisponieren
+        name: Bereitschaftstrupp disponieren
+        candidateGroups: netzleitstelle
+      - type: subProcess
+        id: Sub_StoerungBeheben
+        name: Störung beheben
+        lane: Lane_Bereitschaftsdienst
+        elements:
+          - { type: startEvent, id: Start_TruppVorOrt, name: Trupp vor Ort }
+          - { type: manualTask, id: Task_FehlerEingrenzen, name: Fehler eingrenzen und freischalten }
+          - { type: manualTask, id: Task_VersorgungWiederherstellen, name: Versorgung wiederherstellen }
+          - { type: endEvent, id: End_VersorgungWiederhergestellt, name: Versorgung wiederhergestellt }
+      - type: userTask
+        id: Task_StoerungsberichtErfassen
+        name: Störungsbericht erfassen
+        candidateGroups: bereitschaftsdienst
+        writes: [DataStore_Stoerungen]
+      - type: intermediateThrowEvent
+        id: Event_RueckmeldungGesendet
+        name: Rückmeldung gesendet
+        lane: Lane_Netzleitstelle
+        message: { name: Rueckmeldung, correlationKey: "=stoerungsnummer" }
+      - type: exclusiveGateway
+        id: Gateway_GrossstoerungAktiv
+        name: Großstörung aktiv?
+        next:
+          - { to: Event_GrossstoerungBeendet, name: ja, condition: "=grossstoerungAusgerufen" }
+          - { to: Gateway_AbschlussJoin, name: nein, default: true }
+      - type: intermediateThrowEvent
+        id: Event_GrossstoerungBeendet
+        name: Großstörung beendet
+        signal: Großstörung beendet
+      - { type: exclusiveGateway, id: Gateway_AbschlussJoin }
+      - { type: endEvent, id: End_EntstoerungAbgeschlossen, name: Entstörung abgeschlossen }

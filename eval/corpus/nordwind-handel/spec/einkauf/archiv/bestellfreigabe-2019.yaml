@@ -1,0 +1,28 @@
+key: einkauf/archiv/bestellfreigabe-2019
+engine: c7
+engineVersion: 7.19.0
+name: Bestellfreigabe (Stand 2019)
+notes: >-
+  Outdated single-level copy that was never removed from the model
+  repository. It defines the same process id as einkauf/bestellfreigabe, so
+  the call in einkauf/bestellanforderung has two candidates
+  (call-ambiguous, duplicate-process-id).
+
+processes:
+  - id: Process_Bestellfreigabe
+    name: Bestellfreigabe
+    documentation: Einstufige Freigabe durch die Einkaufsleitung (Richtlinie 2019, abgelöst).
+    elements:
+      - { type: startEvent, id: Start_FreigabeAngefordert, name: Freigabe angefordert }
+      - type: userTask
+        id: Task_BestellungFreigeben
+        name: Bestellung freigeben
+        candidateGroups: einkaufsleitung
+      - type: exclusiveGateway
+        id: Gateway_Freigegeben
+        name: Freigegeben?
+        next:
+          - { to: End_BestellungFreigegeben, name: ja, condition: "${freigegeben}" }
+          - { to: End_BestellungAbgelehnt, name: nein, default: true }
+      - { type: endEvent, id: End_BestellungFreigegeben, name: Bestellung freigegeben }
+      - { type: endEvent, id: End_BestellungAbgelehnt, name: Bestellung abgelehnt }

@@ -1,0 +1,85 @@
+key: abrechnung/stammdatenuebernahme
+engine: c7
+name: Stammdatenuebernahme Abrechnung
+notes: >-
+  C7 intake for billing-relevant master data, labels without umlauts. Four
+  message starts fed from C8: "Zaehler eingebaut" (messwesen/zaehlermontage,
+  identical message name ZaehlerEingebaut, cross-engine-message),
+  "Zaehlerwechsel durchgefuehrt" whose message name ZaehlerwechselDurchgefuehrt
+  is the transliteration of the C8 name ZählerwechselDurchgeführt
+  (transliteration), "Zaehler ausgebaut" (decommissioning from
+  messwesen/zaehlerwechsel, cross-engine-message) and "Lieferbeginn gemeldet"
+  (marktkommunikation/lieferbeginn). "Zaehler eingebaut" and "Zaehler
+  ausgebaut" are near-misses of each other, by label and by message name. The
+  billing side only reads the device master (Zaehlerstammdaten, the Gerätestamm
+  of metering) and writes installation and contract data to Kundenstamm IS-U.
+
+processes:
+  - id: Process_Stammdatenuebernahme
+    name: Stammdatenuebernahme Abrechnung
+    documentation: >-
+      Übernimmt Geräte- und Vertragsereignisse aus Messstellenbetrieb und
+      Wechselmanagement in die Abrechnungsstammdaten, prüft die
+      Abrechnungsfähigkeit der Anlage und legt Anlagen nach einem Zählerausbau
+      ohne Ersatz still.
+    dataStores:
+      - { id: DataStore_Zaehlerstammdaten, name: Zaehlerstammdaten }
+      - { id: DataStore_KundenstammIsu, name: Kundenstamm IS-U }
+    elements:
+      - type: startEvent
+        id: Start_ZaehlerEingebaut
+        name: Zaehler eingebaut
+        message: ZaehlerEingebaut
+      - type: serviceTask
+        id: Task_GeraetInstallieren
+        name: Geraet in Anlage installieren
+        reads: [DataStore_Zaehlerstammdaten]
+        writes: [DataStore_KundenstammIsu]
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_ZaehlerwechselDurchgefuehrt
+        name: Zaehlerwechsel durchgefuehrt
+        message: ZaehlerwechselDurchgefuehrt
+      - type: serviceTask
+        id: Task_GeraetewechselBuchen
+        name: Geraetewechsel mit Ein- und Ausbaustand buchen
+        reads: [DataStore_Zaehlerstammdaten]
+        writes: [DataStore_KundenstammIsu]
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_LieferbeginnGemeldet
+        name: Lieferbeginn gemeldet
+        message: LieferbeginnGemeldet
+      - type: serviceTask
+        id: Task_VertragAnlegen
+        name: Vertrag und Vertragskonto anlegen
+        writes: [DataStore_KundenstammIsu]
+      - { type: exclusiveGateway, id: Gateway_AnlassJoin }
+      - type: businessRuleTask
+        id: Task_AbrechnungsfaehigkeitPruefen
+        name: Abrechnungsfaehigkeit pruefen
+        reads: [DataStore_Zaehlerstammdaten, DataStore_KundenstammIsu]
+      - type: exclusiveGateway
+        id: Gateway_Abrechnungsfaehig
+        name: Abrechnungsfaehig?
+        next:
+          - { to: End_StammdatenUebernommen, name: ja, condition: "${abrechnungsfaehig}" }
+          - { to: Task_KlaerfallBearbeiten, name: nein, default: true }
+      - { type: endEvent, id: End_StammdatenUebernommen, name: Stammdaten uebernommen }
+
+      - type: userTask
+        id: Task_KlaerfallBearbeiten
+        name: Klaerfall bearbeiten
+        candidateGroups: abrechnung
+      - { type: endEvent, id: End_KlaerfallBearbeitet, name: Klaerfall bearbeitet }
+
+      - type: startEvent
+        id: Start_ZaehlerAusgebaut
+        name: Zaehler ausgebaut
+        message: ZaehlerAusgebaut
+      - type: serviceTask
+        id: Task_AnlageStilllegen
+        name: Geraeteausbau buchen und Anlage stilllegen
+        reads: [DataStore_Zaehlerstammdaten]
+        writes: [DataStore_KundenstammIsu]
+      - { type: endEvent, id: End_AnlageStillgelegt, name: Anlage stillgelegt }

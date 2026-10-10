@@ -1,0 +1,32 @@
+# ProA 2.0 workspace (CONCEPT §8). The 1.x tree (backend/, frontend/, Maven)
+# is not part of it. pnpm 11 reads its settings from this file; .npmrc only
+# carries auth and registry settings.
+packages:
+  - apps/*
+  - packages/*
+  - eval/tools
+
+# pnpm 11 runs no dependency install scripts unless allowed here. esbuild
+# (drizzle-kit, tsx) checks its platform binary; the others are optional
+# native add-ons of testcontainers' ssh transport and are not needed.
+allowBuilds:
+  cpu-features: false
+  esbuild: true
+  protobufjs: false
+  ssh2: false
+
+# pnpm 11 holds back releases younger than a day. Exact versions released less
+# than a day before they were pinned on purpose (M4 S0: the value chain packages,
+# released 2026-10-08); harmless once they are older, `pnpm add` adds entries.
+minimumReleaseAgeExclude:
+  - '@miragon/value-chain-schema-model@0.3.0'
+  - '@miragon/value-chain-renderer@0.3.0'
+
+# One vite for the whole workspace (vitest would otherwise pull its own).
+# The value chain packages need none (M4 §5): they pin the diagram-js,
+# diagram-js-direct-editing and zod versions the workspace already uses.
+overrides:
+  vite: 8.3.2
+
+# Exact versions only: `pnpm add` writes "1.2.3", never "^1.2.3".
+saveExact: true

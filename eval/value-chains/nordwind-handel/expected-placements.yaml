@@ -1,0 +1,452 @@
+# Golden placements (step -> process) for the nordwind-handel value chain.
+# Format, may rule and scoring: ../README.md. Checked by ../validate-value-chains.mjs.
+landscape: nordwind-handel
+value_chain: value-chain.vc.json
+closed_world: true
+
+# Every step of value-chain.vc.json. kind: core (the sequence chain and its sub-steps),
+# management (purple) or support (green); level 0 = top level, 1 = sub-step.
+steps:
+  - id: step-unternehmenssteuerung
+    name: Unternehmenssteuerung
+    kind: management
+    level: 0
+    scope: Corporate steering by the management and controlling (planning, KPIs, reporting).
+  - id: step-qualitaetsmanagement
+    name: Qualitätsmanagement
+    kind: management
+    level: 0
+    scope: Quality management system and product safety, incl. recalls.
+
+  - id: step-beschaffung
+    name: Beschaffung
+    kind: core
+    level: 0
+    scope: Procure merchandise from suppliers.
+  - id: step-disposition
+    name: Disposition
+    kind: core
+    level: 1
+    parent: step-beschaffung
+    scope: Determine demand and reorder points from stock levels.
+  - id: step-bestellwesen
+    name: Bestellwesen
+    kind: core
+    level: 1
+    parent: step-beschaffung
+    scope: Purchase requisitions, approval and purchase orders to suppliers.
+  - id: step-lieferantenmanagement
+    name: Lieferantenmanagement
+    kind: core
+    level: 1
+    parent: step-beschaffung
+    scope: Onboard and maintain suppliers (vendors).
+
+  - id: step-lagerhaltung
+    name: Lagerhaltung
+    kind: core
+    level: 0
+    scope: Receive, check, put away and keep stock in the Billbrook warehouse.
+  - id: step-wareneingang
+    name: Wareneingang
+    kind: core
+    level: 1
+    parent: step-lagerhaltung
+    scope: Announce, receive, book and put away supplier deliveries.
+  - id: step-qualitaetspruefung
+    name: Qualitätsprüfung
+    kind: core
+    level: 1
+    parent: step-lagerhaltung
+    scope: Sample inspection of delivered goods, blocked stock.
+  - id: step-bestandsfuehrung
+    name: Bestandsführung
+    kind: core
+    level: 1
+    parent: step-lagerhaltung
+    scope: Inventory accounting and stock counts (no process modelled yet).
+
+  - id: step-vertrieb
+    name: Vertrieb
+    kind: core
+    level: 0
+    scope: Sell through the online shop, marketplaces and B2B dealers.
+  - id: step-auftragseingang
+    name: Auftragseingang
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: Capture customer orders from all sales channels.
+  - id: step-auftragsabwicklung
+    name: Auftragsabwicklung
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: Drive a customer order from validation to payment (order-to-cash hub).
+  - id: step-bonitaetspruefung
+    name: Bonitätsprüfung
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: Check customer and dealer creditworthiness and set credit limits.
+  - id: step-partnermanagement
+    name: Partnermanagement
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: Win and onboard B2B dealers (sales partners).
+
+  - id: step-versand
+    name: Versand
+    kind: core
+    level: 0
+    scope: Pick, pack and ship customer orders.
+  - id: step-kommissionierung
+    name: Kommissionierung
+    kind: core
+    level: 1
+    parent: step-versand
+    scope: Reserve, pick and pack the goods of an order.
+  - id: step-paketversand
+    name: Paketversand
+    kind: core
+    level: 1
+    parent: step-versand
+    scope: Ship parcels via parcel carriers and track delivery.
+  - id: step-speditionsversand
+    name: Speditionsversand
+    kind: core
+    level: 1
+    parent: step-versand
+    scope: Ship pallets to key accounts via freight forwarders.
+
+  - id: step-fakturierung
+    name: Fakturierung & Zahlung
+    kind: core
+    level: 0
+    scope: Invoice customers and collect receivables (order to cash).
+  - id: step-rechnungsstellung
+    name: Rechnungsstellung
+    kind: core
+    level: 1
+    parent: step-fakturierung
+    scope: Create and issue outgoing invoices and credit notes to customers.
+  - id: step-zahlungseingang
+    name: Zahlungseingang
+    kind: core
+    level: 1
+    parent: step-fakturierung
+    scope: Import bank statements and allocate incoming customer payments.
+  - id: step-offene-posten
+    name: Offene Posten
+    kind: core
+    level: 1
+    parent: step-fakturierung
+    scope: Monitor open receivables until settlement, dunning or collection.
+  - id: step-mahnwesen
+    name: Mahnwesen
+    kind: core
+    level: 1
+    parent: step-fakturierung
+    scope: Dunning levels and the resulting customer block.
+
+  - id: step-kundenservice
+    name: Kundenservice
+    kind: core
+    level: 0
+    scope: After-sales service for customers.
+  - id: step-reklamationen
+    name: Reklamationen
+    kind: core
+    level: 1
+    parent: step-kundenservice
+    scope: Handle customer complaints and their remedies (credit, replacement, return).
+  - id: step-retouren
+    name: Retouren
+    kind: core
+    level: 1
+    parent: step-kundenservice
+    scope: Customer returns with labels, inspection, restocking, refund or exchange.
+  - id: step-kundeninformation
+    name: Kundeninformation
+    kind: core
+    level: 1
+    parent: step-kundenservice
+    scope: Proactive customer notifications (e.g. delivery delays).
+
+  - id: step-rechnungswesen
+    name: Rechnungswesen
+    kind: support
+    level: 0
+    scope: Financial accounting (accounts payable, general ledger, closing).
+  - id: step-kreditorenbuchhaltung
+    name: Kreditorenbuchhaltung
+    kind: support
+    level: 1
+    parent: step-rechnungswesen
+    scope: Check supplier invoices and pay suppliers.
+  - id: step-hauptbuch-abschluss
+    name: Hauptbuch & Abschluss
+    kind: support
+    level: 1
+    parent: step-rechnungswesen
+    scope: General ledger, accruals and period closing.
+  - id: step-zentrale-dienste
+    name: Zentrale Dienste
+    kind: support
+    level: 0
+    scope: Central shared services for all departments (print and letter output, mailroom).
+  - id: step-it-services
+    name: IT-Services
+    kind: support
+    level: 0
+    scope: IT operations and system integration (no process modelled yet).
+  - id: step-personal
+    name: Personal
+    kind: support
+    level: 0
+    scope: Human resources (no process modelled yet).
+
+placements:
+  # controlling
+  - process: controlling/management-reporting#Process_ManagementReporting
+    name: Management-Reporting
+    must: step-unternehmenssteuerung
+    may: [step-hauptbuch-abschluss]
+    must_not: []
+    tags: [management-process, semantic, ambiguous]
+    rationale: Monthly KPI report with plan-actual comments for the management is steering; it starts from the month-end closing, so the closing step is a plausible second home.
+
+  # einkauf
+  - process: einkauf/bestellanforderung#Process_Bestellanforderung
+    name: Bestellanforderung
+    must: step-bestellwesen
+    may: [step-disposition]
+    must_not: [step-auftragseingang]
+    tags: [name-match, ambiguous, shared-word]
+    rationale: Requisition to confirmed purchase order is purchasing; it also starts from the stock monitor (Disposition); "Bestellung" is a supplier order here, not a shop order.
+  - process: einkauf/bestellfreigabe#Process_Bestellfreigabe
+    name: Bestellfreigabe
+    must: step-bestellwesen
+    may: []
+    must_not: [step-auftragsabwicklung]
+    tags: [name-match, shared-word]
+    rationale: Multi-level purchase order approval called by the requisition; "order approval" is procurement, not customer order handling.
+  - process: einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe
+    name: Bestellfreigabe
+    must: '@outside'
+    superseded_by: einkauf/bestellfreigabe#Process_Bestellfreigabe
+    may: [step-bestellwesen]
+    must_not: [step-auftragsabwicklung]
+    tags: [outdated-copy, ambiguous]
+    rationale: Archived 2019 copy with the same process id; deliberately outside the chain with the current version as the reason; its step (Bestellwesen) is tolerated, customer order handling is not.
+  - process: einkauf/lieferantenanlage#Process_Lieferantenanlage
+    name: Lieferantenanlage
+    must: step-lieferantenmanagement
+    may: []
+    must_not: [step-partnermanagement]
+    tags: [name-match]
+    rationale: Creates a vendor after VAT id, sanction list and bank checks; suppliers are not the sales partners (dealers) of Partnermanagement.
+
+  # finanzen
+  - process: finanzen/briefversand#Process_Briefversand
+    name: Briefversand über Druckdienstleister
+    must: step-zentrale-dienste
+    may: [step-rechnungsstellung, step-mahnwesen]
+    must_not: [step-versand]
+    tags: [support-process, domain-prefix, cross-domain, ambiguous, shared-word, name-match]
+    rationale: Shared letter output (PDF to the print provider) called by invoicing and dunning; a central service despite the finanzen prefix; letter mail is not parcel or pallet "Versand".
+  - process: finanzen/e-rechnung-versand#Process_ERechnungVersand
+    name: E-Rechnung versenden
+    must: step-rechnungsstellung
+    may: [step-zentrale-dienste]
+    must_not: [step-versand]
+    tags: [name-match, domain-prefix, ambiguous, shared-word]
+    rationale: Output channel for customer invoices (XRechnung/ZUGFeRD via Peppol or mail); sending an e-invoice is not goods dispatch.
+  - process: finanzen/forderungsmanagement#Process_Forderungsmanagement
+    name: Forderungsmanagement
+    must: step-offene-posten
+    may: [step-mahnwesen]
+    must_not: []
+    tags: [semantic, domain-prefix, ambiguous]
+    rationale: Watches each open item of an outgoing invoice until settlement, dunning or collection; dunning itself is the called Mahnwesen process.
+  - process: finanzen/gutschrift#Process_Gutschrift
+    name: Gutschrift erstellen
+    must: step-rechnungsstellung
+    may: [step-reklamationen, step-retouren]
+    must_not: [step-kreditorenbuchhaltung]
+    tags: [semantic, domain-prefix, cross-domain, ambiguous]
+    rationale: Customer credit notes are outgoing billing documents, requested by complaints and returns; not a supplier credit in accounts payable.
+  - process: finanzen/kreditpruefung#Process_Kreditpruefung
+    name: Kreditprüfung
+    must: step-bonitaetspruefung
+    may: [step-offene-posten, step-auftragsabwicklung, step-partnermanagement]
+    must_not: [step-kreditorenbuchhaltung]
+    tags: [domain-prefix, cross-domain, ambiguous, shared-word, semantic]
+    rationale: Customer and dealer credit check requested by the shop and dealer onboarding; "Kredit" shares a stem with "Kreditoren" (suppliers) but has nothing to do with payables.
+  - process: finanzen/kreditpruefung#Process_AuskunfteiAdapter
+    name: Auskunftei-Schnittstelle
+    must: step-bonitaetspruefung
+    may: [step-it-services, '@outside']
+    must_not: []
+    tags: [integration, domain-prefix, ambiguous, semantic]
+    rationale: Technical adapter that fetches the credit agency report for the credit check; belongs to the step it serves; IT-Services or leaving it outside the chain are the plausible alternatives.
+  - process: finanzen/lieferantenrechnung#Process_Lieferantenrechnung
+    name: Lieferantenrechnung prüfen
+    must: step-kreditorenbuchhaltung
+    may: [step-bestellwesen]
+    must_not: [step-rechnungsstellung, step-lieferantenmanagement]
+    tags: [support-process, ambiguous, shared-word, semantic]
+    rationale: Three-way match of incoming invoices and release for payment is accounts payable; "Rechnung" and "Lieferant" lure towards outgoing invoicing and vendor onboarding.
+  - process: finanzen/mahnwesen#Process_Mahnwesen
+    name: Mahnwesen
+    must: step-mahnwesen
+    may: [step-offene-posten]
+    must_not: []
+    tags: [name-match, domain-prefix, ambiguous]
+    rationale: Up to three dunning levels and the customer block, called by receivables monitoring (Offene Posten); it calls the letter output but is not part of it.
+  - process: finanzen/monatsabschluss#Process_Monatsabschluss
+    name: Monatsabschluss
+    must: step-hauptbuch-abschluss
+    may: [step-unternehmenssteuerung]
+    must_not: []
+    tags: [support-process, name-match, ambiguous]
+    rationale: Accruals, ledger reconciliation, period lock and release are general ledger closing; it hands over to management reporting.
+  - process: finanzen/rechnungsstellung#Process_Rechnungsstellung
+    name: Rechnungsstellung
+    must: step-rechnungsstellung
+    may: []
+    must_not: [step-rechnungswesen]
+    tags: [name-match, domain-prefix, shared-word]
+    rationale: Creates and issues the outgoing invoice after dispatch; "Rechnung" also starts "Rechnungswesen" (financial accounting, incl. supplier invoices), which is the wrong side.
+  - process: finanzen/zahlungseingang#Process_Zahlungseingang
+    name: Zahlungseingang
+    must: step-zahlungseingang
+    may: [step-offene-posten]
+    must_not: [step-kreditorenbuchhaltung]
+    tags: [name-match, domain-prefix, ambiguous]
+    rationale: Fetches the bank statement and allocates incoming customer payments to open items; supplier payments belong to payables.
+  - process: finanzen/zahlungslauf#Process_Zahlungslauf
+    name: Zahlungslauf Kreditoren
+    must: step-kreditorenbuchhaltung
+    may: []
+    must_not: [step-zahlungseingang]
+    tags: [support-process, name-match, shared-word]
+    rationale: SEPA payment run for due supplier invoices (outgoing money); "Zahlung" lures towards incoming customer payments.
+
+  # lager
+  - process: lager/bestandsueberwachung#Process_Bestandsueberwachung
+    name: Bestandsüberwachung
+    must: step-disposition
+    may: [step-bestandsfuehrung]
+    must_not: []
+    tags: [domain-prefix, ambiguous, semantic]
+    rationale: Daily comparison against minimum stock that triggers reorders is materials planning in procurement, although the warehouse runs it.
+  - process: lager/kommissionierung#Process_Kommissionierung
+    name: Kommissionierung und Verpackung
+    must: step-kommissionierung
+    may: [step-lagerhaltung, step-auftragsabwicklung, step-reklamationen]
+    must_not: [step-wareneingang]
+    tags: [domain-prefix, ambiguous, name-match]
+    rationale: Picking and packing of customer orders is outbound fulfilment; the warehouse pool and its two callers (order handling, replacement delivery) are plausible, inbound goods receipt is wrong.
+  - process: lager/wareneingang#Process_Wareneingang
+    name: Wareneingang
+    must: step-wareneingang
+    may: []
+    must_not: []
+    tags: [name-match]
+    rationale: Receives, books and puts away supplier deliveries and calls the incoming goods inspection.
+
+  # logistik
+  - process: logistik/shipping#Process_Shipping
+    name: Parcel shipping
+    must: step-paketversand
+    may: [step-auftragsabwicklung, step-reklamationen]
+    must_not: [step-speditionsversand]
+    tags: [english-label, semantic, ambiguous, shared-word]
+    rationale: Books a parcel carrier, hands over parcels and tracks delivery for its callers (order handling, replacement delivery); "shipping" is not "Spedition" (pallet freight forwarding).
+  - process: logistik/speditionsversand#Process_Speditionsversand
+    name: Speditionsversand (Paletten)
+    must: step-speditionsversand
+    may: []
+    must_not: [step-paketversand]
+    tags: [name-match]
+    rationale: Legacy pallet freight via a forwarder to key accounts; not parcel shipping.
+
+  # partner
+  - process: partner/customer-account-lock#Process_CustomerAccountLock
+    name: Customer account lock
+    must: step-mahnwesen
+    may: [step-offene-posten, step-auftragsabwicklung, step-bonitaetspruefung]
+    must_not: [step-partnermanagement]
+    tags: [domain-prefix, english-label, cross-domain, ambiguous, semantic]
+    rationale: Blocks purchase on account after the last dunning level and holds on-account orders; a credit block is also credit management; the partner/ prefix does not make it dealer management.
+  - process: partner/partner-onboarding#Process_PartnerOnboarding
+    name: Dealer onboarding
+    must: step-partnermanagement
+    may: []
+    must_not: [step-lieferantenmanagement]
+    tags: [english-label, name-match]
+    rationale: Onboards new B2B dealers (customers) from application to active account; dealers are sales partners, not suppliers.
+
+  # qualitaet
+  - process: qualitaet/produktrueckruf#Process_Produktrueckruf
+    name: Produktrückruf
+    must: step-qualitaetsmanagement
+    may: []
+    must_not: [step-retouren]
+    tags: [management-process, name-match]
+    rationale: Recall decision, authority and customer information and effectiveness check are product safety in QM; a recall is not a customer return.
+  - process: qualitaet/wareneingangspruefung#Process_Wareneingangspruefung
+    name: Wareneingangsprüfung
+    must: step-qualitaetspruefung
+    may: [step-wareneingang, step-qualitaetsmanagement]
+    must_not: [step-reklamationen]
+    tags: [name-match, ambiguous]
+    rationale: AQL sample inspection called by goods receipt; defects go back to the supplier, so customer complaints are wrong.
+
+  # service
+  - process: service/ersatzlieferung#Process_Ersatzlieferung
+    name: Ersatzlieferung
+    must: step-reklamationen
+    may: [step-retouren, step-auftragsabwicklung]
+    must_not: []
+    tags: [semantic, cross-domain, ambiguous]
+    rationale: Free-of-charge replacement order as a complaint or exchange remedy; it creates an order and reuses picking and shipping, so order handling is plausible too.
+  - process: service/kundenbenachrichtigung#Process_Kundenbenachrichtigung
+    name: Kundenbenachrichtigung Lieferverzug
+    must: step-kundeninformation
+    may: [step-paketversand]
+    must_not: [step-lieferantenmanagement]
+    tags: [name-match, ambiguous, shared-word]
+    rationale: Informs customers about delayed parcels; started by parcel shipping; "Lieferverzug" is a customer delivery delay, not a supplier issue.
+  - process: service/reklamation#Process_Reklamation
+    name: Reklamationsbearbeitung
+    must: step-reklamationen
+    may: []
+    must_not: [step-qualitaetspruefung]
+    tags: [name-match]
+    rationale: Customer complaints up to credit note, replacement, return or rejection; incoming goods inspection is the supplier side.
+  - process: service/returns#Process_Returns
+    name: Returns
+    must: step-retouren
+    may: []
+    must_not: [step-wareneingang]
+    tags: [english-label, semantic]
+    rationale: Customer returns with label, inspection, restocking and refund or exchange; restocking does not make it supplier goods receipt.
+
+  # vertrieb
+  - process: vertrieb/marketplace-order-import#Process_MarketplaceOrderImport
+    name: Marketplace order import
+    must: step-auftragseingang
+    may: [step-it-services]
+    must_not: [step-bestellwesen]
+    tags: [english-label, integration, ambiguous, semantic, shared-word]
+    rationale: Imports marketplace orders into the shop format; "order" translates to "Bestellung" but these are customer orders, not purchase orders.
+  - process: vertrieb/order-handling#Process_OrderHandling
+    name: Order handling
+    must: step-auftragsabwicklung
+    may: [step-auftragseingang]
+    must_not: [step-bestellwesen]
+    tags: [english-label, cross-domain, ambiguous, semantic, shared-word]
+    rationale: Order-to-cash hub from receipt via credit check, picking and shipping to payment; a customer order, not purchasing.

@@ -1,0 +1,74 @@
+key: stress/c8-coverage
+engine: c8
+name: C8 coverage
+notes: >-
+  Constructs that neither the corpus nor c8-collaboration use, so that
+  deploy-check exercises the whole spec format on c8: timer date and
+  conditional process starts, plain task, conditional intermediate catch,
+  escalation end with an escalation boundary, interrupting signal boundary,
+  non-interrupting message boundary, deployment binding (dynamic, because a
+  static target must be in the same file), and error, conditional, signal and
+  timer starts of event subprocesses.
+processes:
+  - id: Process_C8Coverage
+    name: C8 coverage
+    elements:
+      - { type: startEvent, id: Start_Stichtag, name: Stichtag erreicht, timer: { date: "2030-01-01T00:00:00Z" } }
+      - { type: exclusiveGateway, id: Gateway_Start }
+      - { type: task, id: Task_Vorbereiten, name: Lauf vorbereiten }
+      - type: subProcess
+        id: Sub_Lauf
+        name: Lauf
+        boundary:
+          - { id: Boundary_Eskalation, name: Eskalation erhalten, escalation: ESK_C8, interrupting: false, next: Task_Eskalation }
+          - { id: Boundary_Stopp, name: Stopp erhalten, signal: StoppC8, next: End_Gestoppt }
+          - { id: Boundary_Rueckruf, name: Rückruf erhalten, message: { name: RueckrufC8, correlationKey: "=laufId" }, interrupting: false, next: Task_Rueckruf }
+        elements:
+          - { type: startEvent, id: Start_Lauf, name: Lauf begonnen }
+          - { type: intermediateCatchEvent, id: Event_Bereit, name: Daten bereit, conditional: "=bereit = true" }
+          - type: exclusiveGateway
+            id: Gateway_Ok
+            name: Lauf ok?
+            next:
+              - { to: End_LaufOk, name: ja, condition: "=ok" }
+              - { to: End_LaufEskaliert, name: nein, default: true }
+          - { type: endEvent, id: End_LaufOk, name: Lauf ok }
+          - { type: endEvent, id: End_LaufEskaliert, name: Lauf eskaliert, escalation: { code: ESK_C8, name: Eskalation } }
+      - { type: callActivity, id: Call_Abschluss, name: Abschluss, calledElement: "=abschlussProzess", binding: deployment }
+      - { type: endEvent, id: End_Fertig, name: Lauf fertig }
+
+      - { type: startEvent, id: Start_Sonderlauf, name: Sonderlauf angefordert, conditional: "=sonderlauf = true", next: Gateway_Start }
+      - { type: manualTask, id: Task_Eskalation, name: Eskalation bearbeiten }
+      - { type: endEvent, id: End_EskalationBearbeitet, name: Eskalation bearbeitet }
+      - { type: endEvent, id: End_Gestoppt, name: Gestoppt }
+      - { type: userTask, id: Task_Rueckruf, name: Rückruf bearbeiten }
+      - { type: endEvent, id: End_RueckrufBearbeitet, name: Rückruf bearbeitet }
+
+      - type: eventSubProcess
+        id: EventSub_Fehler
+        name: Unerwarteter Fehler
+        elements:
+          - { type: startEvent, id: Start_Fehler, name: Fehler aufgetreten, error: {} }
+          - { type: serviceTask, id: Task_FehlerMelden, name: Fehler melden }
+          - { type: endEvent, id: End_FehlerGemeldet, name: Fehler gemeldet }
+      - type: eventSubProcess
+        id: EventSub_Prio
+        name: Priorität
+        elements:
+          - { type: startEvent, id: Start_Prio, name: Priorität erhöht, conditional: "=prio > 1", interrupting: false }
+          - { type: userTask, id: Task_PrioPruefen, name: Priorität prüfen }
+          - { type: endEvent, id: End_PrioGeprueft, name: Priorität geprüft }
+      - type: eventSubProcess
+        id: EventSub_Abbruch
+        name: Abbruch
+        elements:
+          - { type: startEvent, id: Start_Abbruch, name: Abbruch erhalten, signal: AbbruchC8 }
+          - { type: serviceTask, id: Task_Abbrechen, name: Lauf abbrechen }
+          - { type: endEvent, id: End_Abgebrochen, name: Lauf abgebrochen }
+      - type: eventSubProcess
+        id: EventSub_Zeit
+        name: Zeitüberschreitung
+        elements:
+          - { type: startEvent, id: Start_Zeitueberschreitung, name: 30 Tage vergangen, timer: { duration: P30D } }
+          - { type: serviceTask, id: Task_Abschliessen, name: Lauf abschließen }
+          - { type: endEvent, id: End_Abgeschlossen, name: Lauf abgeschlossen }

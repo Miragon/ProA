@@ -1,0 +1,59 @@
+key: forderung/zahlungseingang
+engine: c7
+name: Zahlungseingang verbuchen
+notes: >-
+  C7 daily batch. One payment message ZahlungEingegangen is caught three times:
+  by the dunning event subprocess (same engine) and twice by the C8
+  disconnection process (cross-engine-message). Overdue items start the
+  dunning process (exact key).
+
+processes:
+  - id: Process_Zahlungseingang
+    name: Zahlungseingang verbuchen
+    documentation: >-
+      Täglicher Abruf der Kontoauszüge, Zuordnung der Zahlungen zu offenen
+      Posten, Meldung der Zahlungseingänge und Ermittlung überfälliger Posten.
+    dataStores:
+      - { id: DataStore_Geschaeftspartner, name: Geschäftspartner (IS-U) }
+    elements:
+      - type: startEvent
+        id: Start_KontoauszugsabrufFaellig
+        name: Kontoauszugsabruf fällig
+        timer: { cycle: R/P1D }
+      - { type: serviceTask, id: Task_KontoauszuegeAbrufen, name: Kontoauszüge abrufen (camt.053) }
+      - type: serviceTask
+        id: Task_ZahlungenZuordnen
+        name: Zahlungen offenen Posten zuordnen
+        reads: [DataStore_Geschaeftspartner]
+        writes: [DataStore_Geschaeftspartner]
+      - type: exclusiveGateway
+        id: Gateway_VollstaendigZugeordnet
+        name: Zahlungen vollständig zugeordnet?
+        next:
+          - { to: Gateway_KlaerungJoin, name: ja, condition: "${alleZugeordnet}" }
+          - { to: Task_ZahlungenKlaeren, name: nein, default: true }
+      - type: userTask
+        id: Task_ZahlungenKlaeren
+        name: Ungeklärte Zahlungen klären
+        candidateGroups: forderungsmanagement
+      - { type: exclusiveGateway, id: Gateway_KlaerungJoin }
+      - type: intermediateThrowEvent
+        id: Event_ZahlungEingegangen
+        name: Zahlungseingänge gemeldet
+        message: ZahlungEingegangen
+      - type: serviceTask
+        id: Task_UeberfaelligePostenErmitteln
+        name: Überfällige Posten ermitteln
+        reads: [DataStore_Geschaeftspartner]
+      - type: exclusiveGateway
+        id: Gateway_Ueberfaellig
+        name: Überfällige Posten vorhanden?
+        next:
+          - { to: Event_ZahlungsverzugGemeldet, name: ja, condition: "${anzahlUeberfaellig > 0}" }
+          - { to: Gateway_VerzugJoin, name: nein, default: true }
+      - type: intermediateThrowEvent
+        id: Event_ZahlungsverzugGemeldet
+        name: Zahlungsverzug gemeldet
+        message: ZahlungsverzugFestgestellt
+      - { type: exclusiveGateway, id: Gateway_VerzugJoin }
+      - { type: endEvent, id: End_KontoauszuegeVerarbeitet, name: Kontoauszüge verarbeitet }

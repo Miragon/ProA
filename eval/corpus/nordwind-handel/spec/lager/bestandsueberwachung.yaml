@@ -1,0 +1,39 @@
+key: lager/bestandsueberwachung
+engine: c8
+name: Bestandsüberwachung
+notes: >-
+  Daily stock check; reorders go to the C7 purchase requisition as
+  MindestbestandUnterschritten (cross-engine). The none end "Nachbestellung
+  angestoßen" only names that handover; it is no trigger for the manual
+  start "Bedarf gemeldet" of the requisition (distractor). "Artikelstamm" is a different
+  store from "Lagerbestand" and must not be grouped with it.
+
+processes:
+  - id: Process_Bestandsueberwachung
+    name: Bestandsüberwachung
+    documentation: Gleicht täglich Bestände mit Mindestbeständen ab und stößt Nachbestellungen im Einkauf an.
+    dataStores:
+      - { id: DataStore_Lagerbestand, name: Lagerbestand }
+      - { id: DataStore_Artikelstamm, name: Artikelstamm }
+    elements:
+      - type: startEvent
+        id: Start_BestandspruefungFaellig
+        name: Bestandsprüfung fällig (täglich)
+        timer: { cycle: R/P1D }
+      - type: serviceTask
+        id: Task_BestaendeAbgleichen
+        name: Bestände mit Mindestbeständen abgleichen
+        reads: [DataStore_Lagerbestand, DataStore_Artikelstamm]
+      - type: exclusiveGateway
+        id: Gateway_Unterschritten
+        name: Mindestbestand unterschritten?
+        next:
+          - { to: Task_BestellmengeBerechnen, name: ja, condition: "=count(unterschritten) > 0" }
+          - { to: End_BestandAusreichend, name: nein, default: true }
+      - { type: businessRuleTask, id: Task_BestellmengeBerechnen, name: Bestellmenge berechnen }
+      - type: intermediateThrowEvent
+        id: Event_MindestbestandUnterschritten
+        name: Mindestbestand unterschritten
+        message: { name: MindestbestandUnterschritten, correlationKey: "=artikelnummer" }
+      - { type: endEvent, id: End_NachbestellungAngestossen, name: Nachbestellung angestoßen }
+      - { type: endEvent, id: End_BestandAusreichend, name: Bestand ausreichend }

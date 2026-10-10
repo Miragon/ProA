@@ -1,0 +1,51 @@
+# Build context of docker/Dockerfile.demo (the read-only demo, issue #3): BuildKit
+# reads this file next to its Dockerfile, and docker/fly.demo.toml names it as
+# `ignorefile` for flyctl's own context upload. Keep it a superset of
+# Dockerfile.dockerignore (apps/server/test/unit/demo-image.test.ts checks it):
+# the eval answers, recordings and reports never enter the build context.
+#
+# The repository root is the context; only the 2.0 workspace goes in.
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+.git
+.github
+.claude
+.playwright-mcp
+.idea
+.vscode
+**/.env
+**/.env.*
+
+# 1.x tree
+backend
+frontend
+scripts
+.mvn
+mvnw
+mvnw.cmd
+pom.xml
+Dockerfile
+docker-compose.yml
+eclipse-formatter.xml
+Makefile
+docs
+
+# Eval answers, results and agent setups: the image needs the corpus models
+# (`proa seed`) and the golden value chains (`proa seed --value-chains`) only,
+# and an agent with shell access to the container must not find the expected
+# relations or placements there. A chain file holds steps only, without links:
+# the same document an agent reads over MCP once a project is seeded with it.
+# expected-placements.yaml, the READMEs and the validator stay out; CI's docker
+# job checks that no expected*, *.md, *.mjs or *.jsonl file is under /app/eval.
+eval/corpus/*/expected.yaml
+eval/corpus/*/README.md
+eval/corpus/*/spec
+eval/recordings
+eval/reports
+eval/value-chains/**
+!eval/value-chains/*/value-chain.vc.json
+examples
+plugins
+.claude-plugin

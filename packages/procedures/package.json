@@ -1,0 +1,16 @@
+{
+  "name": "@proa/procedures",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Analysis procedures for agents (CONCEPT \u00a77): Markdown with frontmatter, served by MCP get_procedure, wrapped by the work_pipeline prompt and the Claude Code skill of plugins/proa",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "node scripts/generate.ts",
+    "typecheck": "tsc",
+    "lint": "eslint .",
+    "test": "vitest run"
+  }
+}

@@ -1,0 +1,43 @@
+key: qualitaet/produktrueckruf
+engine: c8
+name: Produktrückruf
+notes: >-
+  Broadcasts the signal Produktrueckruf to order handling, picking and
+  returns (signal-broadcast). Started by quality management, possibly after a
+  serial defect reported from service/reklamation (trigger, may_link).
+
+processes:
+  - id: Process_Produktrueckruf
+    name: Produktrückruf
+    documentation: Ermittelt betroffene Chargen, löst den Rückruf aus, informiert Behörde und Kunden und prüft die Wirksamkeit.
+    dataStores:
+      - { id: DataStore_Artikelstamm, name: Artikelstamm }
+    elements:
+      - { type: startEvent, id: Start_RueckrufBeschlossen, name: Rückruf durch QM beschlossen }
+      - type: userTask
+        id: Task_ChargenErmitteln
+        name: Betroffene Chargen und Artikel ermitteln
+        candidateGroups: qualitaetsmanagement
+        reads: [DataStore_Artikelstamm]
+      - type: intermediateThrowEvent
+        id: Event_ProduktrueckrufAusgeloest
+        name: Produktrückruf ausgelöst
+        signal: Produktrueckruf
+      - type: parallelGateway
+        id: Gateway_Massnahmen
+        next: [Task_BehoerdeInformieren, Task_KundenInformieren]
+      - type: userTask
+        id: Task_BehoerdeInformieren
+        name: Marktüberwachungsbehörde informieren
+        candidateGroups: qualitaetsmanagement
+        next: Gateway_MassnahmenErledigt
+      - type: serviceTask
+        id: Task_KundenInformieren
+        name: Betroffene Kunden informieren
+        next: Gateway_MassnahmenErledigt
+      - { type: parallelGateway, id: Gateway_MassnahmenErledigt }
+      - type: userTask
+        id: Task_WirksamkeitPruefen
+        name: Wirksamkeit des Rückrufs prüfen
+        candidateGroups: qualitaetsmanagement
+      - { type: endEvent, id: End_RueckrufAbgeschlossen, name: Rückruf abgeschlossen }

@@ -1,0 +1,108 @@
+key: service/reklamation
+engine: c8
+name: Reklamationsbearbeitung
+notes: >-
+  Collaboration with a black-box customer, two lanes. The participant process
+  requests credit notes from C7 (GutschriftAngefordert, cross-engine) and
+  waits for GutschriftErstellt, starts returns (ReturnRequested, exact key)
+  and calls the replacement delivery (call-unique). The answer to the
+  customer uses the generic message name Antwort, which also names the
+  credit agency's and the supplier's replies in two C7 models
+  (generic-name). A suspected serial defect is reported to quality
+  management, which may start a product recall (trigger, may_link).
+
+collaboration:
+  participants:
+    - { id: Participant_Kunde, name: Kunde }
+    - { id: Participant_Kundenservice, name: Nordwind Handel – Kundenservice, process: Process_Reklamation }
+  messageFlows:
+    - { from: Participant_Kunde, to: Start_ReklamationEingegangen, name: Reklamation }
+    - { from: Task_AntwortSenden, to: Participant_Kunde, name: Antwort }
+    - { from: Participant_Kunde, to: Start_ReklamationZurueckgezogen, name: Rückzug }
+
+processes:
+  - id: Process_Reklamation
+    name: Reklamationsbearbeitung
+    documentation: Bearbeitet Kundenreklamationen bis zu Gutschrift, Ersatzlieferung, Rücksendung oder begründeter Ablehnung.
+    lanes:
+      - { id: Lane_Kundenservice, name: Kundenservice }
+      - { id: Lane_Qualitaetssicherung, name: Qualitätssicherung }
+    dataStores:
+      - { id: DataStore_CrmKunden, name: CRM Kunden }
+    elements:
+      - type: startEvent
+        id: Start_ReklamationEingegangen
+        name: Reklamation eingegangen
+        lane: Lane_Kundenservice
+        message: ReklamationEingegangen
+      - type: userTask
+        id: Task_ReklamationErfassen
+        name: Reklamation erfassen
+        candidateGroups: kundenservice
+        reads: [DataStore_CrmKunden]
+      - type: userTask
+        id: Task_ReklamationBewerten
+        name: Reklamation fachlich bewerten
+        lane: Lane_Qualitaetssicherung
+        candidateGroups: qualitaetssicherung
+      - type: exclusiveGateway
+        id: Gateway_Serienfehler
+        name: Hinweis auf Serienfehler?
+        next:
+          - { to: Gateway_QmMelden, name: ja, condition: "=serienfehlerVerdacht" }
+          - { to: Gateway_LoesungWaehlen, name: nein, default: true }
+      - type: parallelGateway
+        id: Gateway_QmMelden
+        next: [End_SerienfehlerGemeldet, Gateway_LoesungWaehlen]
+      - { type: endEvent, id: End_SerienfehlerGemeldet, name: Serienfehler an QM gemeldet }
+
+      - { type: exclusiveGateway, id: Gateway_LoesungWaehlen, lane: Lane_Kundenservice }
+      - type: exclusiveGateway
+        id: Gateway_Berechtigt
+        name: Reklamation berechtigt?
+        next:
+          - { to: Gateway_Loesung, name: ja, condition: "=berechtigt" }
+          - { to: Gateway_AntwortVorbereiten, name: nein, default: true }
+      - type: exclusiveGateway
+        id: Gateway_Loesung
+        name: Lösung?
+        next:
+          - { to: Task_GutschriftAnfordern, name: Gutschrift, condition: '=loesung = "gutschrift"' }
+          - { to: Call_Ersatzlieferung, name: Ersatzlieferung, condition: '=loesung = "ersatz"' }
+          - { to: Task_RuecksendungVeranlassen, default: true }
+      - type: sendTask
+        id: Task_GutschriftAnfordern
+        name: Gutschrift anfordern
+        message: { name: GutschriftAngefordert, correlationKey: "=reklamationId" }
+      - type: intermediateCatchEvent
+        id: Event_GutschriftErstellt
+        name: Gutschrift erstellt
+        message: { name: GutschriftErstellt, correlationKey: "=reklamationId" }
+        next: Gateway_AntwortVorbereiten
+      - type: callActivity
+        id: Call_Ersatzlieferung
+        name: Ersatzlieferung abwickeln
+        calledElement: Process_Ersatzlieferung
+        next: Gateway_AntwortVorbereiten
+      - type: sendTask
+        id: Task_RuecksendungVeranlassen
+        name: Rücksendung veranlassen
+        message: { name: ReturnRequested, correlationKey: "=reklamationId" }
+        next: Gateway_AntwortVorbereiten
+      - { type: exclusiveGateway, id: Gateway_AntwortVorbereiten }
+      - type: sendTask
+        id: Task_AntwortSenden
+        name: Antwort an Kunden senden
+        message: { name: Antwort, correlationKey: "=reklamationId" }
+      - { type: endEvent, id: End_ReklamationAbgeschlossen, name: Reklamation abgeschlossen }
+
+      - type: eventSubProcess
+        id: EventSub_Rueckzug
+        name: Rückzug durch Kunden
+        elements:
+          - type: startEvent
+            id: Start_ReklamationZurueckgezogen
+            name: Reklamation zurückgezogen
+            message: { name: ReklamationZurueckgezogen, correlationKey: "=reklamationId" }
+          - { type: serviceTask, id: Task_VorgangSchliessen, name: Vorgang schließen }
+          - { type: endEvent, id: End_VorgangGeschlossen, name: Vorgang geschlossen }

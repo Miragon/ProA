@@ -1,0 +1,48 @@
+[
+  {
+    "name": "work_pipeline",
+    "title": "Work the analysis pipeline",
+    "description": "Claim → analyse → submit in a loop until no task is left (or maxTasks are done), following the proa-relations procedure (kind relations, the default) or the proa-placements procedure (kind placement).",
+    "arguments": [
+      {
+        "name": "projectId",
+        "description": "Only this project (id or key).",
+        "required": false
+      },
+      {
+        "name": "maxTasks",
+        "description": "Stop after this many tasks (1–100); without it, until no task is left.",
+        "required": false
+      },
+      {
+        "name": "kind",
+        "description": "Task kind: relations (default) or placement (the value chain).",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "place_processes",
+    "title": "Place processes on the value chain",
+    "description": "Interactively place the processes without a home step on the value chain with propose_placement, following the proa-placements procedure; skips processes an agent already judged or is judging in a placement task.",
+    "arguments": [
+      {
+        "name": "projectId",
+        "description": "The project (id or key).",
+        "required": true
+      }
+    ]
+  },
+  {
+    "name": "draft_value_chain",
+    "title": "Draft a value chain",
+    "description": "Draft a value chain (.vc.json) from the landscape for a human to import, edit and save on the value chain page; no tool saves it.",
+    "arguments": [
+      {
+        "name": "projectId",
+        "description": "The project (id or key).",
+        "required": true
+      }
+    ]
+  }
+]

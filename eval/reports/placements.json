@@ -1,0 +1,4275 @@
+{
+  "pass": true,
+  "landscapes": [
+    {
+      "name": "nordwind-handel",
+      "split": "dev",
+      "pass": true,
+      "validatorExit": 0,
+      "counts": {
+        "steps": 34,
+        "topLevel": 12,
+        "processes": 32,
+        "placements": 32,
+        "outside": 1,
+        "may": 34,
+        "mustNot": 25,
+        "ruleProposals": 4,
+        "tags": {
+          "ambiguous": 22,
+          "cross-domain": 6,
+          "domain-prefix": 12,
+          "english-label": 6,
+          "integration": 2,
+          "management-process": 2,
+          "name-match": 18,
+          "outdated-copy": 1,
+          "semantic": 13,
+          "shared-word": 12,
+          "support-process": 4
+        }
+      },
+      "gates": [
+        {
+          "id": "validator",
+          "title": "validate-value-chains.mjs",
+          "value": "exit 0",
+          "target": "exit 0",
+          "pass": true
+        },
+        {
+          "id": "coverage",
+          "title": "golden placements = process facts",
+          "value": "32 listed, 32 process facts, 0 missing, 0 extra",
+          "target": "equal",
+          "pass": true
+        },
+        {
+          "id": "rule-proposals",
+          "title": "rule proposals hit must or may",
+          "value": "4/4",
+          "target": "all",
+          "pass": true
+        }
+      ],
+      "systems": {
+        "rules": {
+          "ranked": false,
+          "proposals": 4,
+          "leaf": {
+            "processes": 32,
+            "withTraps": 24,
+            "all": {
+              "proposals": 4,
+              "hit": 4,
+              "may": 0,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 0,
+              "none": 28,
+              "precision": 1,
+              "recall": 0.125,
+              "f1": 0.2222222222222222,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at1": null,
+            "at3": null
+          },
+          "area": {
+            "processes": 32,
+            "withTraps": 3,
+            "all": {
+              "proposals": 4,
+              "hit": 4,
+              "may": 0,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 0,
+              "none": 28,
+              "precision": 1,
+              "recall": 0.125,
+              "f1": 0.2222222222222222,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at1": null,
+            "at3": null
+          },
+          "byTag": {
+            "ambiguous": {
+              "processes": 22,
+              "withTraps": 15,
+              "all": {
+                "proposals": 2,
+                "hit": 2,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 20,
+                "precision": 1,
+                "recall": 0.09090909090909091,
+                "f1": 0.16666666666666669,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "cross-domain": {
+              "processes": 6,
+              "withTraps": 5,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 6,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "domain-prefix": {
+              "processes": 12,
+              "withTraps": 8,
+              "all": {
+                "proposals": 3,
+                "hit": 3,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 9,
+                "precision": 1,
+                "recall": 0.25,
+                "f1": 0.4,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "english-label": {
+              "processes": 6,
+              "withTraps": 6,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 6,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "integration": {
+              "processes": 2,
+              "withTraps": 1,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 2,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "management-process": {
+              "processes": 2,
+              "withTraps": 1,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 2,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "name-match": {
+              "processes": 18,
+              "withTraps": 15,
+              "all": {
+                "proposals": 4,
+                "hit": 4,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 14,
+                "precision": 1,
+                "recall": 0.2222222222222222,
+                "f1": 0.3636363636363636,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "outdated-copy": {
+              "processes": 1,
+              "withTraps": 1,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 1,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "semantic": {
+              "processes": 13,
+              "withTraps": 8,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 13,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "shared-word": {
+              "processes": 12,
+              "withTraps": 12,
+              "all": {
+                "proposals": 1,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 11,
+                "precision": 1,
+                "recall": 0.08333333333333333,
+                "f1": 0.15384615384615385,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            },
+            "support-process": {
+              "processes": 4,
+              "withTraps": 3,
+              "all": {
+                "proposals": 0,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 4,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": null,
+              "at3": null
+            }
+          },
+          "trapsHighConfidence": 0,
+          "items": [
+            {
+              "process": "finanzen/mahnwesen#Process_Mahnwesen",
+              "step": "step-mahnwesen",
+              "rank": null,
+              "confidence": 1,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-rechnungsstellung",
+              "rank": null,
+              "confidence": 1,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-zahlungseingang",
+              "rank": null,
+              "confidence": 1,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-wareneingang",
+              "rank": null,
+              "confidence": 1,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            }
+          ]
+        },
+        "baseline": {
+          "ranked": true,
+          "proposals": 89,
+          "leaf": {
+            "processes": 32,
+            "withTraps": 24,
+            "all": {
+              "proposals": 89,
+              "hit": 21,
+              "may": 13,
+              "coarse": 11,
+              "trap": 15,
+              "wrong": 29,
+              "none": 0,
+              "precision": 0.3230769230769231,
+              "recall": 0.65625,
+              "f1": 0.43298969072164956,
+              "trapProcesses": 10,
+              "trapRate": 0.4166666666666667
+            },
+            "at1": {
+              "proposals": 32,
+              "hit": 14,
+              "may": 5,
+              "coarse": 1,
+              "trap": 7,
+              "wrong": 5,
+              "none": 0,
+              "precision": 0.5384615384615384,
+              "recall": 0.4375,
+              "f1": 0.4827586206896552,
+              "trapProcesses": 7,
+              "trapRate": 0.2916666666666667
+            },
+            "at3": {
+              "proposals": 89,
+              "hit": 21,
+              "may": 13,
+              "coarse": 11,
+              "trap": 15,
+              "wrong": 29,
+              "none": 0,
+              "precision": 0.3230769230769231,
+              "recall": 0.65625,
+              "f1": 0.43298969072164956,
+              "trapProcesses": 10,
+              "trapRate": 0.4166666666666667
+            }
+          },
+          "area": {
+            "processes": 32,
+            "withTraps": 3,
+            "all": {
+              "proposals": 89,
+              "hit": 49,
+              "may": 13,
+              "coarse": 0,
+              "trap": 8,
+              "wrong": 19,
+              "none": 0,
+              "precision": 0.6447368421052632,
+              "recall": 0.75,
+              "f1": 0.6933962264150942,
+              "trapProcesses": 3,
+              "trapRate": 1
+            },
+            "at1": {
+              "proposals": 32,
+              "hit": 19,
+              "may": 5,
+              "coarse": 0,
+              "trap": 3,
+              "wrong": 5,
+              "none": 0,
+              "precision": 0.7037037037037037,
+              "recall": 0.59375,
+              "f1": 0.6440677966101694,
+              "trapProcesses": 3,
+              "trapRate": 1
+            },
+            "at3": {
+              "proposals": 89,
+              "hit": 49,
+              "may": 13,
+              "coarse": 0,
+              "trap": 8,
+              "wrong": 19,
+              "none": 0,
+              "precision": 0.6447368421052632,
+              "recall": 0.75,
+              "f1": 0.6933962264150942,
+              "trapProcesses": 3,
+              "trapRate": 1
+            }
+          },
+          "byTag": {
+            "ambiguous": {
+              "processes": 22,
+              "withTraps": 15,
+              "all": {
+                "proposals": 61,
+                "hit": 11,
+                "may": 13,
+                "coarse": 8,
+                "trap": 11,
+                "wrong": 18,
+                "none": 0,
+                "precision": 0.275,
+                "recall": 0.5,
+                "f1": 0.3548387096774194,
+                "trapProcesses": 7,
+                "trapRate": 0.4666666666666667
+              },
+              "at1": {
+                "proposals": 22,
+                "hit": 7,
+                "may": 5,
+                "coarse": 1,
+                "trap": 5,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.4375,
+                "recall": 0.3181818181818182,
+                "f1": 0.3684210526315789,
+                "trapProcesses": 5,
+                "trapRate": 0.3333333333333333
+              },
+              "at3": {
+                "proposals": 61,
+                "hit": 11,
+                "may": 13,
+                "coarse": 8,
+                "trap": 11,
+                "wrong": 18,
+                "none": 0,
+                "precision": 0.275,
+                "recall": 0.5,
+                "f1": 0.3548387096774194,
+                "trapProcesses": 7,
+                "trapRate": 0.4666666666666667
+              }
+            },
+            "cross-domain": {
+              "processes": 6,
+              "withTraps": 5,
+              "all": {
+                "proposals": 18,
+                "hit": 1,
+                "may": 5,
+                "coarse": 2,
+                "trap": 5,
+                "wrong": 5,
+                "none": 0,
+                "precision": 0.09090909090909091,
+                "recall": 0.16666666666666666,
+                "f1": 0.11764705882352942,
+                "trapProcesses": 3,
+                "trapRate": 0.6
+              },
+              "at1": {
+                "proposals": 6,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 3,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0,
+                "recall": 0,
+                "f1": 0,
+                "trapProcesses": 3,
+                "trapRate": 0.6
+              },
+              "at3": {
+                "proposals": 18,
+                "hit": 1,
+                "may": 5,
+                "coarse": 2,
+                "trap": 5,
+                "wrong": 5,
+                "none": 0,
+                "precision": 0.09090909090909091,
+                "recall": 0.16666666666666666,
+                "f1": 0.11764705882352942,
+                "trapProcesses": 3,
+                "trapRate": 0.6
+              }
+            },
+            "domain-prefix": {
+              "processes": 12,
+              "withTraps": 8,
+              "all": {
+                "proposals": 34,
+                "hit": 5,
+                "may": 7,
+                "coarse": 4,
+                "trap": 10,
+                "wrong": 8,
+                "none": 0,
+                "precision": 0.21739130434782608,
+                "recall": 0.4166666666666667,
+                "f1": 0.2857142857142857,
+                "trapProcesses": 5,
+                "trapRate": 0.625
+              },
+              "at1": {
+                "proposals": 12,
+                "hit": 3,
+                "may": 1,
+                "coarse": 1,
+                "trap": 5,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0.3,
+                "recall": 0.25,
+                "f1": 0.2727272727272727,
+                "trapProcesses": 5,
+                "trapRate": 0.625
+              },
+              "at3": {
+                "proposals": 34,
+                "hit": 5,
+                "may": 7,
+                "coarse": 4,
+                "trap": 10,
+                "wrong": 8,
+                "none": 0,
+                "precision": 0.21739130434782608,
+                "recall": 0.4166666666666667,
+                "f1": 0.2857142857142857,
+                "trapProcesses": 5,
+                "trapRate": 0.625
+              }
+            },
+            "english-label": {
+              "processes": 6,
+              "withTraps": 6,
+              "all": {
+                "proposals": 18,
+                "hit": 5,
+                "may": 1,
+                "coarse": 5,
+                "trap": 2,
+                "wrong": 5,
+                "none": 0,
+                "precision": 0.4166666666666667,
+                "recall": 0.8333333333333334,
+                "f1": 0.5555555555555556,
+                "trapProcesses": 2,
+                "trapRate": 0.3333333333333333
+              },
+              "at1": {
+                "proposals": 6,
+                "hit": 3,
+                "may": 1,
+                "coarse": 0,
+                "trap": 1,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0.6,
+                "recall": 0.5,
+                "f1": 0.5454545454545454,
+                "trapProcesses": 1,
+                "trapRate": 0.16666666666666666
+              },
+              "at3": {
+                "proposals": 18,
+                "hit": 5,
+                "may": 1,
+                "coarse": 5,
+                "trap": 2,
+                "wrong": 5,
+                "none": 0,
+                "precision": 0.4166666666666667,
+                "recall": 0.8333333333333334,
+                "f1": 0.5555555555555556,
+                "trapProcesses": 2,
+                "trapRate": 0.3333333333333333
+              }
+            },
+            "integration": {
+              "processes": 2,
+              "withTraps": 1,
+              "all": {
+                "proposals": 4,
+                "hit": 1,
+                "may": 0,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0.3333333333333333,
+                "recall": 0.5,
+                "f1": 0.4,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 2,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0,
+                "recall": 0,
+                "f1": 0,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 4,
+                "hit": 1,
+                "may": 0,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0.3333333333333333,
+                "recall": 0.5,
+                "f1": 0.4,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "management-process": {
+              "processes": 2,
+              "withTraps": 1,
+              "all": {
+                "proposals": 5,
+                "hit": 1,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 3,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.5,
+                "f1": 0.3333333333333333,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 2,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0,
+                "recall": 0,
+                "f1": 0,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 5,
+                "hit": 1,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 3,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.5,
+                "f1": 0.3333333333333333,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "name-match": {
+              "processes": 18,
+              "withTraps": 15,
+              "all": {
+                "proposals": 52,
+                "hit": 16,
+                "may": 4,
+                "coarse": 6,
+                "trap": 11,
+                "wrong": 15,
+                "none": 0,
+                "precision": 0.38095238095238093,
+                "recall": 0.8888888888888888,
+                "f1": 0.5333333333333333,
+                "trapProcesses": 6,
+                "trapRate": 0.4
+              },
+              "at1": {
+                "proposals": 18,
+                "hit": 12,
+                "may": 1,
+                "coarse": 0,
+                "trap": 4,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0.7058823529411765,
+                "recall": 0.6666666666666666,
+                "f1": 0.6857142857142857,
+                "trapProcesses": 4,
+                "trapRate": 0.26666666666666666
+              },
+              "at3": {
+                "proposals": 52,
+                "hit": 16,
+                "may": 4,
+                "coarse": 6,
+                "trap": 11,
+                "wrong": 15,
+                "none": 0,
+                "precision": 0.38095238095238093,
+                "recall": 0.8888888888888888,
+                "f1": 0.5333333333333333,
+                "trapProcesses": 6,
+                "trapRate": 0.4
+              }
+            },
+            "outdated-copy": {
+              "processes": 1,
+              "withTraps": 1,
+              "all": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 0,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 0,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 0,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "semantic": {
+              "processes": 13,
+              "withTraps": 8,
+              "all": {
+                "proposals": 36,
+                "hit": 5,
+                "may": 8,
+                "coarse": 5,
+                "trap": 4,
+                "wrong": 14,
+                "none": 0,
+                "precision": 0.21739130434782608,
+                "recall": 0.38461538461538464,
+                "f1": 0.27777777777777773,
+                "trapProcesses": 4,
+                "trapRate": 0.5
+              },
+              "at1": {
+                "proposals": 13,
+                "hit": 2,
+                "may": 3,
+                "coarse": 1,
+                "trap": 3,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.2222222222222222,
+                "recall": 0.15384615384615385,
+                "f1": 0.18181818181818185,
+                "trapProcesses": 3,
+                "trapRate": 0.375
+              },
+              "at3": {
+                "proposals": 36,
+                "hit": 5,
+                "may": 8,
+                "coarse": 5,
+                "trap": 4,
+                "wrong": 14,
+                "none": 0,
+                "precision": 0.21739130434782608,
+                "recall": 0.38461538461538464,
+                "f1": 0.27777777777777773,
+                "trapProcesses": 4,
+                "trapRate": 0.5
+              }
+            },
+            "shared-word": {
+              "processes": 12,
+              "withTraps": 12,
+              "all": {
+                "proposals": 34,
+                "hit": 8,
+                "may": 4,
+                "coarse": 4,
+                "trap": 13,
+                "wrong": 5,
+                "none": 0,
+                "precision": 0.3076923076923077,
+                "recall": 0.6666666666666666,
+                "f1": 0.42105263157894735,
+                "trapProcesses": 8,
+                "trapRate": 0.6666666666666666
+              },
+              "at1": {
+                "proposals": 12,
+                "hit": 5,
+                "may": 1,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0.45454545454545453,
+                "recall": 0.4166666666666667,
+                "f1": 0.43478260869565216,
+                "trapProcesses": 5,
+                "trapRate": 0.4166666666666667
+              },
+              "at3": {
+                "proposals": 34,
+                "hit": 8,
+                "may": 4,
+                "coarse": 4,
+                "trap": 13,
+                "wrong": 5,
+                "none": 0,
+                "precision": 0.3076923076923077,
+                "recall": 0.6666666666666666,
+                "f1": 0.42105263157894735,
+                "trapProcesses": 8,
+                "trapRate": 0.6666666666666666
+              }
+            },
+            "support-process": {
+              "processes": 4,
+              "withTraps": 3,
+              "all": {
+                "proposals": 12,
+                "hit": 3,
+                "may": 0,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.75,
+                "f1": 0.375,
+                "trapProcesses": 3,
+                "trapRate": 1
+              },
+              "at1": {
+                "proposals": 4,
+                "hit": 2,
+                "may": 0,
+                "coarse": 0,
+                "trap": 2,
+                "wrong": 0,
+                "none": 0,
+                "precision": 0.5,
+                "recall": 0.5,
+                "f1": 0.5,
+                "trapProcesses": 2,
+                "trapRate": 0.6666666666666666
+              },
+              "at3": {
+                "proposals": 12,
+                "hit": 3,
+                "may": 0,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.75,
+                "f1": 0.375,
+                "trapProcesses": 3,
+                "trapRate": 1
+              }
+            }
+          },
+          "trapsHighConfidence": 0,
+          "items": [
+            {
+              "process": "controlling/management-reporting#Process_ManagementReporting",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "management-process",
+                "semantic",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "controlling/management-reporting#Process_ManagementReporting",
+              "step": "step-rechnungswesen",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "management-process",
+                "semantic",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe",
+              "step": "step-bestellwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "outdated-copy",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "einkauf/bestellanforderung#Process_Bestellanforderung",
+              "step": "step-bestellwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "einkauf/bestellanforderung#Process_Bestellanforderung",
+              "step": "step-disposition",
+              "rank": 2,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "einkauf/bestellanforderung#Process_Bestellanforderung",
+              "step": "step-lieferantenmanagement",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "einkauf/bestellfreigabe#Process_Bestellfreigabe",
+              "step": "step-bestellwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "einkauf/lieferantenanlage#Process_Lieferantenanlage",
+              "step": "step-lieferantenmanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "einkauf/lieferantenanlage#Process_Lieferantenanlage",
+              "step": "step-bestellwesen",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "einkauf/lieferantenanlage#Process_Lieferantenanlage",
+              "step": "step-beschaffung",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/briefversand#Process_Briefversand",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "support-process",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/briefversand#Process_Briefversand",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "support-process",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/briefversand#Process_Briefversand",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "support-process",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/e-rechnung-versand#Process_ERechnungVersand",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/e-rechnung-versand#Process_ERechnungVersand",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/e-rechnung-versand#Process_ERechnungVersand",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/forderungsmanagement#Process_Forderungsmanagement",
+              "step": "step-fakturierung",
+              "rank": 1,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "semantic",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/forderungsmanagement#Process_Forderungsmanagement",
+              "step": "step-mahnwesen",
+              "rank": 2,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "semantic",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/forderungsmanagement#Process_Forderungsmanagement",
+              "step": "step-rechnungsstellung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "semantic",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/gutschrift#Process_Gutschrift",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "semantic",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/gutschrift#Process_Gutschrift",
+              "step": "step-reklamationen",
+              "rank": 2,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "semantic",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/gutschrift#Process_Gutschrift",
+              "step": "step-retouren",
+              "rank": 3,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "semantic",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/kreditpruefung#Process_AuskunfteiAdapter",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "integration",
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/kreditpruefung#Process_Kreditpruefung",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "wrong",
+              "tags": [
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/kreditpruefung#Process_Kreditpruefung",
+              "step": "step-auftragsabwicklung",
+              "rank": 2,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/kreditpruefung#Process_Kreditpruefung",
+              "step": "step-partnermanagement",
+              "rank": 3,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/lieferantenrechnung#Process_Lieferantenrechnung",
+              "step": "step-lieferantenmanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "may",
+              "tags": [
+                "support-process",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/lieferantenrechnung#Process_Lieferantenrechnung",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "support-process",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/lieferantenrechnung#Process_Lieferantenrechnung",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 3,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "support-process",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/mahnwesen#Process_Mahnwesen",
+              "step": "step-mahnwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/mahnwesen#Process_Mahnwesen",
+              "step": "step-fakturierung",
+              "rank": 2,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/mahnwesen#Process_Mahnwesen",
+              "step": "step-offene-posten",
+              "rank": 3,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/monatsabschluss#Process_Monatsabschluss",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "support-process",
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/monatsabschluss#Process_Monatsabschluss",
+              "step": "step-reklamationen",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/monatsabschluss#Process_Monatsabschluss",
+              "step": "step-rechnungsstellung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-rechnungswesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-rechnungsstellung",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 3,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-zahlungseingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-fakturierung",
+              "rank": 2,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-auftragseingang",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "support-process",
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+              "step": "step-zahlungseingang",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+              "step": "step-fakturierung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "lager/bestandsueberwachung#Process_Bestandsueberwachung",
+              "step": "step-bestandsfuehrung",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "lager/bestandsueberwachung#Process_Bestandsueberwachung",
+              "step": "step-qualitaetspruefung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "lager/bestandsueberwachung#Process_Bestandsueberwachung",
+              "step": "step-wareneingang",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "lager/kommissionierung#Process_Kommissionierung",
+              "step": "step-kommissionierung",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/kommissionierung#Process_Kommissionierung",
+              "step": "step-bestandsfuehrung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/kommissionierung#Process_Kommissionierung",
+              "step": "step-qualitaetspruefung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-wareneingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-auftragseingang",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-qualitaetspruefung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "logistik/shipping#Process_Shipping",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "logistik/shipping#Process_Shipping",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "logistik/shipping#Process_Shipping",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "logistik/speditionsversand#Process_Speditionsversand",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "logistik/speditionsversand#Process_Speditionsversand",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "logistik/speditionsversand#Process_Speditionsversand",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "partner/customer-account-lock#Process_CustomerAccountLock",
+              "step": "step-partnermanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "partner/customer-account-lock#Process_CustomerAccountLock",
+              "step": "step-mahnwesen",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "domain-prefix",
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "partner/customer-account-lock#Process_CustomerAccountLock",
+              "step": "step-fakturierung",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "domain-prefix",
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "partner/partner-onboarding#Process_PartnerOnboarding",
+              "step": "step-partnermanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "name-match"
+              ]
+            },
+            {
+              "process": "partner/partner-onboarding#Process_PartnerOnboarding",
+              "step": "step-bonitaetspruefung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "name-match"
+              ]
+            },
+            {
+              "process": "partner/partner-onboarding#Process_PartnerOnboarding",
+              "step": "step-vertrieb",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/produktrueckruf#Process_Produktrueckruf",
+              "step": "step-qualitaetspruefung",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "management-process",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/produktrueckruf#Process_Produktrueckruf",
+              "step": "step-qualitaetsmanagement",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "management-process",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/produktrueckruf#Process_Produktrueckruf",
+              "step": "step-auftragsabwicklung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "management-process",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+              "step": "step-wareneingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+              "step": "step-qualitaetspruefung",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+              "step": "step-qualitaetsmanagement",
+              "rank": 3,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "service/ersatzlieferung#Process_Ersatzlieferung",
+              "step": "step-it-services",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "semantic",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "service/ersatzlieferung#Process_Ersatzlieferung",
+              "step": "step-kommissionierung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "semantic",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "service/ersatzlieferung#Process_Ersatzlieferung",
+              "step": "step-paketversand",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "semantic",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "service/kundenbenachrichtigung#Process_Kundenbenachrichtigung",
+              "step": "step-kundeninformation",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "service/kundenbenachrichtigung#Process_Kundenbenachrichtigung",
+              "step": "step-lieferantenmanagement",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "service/kundenbenachrichtigung#Process_Kundenbenachrichtigung",
+              "step": "step-kundenservice",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "service/reklamation#Process_Reklamation",
+              "step": "step-reklamationen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "service/reklamation#Process_Reklamation",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "service/reklamation#Process_Reklamation",
+              "step": "step-it-services",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "service/returns#Process_Returns",
+              "step": "step-retouren",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic"
+              ]
+            },
+            {
+              "process": "service/returns#Process_Returns",
+              "step": "step-it-services",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "english-label",
+                "semantic"
+              ]
+            },
+            {
+              "process": "service/returns#Process_Returns",
+              "step": "step-rechnungsstellung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "english-label",
+                "semantic"
+              ]
+            },
+            {
+              "process": "vertrieb/marketplace-order-import#Process_MarketplaceOrderImport",
+              "step": "step-auftragsabwicklung",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "integration",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/marketplace-order-import#Process_MarketplaceOrderImport",
+              "step": "step-vertrieb",
+              "rank": 2,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "integration",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/marketplace-order-import#Process_MarketplaceOrderImport",
+              "step": "step-auftragseingang",
+              "rank": 3,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "integration",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/order-handling#Process_OrderHandling",
+              "step": "step-auftragseingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/order-handling#Process_OrderHandling",
+              "step": "step-bonitaetspruefung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/order-handling#Process_OrderHandling",
+              "step": "step-vertrieb",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            }
+          ]
+        },
+        "baselineNoVotes": {
+          "ranked": true,
+          "proposals": 62,
+          "leaf": {
+            "processes": 32,
+            "withTraps": 24,
+            "all": {
+              "proposals": 62,
+              "hit": 20,
+              "may": 5,
+              "coarse": 3,
+              "trap": 15,
+              "wrong": 19,
+              "none": 3,
+              "precision": 0.37037037037037035,
+              "recall": 0.625,
+              "f1": 0.4651162790697674,
+              "trapProcesses": 10,
+              "trapRate": 0.4166666666666667
+            },
+            "at1": {
+              "proposals": 29,
+              "hit": 15,
+              "may": 3,
+              "coarse": 0,
+              "trap": 7,
+              "wrong": 4,
+              "none": 3,
+              "precision": 0.5769230769230769,
+              "recall": 0.46875,
+              "f1": 0.5172413793103449,
+              "trapProcesses": 7,
+              "trapRate": 0.2916666666666667
+            },
+            "at3": {
+              "proposals": 62,
+              "hit": 20,
+              "may": 5,
+              "coarse": 3,
+              "trap": 15,
+              "wrong": 19,
+              "none": 3,
+              "precision": 0.37037037037037035,
+              "recall": 0.625,
+              "f1": 0.4651162790697674,
+              "trapProcesses": 10,
+              "trapRate": 0.4166666666666667
+            }
+          },
+          "area": {
+            "processes": 32,
+            "withTraps": 3,
+            "all": {
+              "proposals": 62,
+              "hit": 30,
+              "may": 9,
+              "coarse": 0,
+              "trap": 8,
+              "wrong": 15,
+              "none": 3,
+              "precision": 0.5660377358490566,
+              "recall": 0.625,
+              "f1": 0.594059405940594,
+              "trapProcesses": 3,
+              "trapRate": 1
+            },
+            "at1": {
+              "proposals": 29,
+              "hit": 18,
+              "may": 4,
+              "coarse": 0,
+              "trap": 2,
+              "wrong": 5,
+              "none": 3,
+              "precision": 0.72,
+              "recall": 0.5625,
+              "f1": 0.631578947368421,
+              "trapProcesses": 2,
+              "trapRate": 0.6666666666666666
+            },
+            "at3": {
+              "proposals": 62,
+              "hit": 30,
+              "may": 9,
+              "coarse": 0,
+              "trap": 8,
+              "wrong": 15,
+              "none": 3,
+              "precision": 0.5660377358490566,
+              "recall": 0.625,
+              "f1": 0.594059405940594,
+              "trapProcesses": 3,
+              "trapRate": 1
+            }
+          },
+          "byTag": {
+            "ambiguous": {
+              "processes": 22,
+              "withTraps": 15,
+              "all": {
+                "proposals": 40,
+                "hit": 10,
+                "may": 5,
+                "coarse": 2,
+                "trap": 11,
+                "wrong": 12,
+                "none": 3,
+                "precision": 0.30303030303030304,
+                "recall": 0.45454545454545453,
+                "f1": 0.36363636363636365,
+                "trapProcesses": 7,
+                "trapRate": 0.4666666666666667
+              },
+              "at1": {
+                "proposals": 19,
+                "hit": 8,
+                "may": 3,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 3,
+                "none": 3,
+                "precision": 0.5,
+                "recall": 0.36363636363636365,
+                "f1": 0.4210526315789474,
+                "trapProcesses": 5,
+                "trapRate": 0.3333333333333333
+              },
+              "at3": {
+                "proposals": 40,
+                "hit": 10,
+                "may": 5,
+                "coarse": 2,
+                "trap": 11,
+                "wrong": 12,
+                "none": 3,
+                "precision": 0.30303030303030304,
+                "recall": 0.45454545454545453,
+                "f1": 0.36363636363636365,
+                "trapProcesses": 7,
+                "trapRate": 0.4666666666666667
+              }
+            },
+            "cross-domain": {
+              "processes": 6,
+              "withTraps": 5,
+              "all": {
+                "proposals": 9,
+                "hit": 1,
+                "may": 1,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 2,
+                "none": 1,
+                "precision": 0.125,
+                "recall": 0.16666666666666666,
+                "f1": 0.14285714285714288,
+                "trapProcesses": 3,
+                "trapRate": 0.6
+              },
+              "at1": {
+                "proposals": 5,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 3,
+                "wrong": 1,
+                "none": 1,
+                "precision": 0.2,
+                "recall": 0.16666666666666666,
+                "f1": 0.1818181818181818,
+                "trapProcesses": 3,
+                "trapRate": 0.6
+              },
+              "at3": {
+                "proposals": 9,
+                "hit": 1,
+                "may": 1,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 2,
+                "none": 1,
+                "precision": 0.125,
+                "recall": 0.16666666666666666,
+                "f1": 0.14285714285714288,
+                "trapProcesses": 3,
+                "trapRate": 0.6
+              }
+            },
+            "domain-prefix": {
+              "processes": 12,
+              "withTraps": 8,
+              "all": {
+                "proposals": 22,
+                "hit": 4,
+                "may": 1,
+                "coarse": 0,
+                "trap": 10,
+                "wrong": 7,
+                "none": 2,
+                "precision": 0.19047619047619047,
+                "recall": 0.3333333333333333,
+                "f1": 0.24242424242424246,
+                "trapProcesses": 5,
+                "trapRate": 0.625
+              },
+              "at1": {
+                "proposals": 10,
+                "hit": 4,
+                "may": 1,
+                "coarse": 0,
+                "trap": 4,
+                "wrong": 1,
+                "none": 2,
+                "precision": 0.4444444444444444,
+                "recall": 0.3333333333333333,
+                "f1": 0.380952380952381,
+                "trapProcesses": 4,
+                "trapRate": 0.5
+              },
+              "at3": {
+                "proposals": 22,
+                "hit": 4,
+                "may": 1,
+                "coarse": 0,
+                "trap": 10,
+                "wrong": 7,
+                "none": 2,
+                "precision": 0.19047619047619047,
+                "recall": 0.3333333333333333,
+                "f1": 0.24242424242424246,
+                "trapProcesses": 5,
+                "trapRate": 0.625
+              }
+            },
+            "english-label": {
+              "processes": 6,
+              "withTraps": 6,
+              "all": {
+                "proposals": 13,
+                "hit": 5,
+                "may": 1,
+                "coarse": 1,
+                "trap": 2,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.45454545454545453,
+                "recall": 0.8333333333333334,
+                "f1": 0.5882352941176471,
+                "trapProcesses": 2,
+                "trapRate": 0.3333333333333333
+              },
+              "at1": {
+                "proposals": 6,
+                "hit": 4,
+                "may": 0,
+                "coarse": 0,
+                "trap": 1,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0.6666666666666666,
+                "recall": 0.6666666666666666,
+                "f1": 0.6666666666666666,
+                "trapProcesses": 1,
+                "trapRate": 0.16666666666666666
+              },
+              "at3": {
+                "proposals": 13,
+                "hit": 5,
+                "may": 1,
+                "coarse": 1,
+                "trap": 2,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.45454545454545453,
+                "recall": 0.8333333333333334,
+                "f1": 0.5882352941176471,
+                "trapProcesses": 2,
+                "trapRate": 0.3333333333333333
+              }
+            },
+            "integration": {
+              "processes": 2,
+              "withTraps": 1,
+              "all": {
+                "proposals": 4,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 3,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.5,
+                "f1": 0.3333333333333333,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 2,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0,
+                "recall": 0,
+                "f1": 0,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 4,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 3,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.5,
+                "f1": 0.3333333333333333,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "management-process": {
+              "processes": 2,
+              "withTraps": 1,
+              "all": {
+                "proposals": 2,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 1,
+                "none": 1,
+                "precision": 0.5,
+                "recall": 0.5,
+                "f1": 0.5,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 1,
+                "none": 1,
+                "precision": 0,
+                "recall": 0,
+                "f1": 0,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 2,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 1,
+                "none": 1,
+                "precision": 0.5,
+                "recall": 0.5,
+                "f1": 0.5,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "name-match": {
+              "processes": 18,
+              "withTraps": 15,
+              "all": {
+                "proposals": 42,
+                "hit": 16,
+                "may": 2,
+                "coarse": 2,
+                "trap": 11,
+                "wrong": 11,
+                "none": 0,
+                "precision": 0.42105263157894735,
+                "recall": 0.8888888888888888,
+                "f1": 0.5714285714285714,
+                "trapProcesses": 6,
+                "trapRate": 0.4
+              },
+              "at1": {
+                "proposals": 18,
+                "hit": 12,
+                "may": 1,
+                "coarse": 0,
+                "trap": 4,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0.7058823529411765,
+                "recall": 0.6666666666666666,
+                "f1": 0.6857142857142857,
+                "trapProcesses": 4,
+                "trapRate": 0.26666666666666666
+              },
+              "at3": {
+                "proposals": 42,
+                "hit": 16,
+                "may": 2,
+                "coarse": 2,
+                "trap": 11,
+                "wrong": 11,
+                "none": 0,
+                "precision": 0.42105263157894735,
+                "recall": 0.8888888888888888,
+                "f1": 0.5714285714285714,
+                "trapProcesses": 6,
+                "trapRate": 0.4
+              }
+            },
+            "outdated-copy": {
+              "processes": 1,
+              "withTraps": 1,
+              "all": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 0,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 0,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 1,
+                "hit": 0,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 0,
+                "none": 0,
+                "precision": null,
+                "recall": 0,
+                "f1": null,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "semantic": {
+              "processes": 13,
+              "withTraps": 8,
+              "all": {
+                "proposals": 19,
+                "hit": 4,
+                "may": 2,
+                "coarse": 1,
+                "trap": 4,
+                "wrong": 8,
+                "none": 3,
+                "precision": 0.25,
+                "recall": 0.3076923076923077,
+                "f1": 0.27586206896551724,
+                "trapProcesses": 4,
+                "trapRate": 0.5
+              },
+              "at1": {
+                "proposals": 10,
+                "hit": 3,
+                "may": 1,
+                "coarse": 0,
+                "trap": 3,
+                "wrong": 3,
+                "none": 3,
+                "precision": 0.3333333333333333,
+                "recall": 0.23076923076923078,
+                "f1": 0.27272727272727276,
+                "trapProcesses": 3,
+                "trapRate": 0.375
+              },
+              "at3": {
+                "proposals": 19,
+                "hit": 4,
+                "may": 2,
+                "coarse": 1,
+                "trap": 4,
+                "wrong": 8,
+                "none": 3,
+                "precision": 0.25,
+                "recall": 0.3076923076923077,
+                "f1": 0.27586206896551724,
+                "trapProcesses": 4,
+                "trapRate": 0.5
+              }
+            },
+            "shared-word": {
+              "processes": 12,
+              "withTraps": 12,
+              "all": {
+                "proposals": 28,
+                "hit": 8,
+                "may": 1,
+                "coarse": 2,
+                "trap": 13,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.32,
+                "recall": 0.6666666666666666,
+                "f1": 0.43243243243243246,
+                "trapProcesses": 8,
+                "trapRate": 0.6666666666666666
+              },
+              "at1": {
+                "proposals": 12,
+                "hit": 6,
+                "may": 0,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 1,
+                "none": 0,
+                "precision": 0.5,
+                "recall": 0.5,
+                "f1": 0.5,
+                "trapProcesses": 5,
+                "trapRate": 0.4166666666666667
+              },
+              "at3": {
+                "proposals": 28,
+                "hit": 8,
+                "may": 1,
+                "coarse": 2,
+                "trap": 13,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.32,
+                "recall": 0.6666666666666666,
+                "f1": 0.43243243243243246,
+                "trapProcesses": 8,
+                "trapRate": 0.6666666666666666
+              }
+            },
+            "support-process": {
+              "processes": 4,
+              "withTraps": 3,
+              "all": {
+                "proposals": 9,
+                "hit": 2,
+                "may": 0,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0.2222222222222222,
+                "recall": 0.5,
+                "f1": 0.30769230769230765,
+                "trapProcesses": 3,
+                "trapRate": 1
+              },
+              "at1": {
+                "proposals": 4,
+                "hit": 1,
+                "may": 0,
+                "coarse": 0,
+                "trap": 3,
+                "wrong": 0,
+                "none": 0,
+                "precision": 0.25,
+                "recall": 0.25,
+                "f1": 0.25,
+                "trapProcesses": 3,
+                "trapRate": 1
+              },
+              "at3": {
+                "proposals": 9,
+                "hit": 2,
+                "may": 0,
+                "coarse": 0,
+                "trap": 5,
+                "wrong": 2,
+                "none": 0,
+                "precision": 0.2222222222222222,
+                "recall": 0.5,
+                "f1": 0.30769230769230765,
+                "trapProcesses": 3,
+                "trapRate": 1
+              }
+            }
+          },
+          "trapsHighConfidence": 0,
+          "items": [
+            {
+              "process": "einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe",
+              "step": "step-bestellwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "outdated-copy",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "einkauf/bestellanforderung#Process_Bestellanforderung",
+              "step": "step-bestellwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "einkauf/bestellfreigabe#Process_Bestellfreigabe",
+              "step": "step-bestellwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "einkauf/lieferantenanlage#Process_Lieferantenanlage",
+              "step": "step-lieferantenmanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/briefversand#Process_Briefversand",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "support-process",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/briefversand#Process_Briefversand",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "support-process",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/briefversand#Process_Briefversand",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "support-process",
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "name-match"
+              ]
+            },
+            {
+              "process": "finanzen/e-rechnung-versand#Process_ERechnungVersand",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/e-rechnung-versand#Process_ERechnungVersand",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/e-rechnung-versand#Process_ERechnungVersand",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/kreditpruefung#Process_AuskunfteiAdapter",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "integration",
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/kreditpruefung#Process_Kreditpruefung",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "wrong",
+              "tags": [
+                "domain-prefix",
+                "cross-domain",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/lieferantenrechnung#Process_Lieferantenrechnung",
+              "step": "step-lieferantenmanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "may",
+              "tags": [
+                "support-process",
+                "ambiguous",
+                "shared-word",
+                "semantic"
+              ]
+            },
+            {
+              "process": "finanzen/mahnwesen#Process_Mahnwesen",
+              "step": "step-mahnwesen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/monatsabschluss#Process_Monatsabschluss",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "support-process",
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/monatsabschluss#Process_Monatsabschluss",
+              "step": "step-reklamationen",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-rechnungsstellung",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-rechnungswesen",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/rechnungsstellung#Process_Rechnungsstellung",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 3,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "trap",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-zahlungseingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-auftragseingang",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungseingang#Process_Zahlungseingang",
+              "step": "step-wareneingang",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match",
+                "domain-prefix",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+              "step": "step-zahlungseingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+              "step": "step-kreditorenbuchhaltung",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "support-process",
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "finanzen/zahlungslauf#Process_Zahlungslauf",
+              "step": "step-fakturierung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "support-process",
+                "name-match",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "lager/bestandsueberwachung#Process_Bestandsueberwachung",
+              "step": "step-bestandsfuehrung",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "lager/bestandsueberwachung#Process_Bestandsueberwachung",
+              "step": "step-qualitaetspruefung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "lager/bestandsueberwachung#Process_Bestandsueberwachung",
+              "step": "step-wareneingang",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "lager/kommissionierung#Process_Kommissionierung",
+              "step": "step-kommissionierung",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/kommissionierung#Process_Kommissionierung",
+              "step": "step-bestandsfuehrung",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/kommissionierung#Process_Kommissionierung",
+              "step": "step-qualitaetspruefung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "ambiguous",
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-wareneingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-auftragseingang",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "lager/wareneingang#Process_Wareneingang",
+              "step": "step-zahlungseingang",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "logistik/shipping#Process_Shipping",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "logistik/shipping#Process_Shipping",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "logistik/shipping#Process_Shipping",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "logistik/speditionsversand#Process_Speditionsversand",
+              "step": "step-paketversand",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "logistik/speditionsversand#Process_Speditionsversand",
+              "step": "step-speditionsversand",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "logistik/speditionsversand#Process_Speditionsversand",
+              "step": "step-versand",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "partner/customer-account-lock#Process_CustomerAccountLock",
+              "step": "step-partnermanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "may",
+              "tags": [
+                "domain-prefix",
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic"
+              ]
+            },
+            {
+              "process": "partner/partner-onboarding#Process_PartnerOnboarding",
+              "step": "step-partnermanagement",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/produktrueckruf#Process_Produktrueckruf",
+              "step": "step-qualitaetspruefung",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "management-process",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/produktrueckruf#Process_Produktrueckruf",
+              "step": "step-qualitaetsmanagement",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "management-process",
+                "name-match"
+              ]
+            },
+            {
+              "process": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+              "step": "step-wareneingang",
+              "rank": 1,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+              "step": "step-qualitaetspruefung",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "qualitaet/wareneingangspruefung#Process_Wareneingangspruefung",
+              "step": "step-qualitaetsmanagement",
+              "rank": 3,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "may",
+              "tags": [
+                "name-match",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "service/ersatzlieferung#Process_Ersatzlieferung",
+              "step": "step-it-services",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "semantic",
+                "cross-domain",
+                "ambiguous"
+              ]
+            },
+            {
+              "process": "service/kundenbenachrichtigung#Process_Kundenbenachrichtigung",
+              "step": "step-kundeninformation",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "service/kundenbenachrichtigung#Process_Kundenbenachrichtigung",
+              "step": "step-lieferantenmanagement",
+              "rank": 2,
+              "confidence": null,
+              "class": "trap",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "service/kundenbenachrichtigung#Process_Kundenbenachrichtigung",
+              "step": "step-kundenservice",
+              "rank": 3,
+              "confidence": null,
+              "class": "coarse",
+              "areaClass": "hit",
+              "tags": [
+                "name-match",
+                "ambiguous",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "service/reklamation#Process_Reklamation",
+              "step": "step-reklamationen",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "service/reklamation#Process_Reklamation",
+              "step": "step-hauptbuch-abschluss",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "service/reklamation#Process_Reklamation",
+              "step": "step-it-services",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "name-match"
+              ]
+            },
+            {
+              "process": "service/returns#Process_Returns",
+              "step": "step-retouren",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "semantic"
+              ]
+            },
+            {
+              "process": "service/returns#Process_Returns",
+              "step": "step-it-services",
+              "rank": 2,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "wrong",
+              "tags": [
+                "english-label",
+                "semantic"
+              ]
+            },
+            {
+              "process": "vertrieb/marketplace-order-import#Process_MarketplaceOrderImport",
+              "step": "step-auftragsabwicklung",
+              "rank": 1,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "integration",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/marketplace-order-import#Process_MarketplaceOrderImport",
+              "step": "step-auftragseingang",
+              "rank": 2,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "integration",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/marketplace-order-import#Process_MarketplaceOrderImport",
+              "step": "step-bonitaetspruefung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "integration",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/order-handling#Process_OrderHandling",
+              "step": "step-auftragsabwicklung",
+              "rank": 1,
+              "confidence": null,
+              "class": "hit",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/order-handling#Process_OrderHandling",
+              "step": "step-auftragseingang",
+              "rank": 2,
+              "confidence": null,
+              "class": "may",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            },
+            {
+              "process": "vertrieb/order-handling#Process_OrderHandling",
+              "step": "step-bonitaetspruefung",
+              "rank": 3,
+              "confidence": null,
+              "class": "wrong",
+              "areaClass": "hit",
+              "tags": [
+                "english-label",
+                "cross-domain",
+                "ambiguous",
+                "semantic",
+                "shared-word"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "stadtwerke-auental",
+      "split": "holdout",
+      "pass": true,
+      "validatorExit": 0,
+      "counts": {
+        "steps": 38,
+        "topLevel": 14,
+        "processes": 27,
+        "placements": 27,
+        "outside": 1,
+        "may": 18,
+        "mustNot": 31,
+        "ruleProposals": 1,
+        "tags": {
+          "ambiguous": 14,
+          "cross-domain": 8,
+          "integration": 1,
+          "name-match": 19,
+          "outdated-copy": 1,
+          "semantic": 7,
+          "shared-word": 8
+        }
+      },
+      "gates": [
+        {
+          "id": "validator",
+          "title": "validate-value-chains.mjs",
+          "value": "exit 0",
+          "target": "exit 0",
+          "pass": true
+        },
+        {
+          "id": "coverage",
+          "title": "golden placements = process facts",
+          "value": "27 listed, 27 process facts, 0 missing, 0 extra",
+          "target": "equal",
+          "pass": true
+        },
+        {
+          "id": "rule-proposals",
+          "title": "rule proposals hit must or may",
+          "value": "1/1",
+          "target": "all",
+          "pass": true
+        }
+      ],
+      "systems": {
+        "baseline": {
+          "ranked": true,
+          "proposals": 81,
+          "leaf": {
+            "processes": 27,
+            "withTraps": 23,
+            "all": {
+              "proposals": 81,
+              "hit": 19,
+              "may": 7,
+              "coarse": 12,
+              "trap": 4,
+              "wrong": 39,
+              "none": 0,
+              "precision": 0.3064516129032258,
+              "recall": 0.7037037037037037,
+              "f1": 0.42696629213483145,
+              "trapProcesses": 4,
+              "trapRate": 0.17391304347826086
+            },
+            "at1": {
+              "proposals": 27,
+              "hit": 12,
+              "may": 2,
+              "coarse": 1,
+              "trap": 1,
+              "wrong": 11,
+              "none": 0,
+              "precision": 0.5,
+              "recall": 0.4444444444444444,
+              "f1": 0.47058823529411764,
+              "trapProcesses": 1,
+              "trapRate": 0.043478260869565216
+            },
+            "at3": {
+              "proposals": 81,
+              "hit": 19,
+              "may": 7,
+              "coarse": 12,
+              "trap": 4,
+              "wrong": 39,
+              "none": 0,
+              "precision": 0.3064516129032258,
+              "recall": 0.7037037037037037,
+              "f1": 0.42696629213483145,
+              "trapProcesses": 4,
+              "trapRate": 0.17391304347826086
+            }
+          },
+          "area": {
+            "processes": 27,
+            "withTraps": 7,
+            "all": {
+              "proposals": 81,
+              "hit": 68,
+              "may": 4,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 9,
+              "none": 0,
+              "precision": 0.8831168831168831,
+              "recall": 0.9259259259259259,
+              "f1": 0.9040148896570062,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at1": {
+              "proposals": 27,
+              "hit": 25,
+              "may": 1,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 1,
+              "none": 0,
+              "precision": 0.9615384615384616,
+              "recall": 0.9259259259259259,
+              "f1": 0.9433962264150944,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at3": {
+              "proposals": 81,
+              "hit": 68,
+              "may": 4,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 9,
+              "none": 0,
+              "precision": 0.8831168831168831,
+              "recall": 0.9259259259259259,
+              "f1": 0.9040148896570062,
+              "trapProcesses": 0,
+              "trapRate": 0
+            }
+          },
+          "byTag": {
+            "ambiguous": {
+              "processes": 14,
+              "withTraps": 10,
+              "all": {
+                "proposals": 42,
+                "hit": 10,
+                "may": 7,
+                "coarse": 7,
+                "trap": 1,
+                "wrong": 17,
+                "none": 0,
+                "precision": 0.35714285714285715,
+                "recall": 0.7142857142857143,
+                "f1": 0.4761904761904762,
+                "trapProcesses": 1,
+                "trapRate": 0.1
+              },
+              "at1": {
+                "proposals": 14,
+                "hit": 7,
+                "may": 2,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.6363636363636364,
+                "recall": 0.5,
+                "f1": 0.56,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 42,
+                "hit": 10,
+                "may": 7,
+                "coarse": 7,
+                "trap": 1,
+                "wrong": 17,
+                "none": 0,
+                "precision": 0.35714285714285715,
+                "recall": 0.7142857142857143,
+                "f1": 0.4761904761904762,
+                "trapProcesses": 1,
+                "trapRate": 0.1
+              }
+            },
+            "cross-domain": {
+              "processes": 8,
+              "withTraps": 6,
+              "all": {
+                "proposals": 24,
+                "hit": 6,
+                "may": 3,
+                "coarse": 6,
+                "trap": 1,
+                "wrong": 8,
+                "none": 0,
+                "precision": 0.4,
+                "recall": 0.75,
+                "f1": 0.5217391304347827,
+                "trapProcesses": 1,
+                "trapRate": 0.16666666666666666
+              },
+              "at1": {
+                "proposals": 8,
+                "hit": 3,
+                "may": 0,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.42857142857142855,
+                "recall": 0.375,
+                "f1": 0.39999999999999997,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 24,
+                "hit": 6,
+                "may": 3,
+                "coarse": 6,
+                "trap": 1,
+                "wrong": 8,
+                "none": 0,
+                "precision": 0.4,
+                "recall": 0.75,
+                "f1": 0.5217391304347827,
+                "trapProcesses": 1,
+                "trapRate": 0.16666666666666666
+              }
+            },
+            "name-match": {
+              "processes": 19,
+              "withTraps": 15,
+              "all": {
+                "proposals": 57,
+                "hit": 14,
+                "may": 5,
+                "coarse": 10,
+                "trap": 4,
+                "wrong": 24,
+                "none": 0,
+                "precision": 0.3333333333333333,
+                "recall": 0.7368421052631579,
+                "f1": 0.4590163934426229,
+                "trapProcesses": 4,
+                "trapRate": 0.26666666666666666
+              },
+              "at1": {
+                "proposals": 19,
+                "hit": 10,
+                "may": 0,
+                "coarse": 1,
+                "trap": 1,
+                "wrong": 7,
+                "none": 0,
+                "precision": 0.5555555555555556,
+                "recall": 0.5263157894736842,
+                "f1": 0.5405405405405405,
+                "trapProcesses": 1,
+                "trapRate": 0.06666666666666667
+              },
+              "at3": {
+                "proposals": 57,
+                "hit": 14,
+                "may": 5,
+                "coarse": 10,
+                "trap": 4,
+                "wrong": 24,
+                "none": 0,
+                "precision": 0.3333333333333333,
+                "recall": 0.7368421052631579,
+                "f1": 0.4590163934426229,
+                "trapProcesses": 4,
+                "trapRate": 0.26666666666666666
+              }
+            },
+            "semantic": {
+              "processes": 7,
+              "withTraps": 7,
+              "all": {
+                "proposals": 21,
+                "hit": 5,
+                "may": 1,
+                "coarse": 2,
+                "trap": 0,
+                "wrong": 13,
+                "none": 0,
+                "precision": 0.2777777777777778,
+                "recall": 0.7142857142857143,
+                "f1": 0.4,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 7,
+                "hit": 2,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.3333333333333333,
+                "recall": 0.2857142857142857,
+                "f1": 0.30769230769230765,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 21,
+                "hit": 5,
+                "may": 1,
+                "coarse": 2,
+                "trap": 0,
+                "wrong": 13,
+                "none": 0,
+                "precision": 0.2777777777777778,
+                "recall": 0.7142857142857143,
+                "f1": 0.4,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "shared-word": {
+              "processes": 8,
+              "withTraps": 8,
+              "all": {
+                "proposals": 24,
+                "hit": 5,
+                "may": 1,
+                "coarse": 1,
+                "trap": 3,
+                "wrong": 14,
+                "none": 0,
+                "precision": 0.22727272727272727,
+                "recall": 0.625,
+                "f1": 0.3333333333333333,
+                "trapProcesses": 3,
+                "trapRate": 0.375
+              },
+              "at1": {
+                "proposals": 8,
+                "hit": 3,
+                "may": 1,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.42857142857142855,
+                "recall": 0.375,
+                "f1": 0.39999999999999997,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 24,
+                "hit": 5,
+                "may": 1,
+                "coarse": 1,
+                "trap": 3,
+                "wrong": 14,
+                "none": 0,
+                "precision": 0.22727272727272727,
+                "recall": 0.625,
+                "f1": 0.3333333333333333,
+                "trapProcesses": 3,
+                "trapRate": 0.375
+              }
+            }
+          },
+          "trapsHighConfidence": 0
+        },
+        "baselineNoVotes": {
+          "ranked": true,
+          "proposals": 73,
+          "leaf": {
+            "processes": 27,
+            "withTraps": 23,
+            "all": {
+              "proposals": 73,
+              "hit": 21,
+              "may": 4,
+              "coarse": 5,
+              "trap": 3,
+              "wrong": 40,
+              "none": 2,
+              "precision": 0.328125,
+              "recall": 0.7777777777777778,
+              "f1": 0.46153846153846156,
+              "trapProcesses": 3,
+              "trapRate": 0.13043478260869565
+            },
+            "at1": {
+              "proposals": 25,
+              "hit": 15,
+              "may": 1,
+              "coarse": 1,
+              "trap": 0,
+              "wrong": 8,
+              "none": 2,
+              "precision": 0.6521739130434783,
+              "recall": 0.5555555555555556,
+              "f1": 0.6,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at3": {
+              "proposals": 73,
+              "hit": 21,
+              "may": 4,
+              "coarse": 5,
+              "trap": 3,
+              "wrong": 40,
+              "none": 2,
+              "precision": 0.328125,
+              "recall": 0.7777777777777778,
+              "f1": 0.46153846153846156,
+              "trapProcesses": 3,
+              "trapRate": 0.13043478260869565
+            }
+          },
+          "area": {
+            "processes": 27,
+            "withTraps": 7,
+            "all": {
+              "proposals": 73,
+              "hit": 63,
+              "may": 3,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 7,
+              "none": 2,
+              "precision": 0.9,
+              "recall": 0.8888888888888888,
+              "f1": 0.8944099378881988,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at1": {
+              "proposals": 25,
+              "hit": 23,
+              "may": 1,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 1,
+              "none": 2,
+              "precision": 0.9583333333333334,
+              "recall": 0.8518518518518519,
+              "f1": 0.9019607843137256,
+              "trapProcesses": 0,
+              "trapRate": 0
+            },
+            "at3": {
+              "proposals": 73,
+              "hit": 63,
+              "may": 3,
+              "coarse": 0,
+              "trap": 0,
+              "wrong": 7,
+              "none": 2,
+              "precision": 0.9,
+              "recall": 0.8888888888888888,
+              "f1": 0.8944099378881988,
+              "trapProcesses": 0,
+              "trapRate": 0
+            }
+          },
+          "byTag": {
+            "ambiguous": {
+              "processes": 14,
+              "withTraps": 10,
+              "all": {
+                "proposals": 37,
+                "hit": 11,
+                "may": 4,
+                "coarse": 4,
+                "trap": 0,
+                "wrong": 18,
+                "none": 1,
+                "precision": 0.3793103448275862,
+                "recall": 0.7857142857142857,
+                "f1": 0.5116279069767441,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 13,
+                "hit": 8,
+                "may": 1,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 3,
+                "none": 1,
+                "precision": 0.7272727272727273,
+                "recall": 0.5714285714285714,
+                "f1": 0.64,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 37,
+                "hit": 11,
+                "may": 4,
+                "coarse": 4,
+                "trap": 0,
+                "wrong": 18,
+                "none": 1,
+                "precision": 0.3793103448275862,
+                "recall": 0.7857142857142857,
+                "f1": 0.5116279069767441,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "cross-domain": {
+              "processes": 8,
+              "withTraps": 6,
+              "all": {
+                "proposals": 24,
+                "hit": 7,
+                "may": 3,
+                "coarse": 5,
+                "trap": 0,
+                "wrong": 9,
+                "none": 0,
+                "precision": 0.4375,
+                "recall": 0.875,
+                "f1": 0.5833333333333334,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at1": {
+                "proposals": 8,
+                "hit": 3,
+                "may": 0,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 4,
+                "none": 0,
+                "precision": 0.42857142857142855,
+                "recall": 0.375,
+                "f1": 0.39999999999999997,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 24,
+                "hit": 7,
+                "may": 3,
+                "coarse": 5,
+                "trap": 0,
+                "wrong": 9,
+                "none": 0,
+                "precision": 0.4375,
+                "recall": 0.875,
+                "f1": 0.5833333333333334,
+                "trapProcesses": 0,
+                "trapRate": 0
+              }
+            },
+            "name-match": {
+              "processes": 19,
+              "withTraps": 15,
+              "all": {
+                "proposals": 52,
+                "hit": 16,
+                "may": 3,
+                "coarse": 5,
+                "trap": 2,
+                "wrong": 26,
+                "none": 1,
+                "precision": 0.36363636363636365,
+                "recall": 0.8421052631578947,
+                "f1": 0.5079365079365079,
+                "trapProcesses": 2,
+                "trapRate": 0.13333333333333333
+              },
+              "at1": {
+                "proposals": 18,
+                "hit": 12,
+                "may": 0,
+                "coarse": 1,
+                "trap": 0,
+                "wrong": 5,
+                "none": 1,
+                "precision": 0.7058823529411765,
+                "recall": 0.631578947368421,
+                "f1": 0.6666666666666667,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 52,
+                "hit": 16,
+                "may": 3,
+                "coarse": 5,
+                "trap": 2,
+                "wrong": 26,
+                "none": 1,
+                "precision": 0.36363636363636365,
+                "recall": 0.8421052631578947,
+                "f1": 0.5079365079365079,
+                "trapProcesses": 2,
+                "trapRate": 0.13333333333333333
+              }
+            },
+            "semantic": {
+              "processes": 7,
+              "withTraps": 7,
+              "all": {
+                "proposals": 18,
+                "hit": 5,
+                "may": 0,
+                "coarse": 0,
+                "trap": 1,
+                "wrong": 12,
+                "none": 1,
+                "precision": 0.2777777777777778,
+                "recall": 0.7142857142857143,
+                "f1": 0.4,
+                "trapProcesses": 1,
+                "trapRate": 0.14285714285714285
+              },
+              "at1": {
+                "proposals": 6,
+                "hit": 3,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 3,
+                "none": 1,
+                "precision": 0.5,
+                "recall": 0.42857142857142855,
+                "f1": 0.4615384615384615,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 18,
+                "hit": 5,
+                "may": 0,
+                "coarse": 0,
+                "trap": 1,
+                "wrong": 12,
+                "none": 1,
+                "precision": 0.2777777777777778,
+                "recall": 0.7142857142857143,
+                "f1": 0.4,
+                "trapProcesses": 1,
+                "trapRate": 0.14285714285714285
+              }
+            },
+            "shared-word": {
+              "processes": 8,
+              "withTraps": 8,
+              "all": {
+                "proposals": 18,
+                "hit": 5,
+                "may": 0,
+                "coarse": 1,
+                "trap": 1,
+                "wrong": 11,
+                "none": 2,
+                "precision": 0.29411764705882354,
+                "recall": 0.625,
+                "f1": 0.4,
+                "trapProcesses": 1,
+                "trapRate": 0.125
+              },
+              "at1": {
+                "proposals": 6,
+                "hit": 3,
+                "may": 0,
+                "coarse": 0,
+                "trap": 0,
+                "wrong": 3,
+                "none": 2,
+                "precision": 0.5,
+                "recall": 0.375,
+                "f1": 0.42857142857142855,
+                "trapProcesses": 0,
+                "trapRate": 0
+              },
+              "at3": {
+                "proposals": 18,
+                "hit": 5,
+                "may": 0,
+                "coarse": 1,
+                "trap": 1,
+                "wrong": 11,
+                "none": 2,
+                "precision": 0.29411764705882354,
+                "recall": 0.625,
+                "f1": 0.4,
+                "trapProcesses": 1,
+                "trapRate": 0.125
+              }
+            }
+          },
+          "trapsHighConfidence": 0
+        }
+      },
+      "note": "holdout: no per-item lists, the rule tier as its gate and count only, per-tag numbers only for tags with at least 5 processes (eval/README.md, holdout hygiene)"
+    }
+  ]
+}

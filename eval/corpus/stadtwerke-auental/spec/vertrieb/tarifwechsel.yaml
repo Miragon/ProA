@@ -1,0 +1,60 @@
+key: vertrieb/tarifwechsel
+engine: c8
+name: Tarifwechsel
+notes: >-
+  Started by the German message TarifwechselBeantragt; the customer portal
+  throws the same request in English as "Tariff change requested" (de-en).
+  Requests an interim reading on the switch date (Zwischenablesung, exact key;
+  the request carries anlass "tarifwechsel" and ablesetermin = wechseltermin).
+  The reading is only stored in the meter data management for the next annual
+  bill; no message comes back. Announces "Tarif
+  umgestellt" to the C7 instalment process (cross-engine-message). The none end
+  "Tarifwechsel abgeschlossen" throws nothing (event-def-mismatch against the
+  C7 message start "Tarif umgestellt").
+
+processes:
+  - id: Process_Tarifwechsel
+    name: Tarifwechsel
+    documentation: >-
+      Wechsel eines Bestandskunden in einen anderen Tarif (zum Beispiel
+      Ökostrom oder Wärmepumpentarif): Berechtigung prüfen, Liefervertrag
+      umstellen, zum Wechseltermin Zwischenablesung anfordern und die
+      Abrechnung informieren.
+    dataStores:
+      - { id: DataStore_Kunden, name: Kunden-Stammdaten }
+    elements:
+      - type: startEvent
+        id: Start_TarifwechselBeantragt
+        name: Tarifwechsel beantragt
+        message: TarifwechselBeantragt
+      - type: businessRuleTask
+        id: Task_TarifberechtigungPruefen
+        name: Tarifberechtigung prüfen
+        reads: [DataStore_Kunden]
+      - type: exclusiveGateway
+        id: Gateway_WechselMoeglich
+        name: Wechsel möglich?
+        next:
+          - { to: Task_LiefervertragUmstellen, name: ja, condition: "=wechselMoeglich" }
+          - { to: Task_AblehnungMitteilen, name: nein, default: true }
+      - type: serviceTask
+        id: Task_LiefervertragUmstellen
+        name: Liefervertrag auf neuen Tarif umstellen
+        writes: [DataStore_Kunden]
+      - { type: serviceTask, id: Task_VertragsbestaetigungErstellen, name: Vertragsbestätigung erstellen }
+      - type: intermediateCatchEvent
+        id: Event_WechselterminErreicht
+        name: Wechseltermin erreicht
+        timer: { date: "=wechseltermin" }
+      - type: sendTask
+        id: Task_ZwischenablesungAnfordern
+        name: Zwischenablesung anfordern
+        message: { name: Zwischenablesung, correlationKey: "=zaehlpunkt" }
+      - type: intermediateThrowEvent
+        id: Event_TarifUmgestellt
+        name: Tarif umgestellt
+        message: { name: TarifUmgestellt, correlationKey: "=vertragskonto" }
+      - { type: endEvent, id: End_TarifwechselAbgeschlossen, name: Tarifwechsel abgeschlossen }
+
+      - { type: serviceTask, id: Task_AblehnungMitteilen, name: Ablehnung per E-Mail mitteilen }
+      - { type: endEvent, id: End_TarifwechselAbgelehnt, name: Tarifwechsel abgelehnt }

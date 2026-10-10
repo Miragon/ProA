@@ -1,0 +1,35 @@
+key: qualitaet/wareneingangspruefung
+engine: c8
+name: Wareneingangsprüfung
+notes: >-
+  Called by lager/wareneingang (call-unique). No cross-file events. Blocked
+  goods end with the BPMN error WARE_GESPERRT, which the caller catches with
+  an error boundary on its call activity (no variable mapping needed). Its
+  process-level none end "Ware freigegeben" has a twin label on the none start
+  inside the putaway subprocess of lager/wareneingang (subprocess-scope).
+
+processes:
+  - id: Process_Wareneingangspruefung
+    name: Wareneingangsprüfung
+    documentation: Stichprobenprüfung angelieferter Ware nach AQL; mangelhafte Ware geht in den Sperrbestand. Gesperrte Ware beendet die Prüfung mit dem BPMN-Fehler WARE_GESPERRT, den der aufrufende Wareneingang abfängt.
+    elements:
+      - { type: startEvent, id: Start_PruefungAngefordert, name: Prüfung angefordert }
+      - type: userTask
+        id: Task_StichprobeZiehen
+        name: Stichprobe nach AQL ziehen
+        candidateGroups: qualitaetssicherung
+      - type: userTask
+        id: Task_PruefmerkmaleErfassen
+        name: Prüfmerkmale erfassen
+        candidateGroups: qualitaetssicherung
+      - { type: businessRuleTask, id: Task_PruefentscheidAbleiten, name: Prüfentscheid ableiten }
+      - type: exclusiveGateway
+        id: Gateway_Maengel
+        name: Mängel festgestellt?
+        next:
+          - { to: Task_SperrbestandBuchen, name: ja, condition: "=maengel" }
+          - { to: End_WareFreigegeben, name: nein, default: true }
+      - { type: serviceTask, id: Task_SperrbestandBuchen, name: Ware in Sperrbestand buchen }
+      - { type: serviceTask, id: Task_MaengelruegeVersenden, name: Mängelrüge per E-Mail an Lieferanten }
+      - { type: endEvent, id: End_WareGesperrt, name: Ware gesperrt, error: { code: WARE_GESPERRT, name: Ware gesperrt } }
+      - { type: endEvent, id: End_WareFreigegeben, name: Ware freigegeben }

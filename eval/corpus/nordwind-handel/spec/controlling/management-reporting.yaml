@@ -1,0 +1,29 @@
+key: controlling/management-reporting
+engine: c7
+name: Management-Reporting
+notes: >-
+  Started by hand once the month-end closing is released: the labelled none
+  start matches the none end of finanzen/monatsabschluss (trigger).
+
+processes:
+  - id: Process_ManagementReporting
+    name: Management-Reporting
+    documentation: Monatlicher Bericht an die Geschäftsführung mit Kennzahlen und kommentierten Plan-Ist-Abweichungen.
+    dataStores:
+      - { id: DataStore_Hauptbuch, name: Hauptbuch }
+    elements:
+      - { type: startEvent, id: Start_MonatsabschlussErstellt, name: Monatsabschluss erstellt }
+      - type: serviceTask
+        id: Task_KennzahlenBerechnen
+        name: Kennzahlen berechnen
+        reads: [DataStore_Hauptbuch]
+      - type: userTask
+        id: Task_AbweichungenKommentieren
+        name: Plan-Ist-Abweichungen kommentieren
+        candidateGroups: controlling
+      - type: userTask
+        id: Task_BerichtFreigeben
+        name: Bericht freigeben
+        candidateGroups: finanzleitung
+      - { type: serviceTask, id: Task_BerichtVerteilen, name: Bericht an Geschäftsführung verteilen }
+      - { type: endEvent, id: End_BerichtVerteilt, name: Management-Bericht verteilt }

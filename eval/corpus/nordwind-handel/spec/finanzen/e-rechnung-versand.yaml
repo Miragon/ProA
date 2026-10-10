@@ -1,0 +1,23 @@
+key: finanzen/e-rechnung-versand
+engine: c7
+name: E-Rechnung versenden
+notes: One of the two output channels that finanzen/rechnungsstellung calls through the expression ${ausgabekanal} (call-dynamic).
+
+processes:
+  - id: Process_ERechnungVersand
+    name: E-Rechnung versenden
+    documentation: Erzeugt eine XRechnung oder ZUGFeRD-Rechnung und stellt sie über Peppol oder per E-Mail zu.
+    elements:
+      - { type: startEvent, id: Start_ERechnungAngefordert, name: E-Rechnung angefordert }
+      - { type: serviceTask, id: Task_ERechnungErzeugen, name: XRechnung oder ZUGFeRD erzeugen }
+      - { type: serviceTask, id: Task_ERechnungValidieren, name: E-Rechnung validieren }
+      - type: exclusiveGateway
+        id: Gateway_Peppol
+        name: Empfänger im Peppol-Netz?
+        next:
+          - { to: Task_UeberPeppolZustellen, name: ja, condition: "${peppol}" }
+          - { to: Task_PerEmailZustellen, name: nein, default: true }
+      - { type: serviceTask, id: Task_UeberPeppolZustellen, name: Über Peppol zustellen, next: Gateway_Zugestellt }
+      - { type: serviceTask, id: Task_PerEmailZustellen, name: Per E-Mail zustellen }
+      - { type: exclusiveGateway, id: Gateway_Zugestellt }
+      - { type: endEvent, id: End_ERechnungZugestellt, name: E-Rechnung zugestellt }

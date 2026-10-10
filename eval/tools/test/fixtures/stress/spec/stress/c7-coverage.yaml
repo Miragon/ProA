@@ -1,0 +1,92 @@
+key: stress/c7-coverage
+engine: c7
+name: C7 coverage
+notes: >-
+  Constructs that neither the corpus nor c7-loops use, so that deploy-check
+  exercises the whole spec format on c7: plain and manual task, parallel
+  gateway, receive task with message and signal boundaries, error, escalation
+  and conditional boundaries on a subprocess, error/escalation throws, signal
+  and terminate ends, versionTag binding, and error, escalation, timer,
+  conditional and signal starts of event subprocesses.
+processes:
+  - id: Process_C7Coverage
+    name: C7 coverage
+    elements:
+      - { type: startEvent, id: Start_Auftrag, name: Auftrag angelegt }
+      - { type: task, id: Task_Erfassen, name: Auftrag erfassen }
+      - { type: parallelGateway, id: Gateway_Split, next: [Task_Warten, Sub_Pruefung] }
+      - type: receiveTask
+        id: Task_Warten
+        name: Antwort abwarten
+        message: AntwortC7
+        next: Gateway_Join
+        boundary:
+          - { id: Boundary_Abbruch, name: Abbruch erhalten, message: AbbruchC7, next: End_Abgebrochen }
+          - { id: Boundary_Hinweis, name: Hinweis erhalten, signal: HinweisC7, interrupting: false, next: Task_Hinweis }
+      - type: subProcess
+        id: Sub_Pruefung
+        name: Prüfung
+        next: Gateway_Join
+        boundary:
+          - { id: Boundary_Fehler, name: Prüfung fehlgeschlagen, error: PRUEFUNG, next: Call_Klaerung }
+          - { id: Boundary_Eskalation, name: Eskalation erhalten, escalation: ESK_C7, interrupting: false, next: Task_Eskalation }
+          - { id: Boundary_Storno, name: Storno gesetzt, conditional: { condition: "${storno}", variableName: storno }, next: End_Storniert }
+        elements:
+          - { type: startEvent, id: Start_Pruefung, name: Prüfung begonnen }
+          - { type: intermediateThrowEvent, id: Event_Eskalation, name: Eskalation gemeldet, escalation: { code: ESK_C7, name: Eskalation } }
+          - type: exclusiveGateway
+            id: Gateway_Ok
+            name: In Ordnung?
+            next:
+              - { to: End_PruefungOk, name: ja, condition: "${ok}" }
+              - { to: End_PruefungFehler, name: nein, default: true }
+          - { type: endEvent, id: End_PruefungOk, name: Prüfung bestanden }
+          - { type: endEvent, id: End_PruefungFehler, name: Prüfung fehlgeschlagen, error: { code: PRUEFUNG, name: Prüfung fehlgeschlagen } }
+      - { type: parallelGateway, id: Gateway_Join }
+      - { type: intermediateCatchEvent, id: Event_Frist, name: 1 Tag gewartet, timer: { duration: P1D } }
+      - { type: endEvent, id: End_Fertig, name: Auftrag fertig, signal: AuftragFertigC7 }
+
+      - { type: endEvent, id: End_Abgebrochen, name: Abgebrochen, terminate: true }
+      - { type: userTask, id: Task_Hinweis, name: Hinweis lesen }
+      - { type: endEvent, id: End_HinweisGelesen, name: Hinweis gelesen }
+      - { type: callActivity, id: Call_Klaerung, name: Klärung, calledElement: Process_Klaerung, binding: versionTag, versionTag: v2 }
+      - { type: endEvent, id: End_Geklaert, name: Geklärt }
+      - { type: manualTask, id: Task_Eskalation, name: Eskalation bearbeiten }
+      - { type: endEvent, id: End_EskalationBearbeitet, name: Eskalation bearbeitet }
+      - { type: endEvent, id: End_Storniert, name: Storniert }
+
+      - type: eventSubProcess
+        id: EventSub_Fehler
+        name: Unerwarteter Fehler
+        elements:
+          - { type: startEvent, id: Start_Fehler, name: Fehler aufgetreten, error: {} }
+          - { type: serviceTask, id: Task_FehlerMelden, name: Fehler melden }
+          - { type: endEvent, id: End_FehlerGemeldet, name: Fehler gemeldet }
+      - type: eventSubProcess
+        id: EventSub_Eskalation
+        name: Eskalation
+        elements:
+          - { type: startEvent, id: Start_EskalationErhalten, name: Eskalation erhalten, escalation: {}, interrupting: false }
+          - { type: serviceTask, id: Task_EskalationProtokollieren, name: Eskalation protokollieren }
+          - { type: endEvent, id: End_EskalationProtokolliert, name: Eskalation protokolliert }
+      - type: eventSubProcess
+        id: EventSub_Zeit
+        name: Zeitüberschreitung
+        elements:
+          - { type: startEvent, id: Start_Zeitueberschreitung, name: 30 Tage vergangen, timer: { duration: P30D } }
+          - { type: serviceTask, id: Task_Abschliessen, name: Auftrag abschließen }
+          - { type: endEvent, id: End_Abgeschlossen, name: Auftrag abgeschlossen }
+      - type: eventSubProcess
+        id: EventSub_Prio
+        name: Priorität
+        elements:
+          - { type: startEvent, id: Start_Prio, name: Priorität erhöht, conditional: { condition: "${prio > 1}", variableName: prio }, interrupting: false }
+          - { type: userTask, id: Task_PrioPruefen, name: Priorität prüfen }
+          - { type: endEvent, id: End_PrioGeprueft, name: Priorität geprüft }
+      - type: eventSubProcess
+        id: EventSub_Stopp
+        name: Stopp
+        elements:
+          - { type: startEvent, id: Start_Stopp, name: Stopp erhalten, signal: StoppC7 }
+          - { type: serviceTask, id: Task_Stoppen, name: Auftrag stoppen }
+          - { type: endEvent, id: End_Gestoppt, name: Auftrag gestoppt }

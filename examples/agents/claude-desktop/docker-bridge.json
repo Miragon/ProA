@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "proa": {
+      "command": "/usr/local/bin/docker",
+      "args": ["exec", "-i", "-e", "PROA_TOKEN", "proa2-proa-1", "proa", "mcp"],
+      "env": { "PROA_TOKEN": "proa_at_…" }
+    }
+  }
+}

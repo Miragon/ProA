@@ -1,0 +1,78 @@
+key: finanzen/forderungsmanagement
+engine: c7
+name: Forderungsmanagement
+notes: >-
+  Started by RechnungVersendet from finanzen/rechnungsstellung (exact key).
+  Waits for ZahlungZugeordnet from finanzen/zahlungseingang; the near-miss
+  ZahlungAngeordnet of the creditor payment run must not reach it. Calls the
+  dunning process (call-unique) and a collection-agency process that is not
+  part of the landscape (call-unresolved). Returned direct debits arrive as a
+  separate R-transaction file (camt.054/pain.002) through the EBICS adapter,
+  which is not modelled (unmatched-catch).
+
+processes:
+  - id: Process_Forderungsmanagement
+    name: Forderungsmanagement
+    documentation: >-
+      Überwacht jeden offenen Posten einer Ausgangsrechnung bis zum Ausgleich,
+      zum Mahnverfahren oder zur Abgabe an das Inkasso.
+    dataStores:
+      - { id: DataStore_OffenePosten, name: Offene Posten }
+    elements:
+      - type: startEvent
+        id: Start_RechnungVersendet
+        name: Rechnung versendet
+        message: RechnungVersendet
+      - type: serviceTask
+        id: Task_OffenenPostenAnlegen
+        name: Offenen Posten anlegen
+        writes: [DataStore_OffenePosten]
+      - type: eventBasedGateway
+        id: Gateway_ZahlungAbwarten
+        next: [Event_ZahlungZugeordnet, Event_ZahlungszielUeberschritten]
+      - type: intermediateCatchEvent
+        id: Event_ZahlungZugeordnet
+        name: Zahlung zugeordnet
+        message: ZahlungZugeordnet
+        next: Gateway_Ausgleich
+      - type: intermediateCatchEvent
+        id: Event_ZahlungszielUeberschritten
+        name: Zahlungsziel überschritten
+        timer: { duration: P30D }
+      - type: callActivity
+        id: Call_Mahnwesen
+        name: Mahnverfahren durchführen
+        calledElement: Process_Mahnwesen
+      - type: exclusiveGateway
+        id: Gateway_Beglichen
+        name: Forderung beglichen?
+        next:
+          - { to: Call_Inkasso, name: nein, condition: "${!beglichen}" }
+          - { to: Gateway_Ausgleich, default: true }
+      - { type: exclusiveGateway, id: Gateway_Ausgleich }
+      - type: serviceTask
+        id: Task_OffenenPostenAusgleichen
+        name: Offenen Posten ausgleichen
+        writes: [DataStore_OffenePosten]
+      - { type: endEvent, id: End_PostenAusgeglichen, name: Offener Posten ausgeglichen }
+
+      - type: callActivity
+        id: Call_Inkasso
+        name: Forderung an Inkasso übergeben
+        calledElement: Process_Inkasso
+      - { type: endEvent, id: End_AnInkassoUebergeben, name: An Inkasso übergeben }
+
+      - type: eventSubProcess
+        id: EventSub_Ruecklastschrift
+        name: Rücklastschrift
+        elements:
+          - type: startEvent
+            id: Start_RuecklastschriftEingegangen
+            name: Rücklastschrift eingegangen
+            message: RuecklastschriftEingegangen
+            interrupting: false
+          - type: serviceTask
+            id: Task_PostenWiederEroeffnen
+            name: Offenen Posten wieder eröffnen
+            writes: [DataStore_OffenePosten]
+          - { type: endEvent, id: End_PostenWiederEroeffnet, name: Posten wieder eröffnet }

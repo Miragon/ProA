@@ -1,0 +1,38 @@
+key: abrechnung/einspeiseverguetung
+engine: c7
+name: Einspeiseverguetung einrichten
+notes: >-
+  Started by the C8 throw "Inbetriebnahme an Abrechnung gemeldet" in
+  netz/pv-einspeisung (message EinspeiseanlageInBetrieb, cross-engine-message).
+  The start label "Einspeiseanlage in Betrieb genommen" equals the label of the
+  none end of netz/pv-einspeisung, which throws nothing (event-def-mismatch).
+
+processes:
+  - id: Process_Einspeiseverguetung
+    name: Einspeiseverguetung einrichten
+    documentation: >-
+      Richtet die EEG-Einspeisevergütung für eine neue Erzeugungsanlage ein:
+      Vergütungssatz, Einspeisevertrag, gegebenenfalls Direktvermarktung und
+      monatliche Abschlagszahlungen an den Anlagenbetreiber.
+    dataStores:
+      - { id: DataStore_EegAnlagen, name: Einspeiseanlagen EEG }
+    elements:
+      - type: startEvent
+        id: Start_EinspeiseanlageInBetrieb
+        name: Einspeiseanlage in Betrieb genommen
+        message: EinspeiseanlageInBetrieb
+      - type: businessRuleTask
+        id: Task_VerguetungssatzErmitteln
+        name: EEG-Verguetungssatz ermitteln
+        reads: [DataStore_EegAnlagen]
+      - type: exclusiveGateway
+        id: Gateway_Direktvermarktung
+        name: Direktvermarktungspflicht?
+        next:
+          - { to: Task_DirektvermarkterZuordnen, name: ja, condition: "${leistungKwp > 100}" }
+          - { to: Gateway_VermarktungJoin, name: nein, default: true }
+      - { type: userTask, id: Task_DirektvermarkterZuordnen, name: Direktvermarkter zuordnen, candidateGroups: abrechnung }
+      - { type: exclusiveGateway, id: Gateway_VermarktungJoin }
+      - { type: userTask, id: Task_EinspeisevertragAnlegen, name: Einspeisevertrag anlegen, candidateGroups: abrechnung }
+      - { type: serviceTask, id: Task_AbschlaegeEinrichten, name: Monatliche Abschlagszahlungen einrichten }
+      - { type: endEvent, id: End_VerguetungEingerichtet, name: Einspeiseverguetung eingerichtet }

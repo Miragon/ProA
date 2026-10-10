@@ -1,0 +1,438 @@
+# Golden placements (step -> process) for the stadtwerke-auental value chain (holdout
+# landscape: scored, never tuned against). Format, may rule and scoring: ../README.md.
+# Checked by ../validate-value-chains.mjs.
+landscape: stadtwerke-auental
+value_chain: value-chain.vc.json
+closed_world: true
+
+# Every step of value-chain.vc.json. kind: core (the sequence chain and its sub-steps),
+# management (purple) or support (green); level 0 = top level, 1 = sub-step.
+steps:
+  - id: step-unternehmenssteuerung
+    name: Unternehmenssteuerung
+    kind: management
+    level: 0
+    scope: Corporate steering by the management (strategy, planning, reporting); no process modelled.
+  - id: step-regulierung
+    name: Regulierung
+    kind: management
+    level: 0
+    scope: Regulatory management of the grid business (incentive regulation, authorities); no process modelled.
+
+  - id: step-energiebeschaffung
+    name: Energiebeschaffung
+    kind: core
+    level: 0
+    scope: Procure power and gas for the supply portfolio (wholesale trading); no process modelled.
+
+  - id: step-netzanschluss
+    name: Netzanschluss
+    kind: core
+    level: 0
+    scope: Connect consumers and generators to the grid (Auental Netz, grid service).
+  - id: step-hausanschluesse
+    name: Hausanschlüsse
+    kind: core
+    level: 1
+    parent: step-netzanschluss
+    scope: Application, offer and construction of house connections for power, gas and water.
+  - id: step-netzvertraeglichkeit
+    name: Netzverträglichkeit
+    kind: core
+    level: 1
+    parent: step-netzanschluss
+    scope: Technical check whether a connection or plant may be connected, incl. grid reinforcement.
+  - id: step-erzeugungsanlagen
+    name: Erzeugungsanlagen
+    kind: core
+    level: 1
+    parent: step-netzanschluss
+    scope: Registration of PV and other generation plants for grid feed-in.
+
+  - id: step-netzbetrieb
+    name: Netzbetrieb
+    kind: core
+    level: 0
+    scope: Operate the distribution grid (grid control centre).
+  - id: step-stoerungsannahme
+    name: Störungsannahme
+    kind: core
+    level: 1
+    parent: step-netzbetrieb
+    scope: 24/7 intake of fault reports, safety hints, repair orders.
+  - id: step-stoerungsbehebung
+    name: Störungsbehebung
+    kind: core
+    level: 1
+    parent: step-netzbetrieb
+    scope: Assess and repair supply faults on site, declare major outages.
+  - id: step-instandhaltung
+    name: Instandhaltung
+    kind: core
+    level: 1
+    parent: step-netzbetrieb
+    scope: Planned inspection and maintenance of grid assets; no process modelled.
+
+  - id: step-messstellenbetrieb
+    name: Messstellenbetrieb
+    kind: core
+    level: 0
+    scope: Metering point operation (meters, readings, meter data).
+  - id: step-zaehlereinbau
+    name: Zählereinbau
+    kind: core
+    level: 1
+    parent: step-messstellenbetrieb
+    scope: Set the first meter of a new installation.
+  - id: step-zaehlerwechsel
+    name: Zählerwechsel
+    kind: core
+    level: 1
+    parent: step-messstellenbetrieb
+    scope: Rotation and on-demand meter changes, meter removal.
+  - id: step-ablesung
+    name: Ablesung
+    kind: core
+    level: 1
+    parent: step-messstellenbetrieb
+    scope: Annual and interim meter readings (reader, remote, self-reading).
+  - id: step-messwertaufbereitung
+    name: Messwertaufbereitung
+    kind: core
+    level: 1
+    parent: step-messstellenbetrieb
+    scope: Plausibility checks, substitute values, release of meter data for billing.
+
+  - id: step-vertrieb
+    name: Vertrieb
+    kind: core
+    level: 0
+    scope: Supply contracts with residential customers.
+  - id: step-tarifmanagement
+    name: Tarifmanagement
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: Tariffs and tariff changes of existing customers.
+  - id: step-ein-und-auszug
+    name: Ein- und Auszug
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: Customers moving in, out or within the supply area.
+  - id: step-wechselmanagement
+    name: Wechselmanagement
+    kind: core
+    level: 1
+    parent: step-vertrieb
+    scope: GPKE market communication for supplier switches, start and end of supply.
+
+  - id: step-abrechnung
+    name: Abrechnung
+    kind: core
+    level: 0
+    scope: Bill energy and water consumption (C7 billing core).
+  - id: step-stammdatenpflege
+    name: Stammdatenpflege
+    kind: core
+    level: 1
+    parent: step-abrechnung
+    scope: Keep billing master data (installations, contracts, devices) in sync.
+  - id: step-turnusabrechnung
+    name: Turnusabrechnung
+    kind: core
+    level: 1
+    parent: step-abrechnung
+    scope: Periodic (annual) consumption billing per contract account.
+  - id: step-schlussabrechnung
+    name: Schlussabrechnung
+    kind: core
+    level: 1
+    parent: step-abrechnung
+    scope: Final invoice at move-out or supplier switch, closing the contract account.
+  - id: step-abschlaege
+    name: Abschläge
+    kind: core
+    level: 1
+    parent: step-abrechnung
+    scope: Set and adjust monthly instalments.
+  - id: step-rechnungsausgabe
+    name: Rechnungsausgabe
+    kind: core
+    level: 1
+    parent: step-abrechnung
+    scope: Output invoices by print provider, XRechnung or portal upload.
+  - id: step-eeg-abrechnung
+    name: EEG-Abrechnung
+    kind: core
+    level: 1
+    parent: step-abrechnung
+    scope: Feed-in tariffs and payments to plant operators under the EEG; the grid operator's payments run in the shared billing system.
+
+  - id: step-forderungsmanagement
+    name: Forderungsmanagement
+    kind: core
+    level: 0
+    scope: Collect receivables from billing.
+  - id: step-zahlungseingang
+    name: Zahlungseingang
+    kind: core
+    level: 1
+    parent: step-forderungsmanagement
+    scope: Post incoming payments to open items, detect overdue items.
+  - id: step-mahnwesen
+    name: Mahnwesen
+    kind: core
+    level: 1
+    parent: step-forderungsmanagement
+    scope: Payment reminders, dunning, disconnection order or collection agency.
+  - id: step-versorgungssperre
+    name: Versorgungssperre
+    kind: core
+    level: 1
+    parent: step-forderungsmanagement
+    scope: Announce, perform and lift a disconnection for non-payment.
+
+  - id: step-kundenservice
+    name: Kundenservice
+    kind: core
+    level: 0
+    scope: Customer contact across channels.
+  - id: step-self-service
+    name: Self-Service
+    kind: core
+    level: 1
+    parent: step-kundenservice
+    scope: Customer portal requests and their routing to the departments.
+  - id: step-kundenkommunikation
+    name: Kundenkommunikation
+    kind: core
+    level: 1
+    parent: step-kundenservice
+    scope: Outbound customer notifications and public outage information.
+
+  - id: step-rechnungswesen
+    name: Rechnungswesen
+    kind: support
+    level: 0
+    scope: Financial accounting and controlling; no process modelled.
+  - id: step-einkauf
+    name: Einkauf & Material
+    kind: support
+    level: 0
+    scope: Purchasing of goods and services, materials management (e.g. meters); no process modelled.
+  - id: step-it-services
+    name: IT-Services
+    kind: support
+    level: 0
+    scope: IT operations and system integration; no process modelled.
+  - id: step-personal
+    name: Personal
+    kind: support
+    level: 0
+    scope: Human resources; no process modelled.
+
+placements:
+  # abrechnung
+  - process: abrechnung/abschlagsanpassung#Process_Abschlagsanpassung
+    name: Abschlagsanpassung
+    must: step-abschlaege
+    may: [step-turnusabrechnung]
+    must_not: [step-tarifmanagement]
+    tags: [name-match, ambiguous]
+    rationale: Recalculates the monthly instalment after the annual bill (which may call it), a tariff change or a portal request; being triggered by a tariff change does not make it tariff management.
+  - process: abrechnung/archiv/abschlagsanpassung-2021#Process_Abschlagsanpassung
+    name: Abschlagsanpassung (Stand 2021)
+    must: '@outside'
+    superseded_by: abrechnung/abschlagsanpassung#Process_Abschlagsanpassung
+    may: [step-abschlaege]
+    must_not: [step-tarifmanagement]
+    tags: [outdated-copy, ambiguous]
+    rationale: Archived 2021 copy with the same process id (no customer notification yet); deliberately outside the chain with the current version as the reason; its step (Abschläge) is tolerated.
+  - process: abrechnung/einspeiseverguetung#Process_Einspeiseverguetung
+    name: Einspeiseverguetung einrichten
+    must: step-eeg-abrechnung
+    may: [step-erzeugungsanlagen]
+    must_not: [step-energiebeschaffung]
+    tags: [semantic, ambiguous]
+    rationale: Sets up the EEG feed-in tariff, contract and monthly payments to the plant operator in the shared billing; the grid operator pays them, so plant registration is defensible; feed-in is not energy procurement.
+  - process: abrechnung/jahresverbrauchsabrechnung#Process_Jahresverbrauchsabrechnung
+    name: Jahresverbrauchsabrechnung
+    must: step-turnusabrechnung
+    may: []
+    must_not: [step-rechnungsausgabe]
+    tags: [semantic, shared-word]
+    rationale: Annual consumption bill per contract account (Turnusabrechnung); it calls the invoice output but is not the output itself.
+  - process: abrechnung/rechnungsausgabe-digital#Process_RechnungsausgabeDigital
+    name: Rechnungsausgabe digital
+    must: step-rechnungsausgabe
+    may: [step-turnusabrechnung]
+    must_not: [step-self-service]
+    tags: [name-match, ambiguous]
+    rationale: XRechnung or portal upload of invoices, a possible target of the annual bill's dynamic call; uploading to the portal is billing output, not handling portal requests.
+  - process: abrechnung/rechnungsausgabe-druck#Process_RechnungsausgabeDruck
+    name: Rechnungsausgabe Druck
+    must: step-rechnungsausgabe
+    may: [step-schlussabrechnung, step-turnusabrechnung]
+    must_not: []
+    tags: [name-match, ambiguous]
+    rationale: Invoice PDF to the print provider with dispatch confirmation; plain invoice output, called by the final invoice and the annual bill.
+  - process: abrechnung/schlussrechnung#Process_Schlussrechnung
+    name: Schlussrechnung
+    must: step-schlussabrechnung
+    may: []
+    must_not: [step-rechnungsausgabe, step-ein-und-auszug]
+    tags: [name-match, shared-word]
+    rationale: Final invoice after move-out or supplier switch up to closing the contract account; it is started by the move and calls print output but belongs to neither.
+  - process: abrechnung/stammdatenuebernahme#Process_Stammdatenuebernahme
+    name: Stammdatenuebernahme Abrechnung
+    must: step-stammdatenpflege
+    may: [step-wechselmanagement]
+    must_not: [step-messstellenbetrieb]
+    tags: [name-match, cross-domain, ambiguous]
+    rationale: Takes meter installed/changed/removed and start-of-supply events into billing master data; receiving meter events is not metering work.
+
+  # forderung
+  - process: forderung/mahnverfahren#Process_Mahnverfahren
+    name: Mahnverfahren
+    must: step-mahnwesen
+    may: []
+    must_not: [step-versorgungssperre]
+    tags: [name-match]
+    rationale: Reminder, dunning letter with disconnection notice, then disconnection order or collection agency; it orders the disconnection but does not perform it.
+  - process: forderung/sperrung#Process_Sperrung
+    name: Sperrung und Entsperrung bei Zahlungsverzug
+    must: step-versorgungssperre
+    may: [step-mahnwesen]
+    must_not: [step-stoerungsbehebung]
+    tags: [name-match, cross-domain, ambiguous]
+    rationale: Disconnection for non-payment, ordered by dunning, and reconnection after payment; the grid field service performs it, but an interrupted supply is no fault repair.
+  - process: forderung/zahlungseingang#Process_Zahlungseingang
+    name: Zahlungseingang verbuchen
+    must: step-zahlungseingang
+    may: [step-rechnungswesen]
+    must_not: []
+    tags: [name-match, ambiguous]
+    rationale: Daily bank statement import, allocation to open items and overdue detection; posting makes financial accounting a plausible alternative.
+
+  # kundenservice
+  - process: kundenservice/kundeninformation#Process_Kundenbenachrichtigung
+    name: Kundenbenachrichtigung
+    must: step-kundenkommunikation
+    may: [step-abschlaege, step-rechnungsausgabe, step-versorgungssperre]
+    must_not: []
+    tags: [name-match, cross-domain, ambiguous]
+    rationale: Notification hub that informs customers about billing, instalment, dunning and disconnection events in their preferred channel; the steps that start it are tolerated.
+  - process: kundenservice/kundeninformation#Process_Stoerungsinformation
+    name: Störungsinformation
+    must: step-kundenkommunikation
+    may: [step-stoerungsannahme]
+    must_not: [step-stoerungsbehebung]
+    tags: [name-match, cross-domain, ambiguous, shared-word]
+    rationale: Publishes major outage information on website, app and fault hotline and the all-clear; informing about a fault is not repairing it.
+  - process: kundenservice/kundenportal#Process_Kundenportal
+    name: Kundenportal-Anliegen verarbeiten
+    must: step-self-service
+    may: []
+    must_not: [step-ablesung, step-tarifmanagement]
+    tags: [name-match, cross-domain, integration]
+    rationale: Portal integration that classifies portal requests and forwards meter readings, tariff and instalment wishes; forwarding does not make it reading or tariff work.
+
+  # marktkommunikation
+  - process: marktkommunikation/lieferantenwechsel#Process_Lieferantenwechsel
+    name: Lieferantenwechsel (Altlieferant)
+    must: step-wechselmanagement
+    may: []
+    must_not: [step-energiebeschaffung, step-einkauf, step-zaehlerwechsel]
+    tags: [name-match, shared-word]
+    rationale: GPKE switch from the losing supplier's view; "Lieferant" is the energy supplier of the customer, not a vendor, and "Wechsel" is no meter change.
+  - process: marktkommunikation/lieferbeginn#Process_Lieferbeginn
+    name: Lieferbeginn anmelden
+    must: step-wechselmanagement
+    may: [step-ein-und-auszug]
+    must_not: [step-netzanschluss, step-energiebeschaffung]
+    tags: [semantic, ambiguous, shared-word]
+    rationale: Registers a market location with the grid operator for supply at a new address (started by a move); a registration is no grid connection and no energy procurement.
+
+  # messwesen
+  - process: messwesen/messwertplausibilisierung#Process_Messwertplausibilisierung
+    name: Messwertplausibilisierung
+    must: step-messwertaufbereitung
+    may: [step-ablesung]
+    must_not: [step-zaehlerwechsel]
+    tags: [name-match, ambiguous]
+    rationale: Called plausibility check with substitute values before release to billing; it only flags meters due for rotation ("Turnuswechsel fällig").
+  - process: messwesen/zaehlerablesung#Process_Zaehlerablesung
+    name: Zählerablesung
+    must: step-ablesung
+    may: []
+    must_not: [step-turnusabrechnung]
+    tags: [name-match, shared-word]
+    rationale: Annual (Turnus) and interim readings by reader, remote or self-reading; a Turnusablesung feeds the Turnusabrechnung but is not billing.
+  - process: messwesen/zaehlermontage#Process_Zaehlermontage
+    name: Zählersetzung Neuanlage
+    must: step-zaehlereinbau
+    may: []
+    must_not: [step-netzanschluss]
+    tags: [semantic]
+    rationale: Metering sets the first meter after a finished house connection; the handover from the grid does not make it connection work.
+  - process: messwesen/zaehlerwechsel#Process_Zaehlerwechsel
+    name: Zählerwechsel
+    must: step-zaehlerwechsel
+    may: []
+    must_not: [step-wechselmanagement, step-erzeugungsanlagen]
+    tags: [name-match, cross-domain, shared-word]
+    rationale: Rotation, on-demand (e.g. bidirectional meter for PV) and removal without replacement; no supplier switch and no plant registration.
+
+  # netz
+  - process: netz/entstoerung#Process_Entstoerung
+    name: Entstörung
+    must: step-stoerungsbehebung
+    may: []
+    must_not: [step-instandhaltung]
+    tags: [semantic]
+    rationale: Assess the fault, declare a major outage, dispatch the crew, repair and report back; unplanned fault repair, not planned maintenance.
+  - process: netz/hausanschluss#Process_Hausanschluss
+    name: Hausanschluss beantragen
+    must: step-hausanschluesse
+    may: []
+    must_not: [step-zaehlereinbau]
+    tags: [name-match]
+    rationale: Application, grid check, offer and construction of a house connection; it hands over to meter setting but does not set the meter.
+  - process: netz/netzanschlusspruefung#Process_Netzanschlusspruefung
+    name: Netzanschlussprüfung
+    must: step-netzvertraeglichkeit
+    may: [step-hausanschluesse, step-erzeugungsanlagen]
+    must_not: []
+    tags: [name-match, cross-domain, ambiguous]
+    rationale: Called technical check of capacity and pressure, incl. reinforcement, for house connections and generation plants alike; both callers' steps are tolerated.
+  - process: netz/pv-einspeisung#Process_PvEinspeisung
+    name: PV-Einspeisung anmelden
+    must: step-erzeugungsanlagen
+    may: []
+    must_not: [step-eeg-abrechnung, step-energiebeschaffung]
+    tags: [semantic, cross-domain]
+    rationale: Registers a PV plant for feed-in (documents, grid check, bidirectional meter, MaStR); it reports to feed-in billing but is grid work, and feed-in is not procurement.
+  - process: netz/stoerungsannahme#Process_Stoerungsannahme
+    name: Störungsmeldung annehmen
+    must: step-stoerungsannahme
+    may: []
+    must_not: [step-kundenservice]
+    tags: [name-match]
+    rationale: The grid control centre's 24/7 fault intake (customers, fire brigade, police); a fault hotline is grid operation, not customer service.
+
+  # vertrieb
+  - process: vertrieb/tarifwechsel#Process_Tarifwechsel
+    name: Tarifwechsel
+    must: step-tarifmanagement
+    may: []
+    must_not: [step-zaehlerwechsel, step-wechselmanagement]
+    tags: [name-match, shared-word]
+    rationale: An existing customer moves to another tariff; "Wechsel" is neither a meter change nor a supplier switch.
+  - process: vertrieb/umzug#Process_Umzug
+    name: Umzug
+    must: step-ein-und-auszug
+    may: [step-kundenservice]
+    must_not: [step-schlussabrechnung]
+    tags: [semantic, ambiguous]
+    rationale: Move-out with interim reading and supply at the new address, run by "Kundenservice Vertrieb"; it starts the final invoice but is not billing.

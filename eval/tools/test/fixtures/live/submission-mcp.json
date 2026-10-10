@@ -1,0 +1,84 @@
+{
+  "id": "sbm_01JAKKKKKKKKKKKKKKKKKKKK02",
+  "taskId": "ana_01JAKKKKKKKKKKKKKKKKKKKK02",
+  "submissionId": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f7a8b9c0d",
+  "principalId": "prn_01JAKKKKKKKKKKKKKKKKKKKK01",
+  "handle": "agent:claude-desktop-1",
+  "clientId": "agt_01JAKKKKKKKKKKKKKKKKKKKK01",
+  "procedure": {
+    "id": "proa-relations",
+    "version": "0.0.0"
+  },
+  "llmModel": "claude-opus-5-5",
+  "payload": {
+    "submissionId": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f7a8b9c0d",
+    "procedure": {
+      "id": "proa-relations",
+      "version": "0.0.0"
+    },
+    "llmModel": "claude-opus-5-5",
+    "relations": [
+      {
+        "type": "signal",
+        "from": "finanzen/rechnungsstellung#End_RechnungsstellungAbgeschlossen",
+        "to": "finance/payment-collection#Start_InvoicingCompleted",
+        "confidence": 0.95,
+        "rationale": "Gleiches Signal�RechnungsstellungAbgeschlossen",
+        "evidence": [
+          "finanzen/rechnungsstellung#End_RechnungsstellungAbgeschlossen",
+          "finance/payment-collection#Start_InvoicingCompleted"
+        ],
+        "question": null
+      },
+      {
+        "type": "message",
+        "from": "finanzen/rechnungsstellung#Event_RechnungVersendet",
+        "to": "finance/payment-collection#Event_InvoiceSent",
+        "confidence": 0.88,
+        "rationale": "Rechnung versendet = Invoice sent (DE/EN)",
+        "evidence": [
+          "finanzen/rechnungsstellung#Event_RechnungVersendet",
+          "finance/payment-collection#Event_InvoiceSent"
+        ],
+        "question": null
+      }
+    ],
+    "noLinks": [
+      {
+        "from": "vertrieb/auftragsabwicklung#Task_AbsageSenden",
+        "to": "finance/payment-collection#Event_PaymentReceived",
+        "reason": "Absage ist keine Zahlung�"
+      }
+    ],
+    "summary": "Zwei Links, eine Absage.",
+    "costUsd": 0.12
+  },
+  "result": {
+    "taskId": "ana_01JAKKKKKKKKKKKKKKKKKKKK02",
+    "submissionId": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f7a8b9c0d",
+    "replayed": false,
+    "items": [
+      {
+        "index": 0,
+        "result": "applied",
+        "relationId": "rel_01JAKKKKKKKKKKKKKKKKKKKK03",
+        "status": "proposed"
+      },
+      {
+        "index": 1,
+        "result": "duplicate",
+        "relationId": "rel_01JAKKKKKKKKKKKKKKKKKKKK04",
+        "status": "proposed"
+      }
+    ],
+    "counts": {
+      "invalid": 0,
+      "applied": 1,
+      "reopened": 0,
+      "duplicate": 1,
+      "suppressed": 0
+    },
+    "withdrawn": 1
+  },
+  "createdAt": "2026-10-08T10:05:00.000Z"
+}

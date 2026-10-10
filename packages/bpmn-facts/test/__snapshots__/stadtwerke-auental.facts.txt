@@ -1,0 +1,422 @@
+# stadtwerke-auental: 26 models, 367 facts, FACTS_VERSION 1
+# process 27, call 7, msg_throw 44, msg_catch 41, sig_throw 2, sig_catch 6, evt_start 14, evt_end 49, data_store 32, message_flow 26, lane 7, task 112
+# kind elementId scope eventDef processId "keyNorm" fingerprint [dynamic] [label-key: no message/signal ref]
+
+## abrechnung/abschlagsanpassung (c7) facts_hash 3c3152509546b5c4
+process      Process_Abschlagsanpassung process - Process_Abschlagsanpassung "process abschlagsanpassung" 25212bc10fee
+msg_throw    End_AbschlagGeaendert process message Process_Abschlagsanpassung "abschlaggeaendert" 2da05f053157
+msg_catch    Start_AbschlagsaenderungGewuenscht process message Process_Abschlagsanpassung "abschlagsaenderunggewuenscht" 27cafb66fe9a
+msg_catch    Start_TarifUmgestellt process message Process_Abschlagsanpassung "tarifumgestellt" 6d0636f868f2
+evt_start    Start_AbschlagsberechnungAngefordert process none Process_Abschlagsanpassung "abschlagsberechnung angefordert" 09ec53cda23d
+data_store   DataStore_KundenstammIsu process - Process_Abschlagsanpassung "kundenstamm is u" d7c854d9b977
+task         Task_AbschlagBerechnen process - Process_Abschlagsanpassung "neuen abschlag berechnen" 7f8df618a589
+task         Task_AbschlagPruefen process - Process_Abschlagsanpassung "abschlagshoehe pruefen" 9084d90931f4
+task         Task_AbschlagsplanAktualisieren process - Process_Abschlagsanpassung "abschlagsplan aktualisieren" 6065fcde0c5d
+
+## abrechnung/archiv/abschlagsanpassung-2021 (c7) facts_hash c0bfc908bb45d843
+process      Process_Abschlagsanpassung process - Process_Abschlagsanpassung "process abschlagsanpassung" 103b83861be3
+evt_start    Start_AbschlagsberechnungAngefordert process none Process_Abschlagsanpassung "abschlagsberechnung angefordert" 09ec53cda23d
+evt_end      End_AbschlagAngepasst process none Process_Abschlagsanpassung "abschlag angepasst" ea74b846ac52
+task         Task_AbschlagBerechnen process - Process_Abschlagsanpassung "abschlag berechnen" 43b947cbaa57
+task         Task_AbschlagFreigeben process - Process_Abschlagsanpassung "abschlag freigeben" 5d0cdf8cacff
+task         Task_AbschlagsplanSchreiben process - Process_Abschlagsanpassung "abschlagsplan schreiben" 841f9eabcf87
+
+## abrechnung/einspeiseverguetung (c7) facts_hash abec91256f72ce7f
+process      Process_Einspeiseverguetung process - Process_Einspeiseverguetung "process einspeiseverguetung" 35208db01aac
+msg_catch    Start_EinspeiseanlageInBetrieb process message Process_Einspeiseverguetung "einspeiseanlageinbetrieb" f9f3977db4b5
+evt_end      End_VerguetungEingerichtet process none Process_Einspeiseverguetung "einspeiseverguetung eingerichtet" ec3ad37a13c6
+data_store   DataStore_EegAnlagen process - Process_Einspeiseverguetung "einspeiseanlagen eeg" 0f9611c8d5df
+task         Task_AbschlaegeEinrichten process - Process_Einspeiseverguetung "monatliche abschlagszahlungen einrichten" c8b2cc8eb487
+task         Task_DirektvermarkterZuordnen process - Process_Einspeiseverguetung "direktvermarkter zuordnen" f53c43b0e0b3
+task         Task_EinspeisevertragAnlegen process - Process_Einspeiseverguetung "einspeisevertrag anlegen" 8d479b0e6730
+task         Task_VerguetungssatzErmitteln process - Process_Einspeiseverguetung "eeg verguetungssatz ermitteln" b953445bb14b
+
+## abrechnung/jahresverbrauchsabrechnung (c7) facts_hash a45a6fd24dad4e9f
+process      Process_Jahresverbrauchsabrechnung process - Process_Jahresverbrauchsabrechnung "process jahresverbrauchsabrechnung" 6f1e4af268ae
+call         Call_AbschlagNeuFestsetzen process - Process_Jahresverbrauchsabrechnung "process abschlagsanpassung" a803ecc8b504
+call         Call_RechnungAusgeben process - Process_Jahresverbrauchsabrechnung "ausgabeprozess" 36bbf73a710f dynamic
+msg_catch    Start_AblesedatenBereitgestellt process message Process_Jahresverbrauchsabrechnung "ablesedatenbereitgestellt" ae7340243688
+evt_end      End_JahresabrechnungAbgeschlossen process none Process_Jahresverbrauchsabrechnung "jahresverbrauchsabrechnung abgeschlossen" ad776bc9460a
+data_store   DataStore_KundenstammIsu process - Process_Jahresverbrauchsabrechnung "kundenstamm is u" d7c854d9b977
+data_store   DataStore_MdmMesswerte process - Process_Jahresverbrauchsabrechnung "mdm messwerte" a6a83ee229ad
+task         Task_GuthabenErstatten process - Process_Jahresverbrauchsabrechnung "guthaben erstatten" e9644abe00b9
+task         Task_NachforderungBuchen process - Process_Jahresverbrauchsabrechnung "nachforderung als offenen posten buchen" bca86fec8290
+task         Task_PreiseErmitteln process - Process_Jahresverbrauchsabrechnung "preise und steuern ermitteln" 4240f0ce5e89
+task         Task_RechnungBerechnen process - Process_Jahresverbrauchsabrechnung "jahresrechnung berechnen" 35215fc294e7
+task         Task_RechnungPruefen process - Process_Jahresverbrauchsabrechnung "rechnung manuell pruefen" 39170709c4c7
+task         Task_VerbrauchAbgrenzen process - Process_Jahresverbrauchsabrechnung "verbrauch abgrenzen" d98eb8539e10
+
+## abrechnung/rechnungsausgabe-digital (c7) facts_hash 3098a3cbb4ed495c
+process      Process_RechnungsausgabeDigital process - Process_RechnungsausgabeDigital "process rechnungsausgabedigital" c5498d133df1
+msg_throw    Event_InvoicePublished process message Process_RechnungsausgabeDigital "invoicepublished" 5123312cb3d2
+evt_start    Start_DigitaleAusgabeAngefordert process none Process_RechnungsausgabeDigital "digitale ausgabe angefordert" 974c9ca8f0e3
+evt_end      End_RechnungDigitalZugestellt process none Process_RechnungsausgabeDigital "rechnung digital zugestellt" 311c5eb8c25c
+task         Task_ImPortalAblegen process - Process_RechnungsausgabeDigital "rechnung im kundenportal ablegen" fed4641c4e28
+task         Task_PdfErzeugen process - Process_RechnungsausgabeDigital "rechnungs pdf erzeugen" 6709071216b5
+task         Task_XRechnungUebermitteln process - Process_RechnungsausgabeDigital "xrechnung erzeugen und uebermitteln" 165d95391d72
+
+## abrechnung/rechnungsausgabe-druck (c7) facts_hash 04f2e62c2572e2b0
+process      Process_RechnungsausgabeDruck process - Process_RechnungsausgabeDruck "process rechnungsausgabedruck" 06eaa0cc8806
+msg_catch    Task_VersandbestaetigungErhalten process - Process_RechnungsausgabeDruck "versandbestaetigung" e97b06663c84
+evt_start    Start_DruckausgabeAngefordert process none Process_RechnungsausgabeDruck "druckausgabe angefordert" 561fb36f28bb
+evt_end      End_RechnungPostVersendet process none Process_RechnungsausgabeDruck "rechnung per post versendet" 53b37f2427d0
+evt_end      End_VersandGeklaert process none Process_RechnungsausgabeDruck "versand geklaert" dc3806aa4ec8
+task         Task_DruckdateiUebergeben process - Process_RechnungsausgabeDruck "druckdatei an druckdienstleister uebergeben" f9bb639154d7
+task         Task_DruckdienstleisterKontaktieren process - Process_RechnungsausgabeDruck "druckdienstleister kontaktieren" 2d93e682716e
+task         Task_PdfErzeugen process - Process_RechnungsausgabeDruck "rechnungs pdf erzeugen" 6709071216b5
+
+## abrechnung/schlussrechnung (c7) facts_hash 0198590bc7cdff41
+process      Process_Schlussrechnung process - Process_Schlussrechnung "process schlussrechnung" e68fd147d892
+call         Call_SchlussrechnungDrucken process - Process_Schlussrechnung "process rechnungsausgabedruck" 54ad283f1d3d
+msg_catch    Start_AuszugGemeldet process message Process_Schlussrechnung "auszuggemeldet" 69b61bd9fe87
+msg_catch    Start_LieferendeGemeldet process message Process_Schlussrechnung "lieferendegemeldet" 30914d98335b
+msg_catch    Task_SchlusszaehlerstandErhalten process - Process_Schlussrechnung "zwischenstandbereitgestellt" 149699e48086
+evt_end      End_SchlussrechnungErstellt process none Process_Schlussrechnung "schlussrechnung erstellt" 4f4fa307f63d
+data_store   DataStore_KundenstammIsu process - Process_Schlussrechnung "kundenstamm is u" d7c854d9b977
+data_store   DataStore_MdmMesswerte process - Process_Schlussrechnung "mdm messwerte" a6a83ee229ad
+task         Task_SchlussrechnungBerechnen process - Process_Schlussrechnung "schlussrechnung berechnen" 4afaa7722fe4
+task         Task_VertragskontoSchliessen process - Process_Schlussrechnung "vertragskonto schliessen" 0ffcd72092d2
+task         Task_ZaehlerstandSchaetzen process - Process_Schlussrechnung "schlusszaehlerstand schaetzen" 8ac2154b0093
+
+## abrechnung/stammdatenuebernahme (c7) facts_hash b53950670e460a2f
+process      Process_Stammdatenuebernahme process - Process_Stammdatenuebernahme "process stammdatenuebernahme" d0c8193eb590
+msg_catch    Start_LieferbeginnGemeldet process message Process_Stammdatenuebernahme "lieferbeginngemeldet" c36ca943fb2f
+msg_catch    Start_ZaehlerAusgebaut process message Process_Stammdatenuebernahme "zaehlerausgebaut" c8b0757951e0
+msg_catch    Start_ZaehlerEingebaut process message Process_Stammdatenuebernahme "zaehlereingebaut" 2aefa49ac277
+msg_catch    Start_ZaehlerwechselDurchgefuehrt process message Process_Stammdatenuebernahme "zaehlerwechseldurchgefuehrt" f39242539fee
+evt_end      End_AnlageStillgelegt process none Process_Stammdatenuebernahme "anlage stillgelegt" 806097a8b29b
+evt_end      End_KlaerfallBearbeitet process none Process_Stammdatenuebernahme "klaerfall bearbeitet" c8d952cb716a
+evt_end      End_StammdatenUebernommen process none Process_Stammdatenuebernahme "stammdaten uebernommen" 87cb424dbf94
+data_store   DataStore_KundenstammIsu process - Process_Stammdatenuebernahme "kundenstamm is u" d7c854d9b977
+data_store   DataStore_Zaehlerstammdaten process - Process_Stammdatenuebernahme "zaehlerstammdaten" e6ea4c18684c
+task         Task_AbrechnungsfaehigkeitPruefen process - Process_Stammdatenuebernahme "abrechnungsfaehigkeit pruefen" 1ca18c5ccc34
+task         Task_AnlageStilllegen process - Process_Stammdatenuebernahme "geraeteausbau buchen und anlage stilllegen" ea45ea638efd
+task         Task_GeraetInstallieren process - Process_Stammdatenuebernahme "geraet in anlage installieren" cb04cbdc6f8d
+task         Task_GeraetewechselBuchen process - Process_Stammdatenuebernahme "geraetewechsel mit ein und ausbaustand buchen" cf6a515b7878
+task         Task_KlaerfallBearbeiten process - Process_Stammdatenuebernahme "klaerfall bearbeiten" 0f1dd354bc1c
+task         Task_VertragAnlegen process - Process_Stammdatenuebernahme "vertrag und vertragskonto anlegen" c479c0df131a
+
+## forderung/mahnverfahren (c7) facts_hash 1ccf884749d8ec7c
+process      Process_Mahnverfahren process - Process_Mahnverfahren "process mahnverfahren" d9855aca0ca3
+msg_throw    End_SperrauftragErteilt process message Process_Mahnverfahren "sperrauftragerteilt" dc6b54249b88
+msg_throw    Task_ForderungAbgeben process - Process_Mahnverfahren "inkassoauftrag" a48c14db6b81
+msg_catch    Start_ZahlungEingegangen event_subprocess message Process_Mahnverfahren "zahlungeingegangen" fb46687d881f
+msg_catch    Start_ZahlungsverzugFestgestellt process message Process_Mahnverfahren "zahlungsverzugfestgestellt" 3e679a03ee2d
+evt_end      End_ForderungAbgegeben process none Process_Mahnverfahren "forderung abgegeben" 377508c23c64
+evt_end      End_MahnverfahrenEingestellt event_subprocess none Process_Mahnverfahren "mahnverfahren eingestellt" 9e889b61e792
+data_store   DataStore_Geschaeftspartner process - Process_Mahnverfahren "geschaeftspartner is u" e34317041462
+task         Task_ForderungBewerten process - Process_Mahnverfahren "forderung bewerten" 6063604fe151
+task         Task_MahnungVersenden process - Process_Mahnverfahren "mahnung mit sperrandrohung versenden" a6e0f76ad2f8
+task         Task_MahnverfahrenEinstellen event_subprocess - Process_Mahnverfahren "mahnverfahren einstellen" 9d25c40d30aa
+task         Task_SperrvoraussetzungenPruefen process - Process_Mahnverfahren "sperrvoraussetzungen pruefen" 6f451c9a2742
+task         Task_ZahlungserinnerungVersenden process - Process_Mahnverfahren "zahlungserinnerung versenden" d714e2b57261
+
+## forderung/sperrung (c8) facts_hash 372b5b9531da00e3
+process      Process_Sperrung process - Process_Sperrung "process sperrung" 8d1477677856
+msg_throw    End_AnlageEntsperrt process message Process_Sperrung "anlageentsperrt" 5ce3fbbd41a2
+msg_throw    Event_AnlageGesperrt process message Process_Sperrung "anlagegesperrt" cdb341ded0a7
+msg_throw    Task_EntsperrterminMitteilen process - Process_Sperrung "entsperrtermin mitteilen" 95d9c5313eea label-key
+msg_throw    Task_SperrungAnkuendigen process - Process_Sperrung "sperrung ankuendigen" f0cc96b31fb4 label-key
+msg_catch    Event_ZahlungVorSperrung process message Process_Sperrung "zahlungeingegangen" d4d3fad35b5c
+msg_catch    Start_SperrauftragEingegangen process message Process_Sperrung "sperrauftragerteilt" 3d384717f1f7
+msg_catch    Task_ZahlungAbwarten process - Process_Sperrung "zahlungeingegangen" 65d9d9978ceb
+sig_catch    Event_GrossstoerungBeendet event_subprocess signal Process_Sperrung "grossstoerung beendet" 91d57ebb5cdc
+sig_catch    Start_GrossstoerungAusgerufen event_subprocess signal Process_Sperrung "grossstoerung" b0439371583b
+evt_end      End_SperrtermineNeuGeplant event_subprocess none Process_Sperrung "sperrtermine neu geplant" 0e6e4231903b
+evt_end      End_SperrungAbgewendet process none Process_Sperrung "sperrung abgewendet" 52241bad0a16
+data_store   DataStore_Crm process - Process_Sperrung "crm kundenakte" b328302651a4
+message_flow MessageFlow_Task_EntsperrterminMitteilen_Participant_Kunde process - - "entsperrtermin" a0e2858c3ecf
+message_flow MessageFlow_Task_SperrungAnkuendigen_Participant_Kunde process - - "sperrankuendigung" 9091185d71f5
+lane         Lane_Aussendienst process - Process_Sperrung "auental netz aussendienst im auftrag" a00a1bfc9618
+lane         Lane_Forderungsmanagement process - Process_Sperrung "forderungsmanagement" 09cf2d1cfd44
+task         Task_EntsperrungDurchfuehren process - Process_Sperrung "entsperrung durchfuehren" ae33c251ca56
+task         Task_SperrterminFestlegen process - Process_Sperrung "sperrtermin festlegen" 12be480bfd18
+task         Task_SperrtermineAussetzen event_subprocess - Process_Sperrung "sperrtermine im stoerungsgebiet aussetzen" 1b163019573e
+task         Task_SperrtermineNeuPlanen event_subprocess - Process_Sperrung "sperrtermine neu planen" 0c08d7a9c26b
+task         Task_SperrungDurchfuehren process - Process_Sperrung "sperrung vor ort durchfuehren" 1c3aad6983a2
+
+## forderung/zahlungseingang (c7) facts_hash 059845d8ded1e1ac
+process      Process_Zahlungseingang process - Process_Zahlungseingang "process zahlungseingang" ffc45ef5342e
+msg_throw    Event_ZahlungEingegangen process message Process_Zahlungseingang "zahlungeingegangen" c3ecb2996f7b
+msg_throw    Event_ZahlungsverzugGemeldet process message Process_Zahlungseingang "zahlungsverzugfestgestellt" 208ba4bdca0e
+evt_start    Start_KontoauszugsabrufFaellig process timer Process_Zahlungseingang "kontoauszugsabruf faellig" 36a7ba021ed6
+evt_end      End_KontoauszuegeVerarbeitet process none Process_Zahlungseingang "kontoauszuege verarbeitet" 0bf9ca3a50aa
+data_store   DataStore_Geschaeftspartner process - Process_Zahlungseingang "geschaeftspartner is u" e34317041462
+task         Task_KontoauszuegeAbrufen process - Process_Zahlungseingang "kontoauszuege abrufen camt 053" 4d247a5713a2
+task         Task_UeberfaelligePostenErmitteln process - Process_Zahlungseingang "ueberfaellige posten ermitteln" 99597d9e0125
+task         Task_ZahlungenKlaeren process - Process_Zahlungseingang "ungeklaerte zahlungen klaeren" 356206a39431
+task         Task_ZahlungenZuordnen process - Process_Zahlungseingang "zahlungen offenen posten zuordnen" 0cf4320e9900
+
+## kundenservice/kundeninformation (c8) facts_hash 8daaeb252ed7b2c8
+process      Process_Kundenbenachrichtigung process - Process_Kundenbenachrichtigung "process kundenbenachrichtigung" f648638e1dc0
+process      Process_Stoerungsinformation process - Process_Stoerungsinformation "process stoerungsinformation" eb8e62418f63
+msg_throw    Task_BenachrichtigungVersenden process - Process_Kundenbenachrichtigung "benachrichtigung versenden" f032125ae3e8 label-key
+msg_catch    Start_AbschlagGeaendert process message Process_Kundenbenachrichtigung "abschlaggeaendert" 506a9bff5eb5
+msg_catch    Start_AnlageEntsperrt process message Process_Kundenbenachrichtigung "anlageentsperrt" ee32a533f2b0
+msg_catch    Start_AnlageGesperrt process message Process_Kundenbenachrichtigung "anlagegesperrt" b46c89e600cc
+msg_catch    Start_RechnungBereitgestellt process message Process_Kundenbenachrichtigung "rechnungbereitgestellt" 553a14485e90
+sig_catch    Event_GrossstoerungBeendet process signal Process_Stoerungsinformation "grossstoerung beendet" 7660152f829b
+sig_catch    Start_GrossstoerungAusgerufen process signal Process_Stoerungsinformation "grossstoerung" 5ac59e0817ef
+evt_end      End_KundeBenachrichtigt process none Process_Kundenbenachrichtigung "kunde benachrichtigt" f2dc8fd60909
+evt_end      End_StoerungsinformationBeendet process none Process_Stoerungsinformation "stoerungsinformation beendet" 6a01dddcc767
+data_store   DataStore_Crm process - Process_Kundenbenachrichtigung "crm kundenakte" b328302651a4
+message_flow MessageFlow_Task_BenachrichtigungVersenden_Participant_Kunde process - - "e mail sms oder brief" 3c0e1b8040e1
+message_flow MessageFlow_Task_EntwarnungVeroeffentlichen_Participant_Kunde process - - "entwarnung" 472eecea452e
+message_flow MessageFlow_Task_StoerungsinfoVeroeffentlichen_Participant_Kunde process - - "stoerungsinfo" 865868ac1d1a
+task         Task_EntwarnungVeroeffentlichen process - Process_Stoerungsinformation "entwarnung veroeffentlichen" 6032ae7fb3e9
+task         Task_HotlineansageAktualisieren process - Process_Stoerungsinformation "ansage der stoerungshotline aktualisieren" da71e06f9b41
+task         Task_StoerungsinfoVeroeffentlichen process - Process_Stoerungsinformation "stoerungsinfo auf website und app veroeffentlichen" 54f021209d2f
+task         Task_VorlageUndKanalBestimmen process - Process_Kundenbenachrichtigung "vorlage und kanal bestimmen" b3b9178ce73c
+
+## kundenservice/kundenportal (c8) facts_hash 45e74d33bc77ba88
+process      Process_Kundenportal process - Process_Kundenportal "process kundenportal" a1ca291fe126
+msg_throw    Event_InstalmentChangeRequested process message Process_Kundenportal "instalmentchangerequested" 2be99308b961
+msg_throw    Event_MeterReadingSubmitted process message Process_Kundenportal "meterreadingsubmitted" b4afe7bf9f33
+msg_throw    Event_TariffChangeRequested process message Process_Kundenportal "tariffchangerequested" 9701a23a62ce
+msg_catch    Start_PortalRequestReceived process message Process_Kundenportal "portalrequestreceived" f34bea6d14a4
+evt_end      End_AnliegenWeitergeleitet process none Process_Kundenportal "anliegen weitergeleitet" 9bdc962fc2cb
+data_store   DataStore_Crm process - Process_Kundenportal "crm kundenakte" b328302651a4
+task         Task_AnliegenKlassifizieren process - Process_Kundenportal "anliegen klassifizieren" 5c16272b86ac
+task         Task_AnliegenManuellBearbeiten process - Process_Kundenportal "anliegen manuell bearbeiten" 92d3da9bd391
+task         Task_EingangBestaetigen process - Process_Kundenportal "eingang im portal bestaetigen" 222eacbe1d35
+task         Task_KundeIdentifizieren process - Process_Kundenportal "kunde identifizieren" 3e2f00f38e58
+
+## marktkommunikation/lieferantenwechsel (c8) facts_hash df7228deac0fd018
+process      Process_Lieferantenwechsel process - Process_Lieferantenwechsel "process lieferantenwechsel" 4c281cb0875d
+msg_throw    Event_AbmeldungBestaetigt process message Process_Lieferantenwechsel "abmeldungbestaetigt" 7c1d79a565b6
+msg_throw    Event_LieferendeGemeldet process message Process_Lieferantenwechsel "lieferendegemeldet" ca21c900ff10
+msg_throw    Task_KuendigungAblehnen process - Process_Lieferantenwechsel "kuendigung ablehnen" d4aa3477d822 label-key
+msg_throw    Task_KuendigungBestaetigen process - Process_Lieferantenwechsel "kuendigung bestaetigen" 0a948e3e7294 label-key
+msg_throw    Task_ZwischenablesungAnfordern process - Process_Lieferantenwechsel "zwischenablesung" 759853199920
+msg_catch    Start_KuendigungEingegangen process message Process_Lieferantenwechsel "kuendigungneulieferant" 8a88bb264157
+msg_catch    Task_AbmeldungsanfrageErhalten process - Process_Lieferantenwechsel "abmeldungsanfrage" d16921058fdc
+evt_end      End_KuendigungAbgelehnt process none Process_Lieferantenwechsel "kuendigung abgelehnt" 4c010a2230ce
+evt_end      End_KundeAbgemeldet process none Process_Lieferantenwechsel "kunde abgemeldet" 23e05a56b4b7
+data_store   DataStore_Crm process - Process_Lieferantenwechsel "crm kundenakte" b328302651a4
+data_store   DataStore_Kunden process - Process_Lieferantenwechsel "kunden stammdaten" 6e8359303adc
+data_store   DataStore_Marktpartner process - Process_Lieferantenwechsel "marktpartnerstamm" 7e93fdd7fd3f
+message_flow MessageFlow_Event_AbmeldungBestaetigt_Participant_Netzbetreiber process - - "antwort auf abmeldungsanfrage utilmd" f098e55a79d0
+message_flow MessageFlow_Participant_Netzbetreiber_Task_AbmeldungsanfrageErhalten process - - "abmeldungsanfrage utilmd" 36f32dd05424
+message_flow MessageFlow_Participant_Neulieferant_Start_KuendigungEingegangen process - - "kuendigung utilmd" c54a33206663
+message_flow MessageFlow_Task_KuendigungAblehnen_Participant_Neulieferant process - - "ablehnung utilmd" 299c246b6b29
+message_flow MessageFlow_Task_KuendigungBestaetigen_Participant_Neulieferant process - - "kuendigungsbestaetigung utilmd" ba121e93d2dd
+task         Task_AbsenderPruefen process - Process_Lieferantenwechsel "absender gegen marktpartnerstamm pruefen" df42e59abd4e
+task         Task_KuendigungPruefen process - Process_Lieferantenwechsel "kuendigungsfrist und vertragsbindung pruefen" 0b814b29cf06
+task         Task_RueckgewinnungAnstossen process - Process_Lieferantenwechsel "rueckgewinnung anstossen" ed566360bf52
+
+## marktkommunikation/lieferbeginn (c8) facts_hash cb2ccbfbd196bfad
+process      Process_Lieferbeginn process - Process_Lieferbeginn "process lieferbeginn" 9622266012d7
+msg_throw    Event_LieferbeginnGemeldet process message Process_Lieferbeginn "lieferbeginngemeldet" 0700d3bec953
+msg_throw    Task_AnmeldungSenden process - Process_Lieferbeginn "anmeldung an netzbetreiber senden" bf3f162457ef label-key
+msg_catch    Event_AnmeldungAbgelehnt process message Process_Lieferbeginn "anmeldungabgelehnt" 234fe8dbd0aa
+msg_catch    Event_AnmeldungBestaetigt process message Process_Lieferbeginn "anmeldungbestaetigt" 43f665e25f02
+msg_catch    Start_BelieferungBeauftragt process message Process_Lieferbeginn "belieferungbeauftragt" 89fafdaf8604
+evt_end      End_AnmeldungGescheitert process none Process_Lieferbeginn "anmeldung gescheitert" e2ee4e9f9956
+evt_end      End_LieferbeginnAngemeldet process none Process_Lieferbeginn "lieferbeginn angemeldet" 0dd90922c4b1
+data_store   DataStore_Marktpartner process - Process_Lieferbeginn "marktpartnerstamm" 7e93fdd7fd3f
+message_flow MessageFlow_Participant_Netzbetreiber_Event_AnmeldungAbgelehnt process - - "ablehnung utilmd" 299c246b6b29
+message_flow MessageFlow_Participant_Netzbetreiber_Event_AnmeldungBestaetigt process - - "bestaetigung utilmd" fd9635215639
+message_flow MessageFlow_Task_AnmeldungSenden_Participant_Netzbetreiber process - - "anmeldung utilmd" f042b92378a1
+task         Task_AblehnungsgrundKlaeren process - Process_Lieferbeginn "ablehnungsgrund klaeren" c5eefb6a520c
+task         Task_NetzbetreiberErmitteln process - Process_Lieferbeginn "zustaendigen netzbetreiber ermitteln" 6d94c95946d5
+
+## messwesen/messwertplausibilisierung (c8) facts_hash 98ee4580d5b32ddf
+process      Process_Messwertplausibilisierung process - Process_Messwertplausibilisierung "process messwertplausibilisierung" 8776bfc55737
+evt_start    Start_ZaehlerstaendeErfasst process none Process_Messwertplausibilisierung "zaehlerstaende erfasst" 4b7404dadf40
+evt_end      End_MesswertePlausibilisiert process none Process_Messwertplausibilisierung "messwerte plausibilisiert" 933a6531c568
+evt_end      End_TurnuswechselFaellig process none Process_Messwertplausibilisierung "turnuswechsel faellig" 74083358b2d4
+data_store   DataStore_Geraetestamm process - Process_Messwertplausibilisierung "geraetestamm" dca193c75015
+data_store   DataStore_Messwerte process - Process_Messwertplausibilisierung "messwertdatenbank" 861d3760a3b7
+task         Task_ErsatzwertBilden process - Process_Messwertplausibilisierung "ersatzwert bilden" 6d6dc2572680
+task         Task_MesswertKlaeren process - Process_Messwertplausibilisierung "auffaelligen messwert klaeren" 037e23ae7f93
+task         Task_MesswerteFreigeben process - Process_Messwertplausibilisierung "messwerte freigeben" 07b19bffd37a
+task         Task_RegelnAnwenden process - Process_Messwertplausibilisierung "plausibilitaetsregeln anwenden" 35eed08e3aa1
+task         Task_TurnuswechselVormerken process - Process_Messwertplausibilisierung "turnuswechsel im geraetestamm vormerken" 7783c2d73de0
+
+## messwesen/zaehlerablesung (c8) facts_hash d8800aaa39d26e2d
+process      Process_Zaehlerablesung process - Process_Zaehlerablesung "process zaehlerablesung" 1303262c0935
+call         Call_MesswertePlausibilisieren process - Process_Zaehlerablesung "process messwertplausibilisierung" 44ad48bb2d2d
+msg_throw    Event_AblesedatenBereitgestellt process message Process_Zaehlerablesung "ablesedatenbereitgestellt" f6a4c0dbb5ca
+msg_throw    Event_ZwischenstandBereitgestellt process message Process_Zaehlerablesung "zwischenstandbereitgestellt" 52045316081a
+msg_catch    Event_ZaehlerstandUebermittelt subprocess message Process_Zaehlerablesung "zaehlerstanduebermittelt" ef853ff31a65
+msg_catch    Start_ZwischenablesungAngefordert process message Process_Zaehlerablesung "zwischenablesung" f2a3f1ecf4ff
+evt_start    Start_ErfassungGestartet subprocess none Process_Zaehlerablesung "erfassung gestartet" 82c747c100cc
+evt_start    Start_TurnusablesungFaellig process timer Process_Zaehlerablesung "turnusablesung faellig" 93de563e03a2
+evt_end      End_TarifwechselstandGespeichert process none Process_Zaehlerablesung "zaehlerstand zum tarifwechsel gespeichert" c81265651329
+evt_end      End_TurnusablesungAbgeschlossen process none Process_Zaehlerablesung "turnusablesung abgeschlossen" 1e7c9fd5f0fe
+evt_end      End_ZaehlerstaendeErfasst subprocess none Process_Zaehlerablesung "zaehlerstaende erfasst" dbda28fdd13b
+evt_end      End_ZwischenablesungAbgeschlossen process none Process_Zaehlerablesung "zwischenablesung abgeschlossen" 354202392bea
+data_store   DataStore_Geraetestamm process - Process_Zaehlerablesung "geraetestamm" dca193c75015
+data_store   DataStore_Messwerte process - Process_Zaehlerablesung "messwertdatenbank" 861d3760a3b7
+task         Task_AbleseartBestimmen subprocess - Process_Zaehlerablesung "ableseart bestimmen" 20f2c0be9fdc
+task         Task_AblesekarteVersenden subprocess - Process_Zaehlerablesung "ablesekarte versenden" 32aed3e54732
+task         Task_AblesungVorOrt subprocess - Process_Zaehlerablesung "ablesung vor ort durchfuehren" 3509e236569f
+task         Task_FernauslesungAbrufen subprocess - Process_Zaehlerablesung "fernauslesung abrufen" 6df8f6c0d61b
+task         Task_ZaehlerstandSchaetzen subprocess - Process_Zaehlerablesung "zaehlerstand schaetzen" bf37bd070293
+
+## messwesen/zaehlermontage (c8) facts_hash fbca8051a7221311
+process      Process_Zaehlermontage process - Process_Zaehlermontage "process zaehlermontage" 0d623d0fd33d
+msg_throw    End_ZaehlerEingebaut process message Process_Zaehlermontage "zaehlereingebaut" 1b61868ba4c7
+evt_start    Start_HausanschlussFertiggestellt process none Process_Zaehlermontage "hausanschluss fertiggestellt" d5920b9c954b
+evt_end      End_ErinnerungVersendet process none Process_Zaehlermontage "erinnerung versendet" fe4b0132a410
+data_store   DataStore_Geraetestamm process - Process_Zaehlermontage "geraetestamm" dca193c75015
+task         Task_AnschlussnehmerErinnern process - Process_Zaehlermontage "anschlussnehmer erinnern" aad25f00c807
+task         Task_GatewayBereitstellen process - Process_Zaehlermontage "smart meter gateway bereitstellen" ce7f53b144c9
+task         Task_GeraetedatenErfassen process - Process_Zaehlermontage "geraetedaten erfassen" 246eddf97f7b
+task         Task_MesseinrichtungBestimmen process - Process_Zaehlermontage "messeinrichtung bestimmen" 1604c55055ba
+task         Task_MontageterminVereinbaren process - Process_Zaehlermontage "montagetermin vereinbaren" a389617a45bf
+task         Task_ZaehlerEinbauen process - Process_Zaehlermontage "zaehler einbauen und verplomben" 88a4f0494d44
+
+## messwesen/zaehlerwechsel (c8) facts_hash f4f1e6a5ef08a5e9
+process      Process_Zaehlerwechsel process - Process_Zaehlerwechsel "process zaehlerwechsel" c40d138bbb04
+call         Call_BefundpruefungBeauftragen process - Process_Zaehlerwechsel "process befundpruefung" 6ae0fcf9cafc
+msg_throw    End_ZaehlerAusgebaut process message Process_Zaehlerwechsel "zaehlerausgebaut" 874c25338ff8
+msg_throw    Event_ZaehlerwechselDurchgefuehrt process message Process_Zaehlerwechsel "zaehlerwechseldurchgefuehrt" 8d8cdb3129c0
+msg_throw    Task_RueckmeldungSenden process - Process_Zaehlerwechsel "rueckmeldung" ea4dbf3e7915
+msg_catch    Start_ZaehlerwechselBeauftragt process message Process_Zaehlerwechsel "zaehlerwechselbeauftragt" 7887f88a30e9
+sig_catch    Start_GrossstoerungAusgerufen event_subprocess signal Process_Zaehlerwechsel "grossstoerung" b0439371583b
+evt_start    Start_TurnuswechselFaellig process timer Process_Zaehlerwechsel "turnuswechsel faellig" 0f45ff05263d
+evt_end      End_TermineVerschoben event_subprocess none Process_Zaehlerwechsel "wechseltermine verschoben" ff98593c2791
+evt_end      End_ZaehlerwechselAbgeschlossen process none Process_Zaehlerwechsel "zaehlerwechsel abgeschlossen" 0aa241fa1025
+data_store   DataStore_Geraetestamm process - Process_Zaehlerwechsel "geraetestamm" dca193c75015
+task         Task_AusbaustandErfassen process - Process_Zaehlerwechsel "ausbaustand erfassen" e182de3408ab
+task         Task_StaendeErfassen process - Process_Zaehlerwechsel "ein und ausbaustaende erfassen" 0b5dd4f410c3
+task         Task_TermineVerschieben event_subprocess - Process_Zaehlerwechsel "wechseltermine im stoerungsgebiet verschieben" adbb6a9aa113
+task         Task_WechselterminVereinbaren process - Process_Zaehlerwechsel "wechseltermin vereinbaren" 4f90a16f8c45
+task         Task_ZaehlerAusbauen process - Process_Zaehlerwechsel "zaehler ausbauen" 309586953e7c
+task         Task_ZaehlerTauschen process - Process_Zaehlerwechsel "zaehler tauschen" cf7847d23349
+
+## netz/entstoerung (c8) facts_hash 064be1398af08920
+process      Process_Entstoerung process - Process_Entstoerung "process entstoerung" cbc68d651a16
+msg_throw    Event_RueckmeldungGesendet process message Process_Entstoerung "rueckmeldung" dbe3eabc4d4f
+msg_catch    Start_EntstoerauftragEingegangen process message Process_Entstoerung "entstoerauftrag" 825234ab763c
+sig_throw    Event_GrossstoerungAusgerufen process signal Process_Entstoerung "grossstoerung" 2a57275f9d0f
+sig_throw    Event_GrossstoerungBeendet process signal Process_Entstoerung "grossstoerung beendet" c1100ffc6d3c
+evt_start    Start_TruppVorOrt subprocess none Process_Entstoerung "trupp vor ort" 9508011bb1da
+evt_end      End_EntstoerungAbgeschlossen process none Process_Entstoerung "entstoerung abgeschlossen" c2d10dbc1643
+evt_end      End_VersorgungWiederhergestellt subprocess none Process_Entstoerung "versorgung wiederhergestellt" 35b3acf46f26
+data_store   DataStore_Nis process - Process_Entstoerung "netzinformationssystem" 33ecacefbebb
+data_store   DataStore_Stoerungen process - Process_Entstoerung "stoerungsdatenbank" ac82885ccdc0
+lane         Lane_Bereitschaftsdienst process - Process_Entstoerung "bereitschaftsdienst" f1a53494472d
+lane         Lane_Netzleitstelle process - Process_Entstoerung "netzleitstelle" f79706669d61
+task         Task_FehlerEingrenzen subprocess - Process_Entstoerung "fehler eingrenzen und freischalten" 6fbfcf19e181
+task         Task_LageBewerten process - Process_Entstoerung "lage im netz bewerten" 28ee1c57b24a
+task         Task_StoerungsberichtErfassen process - Process_Entstoerung "stoerungsbericht erfassen" 58a4b897f3bc
+task         Task_TruppDisponieren process - Process_Entstoerung "bereitschaftstrupp disponieren" 2ad8c3a1d039
+task         Task_VersorgungWiederherstellen subprocess - Process_Entstoerung "versorgung wiederherstellen" 679adb7d155a
+
+## netz/hausanschluss (c8) facts_hash 6087de57698b86da
+process      Process_Hausanschluss process - Process_Hausanschluss "process hausanschluss" b42255394ed1
+call         Call_NetzanschlussPruefen process - Process_Hausanschluss "process netzanschlusspruefung" f996d7cec4f1
+msg_throw    Task_AblehnungVersenden process - Process_Hausanschluss "ablehnung versenden" 27b6ab109d26 label-key
+msg_throw    Task_AngebotVersenden process - Process_Hausanschluss "angebot versenden" 84aac5e75b88 label-key
+msg_throw    Task_UnterlagenNachfordern process - Process_Hausanschluss "unterlagen nachfordern" c8f77d23c0fe label-key
+msg_catch    Start_AntragEingegangen process message Process_Hausanschluss "hausanschlussantrag" 78ebfbcd7829
+msg_catch    Task_AngebotsannahmeErhalten process - Process_Hausanschluss "angebotangenommen" a6ad38768d28
+msg_catch    Task_FertigmeldungErhalten process - Process_Hausanschluss "fertigmeldunginstallateur" 0734d7de4131
+msg_catch    Task_UnterlagenErhalten process - Process_Hausanschluss "unterlagennachgereicht" f577c7c6637d
+evt_start    Start_BauauftragErteilt subprocess none Process_Hausanschluss "bauauftrag erteilt" c241c4ad1dc3
+evt_end      End_AngebotVerfallen process none Process_Hausanschluss "angebot verfallen" 03c1c35f9a9e
+evt_end      End_AntragAbgelehnt process none Process_Hausanschluss "antrag abgelehnt" 72d6a4ed57df
+evt_end      End_HausanschlussFertiggestellt subprocess none Process_Hausanschluss "hausanschluss fertiggestellt" e46ccc9028e2
+evt_end      End_ZaehlersetzungBeauftragt process none Process_Hausanschluss "zaehlersetzung beauftragt" f98ed227c2ea
+data_store   DataStore_Nis process - Process_Hausanschluss "netzinformationssystem" 33ecacefbebb
+message_flow MessageFlow_Participant_Anschlussnehmer_Start_AntragEingegangen process - - "anschlussantrag" b624ec2644ae
+message_flow MessageFlow_Participant_Anschlussnehmer_Task_AngebotsannahmeErhalten process - - "auftrag" beb3f81f56bb
+message_flow MessageFlow_Participant_Anschlussnehmer_Task_UnterlagenErhalten process - - "unterlagen" b40d6a831b0f
+message_flow MessageFlow_Participant_Installateur_Task_FertigmeldungErhalten process - - "fertigmeldung" 9acb5265b30a
+message_flow MessageFlow_Task_AblehnungVersenden_Participant_Anschlussnehmer process - - "ablehnung" d8fceac29f95
+message_flow MessageFlow_Task_AngebotVersenden_Participant_Anschlussnehmer process - - "anschlussangebot" 20dcd1ebd2d3
+message_flow MessageFlow_Task_UnterlagenNachfordern_Participant_Anschlussnehmer process - - "nachforderung" af1313b75936
+lane         Lane_Netzbau process - Process_Hausanschluss "netzbau" daaecc92b3e5
+lane         Lane_Netzkundenservice process - Process_Hausanschluss "netzkundenservice" 9a513b784212
+lane         Lane_Netzplanung process - Process_Hausanschluss "netzplanung" 6742fb383d3d
+task         Task_AngebotErstellen process - Process_Hausanschluss "anschlussangebot erstellen" 0433122a798a
+task         Task_AnschlussDokumentieren process - Process_Hausanschluss "anschluss im nis dokumentieren" db69a3746c67
+task         Task_AnschlusskastenSetzen subprocess - Process_Hausanschluss "hausanschlusskasten setzen" fa69edc625a8
+task         Task_AntragPruefen process - Process_Hausanschluss "antrag pruefen" 311bfd2a438d
+task         Task_LeitungVerlegen subprocess - Process_Hausanschluss "hausanschlussleitung verlegen" 4f4ed753732c
+task         Task_TiefbauKoordinieren subprocess - Process_Hausanschluss "tiefbau koordinieren" 1e6045dc47d6
+task         Task_ZaehlersetzungBeauftragen process - Process_Hausanschluss "zaehlersetzung beauftragen" 76d73b4d22e5
+
+## netz/netzanschlusspruefung (c8) facts_hash d06577ea45af60b7
+process      Process_Netzanschlusspruefung process - Process_Netzanschlusspruefung "process netzanschlusspruefung" db6dab5700d0
+evt_start    Start_PruefungAngefordert process none Process_Netzanschlusspruefung "netzanschlusspruefung angefordert" d367a3e53490
+evt_end      End_AnschlussNichtMoeglich process none Process_Netzanschlusspruefung "anschluss nicht moeglich" 31f0b49c66b3
+evt_end      End_NetzanschlussGeprueft process none Process_Netzanschlusspruefung "netzanschluss geprueft" 017036f3a976
+data_store   DataStore_GisNetzdaten process - Process_Netzanschlusspruefung "gis netzdaten" b68bc6bb0c2b
+task         Task_AnschlussdatenUebernehmen process - Process_Netzanschlusspruefung "anschlussdaten uebernehmen" 4a4583a53e96
+task         Task_AnschlusspunktFestlegen process - Process_Netzanschlusspruefung "netzanschlusspunkt festlegen" d08250aae47b
+task         Task_DruckBewerten process - Process_Netzanschlusspruefung "versorgungsdruck gas und wasser bewerten" 1878f19a8cc3
+task         Task_KapazitaetStromBewerten process - Process_Netzanschlusspruefung "netzkapazitaet strom bewerten" 4a66a67711df
+task         Task_NetzverstaerkungPlanen process - Process_Netzanschlusspruefung "netzverstaerkung planen" aab28ebfb543
+
+## netz/pv-einspeisung (c8) facts_hash 9b82518e93461eab
+process      Process_PvEinspeisung process - Process_PvEinspeisung "process pveinspeisung" 65b8bbdb1b3e
+call         Call_NetzvertraeglichkeitPruefen process - Process_PvEinspeisung "pruefprozess" b503a49865a5 dynamic
+msg_throw    Event_InbetriebnahmeGemeldet process message Process_PvEinspeisung "einspeiseanlageinbetrieb" e412a768f5c2
+msg_throw    Task_MastrBestaetigen process - Process_PvEinspeisung "mastrnetzbetreiberpruefung" 3cadca4d14a3
+msg_throw    Task_ZweirichtungszaehlerBeauftragen process - Process_PvEinspeisung "zaehlerwechselbeauftragt" 65a2a94e7edc
+msg_catch    Start_AnmeldungEingegangen process message Process_PvEinspeisung "anmeldungerzeugungsanlage" 7d77fdc8dfbc
+msg_catch    Task_RueckmeldungErhalten process - Process_PvEinspeisung "rueckmeldung" f4822c8db6a2
+evt_end      End_AnmeldungAbgelehnt process none Process_PvEinspeisung "anmeldung abgelehnt" 81b7d0585d90
+evt_end      End_EinspeiseanlageInBetrieb process none Process_PvEinspeisung "einspeiseanlage in betrieb genommen" 25672675acad
+evt_end      End_ErinnerungVersendet process none Process_PvEinspeisung "erinnerung versendet" fe4b0132a410
+data_store   DataStore_EegAnlagen process - Process_PvEinspeisung "eeg anlagenstamm" 5fb3ed86671f
+data_store   DataStore_Nis process - Process_PvEinspeisung "nis" fe9afea93f11
+task         Task_AblehnungMitteilen process - Process_PvEinspeisung "ablehnung mitteilen" d05897832a49
+task         Task_AnlageErfassen process - Process_PvEinspeisung "erzeugungsanlage im anlagenstamm erfassen" f976d319c6e1
+task         Task_AnmeldeunterlagenPruefen process - Process_PvEinspeisung "anmeldeunterlagen pruefen" 125ae6135193
+task         Task_MessstellenbetriebErinnern process - Process_PvEinspeisung "messstellenbetrieb erinnern" abba6ba97a91
+
+## netz/stoerungsannahme (c8) facts_hash 1ecd6fe3ca8d8022
+process      Process_Stoerungsannahme process - Process_Stoerungsannahme "process stoerungsannahme" e6ed52a0b507
+msg_throw    Task_EntstoerauftragUebermitteln process - Process_Stoerungsannahme "entstoerauftrag" f0930c9b3979
+msg_throw    Task_MeldendenInformieren process - Process_Stoerungsannahme "meldenden informieren" d33bd13b51c3 label-key
+msg_throw    Task_SicherheitshinweiseGeben process - Process_Stoerungsannahme "sicherheitshinweise geben" 261edbed8745 label-key
+msg_catch    Start_StoerungGemeldet process message Process_Stoerungsannahme "stoerungsmeldung" c981bd72ccdf
+msg_catch    Task_RueckmeldungErhalten process - Process_Stoerungsannahme "rueckmeldung" f4822c8db6a2
+sig_catch    Start_GrossstoerungAusgerufen event_subprocess signal Process_Stoerungsannahme "grossstoerung" b0439371583b
+evt_end      End_AnsageGeschaltet event_subprocess none Process_Stoerungsannahme "ansage geschaltet" 17a7efe03c66
+evt_end      End_Eskaliert process none Process_Stoerungsannahme "eskalation ausgeloest" ea59f48a7945
+evt_end      End_StoerungsmeldungAbgeschlossen process none Process_Stoerungsannahme "stoerungsmeldung abgeschlossen" 41a6a20e540c
+data_store   DataStore_Stoerungen process - Process_Stoerungsannahme "stoerungsdatenbank" ac82885ccdc0
+message_flow MessageFlow_Participant_Meldender_Start_StoerungGemeldet process - - "stoerungsmeldung" 8c1bd503309b
+message_flow MessageFlow_Task_MeldendenInformieren_Participant_Meldender process - - "entstoerungsinfo" cc3952b839cd
+message_flow MessageFlow_Task_SicherheitshinweiseGeben_Participant_Meldender process - - "sicherheitshinweise" 0b196685d03e
+task         Task_AnsageSchalten event_subprocess - Process_Stoerungsannahme "grossstoerungsansage schalten" 0c5c2b41c8d1
+task         Task_BereitschaftsleitungInformieren process - Process_Stoerungsannahme "bereitschaftsleitung informieren" 57b4fde07925
+task         Task_DringlichkeitBewerten process - Process_Stoerungsannahme "dringlichkeit bewerten" ff81742cddbc
+task         Task_StoerungAufnehmen process - Process_Stoerungsannahme "stoerungsmeldung aufnehmen" ea92168b3075
+
+## vertrieb/tarifwechsel (c8) facts_hash 583b756584644938
+process      Process_Tarifwechsel process - Process_Tarifwechsel "process tarifwechsel" 45ca0c03d2c7
+msg_throw    Event_TarifUmgestellt process message Process_Tarifwechsel "tarifumgestellt" 14ab519e4c28
+msg_throw    Task_ZwischenablesungAnfordern process - Process_Tarifwechsel "zwischenablesung" 759853199920
+msg_catch    Start_TarifwechselBeantragt process message Process_Tarifwechsel "tarifwechselbeantragt" 01a458fb2900
+evt_end      End_TarifwechselAbgelehnt process none Process_Tarifwechsel "tarifwechsel abgelehnt" d89163b032e8
+evt_end      End_TarifwechselAbgeschlossen process none Process_Tarifwechsel "tarifwechsel abgeschlossen" dbcb64606ffc
+data_store   DataStore_Kunden process - Process_Tarifwechsel "kunden stammdaten" 6e8359303adc
+task         Task_AblehnungMitteilen process - Process_Tarifwechsel "ablehnung per e mail mitteilen" e0461503934d
+task         Task_LiefervertragUmstellen process - Process_Tarifwechsel "liefervertrag auf neuen tarif umstellen" d0dd854cb332
+task         Task_TarifberechtigungPruefen process - Process_Tarifwechsel "tarifberechtigung pruefen" 0f7b90c7faa4
+task         Task_VertragsbestaetigungErstellen process - Process_Tarifwechsel "vertragsbestaetigung erstellen" a515c8d75655
+
+## vertrieb/umzug (c8) facts_hash ad75d724451ad9dc
+process      Process_Umzug process - Process_Umzug "process umzug" 60239de603ff
+msg_throw    Event_AuszugGemeldet process message Process_Umzug "auszuggemeldet" 5e1bc9b5feba
+msg_throw    Task_BelieferungBeauftragen subprocess - Process_Umzug "belieferungbeauftragt" eeaaa1795586
+msg_throw    Task_TarifangebotSenden process - Process_Umzug "bundesweites tarifangebot senden" 64929f92e62e label-key
+msg_throw    Task_UmzugsbestaetigungSenden process - Process_Umzug "umzugsbestaetigung senden" 239c8bd2c7d4 label-key
+msg_throw    Task_ZwischenablesungAnfordern process - Process_Umzug "zwischenablesung" 759853199920
+msg_catch    Start_UmzugGemeldet process message Process_Umzug "umzuggemeldet" 600e0b34e226
+evt_start    Start_EinzugErfasst subprocess none Process_Umzug "einzug erfasst" 617347302fc8
+evt_end      End_BelieferungEingerichtet subprocess none Process_Umzug "belieferung eingerichtet" 74549f878b9b
+evt_end      End_UmzugAbgeschlossen process none Process_Umzug "umzug abgeschlossen" 521b56ee25b0
+data_store   DataStore_Kunden process - Process_Umzug "kunden stammdaten" 6e8359303adc
+message_flow MessageFlow_Participant_Kunde_Start_UmzugGemeldet process - - "umzugsmeldung" a9ece0fb37e5
+message_flow MessageFlow_Task_TarifangebotSenden_Participant_Kunde process - - "angebot bundesweiter tarif" 4ee9bc5630f4
+message_flow MessageFlow_Task_UmzugsbestaetigungSenden_Participant_Kunde process - - "umzugsbestaetigung" 04758fa27ed2
+task         Task_LiefervertragAnlegen subprocess - Process_Umzug "liefervertrag anlegen" 19935dc86ea9
+task         Task_MarktlokationErmitteln subprocess - Process_Umzug "marktlokation ermitteln" a0a21cb71b06
+task         Task_UmzugsdatenPruefen process - Process_Umzug "umzugsdaten pruefen" cda2f75ae274

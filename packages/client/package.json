@@ -1,0 +1,22 @@
+{
+  "name": "@proa/client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Typed REST client for the ProA API, generated with hey-api from the @proa/contracts OpenAPI document",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "node scripts/write-openapi.ts && openapi-ts && prettier --write src/generated",
+    "typecheck": "tsc",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@proa/contracts": "workspace:0.0.0"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0"
+  }
+}

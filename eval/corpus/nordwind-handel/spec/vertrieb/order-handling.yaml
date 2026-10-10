@@ -1,0 +1,129 @@
+key: vertrieb/order-handling
+engine: c8
+name: Order handling
+notes: >-
+  Collaboration with a black-box customer; the participant process is the hub
+  of order-to-cash and also talks to many other files. Message names follow
+  the legacy C7 contract (KreditpruefungAngefordert, KreditpruefungAbgeschlossen,
+  ZahlungZugeordnet: cross-engine) except InvoiceSent, which the C7 invoicing
+  sends as RechnungVersendet (de-en). Calls picking and parcel shipping
+  (call-unique) and a fraud check that lives outside the landscape
+  (call-unresolved), which must not be mapped onto the C7 credit check
+  either. Catches the C8 product recall signal.
+
+collaboration:
+  participants:
+    - { id: Participant_Customer, name: Customer }
+    - { id: Participant_OrderHandling, name: Nordwind Online Shop – Order handling, process: Process_OrderHandling }
+  messageFlows:
+    - { from: Participant_Customer, to: Start_OrderReceived, name: Order }
+    - { from: Task_SendConfirmation, to: Participant_Customer, name: Order confirmation }
+    - { from: Task_SendRejection, to: Participant_Customer, name: Rejection }
+    - { from: Participant_Customer, to: Start_OrderCancelled, name: Cancellation }
+
+processes:
+  - id: Process_OrderHandling
+    name: Order handling
+    documentation: >-
+      Handles shop and marketplace orders from receipt to payment: validation,
+      fraud and credit checks, picking, parcel shipping and payment tracking.
+    dataStores:
+      - { id: DataStore_CustomerMaster, name: Customer master }
+    elements:
+      - type: startEvent
+        id: Start_OrderReceived
+        name: Order received
+        message: OrderReceived
+      - type: serviceTask
+        id: Task_ValidateOrder
+        name: Validate order
+        reads: [DataStore_CustomerMaster]
+      - type: callActivity
+        id: Call_FraudCheck
+        name: Run fraud check
+        calledElement: Process_FraudCheck
+      - type: exclusiveGateway
+        id: Gateway_OnAccount
+        name: Purchase on account?
+        next:
+          - { to: Task_RequestCreditCheck, name: yes, condition: "=onAccount" }
+          - { to: Gateway_CreditChecked, name: no, default: true }
+      - type: sendTask
+        id: Task_RequestCreditCheck
+        name: Request credit check
+        message: { name: KreditpruefungAngefordert, correlationKey: "=orderId" }
+      - type: receiveTask
+        id: Task_WaitForCreditDecision
+        name: Wait for credit decision
+        message: { name: KreditpruefungAbgeschlossen, correlationKey: "=orderId" }
+      - type: exclusiveGateway
+        id: Gateway_CreditApproved
+        name: Credit approved?
+        next:
+          - { to: Gateway_CreditChecked, name: yes, condition: "=creditApproved" }
+          - { to: Task_SendRejection, name: no, default: true }
+      - { type: exclusiveGateway, id: Gateway_CreditChecked }
+      - { type: sendTask, id: Task_SendConfirmation, name: Send order confirmation }
+      - type: callActivity
+        id: Call_PickAndPack
+        name: Pick and pack
+        calledElement: Process_Kommissionierung
+      - type: exclusiveGateway
+        id: Gateway_FreightForwarder
+        name: Pallet freight?
+        next:
+          - { to: Gateway_Shipped, name: yes, condition: '=shippingMode = "freight"' }
+          - { to: Call_ShipOrder, name: no, default: true }
+      - type: callActivity
+        id: Call_ShipOrder
+        name: Ship parcel
+        calledElement: Process_Shipping
+      - { type: exclusiveGateway, id: Gateway_Shipped }
+      - type: exclusiveGateway
+        id: Gateway_AwaitPayment
+        name: Payment outstanding?
+        next:
+          - { to: Event_PaymentAllocated, name: yes, condition: "=onAccount" }
+          - { to: Gateway_Paid, name: no, default: true }
+      - type: intermediateCatchEvent
+        id: Event_PaymentAllocated
+        name: Payment allocated
+        message: { name: ZahlungZugeordnet, correlationKey: "=orderId" }
+      - { type: exclusiveGateway, id: Gateway_Paid }
+      - { type: endEvent, id: End_OrderCompleted, name: Order completed }
+
+      - { type: sendTask, id: Task_SendRejection, name: Send rejection }
+      - { type: endEvent, id: End_OrderRejected, name: Order rejected }
+
+      - type: eventSubProcess
+        id: EventSub_InvoiceSent
+        name: Invoice sent
+        elements:
+          - type: startEvent
+            id: Start_InvoiceSent
+            name: Invoice sent
+            message: { name: InvoiceSent, correlationKey: "=orderId" }
+            interrupting: false
+          - { type: serviceTask, id: Task_SetStatusInvoiced, name: Set order status to invoiced }
+          - { type: endEvent, id: End_StatusInvoiced, name: Order status set to invoiced }
+      - type: eventSubProcess
+        id: EventSub_ProductRecall
+        name: Product recall
+        elements:
+          - type: startEvent
+            id: Start_ProductRecall
+            name: Product recall
+            signal: Produktrueckruf
+            interrupting: false
+          - { type: serviceTask, id: Task_CheckOrderForRecall, name: Check order for recalled items }
+          - { type: endEvent, id: End_OrderCheckedForRecall, name: Order checked for recall }
+      - type: eventSubProcess
+        id: EventSub_OrderCancelled
+        name: Order cancelled
+        elements:
+          - type: startEvent
+            id: Start_OrderCancelled
+            name: Order cancelled
+            message: { name: OrderCancelled, correlationKey: "=orderId" }
+          - { type: serviceTask, id: Task_CancelOrder, name: Cancel order and release stock }
+          - { type: endEvent, id: End_OrderCancelled, name: Order cancellation processed }

@@ -1,0 +1,80 @@
+key: vertrieb/umzug
+engine: c8
+name: Umzug
+notes: >-
+  Collaboration with a black-box customer pool. The participant process also
+  talks to other files: it requests an interim reading (the request carries
+  anlass "schlussablesung" and ablesetermin, the day after the move-out),
+  reports the move-out to
+  the C7 final invoice (cross-engine-message) and, from inside the embedded
+  subprocess, orders supply at the new address from
+  marktkommunikation/lieferbeginn; that send task is a valid endpoint although
+  it lies in a subprocess (subprocess-scope, positive case). "Auszug gemeldet"
+  is within Levenshtein 2 of
+  its own start "Umzug gemeldet" (self-link, near-miss).
+
+collaboration:
+  participants:
+    - { id: Participant_Kundenservice, name: Kundenservice Vertrieb, process: Process_Umzug }
+    - { id: Participant_Kunde, name: Kunde }
+  messageFlows:
+    - { from: Participant_Kunde, to: Start_UmzugGemeldet, name: Umzugsmeldung }
+    - { from: Task_UmzugsbestaetigungSenden, to: Participant_Kunde, name: Umzugsbestätigung }
+    - { from: Task_TarifangebotSenden, to: Participant_Kunde, name: Angebot bundesweiter Tarif }
+
+processes:
+  - id: Process_Umzug
+    name: Umzug
+    documentation: >-
+      Ein Kunde zieht um: Zwischenablesung und Auszug an der alten Adresse,
+      Belieferung an der neuen Adresse im Versorgungsgebiet oder ein
+      bundesweites Tarifangebot, wenn die neue Adresse außerhalb liegt.
+    dataStores:
+      - { id: DataStore_Kunden, name: Kunden-Stammdaten }
+    elements:
+      - type: startEvent
+        id: Start_UmzugGemeldet
+        name: Umzug gemeldet
+        message: UmzugGemeldet
+      - type: userTask
+        id: Task_UmzugsdatenPruefen
+        name: Umzugsdaten prüfen
+        candidateGroups: kundenservice
+        reads: [DataStore_Kunden]
+      - type: sendTask
+        id: Task_ZwischenablesungAnfordern
+        name: Zwischenablesung anfordern
+        message: { name: Zwischenablesung, correlationKey: "=zaehlpunkt" }
+      - type: intermediateThrowEvent
+        id: Event_AuszugGemeldet
+        name: Auszug gemeldet
+        message: { name: AuszugGemeldet, correlationKey: "=vertragskonto" }
+      - type: exclusiveGateway
+        id: Gateway_NeueAdresse
+        name: Neue Adresse im Versorgungsgebiet?
+        next:
+          - { to: Sub_BelieferungEinrichten, name: ja, condition: "=neueAdresseImGebiet" }
+          - { to: Task_TarifangebotSenden, name: nein, default: true }
+      - type: subProcess
+        id: Sub_BelieferungEinrichten
+        name: Belieferung an neuer Adresse einrichten
+        elements:
+          - { type: startEvent, id: Start_EinzugErfasst, name: Einzug erfasst }
+          - { type: serviceTask, id: Task_MarktlokationErmitteln, name: Marktlokation ermitteln }
+          - type: serviceTask
+            id: Task_LiefervertragAnlegen
+            name: Liefervertrag anlegen
+            writes: [DataStore_Kunden]
+          - type: sendTask
+            id: Task_BelieferungBeauftragen
+            name: Belieferung beauftragen
+            message: { name: BelieferungBeauftragt, correlationKey: "=marktlokation" }
+          - { type: endEvent, id: End_BelieferungEingerichtet, name: Belieferung eingerichtet }
+      - { type: exclusiveGateway, id: Gateway_AdresseJoin }
+      - { type: sendTask, id: Task_UmzugsbestaetigungSenden, name: Umzugsbestätigung senden }
+      - { type: endEvent, id: End_UmzugAbgeschlossen, name: Umzug abgeschlossen }
+
+      - type: sendTask
+        id: Task_TarifangebotSenden
+        name: Bundesweites Tarifangebot senden
+        next: Gateway_AdresseJoin

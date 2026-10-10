@@ -1,0 +1,108 @@
+key: finanzen/lieferantenrechnung
+engine: c7
+name: Lieferantenrechnung prüfen
+notes: >-
+  Collaboration with a black-box supplier, two lanes. Waits for the goods
+  receipt from the C8 warehouse, which sends WareneingangGeprüft with an
+  umlaut while this legacy model expects WareneingangGeprueft
+  (transliteration); because C7 does not buffer messages, it first checks
+  whether the goods receipt is already booked and only waits otherwise.
+  Requests an urgent payment run under a different
+  message name than the payment run listens to (semantic). Waits for
+  ZahlungAngeordnet from the payment run; ZahlungZugeordnet (incoming
+  customer payments) is a near-miss. Catches the period-lock signal.
+
+collaboration:
+  participants:
+    - { id: Participant_Kreditorenbuchhaltung, name: Nordwind Handel – Kreditorenbuchhaltung, process: Process_Lieferantenrechnung }
+    - { id: Participant_Lieferant, name: Lieferant }
+  messageFlows:
+    - { from: Participant_Lieferant, to: Start_LieferantenrechnungEingegangen, name: Rechnung }
+    - { from: Task_RueckfrageSenden, to: Participant_Lieferant, name: Rückfrage }
+
+processes:
+  - id: Process_Lieferantenrechnung
+    name: Lieferantenrechnung prüfen
+    documentation: Prüft Eingangsrechnungen per Drei-Wege-Abgleich (Bestellung, Wareneingang, Rechnung) und gibt sie zur Zahlung frei.
+    lanes:
+      - { id: Lane_Kreditorenbuchhaltung, name: Kreditorenbuchhaltung }
+      - { id: Lane_Einkauf, name: Einkauf }
+    dataStores:
+      - { id: DataStore_Kreditorenstamm, name: Kreditorenstamm }
+    elements:
+      - type: startEvent
+        id: Start_LieferantenrechnungEingegangen
+        name: Lieferantenrechnung eingegangen
+        lane: Lane_Kreditorenbuchhaltung
+        message: LieferantenrechnungEingegangen
+      - type: serviceTask
+        id: Task_RechnungErfassen
+        name: Rechnung erfassen (OCR)
+        reads: [DataStore_Kreditorenstamm]
+      - { type: serviceTask, id: Task_WareneingangsstatusPruefen, name: Wareneingangsstatus prüfen }
+      - type: exclusiveGateway
+        id: Gateway_WareneingangGebucht
+        name: Wareneingang bereits gebucht?
+        next:
+          - { to: Event_WareneingangGeprueft, name: nein, default: true }
+          - { to: Gateway_WareneingangLiegtVor, name: ja, condition: "${wareneingangGebucht}" }
+      - type: intermediateCatchEvent
+        id: Event_WareneingangGeprueft
+        name: Wareneingang geprüft
+        message: WareneingangGeprueft
+      - { type: exclusiveGateway, id: Gateway_WareneingangLiegtVor }
+      - { type: businessRuleTask, id: Task_DreiWegeAbgleich, name: Drei-Wege-Abgleich durchführen }
+      - type: exclusiveGateway
+        id: Gateway_Abweichung
+        name: Abweichung festgestellt?
+        next:
+          - { to: Task_AbweichungKlaeren, name: ja, condition: "${abweichung}" }
+          - { to: Gateway_Geklaert, name: nein, default: true }
+      - type: userTask
+        id: Task_AbweichungKlaeren
+        name: Abweichung mit Bestellung klären
+        lane: Lane_Einkauf
+        candidateGroups: einkauf
+      - type: exclusiveGateway
+        id: Gateway_RechnungKorrekt
+        name: Rechnung korrekt?
+        next:
+          - { to: Task_RueckfrageSenden, name: nein, condition: "${!rechnungKorrekt}" }
+          - { to: Gateway_Geklaert, default: true }
+      - { type: sendTask, id: Task_RueckfrageSenden, name: Rückfrage an Lieferanten senden }
+      - { type: endEvent, id: End_RechnungBeanstandet, name: Rechnung beanstandet }
+
+      - { type: exclusiveGateway, id: Gateway_Geklaert, lane: Lane_Kreditorenbuchhaltung }
+      - type: userTask
+        id: Task_ZurZahlungFreigeben
+        name: Rechnung zur Zahlung freigeben
+        candidateGroups: kreditorenbuchhaltung
+      - type: exclusiveGateway
+        id: Gateway_Skonto
+        name: Skonto nur mit Eilzahlung erreichbar?
+        next:
+          - { to: Event_VorgezogeneZahlungAngefordert, name: ja, condition: "${eilzahlung}" }
+          - { to: Gateway_ZahlungAbwarten, name: nein, default: true }
+      - type: intermediateThrowEvent
+        id: Event_VorgezogeneZahlungAngefordert
+        name: Vorgezogene Zahlung angefordert
+        message: VorgezogeneZahlungAngefordert
+      - { type: exclusiveGateway, id: Gateway_ZahlungAbwarten }
+      - type: intermediateCatchEvent
+        id: Event_ZahlungAngeordnet
+        name: Zahlung angeordnet
+        message: ZahlungAngeordnet
+      - { type: serviceTask, id: Task_VerbindlichkeitAusgleichen, name: Verbindlichkeit ausgleichen }
+      - { type: endEvent, id: End_LieferantenrechnungBezahlt, name: Lieferantenrechnung bezahlt }
+
+      - type: eventSubProcess
+        id: EventSub_BuchungsperiodeGesperrt
+        name: Buchungsperiode gesperrt
+        elements:
+          - type: startEvent
+            id: Start_BuchungsperiodeGesperrt
+            name: Buchungsperiode gesperrt
+            signal: BuchungsperiodeGesperrt
+            interrupting: false
+          - { type: serviceTask, id: Task_BuchungsdatumPruefen, name: Buchungsdatum prüfen }
+          - { type: endEvent, id: End_BuchungsdatumGeprueft, name: Buchungsdatum geprüft }

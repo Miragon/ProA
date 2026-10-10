@@ -1,0 +1,57 @@
+key: finanzen/mahnwesen
+engine: c7
+name: Mahnwesen
+notes: >-
+  Called by finanzen/forderungsmanagement. Reuses the letter output process
+  (call-unique). Waits for ZahlungZugeordnet (exact key from
+  finanzen/zahlungseingang). After the last dunning level it throws
+  KundeGesperrt, which the C8 shop process partner/customer-account-lock
+  catches (cross-engine).
+
+processes:
+  - id: Process_Mahnwesen
+    name: Mahnwesen
+    documentation: Durchläuft bis zu drei Mahnstufen und sperrt den Kunden nach der letzten Stufe. Ergebnisvariable beglichen (Boolean) für das aufrufende Forderungsmanagement.
+    dataStores:
+      - { id: DataStore_KundenStammdaten, name: Kunden-Stammdaten }
+    elements:
+      - { type: startEvent, id: Start_MahnverfahrenGestartet, name: Mahnverfahren gestartet }
+      - { type: exclusiveGateway, id: Gateway_NaechsteStufe }
+      - type: businessRuleTask
+        id: Task_MahnstufeErmitteln
+        name: Mahnstufe und Mahngebühr ermitteln
+        reads: [DataStore_KundenStammdaten]
+      - type: callActivity
+        id: Call_MahnungVersenden
+        name: Mahnung per Post versenden
+        calledElement: Process_Briefversand
+      - type: eventBasedGateway
+        id: Gateway_MahnfristAbwarten
+        next: [Event_ZahlungZugeordnet, Event_MahnfristAbgelaufen]
+      - type: intermediateCatchEvent
+        id: Event_ZahlungZugeordnet
+        name: Zahlung zugeordnet
+        message: ZahlungZugeordnet
+        documentation: Die Korrelation setzt beglichen = true.
+        next: End_MahnverfahrenErledigt
+      - type: intermediateCatchEvent
+        id: Event_MahnfristAbgelaufen
+        name: Mahnfrist abgelaufen
+        timer: { duration: P14D }
+      - type: exclusiveGateway
+        id: Gateway_LetzteStufe
+        name: Letzte Mahnstufe erreicht?
+        next:
+          - { to: Task_SperrePruefen, name: ja, condition: "${mahnstufe >= 3}" }
+          - { to: Gateway_NaechsteStufe, name: nein, default: true }
+      - type: userTask
+        id: Task_SperrePruefen
+        name: Kundensperre und Inkasso prüfen
+        candidateGroups: forderungsmanagement
+        documentation: Setzt beglichen = false; das Forderungsmanagement gibt die Forderung danach an das Inkasso ab.
+      - type: endEvent
+        id: End_KundeGesperrt
+        name: Kunde gesperrt
+        message: KundeGesperrt
+
+      - { type: endEvent, id: End_MahnverfahrenErledigt, name: Mahnverfahren erledigt }

@@ -1,0 +1,35 @@
+key: abrechnung/rechnungsausgabe-druck
+engine: c7
+name: Rechnungsausgabe Druck
+notes: >-
+  Called statically by abrechnung/schlussrechnung (call-unique) and as one of
+  two candidates of the dynamic call in abrechnung/jahresverbrauchsabrechnung
+  (call-dynamic). The print service provider is not modelled, so its dispatch
+  confirmation has no sender (unmatched-catch).
+
+processes:
+  - id: Process_RechnungsausgabeDruck
+    name: Rechnungsausgabe Druck
+    documentation: >-
+      Erzeugt das Rechnungs-PDF, übergibt die Druckdatei an den
+      Druckdienstleister und wartet auf dessen Versandbestätigung.
+    elements:
+      - { type: startEvent, id: Start_DruckausgabeAngefordert, name: Druckausgabe angefordert }
+      - { type: serviceTask, id: Task_PdfErzeugen, name: Rechnungs-PDF erzeugen }
+      - { type: serviceTask, id: Task_DruckdateiUebergeben, name: Druckdatei an Druckdienstleister uebergeben }
+      - type: receiveTask
+        id: Task_VersandbestaetigungErhalten
+        name: Versandbestaetigung erhalten
+        message: Versandbestaetigung
+        boundary:
+          - id: Boundary_KeineBestaetigung
+            name: 3 Tage ohne Bestaetigung
+            timer: { duration: P3D }
+            next: Task_DruckdienstleisterKontaktieren
+      - { type: endEvent, id: End_RechnungPostVersendet, name: Rechnung per Post versendet }
+
+      - type: userTask
+        id: Task_DruckdienstleisterKontaktieren
+        name: Druckdienstleister kontaktieren
+        candidateGroups: abrechnung
+      - { type: endEvent, id: End_VersandGeklaert, name: Versand geklaert }

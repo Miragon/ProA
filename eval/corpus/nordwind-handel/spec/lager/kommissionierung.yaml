@@ -1,0 +1,95 @@
+key: lager/kommissionierung
+engine: c8
+name: Kommissionierung und Verpackung
+notes: >-
+  Single pool with three lanes. Called by vertrieb/order-handling and
+  service/ersatzlieferung (call-unique). Pallet orders are handed to the C7
+  freight process with WareVersandbereit (cross-engine); the none end "Ware
+  versandbereit" inside the packing subprocess is not a sender
+  (event-def-mismatch, subprocess-scope). Catches the product recall signal.
+  The shipping mode comes from the calling order (shippingMode).
+
+collaboration:
+  participants:
+    - { id: Participant_LagerBillbrook, name: Lager Hamburg-Billbrook, process: Process_Kommissionierung }
+
+processes:
+  - id: Process_Kommissionierung
+    name: Kommissionierung und Verpackung
+    documentation: Reserviert, kommissioniert und verpackt die Ware eines Auftrags und übergibt Palettenware an den Speditionsversand.
+    lanes:
+      - { id: Lane_Leitstand, name: Lagerleitstand }
+      - { id: Lane_Kommissionierung, name: Kommissionierung }
+      - { id: Lane_Packstation, name: Packstation }
+    dataStores:
+      - { id: DataStore_WmsLagerbestand, name: WMS Lagerbestand }
+    elements:
+      - type: startEvent
+        id: Start_KommissionierauftragErhalten
+        name: Kommissionierauftrag erhalten
+        lane: Lane_Leitstand
+      - type: serviceTask
+        id: Task_WareReservieren
+        name: Ware reservieren
+        reads: [DataStore_WmsLagerbestand]
+        writes: [DataStore_WmsLagerbestand]
+      - { type: serviceTask, id: Task_PicklisteErzeugen, name: Pickliste erzeugen }
+      - type: userTask
+        id: Task_WareKommissionieren
+        name: Ware kommissionieren
+        lane: Lane_Kommissionierung
+        candidateGroups: kommissionierer
+      - type: exclusiveGateway
+        id: Gateway_Vollstaendig
+        name: Vollständig kommissioniert?
+        next:
+          - { to: Gateway_Verpacken, name: ja, condition: "=vollstaendig" }
+          - { to: Task_FehlmengeKlaeren, name: nein, default: true }
+      - type: userTask
+        id: Task_FehlmengeKlaeren
+        name: Fehlmenge mit Leitstand klären
+        candidateGroups: kommissionierer
+      - type: exclusiveGateway
+        id: Gateway_Teillieferung
+        name: Teillieferung zulässig?
+        next:
+          - { to: Gateway_Verpacken, name: ja, condition: "=teillieferungZulaessig" }
+          - { to: End_KommissionierungAbgebrochen, name: nein, default: true }
+      - { type: endEvent, id: End_KommissionierungAbgebrochen, name: Kommissionierung abgebrochen }
+
+      - { type: exclusiveGateway, id: Gateway_Verpacken, lane: Lane_Packstation }
+      - type: subProcess
+        id: Sub_Verpacken
+        name: Verpacken
+        elements:
+          - { type: startEvent, id: Start_VerpackenGestartet, name: Verpacken gestartet }
+          - { type: userTask, id: Task_PackmittelWaehlen, name: Packmittel wählen, candidateGroups: packer }
+          - { type: manualTask, id: Task_WareVerpacken, name: Ware verpacken }
+          - { type: serviceTask, id: Task_PacklisteDrucken, name: Packliste und Label drucken }
+          - { type: endEvent, id: End_WareVersandbereit, name: Ware versandbereit }
+      - type: exclusiveGateway
+        id: Gateway_Versandart
+        name: Versandart?
+        next:
+          - { to: Task_PaketBereitstellen, name: Paket, default: true }
+          - { to: Event_WareVersandbereit, name: Spedition, condition: '=shippingMode = "freight"' }
+      - { type: manualTask, id: Task_PaketBereitstellen, name: Paket in Versandzone bereitstellen }
+      - { type: endEvent, id: End_KommissionierungAbgeschlossen, name: Kommissionierung abgeschlossen }
+      - type: intermediateThrowEvent
+        id: Event_WareVersandbereit
+        name: Ware versandbereit
+        message: { name: WareVersandbereit, correlationKey: "=auftragsnummer" }
+      - { type: endEvent, id: End_AnSpeditionUebergeben, name: An Speditionsversand übergeben }
+
+      - type: eventSubProcess
+        id: EventSub_Produktrueckruf
+        name: Produktrückruf
+        lane: Lane_Leitstand
+        elements:
+          - type: startEvent
+            id: Start_ProduktrueckrufAusgeloest
+            name: Produktrückruf ausgelöst
+            signal: Produktrueckruf
+            interrupting: false
+          - { type: serviceTask, id: Task_RueckrufartikelSperren, name: Rückrufartikel im WMS sperren }
+          - { type: endEvent, id: End_RueckrufartikelGesperrt, name: Rückrufartikel gesperrt }

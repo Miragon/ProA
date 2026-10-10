@@ -1,0 +1,54 @@
+# _sample: 3 models, 45 facts, FACTS_VERSION 1
+# process 3, call 3, msg_throw 4, msg_catch 5, sig_throw 1, sig_catch 2, evt_start 2, evt_end 9, data_store 3, message_flow 3, lane 2, task 8
+# kind elementId scope eventDef processId "keyNorm" fingerprint [dynamic] [label-key: no message/signal ref]
+
+## finance/payment-collection (c7) facts_hash bc6cd263a870840e
+process      Process_PaymentCollection process - Process_PaymentCollection "process paymentcollection" 2a2d3c90b68c
+msg_throw    Task_SendReminder process - Process_PaymentCollection "send reminder" 6d26c32beb93 label-key
+msg_catch    Event_InvoiceSent process message Process_PaymentCollection "invoicesent" 22e927fdf02c
+msg_catch    Event_PaymentReceived process message Process_PaymentCollection "paymentreceived" 50aca9e9366d
+sig_catch    Start_InvoicingCompleted event_subprocess signal Process_PaymentCollection "rechnungsstellungabgeschlossen" 1f06be1c8c04
+evt_start    Start_PaymentCollectionRequested process none Process_PaymentCollection "payment collection requested" c9c6b4c485cf
+evt_end      End_InvoicePaid process none Process_PaymentCollection "invoice paid" 7c5cc29bb4f6
+evt_end      End_ReceivableUpdated event_subprocess none Process_PaymentCollection "receivable updated" 7dd019efd741
+evt_end      End_ReminderSent process none Process_PaymentCollection "reminder sent" 2527954edf27
+data_store   DataStore_CrmKunden process - Process_PaymentCollection "crm kunden" abc747f0aacc
+task         Task_CheckPaymentTerms process - Process_PaymentCollection "check payment terms" da2e93efa625
+task         Task_UpdateReceivable event_subprocess - Process_PaymentCollection "update receivable" 4bde209fffb5
+
+## finanzen/rechnungsstellung (c8) facts_hash be4d6e98222a8f62
+process      Process_Rechnungsstellung process - Process_Rechnungsstellung "process rechnungsstellung" 886b0535fc15
+call         Call_Mahnwesen process - Process_Rechnungsstellung "process mahnwesen" 74e004e5f448
+call         Call_RechnungAusgeben process - Process_Rechnungsstellung "ausgabekanal" c06f7bc41391 dynamic
+msg_throw    Event_RechnungVersendet process message Process_Rechnungsstellung "rechnungversendet" 0c45cca53a24
+msg_catch    Start_WareVersandbereit process message Process_Rechnungsstellung "wareversandbereit" 8684c195abd8
+sig_throw    End_RechnungsstellungAbgeschlossen process signal Process_Rechnungsstellung "rechnungsstellungabgeschlossen" b32c7c24b394
+data_store   DataStore_KundenStammdaten process - Process_Rechnungsstellung "kunden stammdaten" 6e8359303adc
+task         Task_RechnungErstellen process - Process_Rechnungsstellung "rechnung erstellen" 78d1359cdefb
+
+## vertrieb/auftragsabwicklung (c7) facts_hash fc95fa99cb0e2d4e
+process      Process_Auftragsabwicklung process - Process_Auftragsabwicklung "process auftragsabwicklung" 89b8d943c9b6
+call         Call_ZahlungAbwickeln process - Process_Auftragsabwicklung "process paymentcollection" 1b532aa8160b
+msg_throw    Event_WareVersandbereit process message Process_Auftragsabwicklung "wareversandbereit" 3aa2b0334508
+msg_throw    Task_AbsageSenden process - Process_Auftragsabwicklung "absage" 18c434be4119
+msg_catch    Start_AuftragEingegangen process message Process_Auftragsabwicklung "auftrageingegangen" 47c1aafbcb3d
+msg_catch    Start_AuftragStorniert event_subprocess message Process_Auftragsabwicklung "auftragstorniert" f0241b79bda6
+sig_catch    Start_RechnungsstellungAbgeschlossen event_subprocess signal Process_Auftragsabwicklung "rechnungsstellungabgeschlossen" 33c2c5a8252f
+evt_start    Start_KommissionierungGestartet subprocess none Process_Auftragsabwicklung "kommissionierung gestartet" 3c2912fe665a
+evt_end      End_AuftragAbgelehnt process none Process_Auftragsabwicklung "auftrag abgelehnt" db8ef1dbc403
+evt_end      End_AuftragAbgeschlossen process none Process_Auftragsabwicklung "auftrag abgeschlossen" b78e7b471e07
+evt_end      End_AuftragFakturiert event_subprocess none Process_Auftragsabwicklung "auftrag fakturiert" b846c473a1ed
+evt_end      End_ErinnerungGesendet process none Process_Auftragsabwicklung "erinnerung gesendet" b9f8e72830df
+evt_end      End_StornoGebucht event_subprocess none Process_Auftragsabwicklung "storno gebucht" ee1dfc07e160
+evt_end      End_WareVersandbereit subprocess none Process_Auftragsabwicklung "ware versandbereit" fc5789d8eca5
+data_store   DataStore_Kundenstamm process - Process_Auftragsabwicklung "kundenstamm" df963a1225fc
+message_flow MessageFlow_Participant_Kunde_Start_AuftragEingegangen process - - "bestellung" f8a031baf30a
+message_flow MessageFlow_Participant_Kunde_Start_AuftragStorniert process - - "stornierung" dfe074b37a50
+message_flow MessageFlow_Task_AbsageSenden_Participant_Kunde process - - "absage" 983d6c3834ea
+lane         Lane_Innendienst process - Process_Auftragsabwicklung "innendienst" 0344c95ef8c7
+lane         Lane_Lager process - Process_Auftragsabwicklung "lager" ac810c50d7fa
+task         Task_AuftragFakturiert event_subprocess - Process_Auftragsabwicklung "auftrag als fakturiert markieren" 5c720c9eaaa1
+task         Task_AuftragPruefen process - Process_Auftragsabwicklung "auftrag pruefen" e225026b12a0
+task         Task_ErinnerungSenden process - Process_Auftragsabwicklung "erinnerung senden" 682d3b3063da
+task         Task_StornoBuchen event_subprocess - Process_Auftragsabwicklung "storno buchen" e7e1f6885432
+task         Task_WareVerpacken subprocess - Process_Auftragsabwicklung "ware verpacken" 259fe038c0cc

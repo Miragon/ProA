@@ -1,0 +1,102 @@
+key: finanzen/kreditpruefung
+engine: c7
+name: Kreditprüfung
+notes: >-
+  Collaboration of two executable C7 processes. The credit check is requested
+  by the C8 shop (KreditpruefungAngefordert, exact key) and by the C8 dealer
+  onboarding (KreditprüfungAngefordert with an umlaut: transliteration), and
+  answers both with KreditpruefungAbgeschlossen. It asks the credit agency
+  adapter, the second pool of this file, which answers with the generic
+  message name Antwort. Both pairs (Auskunftsanfrage, Antwort) are joined by
+  message flows: facts inside the file, not relations, although the names
+  match. Antwort is also the name of the C8 complaint process's reply to
+  customers and of the supplier's confirmation in the purchase requisition
+  (generic-name). Its own end and start are a self-link trap.
+
+collaboration:
+  participants:
+    - { id: Participant_Kreditmanagement, name: Nordwind Handel – Kreditmanagement, process: Process_Kreditpruefung }
+    - { id: Participant_AuskunfteiSchnittstelle, name: Auskunftei-Schnittstelle, process: Process_AuskunfteiAdapter }
+  messageFlows:
+    - { from: Task_AuskunftAnfordern, to: Start_AuskunftsanfrageEingegangen, name: Auskunftsanfrage }
+    - { from: End_AntwortGesendet, to: Event_AntwortErhalten, name: Bonitätsauskunft, message: Antwort }
+
+processes:
+  - id: Process_Kreditpruefung
+    name: Kreditprüfung
+    documentation: Prüft die Bonität eines Kunden oder Händlers und legt das Kreditlimit fest.
+    dataStores:
+      - { id: DataStore_Kundenstamm, name: Kundenstamm }
+    elements:
+      - type: startEvent
+        id: Start_KreditpruefungAngefordert
+        name: Kreditprüfung angefordert
+        message: KreditpruefungAngefordert
+      - type: serviceTask
+        id: Task_KundendatenLaden
+        name: Kundendaten und Zahlungshistorie laden
+        reads: [DataStore_Kundenstamm]
+      - type: exclusiveGateway
+        id: Gateway_AuskunftAktuell
+        name: Aktuelle Auskunft vorhanden?
+        next:
+          - { to: Gateway_AuskunftLiegtVor, name: ja, condition: "${auskunftAktuell}" }
+          - { to: Task_AuskunftAnfordern, name: nein, default: true }
+      - type: sendTask
+        id: Task_AuskunftAnfordern
+        name: Auskunft anfordern
+        message: Auskunftsanfrage
+      - type: eventBasedGateway
+        id: Gateway_AuskunftAbwarten
+        next: [Event_AntwortErhalten, Event_KeineAntwort]
+      - type: intermediateCatchEvent
+        id: Event_AntwortErhalten
+        name: Antwort erhalten
+        message: Antwort
+        next: Gateway_AuskunftLiegtVor
+      - type: intermediateCatchEvent
+        id: Event_KeineAntwort
+        name: 2 Tage ohne Antwort
+        timer: { duration: P2D }
+        next: Gateway_Entscheidung
+      - { type: exclusiveGateway, id: Gateway_AuskunftLiegtVor }
+      - { type: businessRuleTask, id: Task_KreditlimitBerechnen, name: Kreditlimit berechnen }
+      - type: exclusiveGateway
+        id: Gateway_LimitAusreichend
+        name: Limit ausreichend?
+        next:
+          - { to: Gateway_Ergebnis, name: ja, condition: "${limitAusreichend}" }
+          - { to: Gateway_Entscheidung, name: nein, default: true }
+      - { type: exclusiveGateway, id: Gateway_Entscheidung }
+      - type: userTask
+        id: Task_KreditentscheidungTreffen
+        name: Kreditentscheidung manuell treffen
+        candidateGroups: kreditmanagement
+      - { type: exclusiveGateway, id: Gateway_Ergebnis }
+      - type: serviceTask
+        id: Task_KreditentscheidungSpeichern
+        name: Kreditentscheidung speichern
+        writes: [DataStore_Kundenstamm]
+      - type: endEvent
+        id: End_KreditpruefungAbgeschlossen
+        name: Kreditprüfung abgeschlossen
+        message: KreditpruefungAbgeschlossen
+
+  - id: Process_AuskunfteiAdapter
+    name: Auskunftei-Schnittstelle
+    documentation: >-
+      Integrationsprozess zur Wirtschaftsauskunftei: nimmt Auskunftsanfragen der
+      Kreditprüfung an, ruft die Bonitätsauskunft über die REST-Schnittstelle
+      der Auskunftei ab und meldet sie zurück.
+    elements:
+      - type: startEvent
+        id: Start_AuskunftsanfrageEingegangen
+        name: Auskunftsanfrage eingegangen
+        message: Auskunftsanfrage
+      - { type: serviceTask, id: Task_AnfrageAufbereiten, name: Anfragedaten aufbereiten }
+      - { type: serviceTask, id: Task_AuskunftAbrufen, name: Bonitätsauskunft bei Auskunftei abrufen }
+      - { type: serviceTask, id: Task_ScoreUebersetzen, name: Auskunftei-Score in Risikoklasse übersetzen }
+      - type: endEvent
+        id: End_AntwortGesendet
+        name: Antwort gesendet
+        message: Antwort

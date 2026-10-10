@@ -1,0 +1,105 @@
+key: forderung/sperrung
+engine: c8
+name: Sperrung und Entsperrung bei Zahlungsverzug
+notes: >-
+  Collaboration with lanes and a black-box customer pool. The participant
+  process also talks to other files: started by the C7 dunning process
+  (SperrauftragErteilt, cross-engine-message), waits twice for the C7 payment
+  message ZahlungEingegangen (once before and once after the disconnection),
+  reports "Anlage gesperrt" and "Anlage entsperrt" to kundenservice/kundeninformation
+  (each a near-miss of the other) and pauses disconnections while the
+  broadcast signal "Großstörung" is active. The signal start of the event
+  subprocess and the catch "Großstörung beendet" inside it are valid endpoints
+  (subprocess-scope, positive cases). Under unbundling the grid subsidiary's
+  field service disconnects on the supplier's behalf (Sperrauftrag), hence the
+  lane name.
+
+collaboration:
+  participants:
+    - { id: Participant_Kunde, name: Kunde }
+    - { id: Participant_Sperrmanagement, name: Sperrmanagement, process: Process_Sperrung }
+  messageFlows:
+    - { from: Task_SperrungAnkuendigen, to: Participant_Kunde, name: Sperrankündigung }
+    - { from: Task_EntsperrterminMitteilen, to: Participant_Kunde, name: Entsperrtermin }
+
+processes:
+  - id: Process_Sperrung
+    name: Sperrung und Entsperrung bei Zahlungsverzug
+    documentation: >-
+      Unterbrechung der Versorgung nach erfolgloser Mahnung: Termin festlegen,
+      Sperrung acht Tage vorher ankündigen, vor Ort sperren, nach Zahlung
+      entsperren. Sperrung und Entsperrung führt der Außendienst der Auental
+      Netz im Auftrag des Lieferanten aus. Bei einer Großstörung werden
+      Sperrtermine ausgesetzt.
+    lanes:
+      - { id: Lane_Forderungsmanagement, name: Forderungsmanagement }
+      - { id: Lane_Aussendienst, name: Auental Netz - Außendienst (im Auftrag) }
+    dataStores:
+      - { id: DataStore_Crm, name: CRM Kundenakte }
+    elements:
+      - type: startEvent
+        id: Start_SperrauftragEingegangen
+        name: Sperrauftrag eingegangen
+        lane: Lane_Forderungsmanagement
+        message: SperrauftragErteilt
+      - type: userTask
+        id: Task_SperrterminFestlegen
+        name: Sperrtermin festlegen
+        candidateGroups: forderungsmanagement
+        reads: [DataStore_Crm]
+      - { type: sendTask, id: Task_SperrungAnkuendigen, name: Sperrung ankündigen }
+      - type: eventBasedGateway
+        id: Gateway_ZahlungOderFrist
+        next: [Event_ZahlungVorSperrung, Event_AnkuendigungsfristAbgelaufen]
+      - type: intermediateCatchEvent
+        id: Event_ZahlungVorSperrung
+        name: Zahlung eingegangen
+        message: { name: ZahlungEingegangen, correlationKey: "=vertragskonto" }
+      - { type: endEvent, id: End_SperrungAbgewendet, name: Sperrung abgewendet }
+
+      - type: intermediateCatchEvent
+        id: Event_AnkuendigungsfristAbgelaufen
+        name: Ankündigungsfrist abgelaufen
+        timer: { duration: P8D }
+      - type: userTask
+        id: Task_SperrungDurchfuehren
+        name: Sperrung vor Ort durchführen
+        lane: Lane_Aussendienst
+        candidateGroups: netzservice-aussendienst
+      - type: intermediateThrowEvent
+        id: Event_AnlageGesperrt
+        name: Anlage gesperrt
+        lane: Lane_Forderungsmanagement
+        message: { name: AnlageGesperrt, correlationKey: "=vertragskonto" }
+      - type: receiveTask
+        id: Task_ZahlungAbwarten
+        name: Zahlungseingang abwarten
+        message: { name: ZahlungEingegangen, correlationKey: "=vertragskonto" }
+      - { type: sendTask, id: Task_EntsperrterminMitteilen, name: Entsperrtermin mitteilen }
+      - type: userTask
+        id: Task_EntsperrungDurchfuehren
+        name: Entsperrung durchführen
+        lane: Lane_Aussendienst
+        candidateGroups: netzservice-aussendienst
+      - type: endEvent
+        id: End_AnlageEntsperrt
+        name: Anlage entsperrt
+        lane: Lane_Forderungsmanagement
+        message: { name: AnlageEntsperrt, correlationKey: "=vertragskonto" }
+
+      - type: eventSubProcess
+        id: EventSub_Grossstoerung
+        name: Großstörung
+        elements:
+          - type: startEvent
+            id: Start_GrossstoerungAusgerufen
+            name: Großstörung ausgerufen
+            signal: Großstörung
+            interrupting: false
+          - { type: serviceTask, id: Task_SperrtermineAussetzen, name: Sperrtermine im Störungsgebiet aussetzen }
+          - type: intermediateCatchEvent
+            id: Event_GrossstoerungBeendet
+            name: Großstörung beendet
+            signal: Großstörung beendet
+          - { type: serviceTask, id: Task_SperrtermineNeuPlanen, name: Sperrtermine neu planen }
+          - { type: endEvent, id: End_SperrtermineNeuGeplant, name: Sperrtermine neu geplant }

@@ -1,0 +1,27 @@
+key: service/ersatzlieferung
+engine: c8
+name: Ersatzlieferung
+notes: >-
+  Free-of-charge replacement delivery, called statically by the complaint
+  process and dynamically by returns. Reuses picking and parcel shipping
+  (call-unique). Its none end "Lieferung versendet" throws nothing, so it is
+  not a sender for the message start of the same name in C7 invoicing
+  (event-def-mismatch).
+
+processes:
+  - id: Process_Ersatzlieferung
+    name: Ersatzlieferung
+    documentation: Legt einen kostenlosen Ersatzauftrag an, lässt die Ware kommissionieren und versendet sie als Paket.
+    elements:
+      - { type: startEvent, id: Start_ErsatzlieferungAngefordert, name: Ersatzlieferung angefordert }
+      - { type: serviceTask, id: Task_ErsatzauftragAnlegen, name: Kostenlosen Ersatzauftrag anlegen }
+      - type: callActivity
+        id: Call_ErsatzwareKommissionieren
+        name: Ersatzware kommissionieren
+        calledElement: Process_Kommissionierung
+      - type: callActivity
+        id: Call_ErsatzwareVersenden
+        name: Ersatzware versenden
+        calledElement: Process_Shipping
+      - { type: serviceTask, id: Task_KundenInformieren, name: Kunden über Sendungsnummer informieren }
+      - { type: endEvent, id: End_LieferungVersendet, name: Lieferung versendet }

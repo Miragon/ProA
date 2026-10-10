@@ -1,0 +1,1404 @@
+{
+  "connections": [
+    {
+      "connectionType": "assignment",
+      "id": "assign-debitorenbuchhaltung-forderungsmanagement",
+      "source": "org-debitorenbuchhaltung",
+      "target": "step-forderungsmanagement",
+      "waypoints": [
+        {
+          "x": 1790,
+          "y": 360
+        },
+        {
+          "x": 1790,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-energiehandel-energiebeschaffung",
+      "source": "org-energiehandel",
+      "target": "step-energiebeschaffung",
+      "waypoints": [
+        {
+          "x": 170,
+          "y": 360
+        },
+        {
+          "x": 170,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-finanzbuchhaltung-rechnungswesen",
+      "source": "org-finanzbuchhaltung",
+      "target": "step-rechnungswesen",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 1180
+        },
+        {
+          "x": 710,
+          "y": 1220
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-geschaeftsfuehrung-unternehmenssteuerung",
+      "source": "org-geschaeftsfuehrung",
+      "target": "step-unternehmenssteuerung",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 100
+        },
+        {
+          "x": 980,
+          "y": 140
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-it-it-services",
+      "source": "org-it",
+      "target": "step-it-services",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 1180
+        },
+        {
+          "x": 1250,
+          "y": 1220
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-kundenabrechnung-abrechnung",
+      "source": "org-kundenabrechnung",
+      "target": "step-abrechnung",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 360
+        },
+        {
+          "x": 1520,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-kundencenter-kundenservice",
+      "source": "org-kundencenter",
+      "target": "step-kundenservice",
+      "waypoints": [
+        {
+          "x": 2060,
+          "y": 360
+        },
+        {
+          "x": 2060,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-messwesen-messstellenbetrieb",
+      "source": "org-messwesen",
+      "target": "step-messstellenbetrieb",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 360
+        },
+        {
+          "x": 980,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-netzleitstelle-netzbetrieb",
+      "source": "org-netzleitstelle",
+      "target": "step-netzbetrieb",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 360
+        },
+        {
+          "x": 710,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-netzservice-netzanschluss",
+      "source": "org-netzservice",
+      "target": "step-netzanschluss",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 360
+        },
+        {
+          "x": 440,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-personalabteilung-personal",
+      "source": "org-personalabteilung",
+      "target": "step-personal",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 1180
+        },
+        {
+          "x": 1520,
+          "y": 1220
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-stabsstelle-regulierung-regulierung",
+      "source": "org-stabsstelle-regulierung",
+      "target": "step-regulierung",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 100
+        },
+        {
+          "x": 1250,
+          "y": 140
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-vertrieb-privatkunden-vertrieb",
+      "source": "org-vertrieb-privatkunden",
+      "target": "step-vertrieb",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 360
+        },
+        {
+          "x": 1250,
+          "y": 400
+        }
+      ]
+    },
+    {
+      "connectionType": "assignment",
+      "id": "assign-zentraleinkauf-einkauf",
+      "source": "org-zentraleinkauf",
+      "target": "step-einkauf",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 1180
+        },
+        {
+          "x": 980,
+          "y": 1220
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-abrechnung-abschlaege",
+      "source": "step-abrechnung",
+      "target": "step-abschlaege",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 810
+        },
+        {
+          "x": 1560,
+          "y": 810
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-abrechnung-eeg-abrechnung",
+      "source": "step-abrechnung",
+      "target": "step-eeg-abrechnung",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 990
+        },
+        {
+          "x": 1560,
+          "y": 990
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-abrechnung-rechnungsausgabe",
+      "source": "step-abrechnung",
+      "target": "step-rechnungsausgabe",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 900
+        },
+        {
+          "x": 1560,
+          "y": 900
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-abrechnung-schlussabrechnung",
+      "source": "step-abrechnung",
+      "target": "step-schlussabrechnung",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 720
+        },
+        {
+          "x": 1560,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-abrechnung-stammdatenpflege",
+      "source": "step-abrechnung",
+      "target": "step-stammdatenpflege",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 540
+        },
+        {
+          "x": 1560,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-abrechnung-turnusabrechnung",
+      "source": "step-abrechnung",
+      "target": "step-turnusabrechnung",
+      "waypoints": [
+        {
+          "x": 1520,
+          "y": 464
+        },
+        {
+          "x": 1520,
+          "y": 630
+        },
+        {
+          "x": 1560,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-forderungsmanagement-mahnwesen",
+      "source": "step-forderungsmanagement",
+      "target": "step-mahnwesen",
+      "waypoints": [
+        {
+          "x": 1790,
+          "y": 464
+        },
+        {
+          "x": 1790,
+          "y": 630
+        },
+        {
+          "x": 1830,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-forderungsmanagement-versorgungssperre",
+      "source": "step-forderungsmanagement",
+      "target": "step-versorgungssperre",
+      "waypoints": [
+        {
+          "x": 1790,
+          "y": 464
+        },
+        {
+          "x": 1790,
+          "y": 720
+        },
+        {
+          "x": 1830,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-forderungsmanagement-zahlungseingang",
+      "source": "step-forderungsmanagement",
+      "target": "step-zahlungseingang",
+      "waypoints": [
+        {
+          "x": 1790,
+          "y": 464
+        },
+        {
+          "x": 1790,
+          "y": 540
+        },
+        {
+          "x": 1830,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-kundenservice-kundenkommunikation",
+      "source": "step-kundenservice",
+      "target": "step-kundenkommunikation",
+      "waypoints": [
+        {
+          "x": 2060,
+          "y": 464
+        },
+        {
+          "x": 2060,
+          "y": 630
+        },
+        {
+          "x": 2100,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-kundenservice-self-service",
+      "source": "step-kundenservice",
+      "target": "step-self-service",
+      "waypoints": [
+        {
+          "x": 2060,
+          "y": 464
+        },
+        {
+          "x": 2060,
+          "y": 540
+        },
+        {
+          "x": 2100,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-messstellenbetrieb-ablesung",
+      "source": "step-messstellenbetrieb",
+      "target": "step-ablesung",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 720
+        },
+        {
+          "x": 1020,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-messstellenbetrieb-messwertaufbereitung",
+      "source": "step-messstellenbetrieb",
+      "target": "step-messwertaufbereitung",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 810
+        },
+        {
+          "x": 1020,
+          "y": 810
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-messstellenbetrieb-zaehlereinbau",
+      "source": "step-messstellenbetrieb",
+      "target": "step-zaehlereinbau",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 540
+        },
+        {
+          "x": 1020,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-messstellenbetrieb-zaehlerwechsel",
+      "source": "step-messstellenbetrieb",
+      "target": "step-zaehlerwechsel",
+      "waypoints": [
+        {
+          "x": 980,
+          "y": 464
+        },
+        {
+          "x": 980,
+          "y": 630
+        },
+        {
+          "x": 1020,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-netzanschluss-erzeugungsanlagen",
+      "source": "step-netzanschluss",
+      "target": "step-erzeugungsanlagen",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 464
+        },
+        {
+          "x": 440,
+          "y": 720
+        },
+        {
+          "x": 480,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-netzanschluss-hausanschluesse",
+      "source": "step-netzanschluss",
+      "target": "step-hausanschluesse",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 464
+        },
+        {
+          "x": 440,
+          "y": 540
+        },
+        {
+          "x": 480,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-netzanschluss-netzvertraeglichkeit",
+      "source": "step-netzanschluss",
+      "target": "step-netzvertraeglichkeit",
+      "waypoints": [
+        {
+          "x": 440,
+          "y": 464
+        },
+        {
+          "x": 440,
+          "y": 630
+        },
+        {
+          "x": 480,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-netzbetrieb-instandhaltung",
+      "source": "step-netzbetrieb",
+      "target": "step-instandhaltung",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 720
+        },
+        {
+          "x": 750,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-netzbetrieb-stoerungsannahme",
+      "source": "step-netzbetrieb",
+      "target": "step-stoerungsannahme",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 540
+        },
+        {
+          "x": 750,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-netzbetrieb-stoerungsbehebung",
+      "source": "step-netzbetrieb",
+      "target": "step-stoerungsbehebung",
+      "waypoints": [
+        {
+          "x": 710,
+          "y": 464
+        },
+        {
+          "x": 710,
+          "y": 630
+        },
+        {
+          "x": 750,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-ein-und-auszug",
+      "source": "step-vertrieb",
+      "target": "step-ein-und-auszug",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 630
+        },
+        {
+          "x": 1290,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-tarifmanagement",
+      "source": "step-vertrieb",
+      "target": "step-tarifmanagement",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 540
+        },
+        {
+          "x": 1290,
+          "y": 540
+        }
+      ]
+    },
+    {
+      "connectionType": "hierarchy",
+      "id": "hier-vertrieb-wechselmanagement",
+      "source": "step-vertrieb",
+      "target": "step-wechselmanagement",
+      "waypoints": [
+        {
+          "x": 1250,
+          "y": 464
+        },
+        {
+          "x": 1250,
+          "y": 720
+        },
+        {
+          "x": 1290,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-abrechnung-forderungsmanagement",
+      "source": "step-abrechnung",
+      "target": "step-forderungsmanagement",
+      "waypoints": [
+        {
+          "x": 1630,
+          "y": 432
+        },
+        {
+          "x": 1712,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-energiebeschaffung-netzanschluss",
+      "source": "step-energiebeschaffung",
+      "target": "step-netzanschluss",
+      "waypoints": [
+        {
+          "x": 280,
+          "y": 432
+        },
+        {
+          "x": 362,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-forderungsmanagement-kundenservice",
+      "source": "step-forderungsmanagement",
+      "target": "step-kundenservice",
+      "waypoints": [
+        {
+          "x": 1900,
+          "y": 432
+        },
+        {
+          "x": 1982,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-messstellenbetrieb-vertrieb",
+      "source": "step-messstellenbetrieb",
+      "target": "step-vertrieb",
+      "waypoints": [
+        {
+          "x": 1090,
+          "y": 432
+        },
+        {
+          "x": 1172,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-netzanschluss-netzbetrieb",
+      "source": "step-netzanschluss",
+      "target": "step-netzbetrieb",
+      "waypoints": [
+        {
+          "x": 550,
+          "y": 432
+        },
+        {
+          "x": 632,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-netzbetrieb-messstellenbetrieb",
+      "source": "step-netzbetrieb",
+      "target": "step-messstellenbetrieb",
+      "waypoints": [
+        {
+          "x": 820,
+          "y": 432
+        },
+        {
+          "x": 902,
+          "y": 432
+        }
+      ]
+    },
+    {
+      "connectionType": "sequence",
+      "id": "seq-vertrieb-abrechnung",
+      "source": "step-vertrieb",
+      "target": "step-abrechnung",
+      "waypoints": [
+        {
+          "x": 1360,
+          "y": 432
+        },
+        {
+          "x": 1442,
+          "y": 432
+        }
+      ]
+    }
+  ],
+  "elements": [
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1710,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-debitorenbuchhaltung",
+      "name": "Debitorenbuchhaltung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 90,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-energiehandel",
+      "name": "Energiehandel"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 630,
+        "y": 1120
+      },
+      "elementType": "orgUnit",
+      "id": "org-finanzbuchhaltung",
+      "name": "Finanzbuchhaltung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 900,
+        "y": 40
+      },
+      "elementType": "orgUnit",
+      "id": "org-geschaeftsfuehrung",
+      "name": "Geschäftsführung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1170,
+        "y": 1120
+      },
+      "elementType": "orgUnit",
+      "id": "org-it",
+      "name": "IT"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1440,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-kundenabrechnung",
+      "name": "Kundenabrechnung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1980,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-kundencenter",
+      "name": "Kundencenter"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 900,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-messwesen",
+      "name": "Messwesen"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 630,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-netzleitstelle",
+      "name": "Netzleitstelle"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 360,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-netzservice",
+      "name": "Netzservice"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1440,
+        "y": 1120
+      },
+      "elementType": "orgUnit",
+      "id": "org-personalabteilung",
+      "name": "Personalabteilung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1170,
+        "y": 40
+      },
+      "elementType": "orgUnit",
+      "id": "org-stabsstelle-regulierung",
+      "name": "Stabsstelle Regulierung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 1170,
+        "y": 300
+      },
+      "elementType": "orgUnit",
+      "id": "org-vertrieb-privatkunden",
+      "name": "Vertrieb Privatkunden"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 160,
+        "x": 900,
+        "y": 1120
+      },
+      "elementType": "orgUnit",
+      "id": "org-zentraleinkauf",
+      "name": "Zentraleinkauf"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-ablesung",
+      "name": "Ablesung"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1410,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-abrechnung",
+      "name": "Abrechnung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 780
+      },
+      "elementType": "step",
+      "id": "step-abschlaege",
+      "name": "Abschläge"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 960
+      },
+      "elementType": "step",
+      "id": "step-eeg-abrechnung",
+      "name": "EEG-Abrechnung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-ein-und-auszug",
+      "name": "Ein- und Auszug"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 870,
+        "y": 1220
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-einkauf",
+      "name": "Einkauf & Material"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 60,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-energiebeschaffung",
+      "name": "Energiebeschaffung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-erzeugungsanlagen",
+      "name": "Erzeugungsanlagen"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1680,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-forderungsmanagement",
+      "name": "Forderungsmanagement"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-hausanschluesse",
+      "name": "Hausanschlüsse"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-instandhaltung",
+      "name": "Instandhaltung"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1140,
+        "y": 1220
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-it-services",
+      "name": "IT-Services"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 2070,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-kundenkommunikation",
+      "name": "Kundenkommunikation"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1950,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-kundenservice",
+      "name": "Kundenservice"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1800,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-mahnwesen",
+      "name": "Mahnwesen"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 870,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-messstellenbetrieb",
+      "name": "Messstellenbetrieb"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 780
+      },
+      "elementType": "step",
+      "id": "step-messwertaufbereitung",
+      "name": "Messwertaufbereitung"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 330,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-netzanschluss",
+      "name": "Netzanschluss"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 600,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-netzbetrieb",
+      "name": "Netzbetrieb"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 450,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-netzvertraeglichkeit",
+      "name": "Netzverträglichkeit"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1410,
+        "y": 1220
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-personal",
+      "name": "Personal"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 870
+      },
+      "elementType": "step",
+      "id": "step-rechnungsausgabe",
+      "name": "Rechnungsausgabe"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 600,
+        "y": 1220
+      },
+      "color": "hsl(150, 86%, 34%)",
+      "elementType": "step",
+      "id": "step-rechnungswesen",
+      "name": "Rechnungswesen"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1140,
+        "y": 140
+      },
+      "color": "hsl(287, 65%, 44%)",
+      "elementType": "step",
+      "id": "step-regulierung",
+      "name": "Regulierung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-schlussabrechnung",
+      "name": "Schlussabrechnung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 2070,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-self-service",
+      "name": "Self-Service"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-stammdatenpflege",
+      "name": "Stammdatenpflege"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-stoerungsannahme",
+      "name": "Störungsannahme"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 720,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-stoerungsbehebung",
+      "name": "Störungsbehebung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-tarifmanagement",
+      "name": "Tarifmanagement"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1530,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-turnusabrechnung",
+      "name": "Turnusabrechnung"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 870,
+        "y": 140
+      },
+      "color": "hsl(287, 65%, 44%)",
+      "elementType": "step",
+      "id": "step-unternehmenssteuerung",
+      "name": "Unternehmenssteuerung"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1800,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-versorgungssperre",
+      "name": "Versorgungssperre"
+    },
+    {
+      "bounds": {
+        "height": 64,
+        "width": 220,
+        "x": 1140,
+        "y": 400
+      },
+      "elementType": "step",
+      "id": "step-vertrieb",
+      "name": "Vertrieb"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1260,
+        "y": 690
+      },
+      "elementType": "step",
+      "id": "step-wechselmanagement",
+      "name": "Wechselmanagement"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-zaehlereinbau",
+      "name": "Zählereinbau"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 990,
+        "y": 600
+      },
+      "elementType": "step",
+      "id": "step-zaehlerwechsel",
+      "name": "Zählerwechsel"
+    },
+    {
+      "bounds": {
+        "height": 60,
+        "width": 220,
+        "x": 1800,
+        "y": 510
+      },
+      "elementType": "step",
+      "id": "step-zahlungseingang",
+      "name": "Zahlungseingang"
+    }
+  ],
+  "meta": {
+    "name": "Stadtwerke Auental – Wertschöpfungskette"
+  },
+  "schemaVersion": 1
+}

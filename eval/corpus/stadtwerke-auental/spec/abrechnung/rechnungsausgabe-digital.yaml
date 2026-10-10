@@ -1,0 +1,35 @@
+key: abrechnung/rechnungsausgabe-digital
+engine: c7
+name: Rechnungsausgabe digital
+notes: >-
+  Second candidate of the dynamic call in abrechnung/jahresverbrauchsabrechnung
+  (call-dynamic). The e-invoice platform names its event in English: "Invoice
+  published" (message InvoicePublished) is the German "Rechnung bereitgestellt"
+  that starts the C8 customer notification (de-en).
+
+processes:
+  - id: Process_RechnungsausgabeDigital
+    name: Rechnungsausgabe digital
+    documentation: >-
+      Digitale Rechnungsausgabe: XRechnung für Geschäftskunden, Ablage im
+      Kundenportal mit Benachrichtigung für Privatkunden.
+    elements:
+      - { type: startEvent, id: Start_DigitaleAusgabeAngefordert, name: Digitale Ausgabe angefordert }
+      - { type: serviceTask, id: Task_PdfErzeugen, name: Rechnungs-PDF erzeugen }
+      - type: exclusiveGateway
+        id: Gateway_Geschaeftskunde
+        name: Geschaeftskunde?
+        next:
+          - { to: Task_XRechnungUebermitteln, name: ja, condition: "${geschaeftskunde}" }
+          - { to: Task_ImPortalAblegen, name: nein, default: true }
+      - type: serviceTask
+        id: Task_XRechnungUebermitteln
+        name: XRechnung erzeugen und uebermitteln
+        next: Gateway_KanalJoin
+      - { type: serviceTask, id: Task_ImPortalAblegen, name: Rechnung im Kundenportal ablegen }
+      - type: intermediateThrowEvent
+        id: Event_InvoicePublished
+        name: Invoice published
+        message: InvoicePublished
+      - { type: exclusiveGateway, id: Gateway_KanalJoin }
+      - { type: endEvent, id: End_RechnungDigitalZugestellt, name: Rechnung digital zugestellt }

@@ -1,0 +1,125 @@
+# syntax=docker/dockerfile:1.27.1
+# ProA 2.0 public read-only demo (issue #3; CONCEPT §6 "Read-only demo"): the
+# server with PROA_DEMO=readonly, its own PostgreSQL 17 and a seed made while
+# the image is built. Build from the repository root:
+#   docker build -f docker/Dockerfile.demo .
+# docker/compose.demo.yaml runs it locally; docker/fly.demo.toml deploys it.
+#
+# The seed stage runs the server in local mode on loopback, seeds both
+# landscapes with their value chains, lets the simulation agent work them and
+# prepares the read-only demo (apps/demo `proa-demo seed`). The finished data
+# directory is the runtime image's template: every start copies it and starts
+# PostgreSQL and the server from it (`proa-demo serve`), so a restart or a cold
+# start is back at the seed within seconds, and a broken seed fails the build.
+#
+# Holdout hygiene: the runtime image holds no eval/ directory at all, no CLI
+# and no simulation agent; the database holds models, value chains and agent
+# proposals, never expected answers. docker/Dockerfile.demo.dockerignore keeps
+# answers, recordings and reports out of the build context; the prod-seed
+# stage removes them again and the runtime stage checks.
+#
+# The product image (docker/Dockerfile) is unchanged; the base images and
+# pnpm are the same (test: apps/server/test/unit/demo-image.test.ts).
+
+ARG NODE_IMAGE=node:24.21.0-trixie-slim
+ARG PNPM_VERSION=11.1.3
+ARG POSTGRES_IMAGE=postgres:17.11-trixie
+
+FROM ${NODE_IMAGE} AS node
+
+FROM ${NODE_IMAGE} AS base
+ARG PNPM_VERSION
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    CI=true
+RUN npm install --global --no-fund --no-audit pnpm@${PNPM_VERSION}
+WORKDIR /app
+
+# Download every locked package once (needs only the lockfile and settings).
+FROM base AS fetch
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch
+
+# Full install and web build.
+FROM fetch AS build
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --offline --frozen-lockfile
+RUN pnpm --filter @proa/web build
+
+# What the seed runs: the server, the CLI, the simulation agent and the demo
+# supervisor, with the corpus models and the golden chain files. The eval
+# answers are scrubbed again (defence in depth behind the .dockerignore).
+FROM base AS prod-seed
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod \
+      --filter "@proa/server..." --filter "@proa/cli..." \
+      --filter "@proa/agent-sim..." --filter "@proa/demo..."
+RUN rm -rf eval/corpus/*/expected.yaml eval/corpus/*/README.md eval/corpus/*/spec \
+           eval/recordings eval/reports \
+    && find eval/value-chains -type f ! -name value-chain.vc.json -delete \
+    && test -z "$(find eval/corpus eval/value-chains \( -name 'expected*' -o -name '*.md' -o -name '*.mjs' -o -name '*.jsonl' -o -name spec \) -print)"
+
+# What the demo runs: the server and the supervisor.
+FROM base AS prod-run
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --filter "@proa/server..." --filter "@proa/demo..."
+
+# PostgreSQL 17 from its official image (Debian trixie, as the Node image)
+# plus the Node binary; an unprivileged user owns the seed.
+FROM ${POSTGRES_IMAGE} AS pgnode
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+RUN groupadd --system --gid 10001 proa \
+    && useradd --system --uid 10001 --gid proa --create-home --home-dir /home/proa \
+         --shell /usr/sbin/nologin proa \
+    && install -d -o proa -g proa -m 755 /opt/proa-demo \
+    && node --version && postgres --version
+WORKDIR /app
+ENTRYPOINT []
+CMD []
+
+# The seed (apps/demo/src/seed.ts). PROA_DEMO_SEED names it and is the only
+# input of this layer that changes: the deploy workflow passes its run, so every
+# workflow deploy seeds afresh; an unchanged value (the default `local`) reuses
+# the cached seed, so a manual deploy passes one of its own.
+FROM pgnode AS seed
+COPY --from=prod-seed /app/package.json ./package.json
+COPY --from=prod-seed /app/node_modules ./node_modules
+COPY --from=prod-seed /app/packages ./packages
+COPY --from=prod-seed /app/apps/server ./apps/server
+COPY --from=prod-seed /app/apps/cli ./apps/cli
+COPY --from=prod-seed /app/apps/agent-sim ./apps/agent-sim
+COPY --from=prod-seed /app/apps/demo ./apps/demo
+COPY --from=prod-seed /app/eval/corpus ./eval/corpus
+COPY --from=prod-seed /app/eval/value-chains ./eval/value-chains
+USER proa
+ARG PROA_DEMO_SEED=local
+RUN node /app/apps/demo/src/main.ts seed --out /opt/proa-demo --id "${PROA_DEMO_SEED}"
+
+FROM pgnode AS runtime
+COPY --from=prod-run /app/package.json ./package.json
+COPY --from=prod-run /app/node_modules ./node_modules
+COPY --from=prod-run /app/packages ./packages
+COPY --from=prod-run /app/apps/server ./apps/server
+COPY --from=prod-run /app/apps/demo ./apps/demo
+COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY --from=seed --chown=proa:proa /opt/proa-demo /opt/proa-demo
+# No eval files, CLI or agent in the runtime image; the seed is the template
+# and its description only.
+RUN test ! -e /app/eval && test ! -e /app/apps/cli && test ! -e /app/apps/agent-sim \
+    && test "$(ls -A /opt/proa-demo | sort | tr '\n' ' ')" = "pgdata-template seed.json " \
+    && test -f /opt/proa-demo/pgdata-template/PG_VERSION
+USER proa
+# PROA_PUBLIC_ORIGIN: the demo's public origins (comma-separated); on Fly.io
+# `https://$FLY_APP_NAME.fly.dev` when unset (`proa-demo serve`).
+ENV NODE_ENV=production \
+    PROA_HOST=0.0.0.0 \
+    PROA_PORT=8080 \
+    PROA_WEB_DIST=/app/apps/web/dist
+EXPOSE 8080
+STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+ENTRYPOINT ["node", "/app/apps/demo/src/main.ts", "serve"]

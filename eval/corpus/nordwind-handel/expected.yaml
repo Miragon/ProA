@@ -1,0 +1,539 @@
+# Ground truth for nordwind-handel (closed world: every unlisted cross-process
+# endpoint pair counts as must_not_link). Grouped by relation type; within a
+# group, real links first, then traps.
+
+relations:
+  # ------------------------------------------------------------------ call
+  - type: call
+    from: vertrieb/order-handling#Call_PickAndPack
+    to: lager/kommissionierung#Process_Kommissionierung
+    expect: must_link
+    tags: [call-unique, collaboration]
+    rationale: Static zeebe:calledElement Process_Kommissionierung matches exactly one process; the caller is the participant process of the shop collaboration.
+  - type: call
+    from: vertrieb/order-handling#Call_ShipOrder
+    to: logistik/shipping#Process_Shipping
+    expect: must_link
+    tags: [call-unique, collaboration]
+    rationale: Static calledElement Process_Shipping matches exactly one process.
+  - type: call
+    from: service/ersatzlieferung#Call_ErsatzwareKommissionieren
+    to: lager/kommissionierung#Process_Kommissionierung
+    expect: must_link
+    tags: [call-unique]
+    rationale: Replacement deliveries reuse the picking process through its unique process id.
+  - type: call
+    from: service/ersatzlieferung#Call_ErsatzwareVersenden
+    to: logistik/shipping#Process_Shipping
+    expect: must_link
+    tags: [call-unique]
+    rationale: Replacement deliveries reuse parcel shipping through its unique process id.
+  - type: call
+    from: service/reklamation#Call_Ersatzlieferung
+    to: service/ersatzlieferung#Process_Ersatzlieferung
+    expect: must_link
+    tags: [call-unique, collaboration]
+    rationale: Static calledElement Process_Ersatzlieferung matches exactly one process.
+  - type: call
+    from: finanzen/forderungsmanagement#Call_Mahnwesen
+    to: finanzen/mahnwesen#Process_Mahnwesen
+    expect: must_link
+    tags: [call-unique]
+    rationale: C7 calledElement Process_Mahnwesen matches exactly one process.
+  - type: call
+    from: finanzen/mahnwesen#Call_MahnungVersenden
+    to: finanzen/briefversand#Process_Briefversand
+    expect: must_link
+    tags: [call-unique]
+    rationale: Dunning letters go through the shared letter output process.
+  - type: call
+    from: finanzen/gutschrift#Call_GutschriftVersenden
+    to: finanzen/briefversand#Process_Briefversand
+    expect: must_link
+    tags: [call-unique]
+    rationale: Credit notes go through the shared letter output process.
+  - type: call
+    from: lager/wareneingang#Call_Wareneingangspruefung
+    to: qualitaet/wareneingangspruefung#Process_Wareneingangspruefung
+    expect: must_link
+    tags: [call-unique]
+    rationale: Static calledElement Process_Wareneingangspruefung matches exactly one process.
+  - type: call
+    from: einkauf/bestellanforderung#Call_Bestellfreigabe
+    to: einkauf/bestellfreigabe#Process_Bestellfreigabe
+    expect: may_link
+    tags: [call-ambiguous, collaboration]
+    rationale: Process_Bestellfreigabe is defined twice; this current three-level model is the intended target, but the id alone cannot decide.
+  - type: call
+    from: einkauf/bestellanforderung#Call_Bestellfreigabe
+    to: einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe
+    expect: may_link
+    tags: [call-ambiguous, collaboration]
+    rationale: The outdated 2019 copy defines the same process id and is also executable; whichever was deployed last wins at runtime.
+  - type: call
+    from: finanzen/rechnungsstellung#Call_RechnungAusgeben
+    to: finanzen/e-rechnung-versand#Process_ERechnungVersand
+    expect: may_link
+    tags: [call-dynamic]
+    rationale: calledElement is ${ausgabekanal}; e-invoicing is one of the two output channels named in the documentation.
+  - type: call
+    from: finanzen/rechnungsstellung#Call_RechnungAusgeben
+    to: finanzen/briefversand#Process_Briefversand
+    expect: may_link
+    tags: [call-dynamic]
+    rationale: calledElement is ${ausgabekanal}; letter output is the other output channel.
+  - type: call
+    from: service/returns#Call_ShipExchangeItem
+    to: service/ersatzlieferung#Process_Ersatzlieferung
+    expect: may_link
+    tags: [call-dynamic]
+    rationale: calledElement is =exchangeProcess; per its documentation shop orders get a free replacement order that is picked and shipped, which is exactly what the replacement delivery process does, but the target is decided at runtime.
+
+  - type: call
+    from: service/returns#Call_ShipExchangeItem
+    to: logistik/shipping#Process_Shipping
+    expect: must_not_link
+    tags: [call-dynamic, distractor]
+    rationale: '"Ship exchange item" is lexically closest to "Parcel shipping", but Process_Shipping starts at "Shipment requested" with packed parcels; an exchange first needs a free replacement order and picking, which Process_Ersatzlieferung wraps (service/reklamation calls it statically for the same purpose).'
+  - type: call
+    from: vertrieb/order-handling#Call_FraudCheck
+    to: finanzen/kreditpruefung#Process_Kreditpruefung
+    expect: must_not_link
+    tags: [call-unresolved, distractor]
+    rationale: Process_FraudCheck has no target in the landscape; fraud screening is a separate payment-provider process, and the shop requests the credit check separately by message (Task_RequestCreditCheck).
+
+  # --------------------------------------------------------------- message
+  - type: message
+    from: vertrieb/order-handling#Task_RequestCreditCheck
+    to: finanzen/kreditpruefung#Start_KreditpruefungAngefordert
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The C8 send task and the C7 message start share the message name KreditpruefungAngefordert (message bus between the engines).
+  - type: message
+    from: partner/partner-onboarding#Task_RequestCreditCheck
+    to: finanzen/kreditpruefung#Start_KreditpruefungAngefordert
+    expect: must_link
+    tags: [transliteration, cross-engine-message, collaboration]
+    rationale: KreditprüfungAngefordert (umlaut, C8 dealer onboarding) and KreditpruefungAngefordert (C7) are the same request; only the ü/ue spelling differs.
+  - type: message
+    from: finanzen/kreditpruefung#End_KreditpruefungAbgeschlossen
+    to: vertrieb/order-handling#Task_WaitForCreditDecision
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The C7 message end and the C8 receive task share KreditpruefungAbgeschlossen; the shop waits for the decision it requested.
+  - type: message
+    from: finanzen/kreditpruefung#End_KreditpruefungAbgeschlossen
+    to: partner/partner-onboarding#Task_AwaitCreditDecision
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The same answer also reaches dealer onboarding; one throw legitimately serves both requesters.
+  - type: message
+    from: finanzen/zahlungseingang#Task_ZuordnungMelden
+    to: finanzen/forderungsmanagement#Event_ZahlungZugeordnet
+    expect: must_link
+    tags: [exact-key]
+    rationale: Identical message name ZahlungZugeordnet; receivables close the open item when the payment is allocated.
+  - type: message
+    from: finanzen/zahlungseingang#Task_ZuordnungMelden
+    to: finanzen/mahnwesen#Event_ZahlungZugeordnet
+    expect: must_link
+    tags: [exact-key]
+    rationale: Identical message name ZahlungZugeordnet; a payment ends a running dunning procedure.
+  - type: message
+    from: finanzen/zahlungseingang#Task_ZuordnungMelden
+    to: vertrieb/order-handling#Event_PaymentAllocated
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The English shop catch "Payment allocated" uses the legacy message name ZahlungZugeordnet from C7.
+  - type: message
+    from: finanzen/rechnungsstellung#Event_RechnungVersendet
+    to: finanzen/forderungsmanagement#Start_RechnungVersendet
+    expect: must_link
+    tags: [exact-key]
+    rationale: Identical message name RechnungVersendet; every sent invoice opens an item in receivables.
+  - type: message
+    from: finanzen/rechnungsstellung#Event_RechnungVersendet
+    to: vertrieb/order-handling#Start_InvoiceSent
+    expect: must_link
+    tags: [de-en, collaboration]
+    rationale: '"Rechnung versendet" (RechnungVersendet) and "Invoice sent" (InvoiceSent) are the same event for a German and an English team; the names differ, so only the semantic tier finds it.'
+  - type: message
+    from: logistik/shipping#Event_ShipmentDispatched
+    to: finanzen/rechnungsstellung#Start_LieferungVersendet
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The English C8 throw "Shipment dispatched" sends the legacy message LieferungVersendet that starts C7 invoicing.
+  - type: message
+    from: logistik/speditionsversand#Event_LieferungVersendet
+    to: finanzen/rechnungsstellung#Start_LieferungVersendet
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Pallet freight (C7) starts invoicing with the same message name LieferungVersendet.
+  - type: message
+    from: logistik/shipping#Event_DeliveryDelayed
+    to: service/kundenbenachrichtigung#Start_LieferungVerspaetet
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Identical message name LieferungVerspaetet; the English label "Delivery delayed" and the German "Lieferung verspätet" agree.
+  - type: message
+    from: lager/kommissionierung#Event_WareVersandbereit
+    to: logistik/speditionsversand#Start_WareVersandbereit
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: Pallet orders leave C8 picking with WareVersandbereit, the message start of the C7 freight process.
+  - type: message
+    from: vertrieb/marketplace-order-import#Event_ForwardOrder
+    to: vertrieb/order-handling#Start_OrderReceived
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Identical message name OrderReceived; marketplace orders enter the same order handling as shop orders.
+  - type: message
+    from: service/reklamation#Task_GutschriftAnfordern
+    to: finanzen/gutschrift#Start_GutschriftAngefordert
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The C8 send task and the C7 message start share GutschriftAngefordert.
+  - type: message
+    from: service/returns#Task_RequestCreditNote
+    to: finanzen/gutschrift#Start_GutschriftAngefordert
+    expect: must_link
+    tags: [de-en]
+    rationale: '"Request credit note" (CreditNoteRequested) is the English team''s name for "Gutschrift angefordert"; same request, different language and message name.'
+  - type: message
+    from: finanzen/gutschrift#End_GutschriftErstellt
+    to: service/returns#Task_AwaitCreditNote
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: The C7 message end and the C8 receive task share GutschriftErstellt.
+  - type: message
+    from: finanzen/gutschrift#End_GutschriftErstellt
+    to: service/reklamation#Event_GutschriftErstellt
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The same answer reaches the complaint process, which also requested a credit note.
+  - type: message
+    from: service/reklamation#Task_RuecksendungVeranlassen
+    to: service/returns#Start_ReturnRequested
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: The German complaint team starts the English returns process with its message name ReturnRequested.
+  - type: message
+    from: finanzen/mahnwesen#End_KundeGesperrt
+    to: partner/customer-account-lock#Start_CustomerBlocked
+    expect: must_link
+    tags: [cross-engine-message]
+    rationale: KundeGesperrt from C7 dunning starts the C8 account lock, labelled "Customer blocked".
+  - type: message
+    from: einkauf/bestellanforderung#Event_BestellungAusgeloest
+    to: lager/wareneingang#Start_BestellungAusgeloest
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The C7 requisition announces the order to C8 goods receipt with BestellungAusgeloest.
+  - type: message
+    from: lager/bestandsueberwachung#Event_MindestbestandUnterschritten
+    to: einkauf/bestellanforderung#Start_MindestbestandUnterschritten
+    expect: must_link
+    tags: [cross-engine-message, collaboration]
+    rationale: The C8 stock monitor starts the C7 requisition with MindestbestandUnterschritten.
+  - type: message
+    from: lager/wareneingang#Event_WareneingangGeprueft
+    to: finanzen/lieferantenrechnung#Event_WareneingangGeprueft
+    expect: must_link
+    tags: [transliteration, cross-engine-message, collaboration]
+    rationale: WareneingangGeprüft (C8, umlaut) and WareneingangGeprueft (C7) are the same goods-receipt confirmation for the three-way match.
+  - type: message
+    from: finanzen/zahlungslauf#Event_ZahlungAngeordnet
+    to: finanzen/lieferantenrechnung#Event_ZahlungAngeordnet
+    expect: must_link
+    tags: [exact-key, collaboration]
+    rationale: Identical message name ZahlungAngeordnet; the supplier invoice is settled once the payment run has ordered the transfer.
+  - type: message
+    from: finanzen/lieferantenrechnung#Event_VorgezogeneZahlungAngefordert
+    to: finanzen/zahlungslauf#Start_EilzahlungAngefordert
+    expect: must_link
+    tags: [semantic, collaboration]
+    rationale: '"Vorgezogene Zahlung angefordert" and "Eilzahlung angefordert" both request an ad-hoc payment run to keep the cash discount; same language, different words and message names.'
+
+  - type: message
+    from: vertrieb/marketplace-order-import#End_OrderRejected
+    to: vertrieb/order-handling#Start_OrderReceived
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: '"Order rejected" vs "Order received" (Levenshtein 3, OrderRejected vs OrderReceived): the rejection goes back to the marketplace, never into order handling.'
+  - type: message
+    from: finanzen/kreditpruefung#End_KreditpruefungAbgeschlossen
+    to: finanzen/kreditpruefung#Start_KreditpruefungAngefordert
+    expect: must_not_link
+    tags: [self-link]
+    rationale: Answer and request of the same credit check process; a process does not request its own credit check.
+  - type: message
+    from: logistik/shipping#Event_DeliveryDelayed
+    to: finanzen/rechnungsstellung#Start_LieferungVersendet
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: LieferungVerspaetet vs LieferungVersendet (Levenshtein 4); a delay must not start invoicing.
+  - type: message
+    from: logistik/shipping#Event_ShipmentDispatched
+    to: service/kundenbenachrichtigung#Start_LieferungVerspaetet
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: LieferungVersendet vs LieferungVerspaetet; a normal dispatch must not trigger a delay notice.
+  - type: message
+    from: logistik/speditionsversand#Event_LieferungVersendet
+    to: service/kundenbenachrichtigung#Start_LieferungVerspaetet
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: '"Lieferung versendet" vs "Lieferung verspätet" (Levenshtein 4 after normalization): opposite outcomes.'
+  - type: message
+    from: finanzen/zahlungslauf#Event_ZahlungAngeordnet
+    to: finanzen/forderungsmanagement#Event_ZahlungZugeordnet
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: '"Zahlung angeordnet" (outgoing supplier payment) vs "Zahlung zugeordnet" (incoming customer payment), Levenshtein 2.'
+  - type: message
+    from: finanzen/zahlungslauf#Event_ZahlungAngeordnet
+    to: finanzen/mahnwesen#Event_ZahlungZugeordnet
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: Paying a supplier does not end the dunning of a customer; ZahlungAngeordnet vs ZahlungZugeordnet.
+  - type: message
+    from: finanzen/zahlungslauf#Event_ZahlungAngeordnet
+    to: vertrieb/order-handling#Event_PaymentAllocated
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: The shop waits for ZahlungZugeordnet (customer payment); ZahlungAngeordnet is the creditor side.
+  - type: message
+    from: finanzen/zahlungseingang#Task_ZuordnungMelden
+    to: finanzen/lieferantenrechnung#Event_ZahlungAngeordnet
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: An allocated customer payment does not settle a supplier invoice; ZahlungZugeordnet vs ZahlungAngeordnet.
+  - type: message
+    from: finanzen/zahlungseingang#Task_KundensperreAufheben
+    to: partner/customer-account-lock#Start_CustomerBlocked
+    expect: must_not_link
+    tags: [near-miss]
+    rationale: KundeEntsperrt vs KundeGesperrt (Levenshtein 3) are opposites; unlocking must not start the lock process.
+  - type: message
+    from: service/ersatzlieferung#End_LieferungVersendet
+    to: finanzen/rechnungsstellung#Start_LieferungVersendet
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: Same label, but a none end throws no message; free replacement deliveries are not invoiced from here.
+  - type: message
+    from: logistik/speditionsversand#End_LieferungVerspaetet
+    to: service/kundenbenachrichtigung#Start_LieferungVerspaetet
+    expect: must_not_link
+    tags: [event-def-mismatch]
+    rationale: Same label, but the C7 none end throws nothing; pallet delays are not notified yet (migration gap).
+  - type: message
+    from: lager/kommissionierung#End_WareVersandbereit
+    to: logistik/speditionsversand#Start_WareVersandbereit
+    expect: must_not_link
+    tags: [event-def-mismatch, subprocess-scope]
+    rationale: Same label, but a none end throws no message, and it lies inside the packing subprocess, so it is never an endpoint; the message comes from Event_WareVersandbereit.
+  - type: message
+    from: logistik/shipping#End_ShipmentDispatched
+    to: finanzen/rechnungsstellung#Start_LieferungVersendet
+    expect: must_not_link
+    tags: [event-def-mismatch, subprocess-scope]
+    rationale: A none end throws no message, and this one lies inside the carrier handover subprocess, so it is never an endpoint; invoicing is started by Event_ShipmentDispatched.
+  - type: message
+    from: service/reklamation#Task_AntwortSenden
+    to: finanzen/kreditpruefung#Event_AntwortErhalten
+    expect: must_not_link
+    tags: [generic-name, collaboration]
+    rationale: Both use the generic message name Antwort, but one answers a complaining customer and the other is the credit agency's report; key tier would propose it at confidence 1.0.
+  - type: message
+    from: service/reklamation#Task_AntwortSenden
+    to: einkauf/bestellanforderung#Event_AntwortErhalten
+    expect: must_not_link
+    tags: [generic-name, collaboration]
+    rationale: Same generic name Antwort; the requisition waits for the supplier's order confirmation, not for a customer reply.
+  - type: message
+    from: finanzen/kreditpruefung#End_AntwortGesendet
+    to: einkauf/bestellanforderung#Event_AntwortErhalten
+    expect: must_not_link
+    tags: [generic-name, collaboration]
+    rationale: The credit agency adapter's Antwort goes to Event_AntwortErhalten of the credit check in its own file (internal message flow, a fact); the requisition's Antwort is the supplier's order confirmation. Key tier would propose it at confidence 1.0.
+  - type: message
+    from: lager/kommissionierung#End_AnSpeditionUebergeben
+    to: logistik/speditionsversand#Start_WareVersandbereit
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The none end only names the handover; the message is thrown by Event_WareVersandbereit just before it.
+  - type: message
+    from: lager/wareneingang#End_WareneingangAbgeschlossen
+    to: finanzen/lieferantenrechnung#Event_WareneingangGeprueft
+    expect: must_not_link
+    tags: [distractor]
+    rationale: '"Wareneingang abgeschlossen" sounds like the trigger, but it is a none end; the three-way match is fed by Event_WareneingangGeprueft.'
+  - type: message
+    from: einkauf/bestellanforderung#Task_BestellungUebermitteln
+    to: lager/wareneingang#Start_BestellungAusgeloest
+    expect: must_not_link
+    tags: [collaboration, distractor]
+    rationale: The purchase order goes to the supplier pool via the internal message flow Bestellung; the C8 goods receipt is announced by Event_BestellungAusgeloest after the supplier's confirmation.
+  - type: message
+    from: logistik/speditionsversand#Event_LieferungVersendet
+    to: finanzen/forderungsmanagement#Start_RechnungVersendet
+    expect: must_not_link
+    tags: [lexical, distractor]
+    rationale: '"Lieferung versendet" vs "Rechnung versendet" (Levenshtein 5, shared token "versendet"): a dispatched delivery starts invoicing; receivables open the item only when the invoice is sent.'
+  - type: message
+    from: logistik/shipping#Event_ShipmentDispatched
+    to: finanzen/forderungsmanagement#Start_RechnungVersendet
+    expect: must_not_link
+    tags: [lexical, distractor]
+    rationale: The parcel throw carries the same message name LieferungVersendet (Levenshtein 5 to RechnungVersendet); it starts invoicing, not receivables.
+
+  # ---------------------------------------------------------------- signal
+  - type: signal
+    from: finanzen/monatsabschluss#Event_BuchungsperiodeGesperrt
+    to: finanzen/rechnungsstellung#Start_BuchungsperiodeGesperrt
+    expect: must_link
+    tags: [signal-broadcast]
+    rationale: The period-lock signal BuchungsperiodeGesperrt is caught by the invoicing event subprocess.
+  - type: signal
+    from: finanzen/monatsabschluss#Event_BuchungsperiodeGesperrt
+    to: finanzen/gutschrift#Start_BuchungsperiodeGesperrt
+    expect: must_link
+    tags: [signal-broadcast]
+    rationale: The same signal moves credit note postings to the next period.
+  - type: signal
+    from: finanzen/monatsabschluss#Event_BuchungsperiodeGesperrt
+    to: finanzen/lieferantenrechnung#Start_BuchungsperiodeGesperrt
+    expect: must_link
+    tags: [signal-broadcast, collaboration]
+    rationale: The same signal reaches the supplier invoice check.
+  - type: signal
+    from: qualitaet/produktrueckruf#Event_ProduktrueckrufAusgeloest
+    to: vertrieb/order-handling#Start_ProductRecall
+    expect: must_link
+    tags: [signal-broadcast, collaboration]
+    rationale: The recall signal Produktrueckruf reaches every running order, here under the English label "Product recall".
+  - type: signal
+    from: qualitaet/produktrueckruf#Event_ProduktrueckrufAusgeloest
+    to: lager/kommissionierung#Start_ProduktrueckrufAusgeloest
+    expect: must_link
+    tags: [signal-broadcast]
+    rationale: Picking blocks recalled articles on the same signal.
+  - type: signal
+    from: qualitaet/produktrueckruf#Event_ProduktrueckrufAusgeloest
+    to: service/returns#Start_ProductRecall
+    expect: must_link
+    tags: [signal-broadcast]
+    rationale: Returns flag recall-related cases on the same signal.
+
+  # --------------------------------------------------------------- trigger
+  - type: trigger
+    from: finanzen/monatsabschluss#End_MonatsabschlussErstellt
+    to: controlling/management-reporting#Start_MonatsabschlussErstellt
+    expect: must_link
+    tags: [trigger]
+    rationale: Controlling starts the monthly report by hand when the closing is released; identical labels on a none end and a none start mark the handover.
+  - type: trigger
+    from: einkauf/bestellanforderung#End_NeuerLieferantBenoetigt
+    to: einkauf/lieferantenanlage#Start_NeuerLieferantBenoetigt
+    expect: must_link
+    tags: [trigger, transliteration, collaboration]
+    rationale: '"Neuer Lieferant benötigt" hands over to supplier onboarding, whose older model spells it "benoetigt".'
+  - type: trigger
+    from: service/reklamation#End_SerienfehlerGemeldet
+    to: qualitaet/produktrueckruf#Start_RueckrufBeschlossen
+    expect: may_link
+    tags: [trigger, semantic, collaboration]
+    rationale: A reported serial defect can lead quality management to decide a recall, but not every report does; a reviewer should hold this one.
+  - type: trigger
+    from: einkauf/lieferantenanlage#End_LieferantAngelegt
+    to: einkauf/bestellanforderung#Start_BedarfGemeldet
+    expect: may_link
+    tags: [trigger, semantic, collaboration]
+    rationale: After a new supplier is created the blocked requisition is usually entered again, but that is a habit, not a documented handover.
+
+  - type: trigger
+    from: partner/partner-onboarding#End_ApplicationRejected
+    to: partner/partner-onboarding#Start_DealerApplicationReceived
+    expect: must_not_link
+    tags: [self-link, near-miss]
+    rationale: '"Dealer application rejected" vs "Dealer application received" (Levenshtein 3), own none end and none start: a rejected application starts nothing, and endpoints must lie in different processes.'
+  - type: trigger
+    from: qualitaet/wareneingangspruefung#End_WareFreigegeben
+    to: lager/wareneingang#Start_EinlagerungGestartet
+    expect: must_not_link
+    tags: [subprocess-scope, distractor]
+    rationale: Identical label "Ware freigegeben", none end -> none start, different processes; only scope excludes it. The start lies inside the embedded subprocess Sub_Einlagerung, and Process_Wareneingang itself calls the inspection.
+  - type: trigger
+    from: lager/bestandsueberwachung#End_NachbestellungAngestossen
+    to: einkauf/bestellanforderung#Start_BedarfGemeldet
+    expect: must_not_link
+    tags: [distractor]
+    rationale: The reorder reaches the requisition via the message MindestbestandUnterschritten at Start_MindestbestandUnterschritten; "Bedarf gemeldet" is the manual entry by a requester.
+  - type: trigger
+    from: lager/kommissionierung#End_KommissionierungAbgeschlossen
+    to: logistik/shipping#Start_ShipmentRequested
+    expect: must_not_link
+    tags: [distractor]
+    rationale: Picking is followed by shipping, but the caller orchestrates both through call activities; there is no handover between the two called processes.
+
+expected_findings:
+  - kind: dynamic-call
+    refs: [finanzen/rechnungsstellung#Call_RechnungAusgeben]
+    tags: [call-dynamic]
+    rationale: calledElement is the C7 expression ${ausgabekanal}.
+  - kind: dynamic-call
+    refs: [service/returns#Call_ShipExchangeItem]
+    tags: [call-dynamic]
+    rationale: calledElement is the FEEL expression =exchangeProcess.
+  - kind: unresolved-call
+    refs: [finanzen/forderungsmanagement#Call_Inkasso]
+    tags: [call-unresolved]
+    rationale: Process_Inkasso belongs to the collection agency and is defined nowhere in the landscape.
+  - kind: unresolved-call
+    refs: [vertrieb/order-handling#Call_FraudCheck]
+    tags: [call-unresolved]
+    rationale: Process_FraudCheck is deployed by the payment provider team from another repository and is not part of the landscape.
+  - kind: duplicate-process-id
+    refs:
+      - einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe
+      - einkauf/bestellfreigabe#Process_Bestellfreigabe
+    tags: [call-ambiguous]
+    rationale: The outdated 2019 approval model was never removed and still defines Process_Bestellfreigabe.
+  - kind: dangling-throw
+    refs: [finanzen/zahlungslauf#Task_ZahlungsdateiUebermitteln]
+    tags: [dangling-throw]
+    rationale: The SEPA file goes to the bank, which is not modelled.
+  - kind: dangling-throw
+    refs: [vertrieb/marketplace-order-import#End_OrderRejected]
+    tags: [dangling-throw]
+    rationale: The rejection goes back to the marketplace API, which is not modelled.
+  - kind: dangling-throw
+    refs: [finanzen/zahlungseingang#Task_KundensperreAufheben]
+    tags: [dangling-throw]
+    rationale: Migration gap; C8 implements the account lock but nothing listens to KundeEntsperrt yet.
+  - kind: unmatched-catch
+    refs: [vertrieb/marketplace-order-import#Start_MarketplaceOrderNotified]
+    tags: [unmatched-catch]
+    rationale: The marketplace webhook is an external system, not modelled.
+  - kind: unmatched-catch
+    refs: [finanzen/forderungsmanagement#Start_RuecklastschriftEingegangen]
+    tags: [unmatched-catch]
+    rationale: Returned direct debits arrive as a separate R-transaction file (camt.054/pain.002) through the EBICS adapter, which is not modelled; finanzen/zahlungseingang reads only the camt.053 statement and says so in its documentation.
+
+data_store_groups:
+  - name: Kundenstamm
+    labels: [Kundenstamm, Kunden-Stammdaten, CRM Kunden, Customer master]
+    tags: [data-store-variants]
+    rationale: Finance, dunning, customer service and the English shop teams name the same customer master data differently.
+  - name: Offene Posten Debitoren
+    labels: [Offene Posten, OP-Liste, Debitorenkonten]
+    tags: [data-store-variants]
+    rationale: The open items of the accounts receivable subledger, named by receivables, cash application and credit notes.
+  - name: Lieferantenstamm
+    labels: [Lieferantenstamm, Kreditorenstamm]
+    tags: [data-store-variants]
+    rationale: Procurement says supplier, accounting says creditor; it is one vendor master.
+  - name: Lagerbestand
+    labels: [WMS Lagerbestand, Lagerbestand, Inventory]
+    tags: [data-store-variants]
+    rationale: Stock levels in the warehouse management system; Artikelstamm (article master) is a different store.

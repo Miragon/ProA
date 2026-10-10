@@ -1,0 +1,195 @@
+// eval:replay (CONCEPT §7, M2 item 8): scores recorded agent submissions,
+// no LLM, deterministic.
+//
+//   pnpm eval:replay            (from the repository root)
+//   node src/replay.ts [--recordings <dir>] [--corpus <dir>] [--out <dir>] [--no-write]
+//
+// Reads eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl
+// and splits the files by task kind. Relations recordings: scores each file
+// against eval/corpus/<landscape>/expected.yaml (precision, recall and F1
+// overall, per relation type and tag; must_not_link hits; questions;
+// no-links) and evaluates the live gate (live-gate.ts; one gate per procedure
+// version, landscape and declared llmModel). Placement recordings (M4b):
+// scores each file against eval/value-chains/<landscape>/expected-placements.yaml
+// (placements-replay.ts, next to baseline-prefix/1) and evaluates the
+// placement live gate (placement-live-gate.ts). The auto-accept what-if
+// (auto-accept-whatif.ts, owner decision 19) adds what owner auto-accept
+// rules at 0.8 / 0.9 / 0.95 would have accepted, after the relations and
+// after the placement sections. Writes eval/reports/replay.{md,json}, the
+// placement sections after the relations sections. Relative paths resolve against INIT_CWD, the repository root for
+// `pnpm eval:replay`, as eval:live's do. It only reports (eval:live enforces
+// the live gates): exit 1 only if a recording cannot be read, names a
+// landscape the corpus (or eval/value-chains) does not have, mixes task kinds
+// or worked on an edited chain ("not comparable"); 2 on a usage error (an
+// unknown option, a named --recordings directory that does not exist: only
+// the default may be absent).
+import { mkdir, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+
+import { WHAT_IF_THRESHOLDS, relationWhatIf } from './auto-accept-whatif.ts';
+import { REPORTS_DIR } from './candidates.ts';
+import { CORPUS_DIR } from './corpus.ts';
+import { runLandscape, type LandscapeRun } from './landscape.ts';
+import { formatLiveGate, liveGates } from './live-gate.ts';
+import { formatPlacementLiveGate, placementLiveGates } from './placement-live-gate.ts';
+import { VALUE_CHAINS_DIR } from './placements-load.ts';
+import { placementScoreLine } from './placements-replay-report.ts';
+import { replayPlacements } from './placements-replay.ts';
+import { RECORDINGS_DIR, landscapeDir, loadRecordings, recordingKind } from './recordings.ts';
+import { renderReplayMarkdown, scoreLine, type ReplayReport } from './replay-report.ts';
+import { scoreRecording } from './replay-score.ts';
+
+/** Scores every recording below `recordingsDir`, sorted by path, relations and placement files apart. */
+export async function replay(
+  recordingsDir: string = RECORDINGS_DIR,
+  corpusDir: string = CORPUS_DIR,
+  valueChainsDir: string = VALUE_CHAINS_DIR,
+): Promise<ReplayReport> {
+  const files = await loadRecordings(recordingsDir);
+  const runs = new Map<string, LandscapeRun>();
+  const recordings = [];
+  const relationWhatIfs = [];
+  for (const f of files.filter((x) => recordingKind(x) === 'relations')) {
+    let run = runs.get(f.landscape);
+    if (!run) {
+      run = await runLandscape(await landscapeDir(corpusDir, f.landscape));
+      runs.set(f.landscape, run);
+    }
+    recordings.push(scoreRecording(f, run));
+    relationWhatIfs.push(relationWhatIf(f, run));
+  }
+  const report: ReplayReport = { recordings, liveGate: liveGates(recordings) };
+  const placementFiles = files.filter((x) => recordingKind(x) === 'placement');
+  let placementWhatIfs: NonNullable<ReplayReport['autoAcceptWhatIf']>['placements'] = [];
+  if (placementFiles.length > 0) {
+    const { whatIf, ...placements } = await replayPlacements(placementFiles, {
+      corpusDir,
+      valueChainsDir,
+    });
+    report.placements = {
+      ...placements,
+      liveGate: placementLiveGates(placements.recordings, placements.baselines),
+    };
+    placementWhatIfs = whatIf;
+  }
+  // Owner decision 19: what auto-accept rules would have accepted (report only).
+  report.autoAcceptWhatIf = {
+    thresholds: WHAT_IF_THRESHOLDS,
+    relations: relationWhatIfs,
+    placements: placementWhatIfs,
+  };
+  return report;
+}
+
+export const USAGE =
+  'usage: pnpm eval:replay [--recordings <dir>] [--corpus <dir>] [--out <dir>] [--no-write]\n';
+
+export interface ReplayIo {
+  stdout(text: string): void;
+  stderr(text: string): void;
+  /**
+   * Base of relative paths: pnpm's INIT_CWD, which is the repository root for
+   * `pnpm eval:replay` wherever in the checkout it is started; not eval/tools.
+   */
+  cwd: string;
+}
+
+export const processIo: ReplayIo = {
+  stdout: (t) => process.stdout.write(t),
+  stderr: (t) => process.stderr.write(t),
+  cwd: process.env['INIT_CWD'] ?? process.cwd(),
+};
+
+/** A wrong call: exit code 2, with the usage text. */
+class UsageError extends Error {}
+
+/** Exit code of a usage error, as eval:live has it. */
+const USAGE_EXIT = 2;
+
+/**
+ * Runs eval:replay; returns the exit code (0: reported, whatever the live
+ * gate says; 1: a recording cannot be scored or the report not written;
+ * 2: usage) and never throws.
+ */
+export async function runReplay(
+  argv: readonly string[],
+  io: ReplayIo = processIo,
+): Promise<number> {
+  try {
+    return await replayCommand(argv, io);
+  } catch (err) {
+    io.stderr(`eval:replay: ${err instanceof Error ? err.message : String(err)}\n`);
+    if (!(err instanceof UsageError)) return 1;
+    io.stderr(`\n${USAGE}`);
+    return USAGE_EXIT;
+  }
+}
+
+function parseOptions(argv: readonly string[]) {
+  try {
+    return parseArgs({
+      args: [...argv],
+      options: {
+        recordings: { type: 'string' },
+        corpus: { type: 'string' },
+        out: { type: 'string' },
+        'no-write': { type: 'boolean', default: false },
+      },
+    }).values;
+  } catch (err) {
+    throw new UsageError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+async function isDirectory(dir: string): Promise<boolean> {
+  try {
+    return (await stat(dir)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function replayCommand(argv: readonly string[], io: ReplayIo): Promise<number> {
+  const values = parseOptions(argv);
+  const recordingsDir = path.resolve(io.cwd, values.recordings ?? RECORDINGS_DIR);
+  const corpusDir = path.resolve(io.cwd, values.corpus ?? CORPUS_DIR);
+  const out = path.resolve(io.cwd, values.out ?? REPORTS_DIR);
+  // eval/recordings may be absent (no recordings yet); a directory named on purpose must exist.
+  if (values.recordings !== undefined && !(await isDirectory(recordingsDir))) {
+    throw new UsageError(`no recordings directory ${recordingsDir}`);
+  }
+  const report = await replay(recordingsDir, corpusDir);
+  for (const s of report.recordings) io.stdout(`${scoreLine(s)}\n`);
+  if (report.recordings.length === 0 && !report.placements) io.stdout('no recordings\n');
+  for (const g of report.liveGate) io.stdout(`${formatLiveGate(g)}\n`);
+  if (report.liveGate.length === 0) io.stdout('live gate: no live runs yet\n');
+  if (report.placements) {
+    const { recordings, baselines, liveGate } = report.placements;
+    for (const s of recordings) {
+      io.stdout(
+        `${placementScoreLine(
+          s,
+          baselines.find((b) => b.landscape === s.landscape),
+        )}\n`,
+      );
+    }
+    for (const g of liveGate) io.stdout(`${formatPlacementLiveGate(g)}\n`);
+    if (liveGate.length === 0) io.stdout('placement live gate: no live runs yet\n');
+  }
+  if (!values['no-write']) {
+    await mkdir(out, { recursive: true });
+    await writeFile(path.join(out, 'replay.md'), renderReplayMarkdown(report));
+    await writeFile(path.join(out, 'replay.json'), `${JSON.stringify(report, null, 2)}\n`);
+    io.stdout(`report: ${path.relative(io.cwd, path.join(out, 'replay.md'))}\n`);
+  }
+  return 0;
+}
+
+if (
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  process.exitCode = await runReplay(process.argv.slice(2));
+}

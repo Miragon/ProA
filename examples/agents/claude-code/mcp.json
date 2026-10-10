@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "proa": {
+      "type": "http",
+      "url": "${PROA_URL:-http://127.0.0.1:7400}/mcp",
+      "headers": { "Authorization": "Bearer ${PROA_TOKEN}" },
+      "alwaysLoad": true
+    }
+  }
+}

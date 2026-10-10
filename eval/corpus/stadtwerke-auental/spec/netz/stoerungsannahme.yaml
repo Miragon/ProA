@@ -1,0 +1,88 @@
+key: netz/stoerungsannahme
+engine: c8
+name: Störungsmeldung annehmen
+notes: >-
+  Collaboration with a black-box pool for the caller. The participant process
+  also talks to other files: it sends the repair order to netz/entstoerung,
+  waits for the generic message "Rueckmeldung" (generic-name: the same message
+  name is thrown by messwesen/zaehlerwechsel for a different purpose) and
+  catches the broadcast signal "Großstörung" in a non-interrupting event
+  subprocess (signal-broadcast).
+
+collaboration:
+  participants:
+    - { id: Participant_Meldender, name: "Meldender (Kunde, Feuerwehr, Polizei)" }
+    - { id: Participant_Leitstelle, name: Netzleitstelle - Störungsannahme, process: Process_Stoerungsannahme }
+  messageFlows:
+    - { from: Participant_Meldender, to: Start_StoerungGemeldet, name: Störungsmeldung }
+    - { from: Task_SicherheitshinweiseGeben, to: Participant_Meldender, name: Sicherheitshinweise }
+    - { from: Task_MeldendenInformieren, to: Participant_Meldender, name: Entstörungsinfo }
+
+processes:
+  - id: Process_Stoerungsannahme
+    name: Störungsmeldung annehmen
+    documentation: >-
+      Rund um die Uhr besetzte Störungsannahme der Netzleitstelle: Meldung
+      aufnehmen, bei Gefahr Sicherheitshinweise geben, Dringlichkeit bewerten,
+      Entstörauftrag übermitteln und den Meldenden über die Behebung informieren.
+    dataStores:
+      - { id: DataStore_Stoerungen, name: Störungsdatenbank }
+    elements:
+      - type: startEvent
+        id: Start_StoerungGemeldet
+        name: Störung gemeldet
+        message: Stoerungsmeldung
+      - type: userTask
+        id: Task_StoerungAufnehmen
+        name: Störungsmeldung aufnehmen
+        candidateGroups: netzleitstelle
+        writes: [DataStore_Stoerungen]
+      - type: exclusiveGateway
+        id: Gateway_Gefahr
+        name: Gefahr für Leib und Leben?
+        next:
+          - { to: Task_SicherheitshinweiseGeben, name: ja, condition: "=gefahrImVerzug" }
+          - { to: Task_DringlichkeitBewerten, name: nein, default: true }
+      - type: sendTask
+        id: Task_SicherheitshinweiseGeben
+        name: Sicherheitshinweise geben
+        next: Gateway_DringlichkeitJoin
+      - type: businessRuleTask
+        id: Task_DringlichkeitBewerten
+        name: Dringlichkeit bewerten
+        reads: [DataStore_Stoerungen]
+      - { type: exclusiveGateway, id: Gateway_DringlichkeitJoin }
+      - type: sendTask
+        id: Task_EntstoerauftragUebermitteln
+        name: Entstörauftrag übermitteln
+        message: { name: Entstoerauftrag, correlationKey: "=stoerungsnummer" }
+      - type: receiveTask
+        id: Task_RueckmeldungErhalten
+        name: Rückmeldung erhalten
+        message: { name: Rueckmeldung, correlationKey: "=stoerungsnummer" }
+        boundary:
+          - id: Boundary_KeineRueckmeldung
+            name: 4 Stunden ohne Rückmeldung
+            timer: { duration: PT4H }
+            interrupting: false
+            next: Task_BereitschaftsleitungInformieren
+      - { type: sendTask, id: Task_MeldendenInformieren, name: Meldenden informieren }
+      - { type: endEvent, id: End_StoerungsmeldungAbgeschlossen, name: Störungsmeldung abgeschlossen }
+
+      - type: userTask
+        id: Task_BereitschaftsleitungInformieren
+        name: Bereitschaftsleitung informieren
+        candidateGroups: netzleitstelle
+      - { type: endEvent, id: End_Eskaliert, name: Eskalation ausgelöst }
+
+      - type: eventSubProcess
+        id: EventSub_Grossstoerung
+        name: Großstörung
+        elements:
+          - type: startEvent
+            id: Start_GrossstoerungAusgerufen
+            name: Großstörung ausgerufen
+            signal: Großstörung
+            interrupting: false
+          - { type: serviceTask, id: Task_AnsageSchalten, name: Großstörungsansage schalten }
+          - { type: endEvent, id: End_AnsageGeschaltet, name: Ansage geschaltet }

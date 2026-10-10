@@ -1,0 +1,73 @@
+# ProA 2.0 public read-only demo on Fly.io (issue #3; docs/proa-2/DEVELOPMENT.md,
+# "Demo deployment (Fly.io)"). Deployed by .github/workflows/demo-deploy.yml:
+#   flyctl deploy --config docker/fly.demo.toml --app <app> --remote-only --ha=false \
+#     --build-arg PROA_DEMO_SEED=<run_id>.<run_attempt>
+# from the repository root (the build context; the paths below are relative to
+# this file). The app name here is the default; the workflow passes the
+# repository variable FLY_DEMO_APP when it is set.
+#
+# Reset: a deploy with a new PROA_DEMO_SEED builds a fresh seed (the workflow
+# passes its run; by hand pass --build-arg PROA_DEMO_SEED=manual-$(date +%s),
+# since an unchanged value reuses the remote builder's cached seed); a stop and
+# start of the machine returns to the deploy's seed (the database is a copy
+# made at every start).
+# No volume, no secrets, no Fly Postgres: PostgreSQL runs inside the machine.
+
+app = "proa-demo"
+primary_region = "fra"
+# The supervisor stops the server, then PostgreSQL.
+kill_signal = "SIGTERM"
+kill_timeout = 15
+
+# The operator's legal pages (owner, 2026-10-10: the demo is Miragon's, whose
+# Impressum and privacy policy cover it); /health reports them and the banner
+# links them as „Impressum“ and „Datenschutz“. Absolute https URLs.
+[env]
+  PROA_DEMO_IMPRINT_URL = "https://miragon.io/impressum"
+  PROA_DEMO_PRIVACY_URL = "https://miragon.io/datenschutz/"
+
+[build]
+  # Never the 1.x Dockerfile at the repository root.
+  dockerfile = "Dockerfile.demo"
+  # flyctl's own context upload ignores Dockerfile.demo.dockerignore unless named here.
+  ignorefile = "Dockerfile.demo.dockerignore"
+
+[deploy]
+  # The running release serves until the new machine passes its health check; a
+  # release that fails it never takes traffic.
+  strategy = "bluegreen"
+  wait_timeout = "10m"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # The owner (2026-10-10): an idle demo must shut down and cost nothing. The
+  # proxy stops the machine within minutes without traffic (well before the
+  # owner's 30 minutes) and starts it on the next request; a stopped machine
+  # bills only its root file system, no CPU, RAM or memory snapshot. A cold
+  # start copies the baked seed and takes seconds. min 0: nothing stays up.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    timeout = "5s"
+    method = "GET"
+    path = "/health"
+
+# PostgreSQL and Node in one machine, no swap.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# A crashed supervisor exits 1 and the machine restarts from the seed;
+# "always" would keep the machine from staying stopped.
+[[restart]]
+  policy = "on-failure"
+  retries = 10

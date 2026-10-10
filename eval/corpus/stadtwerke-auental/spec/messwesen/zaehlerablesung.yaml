@@ -1,0 +1,117 @@
+key: messwesen/zaehlerablesung
+engine: c8
+name: Zählerablesung
+notes: >-
+  Two starts: the yearly rotation (timer) and the message Zwischenablesung,
+  which three processes send (tarifwechsel, umzug, lieferantenwechsel). The
+  request carries `anlass` ("schlussablesung" from umzug and
+  lieferantenwechsel, "tarifwechsel" from tarifwechsel) and `ablesetermin`;
+  timer-started instances have no `anlass` and take the default rotation
+  branch. Message-started instances wait for the reading date first, so the
+  final reading reaches the C7 final invoice only after its own timer on the
+  end-of-supply date has fired (C7 does not buffer messages). The embedded
+  subprocess ends with "Zählerstände erfasst", the exact label of the none
+  start of messwesen/messwertplausibilisierung, which is reached by the call
+  activity instead (subprocess-scope, call-unique). The customer's reading
+  arrives as "Zählerstand übermittelt" inside the subprocess; the portal
+  throws it in English as "Meter reading submitted" (de-en, a valid endpoint
+  inside a subprocess). Results go to the C7 billing core under shared message
+  names (cross-engine-message); the tariff-change reading is only stored in
+  the meter data management, where the next annual bill reads it.
+
+processes:
+  - id: Process_Zaehlerablesung
+    name: Zählerablesung
+    documentation: >-
+      Turnusablesung einmal im Jahr und Zwischenablesung bei Umzug,
+      Lieferantenwechsel oder Tarifwechsel: Ableser, Fernauslesung oder
+      Selbstablesung mit Schätzung als Rückfall, danach Plausibilisierung und
+      Bereitstellung für die Abrechnung. Vereinfachung: Der jährliche
+      Zeitstart steht für den Turnus einer Ableseeinheit; produktiv startet der
+      Ableseplan aus IS-U je Ableseeinheit eine eigene Instanz.
+    dataStores:
+      - { id: DataStore_Messwerte, name: Messwertdatenbank }
+      - { id: DataStore_Geraetestamm, name: Gerätestamm }
+    elements:
+      - type: startEvent
+        id: Start_TurnusablesungFaellig
+        name: Turnusablesung fällig
+        timer: { cycle: R/P1Y }
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_ZwischenablesungAngefordert
+        name: Zwischenablesung angefordert
+        message: Zwischenablesung
+      - type: intermediateCatchEvent
+        id: Event_AbleseterminErreicht
+        name: Ablesetermin erreicht
+        timer: { date: "=ablesetermin" }
+      - { type: exclusiveGateway, id: Gateway_AnlassJoin }
+      - type: subProcess
+        id: Sub_ZaehlerstaendeErfassen
+        name: Zählerstände erfassen
+        elements:
+          - { type: startEvent, id: Start_ErfassungGestartet, name: Erfassung gestartet }
+          - type: businessRuleTask
+            id: Task_AbleseartBestimmen
+            name: Ableseart bestimmen
+            reads: [DataStore_Geraetestamm]
+          - type: exclusiveGateway
+            id: Gateway_Ableseart
+            name: Ableseart?
+            next:
+              - { to: Task_AblesungVorOrt, name: Ableser, condition: '=ableseart = "ableser"' }
+              - { to: Task_FernauslesungAbrufen, name: Fernauslesung, condition: '=ableseart = "fernauslesung"' }
+              - { to: Task_AblesekarteVersenden, name: Selbstablesung, default: true }
+          - type: userTask
+            id: Task_AblesungVorOrt
+            name: Ablesung vor Ort durchführen
+            candidateGroups: ableser
+            next: Gateway_ErfassungJoin
+          - type: serviceTask
+            id: Task_FernauslesungAbrufen
+            name: Fernauslesung abrufen
+            next: Gateway_ErfassungJoin
+          - { type: serviceTask, id: Task_AblesekarteVersenden, name: Ablesekarte versenden }
+          - type: eventBasedGateway
+            id: Gateway_AufKundenWarten
+            next: [Event_ZaehlerstandUebermittelt, Event_AblesefristAbgelaufen]
+          - type: intermediateCatchEvent
+            id: Event_ZaehlerstandUebermittelt
+            name: Zählerstand übermittelt
+            message: { name: ZaehlerstandUebermittelt, correlationKey: "=zaehlpunkt" }
+            next: Gateway_ErfassungJoin
+          - type: intermediateCatchEvent
+            id: Event_AblesefristAbgelaufen
+            name: Ablesefrist abgelaufen
+            timer: { duration: P14D }
+          - type: serviceTask
+            id: Task_ZaehlerstandSchaetzen
+            name: Zählerstand schätzen
+            reads: [DataStore_Messwerte]
+          - { type: exclusiveGateway, id: Gateway_ErfassungJoin }
+          - { type: endEvent, id: End_ZaehlerstaendeErfasst, name: Zählerstände erfasst }
+      - type: callActivity
+        id: Call_MesswertePlausibilisieren
+        name: Messwerte plausibilisieren
+        calledElement: Process_Messwertplausibilisierung
+      - type: exclusiveGateway
+        id: Gateway_Ableseanlass
+        name: Ableseanlass?
+        next:
+          - { to: Event_AblesedatenBereitgestellt, name: Turnusablesung, default: true }
+          - { to: Event_ZwischenstandBereitgestellt, name: Schlussablesung, condition: '=anlass = "schlussablesung"' }
+          - { to: End_TarifwechselstandGespeichert, name: Tarifwechsel, condition: '=anlass = "tarifwechsel"' }
+      - type: intermediateThrowEvent
+        id: Event_AblesedatenBereitgestellt
+        name: Ablesedaten bereitgestellt
+        message: { name: AblesedatenBereitgestellt, correlationKey: "=abrechnungseinheit" }
+      - { type: endEvent, id: End_TurnusablesungAbgeschlossen, name: Turnusablesung abgeschlossen }
+
+      - type: intermediateThrowEvent
+        id: Event_ZwischenstandBereitgestellt
+        name: Zwischenstand bereitgestellt
+        message: { name: ZwischenstandBereitgestellt, correlationKey: "=vertragskonto" }
+      - { type: endEvent, id: End_ZwischenablesungAbgeschlossen, name: Zwischenablesung abgeschlossen }
+
+      - { type: endEvent, id: End_TarifwechselstandGespeichert, name: Zählerstand zum Tarifwechsel gespeichert }

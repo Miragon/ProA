@@ -1,0 +1,47 @@
+key: finanzen/zahlungslauf
+engine: c7
+name: Zahlungslauf Kreditoren
+notes: >-
+  Weekly creditor payment run, also started ad hoc for urgent payments
+  (EilzahlungAngefordert; finanzen/lieferantenrechnung sends the same request
+  as VorgezogeneZahlungAngefordert: semantic). The bank file goes to the bank,
+  which is not modelled (dangling-throw). ZahlungAngeordnet is a near-miss of
+  ZahlungZugeordnet (incoming payments).
+
+processes:
+  - id: Process_Zahlungslauf
+    name: Zahlungslauf Kreditoren
+    documentation: Bezahlt fällige Lieferantenrechnungen per SEPA-Überweisung, wöchentlich oder als Eilzahlung.
+    dataStores:
+      - { id: DataStore_Kreditorenstamm, name: Kreditorenstamm }
+    elements:
+      - type: startEvent
+        id: Start_ZahlungslaufFaellig
+        name: Zahlungslauf fällig (donnerstags)
+        timer: { cycle: "0 0 10 ? * THU" }
+        next: Gateway_Start
+      - type: startEvent
+        id: Start_EilzahlungAngefordert
+        name: Eilzahlung angefordert
+        message: EilzahlungAngefordert
+        next: Gateway_Start
+      - { type: exclusiveGateway, id: Gateway_Start }
+      - type: serviceTask
+        id: Task_FaelligeVerbindlichkeitenErmitteln
+        name: Fällige Verbindlichkeiten ermitteln
+        reads: [DataStore_Kreditorenstamm]
+      - { type: serviceTask, id: Task_ZahlungsvorschlagErstellen, name: Zahlungsvorschlag erstellen }
+      - type: userTask
+        id: Task_ZahlungsvorschlagFreigeben
+        name: Zahlungsvorschlag freigeben (Vier-Augen-Prinzip)
+        candidateGroups: finanzleitung
+      - { type: serviceTask, id: Task_SepaDateiErzeugen, name: SEPA-Zahlungsdatei erzeugen }
+      - type: sendTask
+        id: Task_ZahlungsdateiUebermitteln
+        name: Zahlungsdatei an Bank übermitteln
+        message: ZahlungsdateiBank
+      - type: intermediateThrowEvent
+        id: Event_ZahlungAngeordnet
+        name: Zahlung angeordnet
+        message: ZahlungAngeordnet
+      - { type: endEvent, id: End_ZahlungslaufAbgeschlossen, name: Zahlungslauf abgeschlossen }

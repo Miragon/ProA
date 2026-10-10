@@ -1,0 +1,243 @@
+# ProA 2.0 workspace CI (apps/, packages/, eval/, docker/, plugins/, examples/). The 1.x workflows
+# stay untouched until the cut-over PR replaces them (CONCEPT §9).
+name: CI 2.0
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'eval/**'
+      - 'docker/**'
+      - 'plugins/**'
+      - 'examples/**'
+      - '.claude-plugin/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'eslint.config.js'
+      - '.prettierrc.json'
+      - '.prettierignore'
+      - '.node-version'
+      - '.github/workflows/ci-2.yml'
+  push:
+    branches: [develop, claude/proa-2]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'eval/**'
+      - 'docker/**'
+      - 'plugins/**'
+      - 'examples/**'
+      - '.claude-plugin/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'eslint.config.js'
+      - '.prettierrc.json'
+      - '.prettierignore'
+      - '.node-version'
+      - '.github/workflows/ci-2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint (ESLint, dependency-cruiser)
+        run: pnpm lint
+
+      # Server integration tests and the CLI e2e tests (a real server plus
+      # `proa mcp` over stdio) start PostgreSQL 17 with Testcontainers (Docker
+      # is available on ubuntu runners); eval/tools tests run here too, and
+      # @proa/procedures checks that the Claude Code plugin (plugins/proa) is
+      # generated from the current procedure.
+      - name: Test
+        run: pnpm test
+
+      - name: Generated client is up to date
+        run: |
+          pnpm --filter @proa/client generate
+          git diff --exit-code -- packages/client
+
+      - name: eval/tools check (models in sync with specs)
+        run: pnpm --filter @proa/eval-tools check
+
+      - name: eval/tools validate (all landscapes)
+        run: pnpm --filter @proa/eval-tools validate:all
+
+      # LLM-free gate (CONCEPT §7): rule-tier precision, must_link recall among
+      # candidates, findings; the committed report must match a fresh run.
+      - name: eval:candidates
+        run: |
+          pnpm eval:candidates
+          git diff --exit-code -- eval/reports
+
+      # Scores the committed agent recordings (eval/recordings) against the
+      # ground truth; the committed report must match a fresh run. The
+      # simulation agent's recordings are reproduced by the server test
+      # agent-sim.test.ts (in "Test" above).
+      - name: eval:replay
+        run: |
+          pnpm eval:replay
+          git diff --exit-code -- eval/reports eval/recordings
+
+      # LLM-free placement eval (M4 §6): the golden value chains pass the
+      # validator, name exactly the process facts, and every key-tier rule
+      # proposal is a must or a may; baseline-prefix/1 is reported. The ProA
+      # rules on the golden chains run in "Test" (value-chain-golden.test.ts).
+      # The committed report (and eval/reports/placements.json) must match.
+      - name: eval:placements
+        run: |
+          pnpm eval:placements
+          git diff --exit-code -- eval/reports
+          test -z "$(git status --porcelain -- eval/reports)"
+
+      - name: Build
+        run: pnpm build
+
+  docker:
+    name: Docker image and compose stack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The local stack as users start it: PostgreSQL + ProA on 127.0.0.1:7400,
+      # migrations at start, owner key in the proa-state volume.
+      - name: Build and start
+        run: docker compose -p proa2 -f docker/compose.yaml up -d --build --wait
+
+      - name: Smoke test (health, web UI, seed and status in the container)
+        run: |
+          curl -fsS http://127.0.0.1:7400/health
+          curl -fsS -o /dev/null http://127.0.0.1:7400/
+          docker compose -p proa2 -f docker/compose.yaml exec -T proa proa seed
+          docker compose -p proa2 -f docker/compose.yaml exec -T proa proa seed --value-chains
+          docker compose -p proa2 -f docker/compose.yaml exec -T proa proa status
+
+      # The image ships the golden chain files (proa seed --value-chains) but
+      # no ground truth: no expected.yaml, expected-placements.yaml, README,
+      # validator or recording under /app/eval (docker/Dockerfile.dockerignore).
+      - name: Image holds no eval answers
+        run: |
+          docker compose -p proa2 -f docker/compose.yaml exec -T proa sh -c 'ls /app/eval/value-chains/*/value-chain.vc.json >/dev/null && test -z "$(find /app/eval \( -name expected.yaml -o -name expected-placements.yaml -o -name "*.md" -o -name "*.mjs" -o -name "*.jsonl" \) -print)"'
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Against the running stack: tokens via `proa token create` in the
+      # container, MCP over HTTP (2025-11-25 and 2026-07-28), and `proa mcp`
+      # started as the Claude Desktop entries say (checkout and docker exec).
+      - name: Live check (MCP over HTTP and the stdio bridge)
+        run: pnpm --filter @proa/cli test:live
+        env:
+          PROA_LIVE_URL: http://127.0.0.1:7400
+
+      - name: Logs
+        if: always()
+        run: docker compose -p proa2 -f docker/compose.yaml logs --no-color
+
+      - name: Stop
+        if: always()
+        run: docker compose -p proa2 -f docker/compose.yaml down -v
+
+  demo:
+    name: Read-only demo image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # docker/Dockerfile.demo as Fly.io builds it (issue #3): the seed (both
+      # landscapes, value chains, the simulation agent) runs in the build, so a
+      # broken seed fails here before any deploy.
+      - name: Build and start
+        run: docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --build --wait
+
+      # The runtime image has no eval directory, CLI or agent, and /opt/proa-demo
+      # only the seeded data directory and its description.
+      - name: Image holds no eval answers
+        run: |
+          docker compose -p proa2-demo -f docker/compose.demo.yaml exec -T demo sh -c 'test ! -e /app/eval && test ! -e /app/apps/cli && test ! -e /app/apps/agent-sim && test "$(ls -A /opt/proa-demo | sort | tr "\n" " ")" = "pgdata-template seed.json "'
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Health, both landscapes as a viewer with agent proposals and placements,
+      # every write route 403 demo-readonly, MCP 404, credentials 401.
+      - name: Check the demo
+        run: pnpm --filter @proa/demo check --url http://127.0.0.1:7480
+
+      # A restart is the owner's reset: the container starts from the seed again.
+      - name: Restart returns to the seed
+        run: |
+          docker compose -p proa2-demo -f docker/compose.demo.yaml restart demo
+          docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --wait
+          pnpm --filter @proa/demo check --url http://127.0.0.1:7480
+
+      - name: Logs
+        if: always()
+        run: docker compose -p proa2-demo -f docker/compose.demo.yaml logs --no-color
+
+      - name: Stop
+        if: always()
+        run: docker compose -p proa2-demo -f docker/compose.demo.yaml down -v

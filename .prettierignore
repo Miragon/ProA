@@ -1,0 +1,38 @@
+# Prettier covers the ProA 2.0 workspace only.
+
+# 1.x tree (frozen until the cut-over, CONCEPT §9)
+backend/
+frontend/
+scripts/
+.mvn/
+.github/workflows/backend-tests.yml
+.github/workflows/frontend-checks.yml
+.github/workflows/deploy.yml
+.github/workflows/release.yml
+docker-compose.yml
+.github/dependabot.yml
+.githooks/
+docs/
+README.md
+
+# Markdown keeps the repository's compact table style (CONCEPT.md, eval/README.md)
+**/*.md
+
+# eval/tools keeps its own style; corpus files are generated or hand-written YAML
+eval/
+
+# tooling and generated output
+.claude/
+.playwright-mcp/
+pnpm-lock.yaml
+**/dist/
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/drizzle/meta/
+packages/client/src/generated/
+packages/client/openapi.json
+**/__snapshots__/
+
+# vendored brand tokens (Miragon/corporate-identity, copied unchanged)
+apps/web/src/theme/cd-tokens.generated.css

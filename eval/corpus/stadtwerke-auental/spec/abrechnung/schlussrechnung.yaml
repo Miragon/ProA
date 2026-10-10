@@ -1,0 +1,71 @@
+key: abrechnung/schlussrechnung
+engine: c7
+name: Schlussrechnung
+notes: >-
+  C7 billing core, labels without umlauts. Two message starts fed from C8
+  collaborations: "Auszug gemeldet" (vertrieb/umzug) and "Lieferende gemeldet"
+  (marktkommunikation/lieferantenwechsel), both cross-engine-message. The timer
+  catch "Lieferende erreicht" looks like a target for the latter but is a timer
+  (event-def-mismatch). The final meter reading arrives as
+  ZwischenstandBereitgestellt from messwesen/zaehlerablesung. C7 does not
+  buffer messages, so the receive task must be active when the reading
+  arrives: the reading process waits for its reading date (the day after the
+  last day of supply) before it reads, and the timer here fires on the last
+  day of supply. Readings from the customer portal never come here directly.
+  The 30-day boundary is a safety net above the reading process's own 14-day
+  estimate fallback. The print output is called statically (call-unique).
+
+processes:
+  - id: Process_Schlussrechnung
+    name: Schlussrechnung
+    documentation: >-
+      Schlussrechnung bei Auszug oder Lieferantenwechsel: bis zum Lieferende
+      warten, Schlusszählerstand übernehmen oder schätzen, Schlussrechnung
+      berechnen, drucken und das Vertragskonto schließen.
+    dataStores:
+      - { id: DataStore_KundenstammIsu, name: Kundenstamm IS-U }
+      - { id: DataStore_MdmMesswerte, name: MDM-Messwerte }
+    elements:
+      - type: startEvent
+        id: Start_AuszugGemeldet
+        name: Auszug gemeldet
+        message: AuszugGemeldet
+        next: Gateway_AnlassJoin
+      - type: startEvent
+        id: Start_LieferendeGemeldet
+        name: Lieferende gemeldet
+        message: LieferendeGemeldet
+      - { type: exclusiveGateway, id: Gateway_AnlassJoin }
+      - type: intermediateCatchEvent
+        id: Event_LieferendeErreicht
+        name: Lieferende erreicht
+        timer: { date: "${lieferende}" }
+      - type: receiveTask
+        id: Task_SchlusszaehlerstandErhalten
+        name: Schlusszaehlerstand erhalten
+        message: ZwischenstandBereitgestellt
+        boundary:
+          - id: Boundary_KeinZaehlerstand
+            name: 30 Tage ohne Zaehlerstand
+            timer: { duration: P30D }
+            next: Task_ZaehlerstandSchaetzen
+      - { type: exclusiveGateway, id: Gateway_ZaehlerstandJoin }
+      - type: serviceTask
+        id: Task_SchlussrechnungBerechnen
+        name: Schlussrechnung berechnen
+        reads: [DataStore_MdmMesswerte, DataStore_KundenstammIsu]
+      - type: callActivity
+        id: Call_SchlussrechnungDrucken
+        name: Schlussrechnung drucken und versenden
+        calledElement: Process_RechnungsausgabeDruck
+      - type: serviceTask
+        id: Task_VertragskontoSchliessen
+        name: Vertragskonto schliessen
+        writes: [DataStore_KundenstammIsu]
+      - { type: endEvent, id: End_SchlussrechnungErstellt, name: Schlussrechnung erstellt }
+
+      - type: serviceTask
+        id: Task_ZaehlerstandSchaetzen
+        name: Schlusszaehlerstand schaetzen
+        reads: [DataStore_MdmMesswerte]
+        next: Gateway_ZaehlerstandJoin

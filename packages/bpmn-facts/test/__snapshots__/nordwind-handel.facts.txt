@@ -1,0 +1,448 @@
+# nordwind-handel: 31 models, 383 facts, FACTS_VERSION 1
+# process 32, call 14, msg_throw 32, msg_catch 33, sig_throw 2, sig_catch 6, evt_start 21, evt_end 62, data_store 24, message_flow 17, lane 12, task 128
+# kind elementId scope eventDef processId "keyNorm" fingerprint [dynamic] [label-key: no message/signal ref]
+
+## controlling/management-reporting (c7) facts_hash c7fb969776ccd031
+process      Process_ManagementReporting process - Process_ManagementReporting "process managementreporting" 93e1a2d72089
+evt_start    Start_MonatsabschlussErstellt process none Process_ManagementReporting "monatsabschluss erstellt" b6506f593777
+evt_end      End_BerichtVerteilt process none Process_ManagementReporting "management bericht verteilt" a05249d1de56
+data_store   DataStore_Hauptbuch process - Process_ManagementReporting "hauptbuch" 70d644e8e544
+task         Task_AbweichungenKommentieren process - Process_ManagementReporting "plan ist abweichungen kommentieren" a5f587c863f3
+task         Task_BerichtFreigeben process - Process_ManagementReporting "bericht freigeben" bcf4b940ed98
+task         Task_BerichtVerteilen process - Process_ManagementReporting "bericht an geschaeftsfuehrung verteilen" dba21f49271e
+task         Task_KennzahlenBerechnen process - Process_ManagementReporting "kennzahlen berechnen" f91c6f70df63
+
+## einkauf/archiv/bestellfreigabe-2019 (c7) facts_hash 109143edf9372289
+process      Process_Bestellfreigabe process - Process_Bestellfreigabe "process bestellfreigabe" df3d39832652
+evt_start    Start_FreigabeAngefordert process none Process_Bestellfreigabe "freigabe angefordert" 67419080ad85
+evt_end      End_BestellungAbgelehnt process none Process_Bestellfreigabe "bestellung abgelehnt" 207a516e6f56
+evt_end      End_BestellungFreigegeben process none Process_Bestellfreigabe "bestellung freigegeben" 97a1d76ced21
+task         Task_BestellungFreigeben process - Process_Bestellfreigabe "bestellung freigeben" c2b30fe9aa91
+
+## einkauf/bestellanforderung (c7) facts_hash 2a120e17c470473f
+process      Process_Bestellanforderung process - Process_Bestellanforderung "process bestellanforderung" fb8f5ff4737a
+call         Call_Bestellfreigabe process - Process_Bestellanforderung "process bestellfreigabe" 33d74b150675
+msg_throw    Event_BestellungAusgeloest process message Process_Bestellanforderung "bestellungausgeloest" eae2a3ef4a5d
+msg_throw    Task_BestellungUebermitteln process - Process_Bestellanforderung "bestellung" f463e7433b32
+msg_catch    Event_AntwortErhalten process message Process_Bestellanforderung "antwort" fc2529d29e59
+msg_catch    Start_MindestbestandUnterschritten process message Process_Bestellanforderung "mindestbestandunterschritten" 44062fccf759
+evt_start    Start_BedarfGemeldet process none Process_Bestellanforderung "bedarf gemeldet" 893e143c58a5
+evt_end      End_BestellanforderungAbgelehnt process none Process_Bestellanforderung "bestellanforderung abgelehnt" 64e781247ec6
+evt_end      End_BestellungAbgeschlossen process none Process_Bestellanforderung "bestellung abgeschlossen" ffc0c82a6790
+evt_end      End_NeuerLieferantBenoetigt process none Process_Bestellanforderung "neuer lieferant benoetigt" f9f7a818e6ad
+data_store   DataStore_Lieferantenstamm process - Process_Bestellanforderung "lieferantenstamm" b7abc25f3740
+message_flow MessageFlow_Participant_Lieferant_Event_AntwortErhalten process - - "auftragsbestaetigung" 954130e2f85b
+message_flow MessageFlow_Task_BestellungUebermitteln_Participant_Lieferant process - - "bestellung" f8a031baf30a
+lane         Lane_Bedarfstraeger process - Process_Bestellanforderung "bedarfstraeger" cf97c9788820
+lane         Lane_Einkauf process - Process_Bestellanforderung "einkauf" 40ddd5c498b3
+task         Task_BestellanforderungErfassen process - Process_Bestellanforderung "bestellanforderung erfassen" 107163dad034
+task         Task_BestellungAnlegen process - Process_Bestellanforderung "bestellung im erp anlegen" d19f4c01bbf5
+task         Task_LieferantAuswaehlen process - Process_Bestellanforderung "lieferant auswaehlen" 6df825453454
+
+## einkauf/bestellfreigabe (c7) facts_hash bd4f2515a67bc5b9
+process      Process_Bestellfreigabe process - Process_Bestellfreigabe "process bestellfreigabe" df3d39832652
+evt_start    Start_FreigabeAngefordert process none Process_Bestellfreigabe "freigabe angefordert" 67419080ad85
+evt_end      End_BestellungAbgelehnt process none Process_Bestellfreigabe "bestellung abgelehnt" 207a516e6f56
+evt_end      End_BestellungFreigegeben process none Process_Bestellfreigabe "bestellung freigegeben" 97a1d76ced21
+lane         Lane_Abteilungsleitung process - Process_Bestellfreigabe "abteilungsleitung" 59b303bbe205
+lane         Lane_Einkauf process - Process_Bestellfreigabe "einkauf" 40ddd5c498b3
+lane         Lane_Geschaeftsfuehrung process - Process_Bestellfreigabe "geschaeftsfuehrung" edecf190e9c4
+task         Task_FreigabeDokumentieren process - Process_Bestellfreigabe "freigabe dokumentieren" 711a51a32af9
+task         Task_FreigabestufeErmitteln process - Process_Bestellfreigabe "freigabestufe ermitteln" 80980fd304f8
+task         Task_PruefungAbteilungsleitung process - Process_Bestellfreigabe "bestellung pruefen abteilungsleitung" 2bbb6638e664
+task         Task_PruefungGeschaeftsfuehrung process - Process_Bestellfreigabe "bestellung pruefen geschaeftsfuehrung" 036de272138c
+
+## einkauf/lieferantenanlage (c7) facts_hash dbcc34a9ea6878f2
+process      Process_Lieferantenanlage process - Process_Lieferantenanlage "process lieferantenanlage" 3063b8d5c8b7
+evt_start    Start_NeuerLieferantBenoetigt process none Process_Lieferantenanlage "neuer lieferant benoetigt" 7b6ada2d22f9
+evt_end      End_LieferantAbgelehnt process none Process_Lieferantenanlage "lieferant abgelehnt" b21dfbfbe746
+evt_end      End_LieferantAngelegt process none Process_Lieferantenanlage "lieferant angelegt" f41b631cd09c
+data_store   DataStore_Lieferantenstamm process - Process_Lieferantenanlage "lieferantenstamm" b7abc25f3740
+task         Task_BankverbindungVerifizieren process - Process_Lieferantenanlage "bankverbindung per rueckruf verifizieren" 99f527782e4d
+task         Task_LieferantAnlegen process - Process_Lieferantenanlage "lieferant im erp anlegen" 4f938a142daf
+task         Task_LieferantendatenErfassen process - Process_Lieferantenanlage "lieferantendaten erfassen" 9c7bb5222680
+task         Task_SanktionslistenPruefen process - Process_Lieferantenanlage "sanktionslisten pruefen" bbc9381971b1
+task         Task_UstIdPruefen process - Process_Lieferantenanlage "ust idnr beim bzst pruefen" 993aa8487ced
+
+## finanzen/briefversand (c7) facts_hash 4fdf7ace9fa37dfb
+process      Process_Briefversand process - Process_Briefversand "process briefversand" 734fdf906934
+evt_start    Start_DruckauftragErhalten process none Process_Briefversand "druckauftrag erhalten" bf6534366799
+evt_end      End_BriefVersendet process none Process_Briefversand "brief versendet" 63c83a58a8cb
+task         Task_AnDruckdienstleisterUebergeben process - Process_Briefversand "an druckdienstleister uebergeben" 28382c1d357a
+task         Task_PdfErzeugen process - Process_Briefversand "pdf dokument erzeugen" 3121e265af82
+task         Task_VersandnachweisArchivieren process - Process_Briefversand "versandnachweis archivieren" 9ede84063a3e
+
+## finanzen/e-rechnung-versand (c7) facts_hash 853bfbfc72b71bd3
+process      Process_ERechnungVersand process - Process_ERechnungVersand "process erechnungversand" 36655fe04e53
+evt_start    Start_ERechnungAngefordert process none Process_ERechnungVersand "e rechnung angefordert" 7b4852cefa84
+evt_end      End_ERechnungZugestellt process none Process_ERechnungVersand "e rechnung zugestellt" 5d5efc9a06b5
+task         Task_ERechnungErzeugen process - Process_ERechnungVersand "xrechnung oder zugferd erzeugen" 4ad9b85f765d
+task         Task_ERechnungValidieren process - Process_ERechnungVersand "e rechnung validieren" 78f7e374dda2
+task         Task_PerEmailZustellen process - Process_ERechnungVersand "per e mail zustellen" 8cb85a30c955
+task         Task_UeberPeppolZustellen process - Process_ERechnungVersand "ueber peppol zustellen" 0c764e3326dd
+
+## finanzen/forderungsmanagement (c7) facts_hash fcec0b5cc90fab6b
+process      Process_Forderungsmanagement process - Process_Forderungsmanagement "process forderungsmanagement" 2a5bc124781e
+call         Call_Inkasso process - Process_Forderungsmanagement "process inkasso" 2846bb40c332
+call         Call_Mahnwesen process - Process_Forderungsmanagement "process mahnwesen" 6df615138c21
+msg_catch    Event_ZahlungZugeordnet process message Process_Forderungsmanagement "zahlungzugeordnet" aa44fa721d5b
+msg_catch    Start_RechnungVersendet process message Process_Forderungsmanagement "rechnungversendet" f6aedeb1b265
+msg_catch    Start_RuecklastschriftEingegangen event_subprocess message Process_Forderungsmanagement "ruecklastschrifteingegangen" cb53d526a222
+evt_end      End_AnInkassoUebergeben process none Process_Forderungsmanagement "an inkasso uebergeben" de125c631bdc
+evt_end      End_PostenAusgeglichen process none Process_Forderungsmanagement "offener posten ausgeglichen" bac8c72cb19e
+evt_end      End_PostenWiederEroeffnet event_subprocess none Process_Forderungsmanagement "posten wieder eroeffnet" 0c62bb1ee451
+data_store   DataStore_OffenePosten process - Process_Forderungsmanagement "offene posten" 600fd2e0a4e6
+task         Task_OffenenPostenAnlegen process - Process_Forderungsmanagement "offenen posten anlegen" 130438e37c24
+task         Task_OffenenPostenAusgleichen process - Process_Forderungsmanagement "offenen posten ausgleichen" 369e37ba7a1b
+task         Task_PostenWiederEroeffnen event_subprocess - Process_Forderungsmanagement "offenen posten wieder eroeffnen" daaf9a540e94
+
+## finanzen/gutschrift (c7) facts_hash 84b4cacb2818c3bd
+process      Process_Gutschrift process - Process_Gutschrift "process gutschrift" 9132400ba1b4
+call         Call_GutschriftVersenden process - Process_Gutschrift "process briefversand" bc08e82d2116
+msg_throw    End_GutschriftErstellt process message Process_Gutschrift "gutschrifterstellt" 5b5030443f22
+msg_catch    Start_GutschriftAngefordert process message Process_Gutschrift "gutschriftangefordert" d302ba0709f2
+sig_catch    Start_BuchungsperiodeGesperrt event_subprocess signal Process_Gutschrift "buchungsperiodegesperrt" fe6249524585
+evt_end      End_BuchungsdatumAngepasst event_subprocess none Process_Gutschrift "buchungsdatum angepasst" 4189b498435a
+data_store   DataStore_Debitorenkonten process - Process_Gutschrift "debitorenkonten" db26e2664518
+task         Task_BuchungsdatumAnpassen event_subprocess - Process_Gutschrift "buchungsdatum auf folgeperiode setzen" c845caa05737
+task         Task_GutschriftBuchen process - Process_Gutschrift "gutschrift buchen" 70b6a69c72d5
+task         Task_GutschriftFreigeben process - Process_Gutschrift "gutschrift freigeben" a84cd51572e9
+task         Task_GutschriftsbetragErmitteln process - Process_Gutschrift "gutschriftsbetrag ermitteln" 2367478db4e7
+
+## finanzen/kreditpruefung (c7) facts_hash b614c76feb0f4ebc
+process      Process_AuskunfteiAdapter process - Process_AuskunfteiAdapter "process auskunfteiadapter" a1e91b03d024
+process      Process_Kreditpruefung process - Process_Kreditpruefung "process kreditpruefung" c8668bc7dd84
+msg_throw    End_AntwortGesendet process message Process_AuskunfteiAdapter "antwort" d1d0ebd8d23f
+msg_throw    End_KreditpruefungAbgeschlossen process message Process_Kreditpruefung "kreditpruefungabgeschlossen" 867ca0d9d921
+msg_throw    Task_AuskunftAnfordern process - Process_Kreditpruefung "auskunftsanfrage" 20d7afb089e3
+msg_catch    Event_AntwortErhalten process message Process_Kreditpruefung "antwort" fc2529d29e59
+msg_catch    Start_AuskunftsanfrageEingegangen process message Process_AuskunfteiAdapter "auskunftsanfrage" 57dff5023b79
+msg_catch    Start_KreditpruefungAngefordert process message Process_Kreditpruefung "kreditpruefungangefordert" 65dead08f9af
+data_store   DataStore_Kundenstamm process - Process_Kreditpruefung "kundenstamm" df963a1225fc
+message_flow MessageFlow_End_AntwortGesendet_Event_AntwortErhalten process - - "bonitaetsauskunft" d604c5b775be
+message_flow MessageFlow_Task_AuskunftAnfordern_Start_AuskunftsanfrageEingegangen process - - "auskunftsanfrage" 47c24e25b6fd
+task         Task_AnfrageAufbereiten process - Process_AuskunfteiAdapter "anfragedaten aufbereiten" 0605f7f441ed
+task         Task_AuskunftAbrufen process - Process_AuskunfteiAdapter "bonitaetsauskunft bei auskunftei abrufen" f061cdfa6805
+task         Task_KreditentscheidungSpeichern process - Process_Kreditpruefung "kreditentscheidung speichern" 4f7726e86de3
+task         Task_KreditentscheidungTreffen process - Process_Kreditpruefung "kreditentscheidung manuell treffen" 2d6ad6e80502
+task         Task_KreditlimitBerechnen process - Process_Kreditpruefung "kreditlimit berechnen" 7f080f5c8381
+task         Task_KundendatenLaden process - Process_Kreditpruefung "kundendaten und zahlungshistorie laden" b997630c70ee
+task         Task_ScoreUebersetzen process - Process_AuskunfteiAdapter "auskunftei score in risikoklasse uebersetzen" 11bb6d955262
+
+## finanzen/lieferantenrechnung (c7) facts_hash b5c7f0dfd4705c2d
+process      Process_Lieferantenrechnung process - Process_Lieferantenrechnung "process lieferantenrechnung" 8094a942abf4
+msg_throw    Event_VorgezogeneZahlungAngefordert process message Process_Lieferantenrechnung "vorgezogenezahlungangefordert" a6ea8dd908fe
+msg_throw    Task_RueckfrageSenden process - Process_Lieferantenrechnung "rueckfrage an lieferanten senden" 274ca8e8453d label-key
+msg_catch    Event_WareneingangGeprueft process message Process_Lieferantenrechnung "wareneinganggeprueft" fb6c4813815d
+msg_catch    Event_ZahlungAngeordnet process message Process_Lieferantenrechnung "zahlungangeordnet" 13ffc53a124f
+msg_catch    Start_LieferantenrechnungEingegangen process message Process_Lieferantenrechnung "lieferantenrechnungeingegangen" 9629d7099954
+sig_catch    Start_BuchungsperiodeGesperrt event_subprocess signal Process_Lieferantenrechnung "buchungsperiodegesperrt" fe6249524585
+evt_end      End_BuchungsdatumGeprueft event_subprocess none Process_Lieferantenrechnung "buchungsdatum geprueft" d8215869ad2b
+evt_end      End_LieferantenrechnungBezahlt process none Process_Lieferantenrechnung "lieferantenrechnung bezahlt" 82aae63d595a
+evt_end      End_RechnungBeanstandet process none Process_Lieferantenrechnung "rechnung beanstandet" 0cea78389b4d
+data_store   DataStore_Kreditorenstamm process - Process_Lieferantenrechnung "kreditorenstamm" c2ea4715319e
+message_flow MessageFlow_Participant_Lieferant_Start_LieferantenrechnungEingegangen process - - "rechnung" 78c775683983
+message_flow MessageFlow_Task_RueckfrageSenden_Participant_Lieferant process - - "rueckfrage" fbef04a78572
+lane         Lane_Einkauf process - Process_Lieferantenrechnung "einkauf" 40ddd5c498b3
+lane         Lane_Kreditorenbuchhaltung process - Process_Lieferantenrechnung "kreditorenbuchhaltung" 9e800e63b580
+task         Task_AbweichungKlaeren process - Process_Lieferantenrechnung "abweichung mit bestellung klaeren" 2f8bf06a3d8c
+task         Task_BuchungsdatumPruefen event_subprocess - Process_Lieferantenrechnung "buchungsdatum pruefen" 2ce910ffd918
+task         Task_DreiWegeAbgleich process - Process_Lieferantenrechnung "drei wege abgleich durchfuehren" 5c9290809190
+task         Task_RechnungErfassen process - Process_Lieferantenrechnung "rechnung erfassen ocr" 417d62c405ef
+task         Task_VerbindlichkeitAusgleichen process - Process_Lieferantenrechnung "verbindlichkeit ausgleichen" 973f5eec1e9c
+task         Task_WareneingangsstatusPruefen process - Process_Lieferantenrechnung "wareneingangsstatus pruefen" f1a8d2da92eb
+task         Task_ZurZahlungFreigeben process - Process_Lieferantenrechnung "rechnung zur zahlung freigeben" dcb3ef0c3ad6
+
+## finanzen/mahnwesen (c7) facts_hash ac3946f477af2be4
+process      Process_Mahnwesen process - Process_Mahnwesen "process mahnwesen" bcc0a0a6693b
+call         Call_MahnungVersenden process - Process_Mahnwesen "process briefversand" 80fcad18524f
+msg_throw    End_KundeGesperrt process message Process_Mahnwesen "kundegesperrt" ec50ad9677ce
+msg_catch    Event_ZahlungZugeordnet process message Process_Mahnwesen "zahlungzugeordnet" aa44fa721d5b
+evt_start    Start_MahnverfahrenGestartet process none Process_Mahnwesen "mahnverfahren gestartet" 9cbc2878c1b6
+evt_end      End_MahnverfahrenErledigt process none Process_Mahnwesen "mahnverfahren erledigt" 4ff5051cf66b
+data_store   DataStore_KundenStammdaten process - Process_Mahnwesen "kunden stammdaten" 6e8359303adc
+task         Task_MahnstufeErmitteln process - Process_Mahnwesen "mahnstufe und mahngebuehr ermitteln" 6ad46f9cf2b8
+task         Task_SperrePruefen process - Process_Mahnwesen "kundensperre und inkasso pruefen" 9af9337ebde8
+
+## finanzen/monatsabschluss (c7) facts_hash c4e08f187609a0e1
+process      Process_Monatsabschluss process - Process_Monatsabschluss "process monatsabschluss" 06ec10a2027d
+sig_throw    Event_BuchungsperiodeGesperrt process signal Process_Monatsabschluss "buchungsperiodegesperrt" 4f5a14c2f8d2
+evt_start    Start_Monatswechsel process timer Process_Monatsabschluss "monatswechsel" 0589df676c00
+evt_end      End_MonatsabschlussErstellt process none Process_Monatsabschluss "monatsabschluss erstellt" c330b1a20fb8
+data_store   DataStore_Hauptbuch process - Process_Monatsabschluss "hauptbuch" 70d644e8e544
+task         Task_AbgrenzungenBuchen process - Process_Monatsabschluss "abgrenzungen und rueckstellungen buchen" 99521c60dedf
+task         Task_AbschlussFreigeben process - Process_Monatsabschluss "monatsabschluss pruefen und freigeben" e1a9693ea603
+task         Task_AbschlussberichtErzeugen process - Process_Monatsabschluss "abschlussbericht erzeugen" 54ada6fff910
+task         Task_DifferenzenKlaeren process - Process_Monatsabschluss "differenzen klaeren" a4824663cd0b
+task         Task_NebenbuecherAbstimmen process - Process_Monatsabschluss "nebenbuecher mit hauptbuch abstimmen" 4afab0607641
+
+## finanzen/rechnungsstellung (c7) facts_hash 968d6a8c87f9de49
+process      Process_Rechnungsstellung process - Process_Rechnungsstellung "process rechnungsstellung" 886b0535fc15
+call         Call_RechnungAusgeben process - Process_Rechnungsstellung "ausgabekanal" fcea766ff1d3 dynamic
+msg_throw    Event_RechnungVersendet process message Process_Rechnungsstellung "rechnungversendet" 0c45cca53a24
+msg_catch    Start_LieferungVersendet process message Process_Rechnungsstellung "lieferungversendet" 444aef5f78a2
+sig_catch    Start_BuchungsperiodeGesperrt event_subprocess signal Process_Rechnungsstellung "buchungsperiodegesperrt" fe6249524585
+evt_end      End_FuerSammelrechnungVorgemerkt process none Process_Rechnungsstellung "fuer sammelrechnung vorgemerkt" aadec68c6201
+evt_end      End_KeineRechnungErforderlich process none Process_Rechnungsstellung "keine rechnung erforderlich" fe7a14dcf188
+evt_end      End_RechnungGestellt process none Process_Rechnungsstellung "rechnung gestellt" 8b9eef9aaa6c
+evt_end      End_RechnungsdatumVerschoben event_subprocess none Process_Rechnungsstellung "rechnungsdatum verschoben" a19886abaed6
+data_store   DataStore_Hauptbuch process - Process_Rechnungsstellung "hauptbuch" 70d644e8e544
+data_store   DataStore_Kundenstamm process - Process_Rechnungsstellung "kundenstamm" df963a1225fc
+task         Task_AufSammelrechnungVormerken process - Process_Rechnungsstellung "auf sammelrechnung vormerken" 59b9abfb8e54
+task         Task_AuftragsdatenLaden process - Process_Rechnungsstellung "auftrags und kundendaten laden" f4178d478b90
+task         Task_RechnungErzeugen process - Process_Rechnungsstellung "rechnung erzeugen und buchen" 85096cf82a46
+task         Task_RechnungsdatumVerschieben event_subprocess - Process_Rechnungsstellung "rechnungsdatum auf folgeperiode setzen" 7bf68453cdd2
+task         Task_SteuersatzErmitteln process - Process_Rechnungsstellung "steuersatz und zahlungsziel ermitteln" 7ca073271743
+
+## finanzen/zahlungseingang (c7) facts_hash 67f43d9a80cc4ee7
+process      Process_Zahlungseingang process - Process_Zahlungseingang "process zahlungseingang" 3f38f047939f
+msg_throw    Task_KundensperreAufheben process - Process_Zahlungseingang "kundeentsperrt" 0ba91bf78e27
+msg_throw    Task_ZuordnungMelden process - Process_Zahlungseingang "zahlungzugeordnet" e5d8ac01c02c
+evt_start    Start_KontoauszugFaellig process timer Process_Zahlungseingang "werktags 6 uhr" 0e829ac879f9
+evt_end      End_KontoauszugVerarbeitet process none Process_Zahlungseingang "kontoauszug verarbeitet" 7cc58ff3a03f
+data_store   DataStore_OpListe process - Process_Zahlungseingang "op liste" 06c6efd1a8b9
+task         Task_KontoauszugAbrufen process - Process_Zahlungseingang "kontoauszug abrufen camt 053" 41e0c9876292
+task         Task_ZahlungenManuellKlaeren process - Process_Zahlungseingang "zahlungen manuell klaeren" 9e83778126ad
+task         Task_ZahlungenVerbuchen process - Process_Zahlungseingang "zahlungen verbuchen" b1de7b9272f2
+task         Task_ZahlungenZuordnen process - Process_Zahlungseingang "zahlungen automatisch zuordnen" 7d0028df760a
+
+## finanzen/zahlungslauf (c7) facts_hash 935e8ad61c951371
+process      Process_Zahlungslauf process - Process_Zahlungslauf "process zahlungslauf" c369522026c8
+msg_throw    Event_ZahlungAngeordnet process message Process_Zahlungslauf "zahlungangeordnet" b1d1b9ea09fc
+msg_throw    Task_ZahlungsdateiUebermitteln process - Process_Zahlungslauf "zahlungsdateibank" 8fbc4cf653ba
+msg_catch    Start_EilzahlungAngefordert process message Process_Zahlungslauf "eilzahlungangefordert" aad3c10d780a
+evt_start    Start_ZahlungslaufFaellig process timer Process_Zahlungslauf "zahlungslauf faellig donnerstags" 739e6f852531
+evt_end      End_ZahlungslaufAbgeschlossen process none Process_Zahlungslauf "zahlungslauf abgeschlossen" 6e47901dcf24
+data_store   DataStore_Kreditorenstamm process - Process_Zahlungslauf "kreditorenstamm" c2ea4715319e
+task         Task_FaelligeVerbindlichkeitenErmitteln process - Process_Zahlungslauf "faellige verbindlichkeiten ermitteln" cc54647db500
+task         Task_SepaDateiErzeugen process - Process_Zahlungslauf "sepa zahlungsdatei erzeugen" 9e186cdf6f84
+task         Task_ZahlungsvorschlagErstellen process - Process_Zahlungslauf "zahlungsvorschlag erstellen" c58f7de729c1
+task         Task_ZahlungsvorschlagFreigeben process - Process_Zahlungslauf "zahlungsvorschlag freigeben vier augen prinzip" 017c5481a053
+
+## lager/bestandsueberwachung (c8) facts_hash 2f0bac5a1bf238d4
+process      Process_Bestandsueberwachung process - Process_Bestandsueberwachung "process bestandsueberwachung" a4e6a82d7586
+msg_throw    Event_MindestbestandUnterschritten process message Process_Bestandsueberwachung "mindestbestandunterschritten" 83301f3c5e0a
+evt_start    Start_BestandspruefungFaellig process timer Process_Bestandsueberwachung "bestandspruefung faellig taeglich" 0d6981c2d573
+evt_end      End_BestandAusreichend process none Process_Bestandsueberwachung "bestand ausreichend" 584ab5918383
+evt_end      End_NachbestellungAngestossen process none Process_Bestandsueberwachung "nachbestellung angestossen" 7c31b4abab83
+data_store   DataStore_Artikelstamm process - Process_Bestandsueberwachung "artikelstamm" fb56bcdf7cb8
+data_store   DataStore_Lagerbestand process - Process_Bestandsueberwachung "lagerbestand" 010011bed3ff
+task         Task_BestaendeAbgleichen process - Process_Bestandsueberwachung "bestaende mit mindestbestaenden abgleichen" fe1362bb6d75
+task         Task_BestellmengeBerechnen process - Process_Bestandsueberwachung "bestellmenge berechnen" 26217bf918ef
+
+## lager/kommissionierung (c8) facts_hash 003f696f40b8bd51
+process      Process_Kommissionierung process - Process_Kommissionierung "process kommissionierung" 1908bcae44b8
+msg_throw    Event_WareVersandbereit process message Process_Kommissionierung "wareversandbereit" 3aa2b0334508
+sig_catch    Start_ProduktrueckrufAusgeloest event_subprocess signal Process_Kommissionierung "produktrueckruf" 22ef56ab6620
+evt_start    Start_KommissionierauftragErhalten process none Process_Kommissionierung "kommissionierauftrag erhalten" f8edd3766937
+evt_start    Start_VerpackenGestartet subprocess none Process_Kommissionierung "verpacken gestartet" f6210871cf27
+evt_end      End_AnSpeditionUebergeben process none Process_Kommissionierung "an speditionsversand uebergeben" b4743c17ef95
+evt_end      End_KommissionierungAbgebrochen process none Process_Kommissionierung "kommissionierung abgebrochen" 739e323e5d9c
+evt_end      End_KommissionierungAbgeschlossen process none Process_Kommissionierung "kommissionierung abgeschlossen" 30edf86454b7
+evt_end      End_RueckrufartikelGesperrt event_subprocess none Process_Kommissionierung "rueckrufartikel gesperrt" 699c4ec80905
+evt_end      End_WareVersandbereit subprocess none Process_Kommissionierung "ware versandbereit" fc5789d8eca5
+data_store   DataStore_WmsLagerbestand process - Process_Kommissionierung "wms lagerbestand" 66b205f2e794
+lane         Lane_Kommissionierung process - Process_Kommissionierung "kommissionierung" 5e178a7e0f71
+lane         Lane_Leitstand process - Process_Kommissionierung "lagerleitstand" 8ed7f60448e1
+lane         Lane_Packstation process - Process_Kommissionierung "packstation" dcc9ca264fdc
+task         Task_FehlmengeKlaeren process - Process_Kommissionierung "fehlmenge mit leitstand klaeren" 89cee9d65b68
+task         Task_PacklisteDrucken subprocess - Process_Kommissionierung "packliste und label drucken" 14df8a5a7da5
+task         Task_PackmittelWaehlen subprocess - Process_Kommissionierung "packmittel waehlen" 77851e4ea2b2
+task         Task_PaketBereitstellen process - Process_Kommissionierung "paket in versandzone bereitstellen" e6dcac8f4df4
+task         Task_PicklisteErzeugen process - Process_Kommissionierung "pickliste erzeugen" 40e256f671fd
+task         Task_RueckrufartikelSperren event_subprocess - Process_Kommissionierung "rueckrufartikel im wms sperren" 5755a2715887
+task         Task_WareKommissionieren process - Process_Kommissionierung "ware kommissionieren" eeb88bdf9377
+task         Task_WareReservieren process - Process_Kommissionierung "ware reservieren" a9772a1adb04
+task         Task_WareVerpacken subprocess - Process_Kommissionierung "ware verpacken" 259fe038c0cc
+
+## lager/wareneingang (c8) facts_hash d5a75488628bc39d
+process      Process_Wareneingang process - Process_Wareneingang "process wareneingang" c57a63c6d1cb
+call         Call_Wareneingangspruefung process - Process_Wareneingang "process wareneingangspruefung" 6f2338feab5f
+msg_throw    Event_WareneingangGeprueft process message Process_Wareneingang "wareneinganggeprueft" ae7b1de77840
+msg_catch    Start_BestellungAusgeloest process message Process_Wareneingang "bestellungausgeloest" a7e87c3c3bac
+evt_start    Start_EinlagerungGestartet subprocess none Process_Wareneingang "ware freigegeben" 66d1cb9512ce
+evt_end      End_EinkaufInformiert process none Process_Wareneingang "einkauf informiert" 0112c7e8a5bf
+evt_end      End_WareEingelagert subprocess none Process_Wareneingang "ware eingelagert" 3be5f6cf0d24
+evt_end      End_WareZurueckgewiesen process none Process_Wareneingang "ware zurueckgewiesen" 7d4429a0786d
+evt_end      End_WareneingangAbgeschlossen process none Process_Wareneingang "wareneingang abgeschlossen" f3ade11c0366
+data_store   DataStore_WmsLagerbestand process - Process_Wareneingang "wms lagerbestand" 66b205f2e794
+task         Task_EinkaufInformieren process - Process_Wareneingang "einkauf ueber lieferverzug informieren" 3c8c1d2462b9
+task         Task_LagerplatzErmitteln subprocess - Process_Wareneingang "lagerplatz ermitteln" f386c3906377
+task         Task_LieferavisAnlegen process - Process_Wareneingang "lieferavis anlegen" 83081a3b69cb
+task         Task_PruefzoneBereitstellen process - Process_Wareneingang "ware in pruefzone bereitstellen" 7425752de715
+task         Task_QsBestandBuchen process - Process_Wareneingang "ware in qualitaetspruefbestand buchen" ed26e4a70088
+task         Task_RuecksendungVeranlassen process - Process_Wareneingang "ruecksendung an lieferanten veranlassen" 43c3d4df7a78
+task         Task_WareAnnehmen process - Process_Wareneingang "ware annehmen und menge pruefen" 02615b8415dc
+task         Task_WareEinlagern subprocess - Process_Wareneingang "ware einlagern" 32ddf006af9c
+task         Task_WareneingangBuchen process - Process_Wareneingang "ware in frei verfuegbaren bestand umbuchen" 02074bc00652
+
+## logistik/shipping (c8) facts_hash d10d90e98333f97a
+process      Process_Shipping process - Process_Shipping "process shipping" 2f3bada87284
+msg_throw    Event_DeliveryDelayed process message Process_Shipping "lieferungverspaetet" 7dc591041472
+msg_throw    Event_ShipmentDispatched process message Process_Shipping "lieferungversendet" 8ccd355cec56
+msg_throw    Task_TransmitShippingOrder process - Process_Shipping "transmit shipping order to carrier" 87cffdc415b3 label-key
+msg_catch    Task_AwaitPickupScan subprocess - Process_Shipping "pickupscanned" 7e8b80a16536
+msg_catch    Task_AwaitProofOfDelivery process - Process_Shipping "proofofdelivery" 387099852a4e
+evt_start    Start_HandoverStarted subprocess none Process_Shipping "handover started" 9d71e285d024
+evt_start    Start_ShipmentRequested process none Process_Shipping "shipment requested" 43b78de783ca
+evt_end      End_DelayReported process none Process_Shipping "delay reported" 818c7aa401b4
+evt_end      End_ShipmentDelivered process none Process_Shipping "shipment delivered" 3d01825f40f5
+evt_end      End_ShipmentDispatched subprocess none Process_Shipping "shipment dispatched" 425c14790a77
+message_flow MessageFlow_Participant_Carrier_Task_AwaitPickupScan process - - "pickup scan" d1384f155c9e
+message_flow MessageFlow_Participant_Carrier_Task_AwaitProofOfDelivery process - - "proof of delivery" 591bb81fe57b
+message_flow MessageFlow_Task_TransmitShippingOrder_Participant_Carrier process - - "shipping order" 3c0a2b440b8d
+task         Task_BookShipment process - Process_Shipping "book shipment and create label" 20d1c1548193
+task         Task_DetermineCarrier process - Process_Shipping "determine carrier and service level" 558953b2d69d
+task         Task_LoadParcels subprocess - Process_Shipping "load parcels onto carrier truck" d96f914330f0
+
+## logistik/speditionsversand (c7) facts_hash 8b50d5cda4a95496
+process      Process_Speditionsversand process - Process_Speditionsversand "process speditionsversand" 800d0f6c9fec
+msg_throw    Event_LieferungVersendet process message Process_Speditionsversand "lieferungversendet" 70a62887c514
+msg_throw    Task_AuftragAnSpeditionSenden process - Process_Speditionsversand "speditionsauftrag" 1a2202b3db1f
+msg_catch    Start_WareVersandbereit process message Process_Speditionsversand "wareversandbereit" 8684c195abd8
+evt_end      End_LieferungVerspaetet process none Process_Speditionsversand "lieferung verspaetet" 0d737d65d43b
+evt_end      End_SpeditionsversandAbgeschlossen process none Process_Speditionsversand "speditionsversand abgeschlossen" 67340aef055b
+message_flow MessageFlow_Task_AuftragAnSpeditionSenden_Participant_Spedition process - - "speditionsauftrag" 2f623499ee64
+task         Task_DispositionInformieren process - Process_Speditionsversand "disposition informieren" 42a17597c03f
+task         Task_SpeditionsauftragErstellen process - Process_Speditionsversand "speditionsauftrag erstellen" c36a5ba343d1
+task         Task_VerladungBestaetigen process - Process_Speditionsversand "verladung bestaetigen" 16d89073bc2f
+
+## partner/customer-account-lock (c8) facts_hash 47943a1a67bbfbbf
+process      Process_CustomerAccountLock process - Process_CustomerAccountLock "process customeraccountlock" f9b811cdab14
+msg_catch    Start_CustomerBlocked process message Process_CustomerAccountLock "kundegesperrt" ab5dab63f842
+evt_end      End_AccountLocked process none Process_CustomerAccountLock "account locked" 716a982a6ab2
+data_store   DataStore_CustomerMaster process - Process_CustomerAccountLock "customer master" 577eb265ec86
+task         Task_DisablePurchaseOnAccount process - Process_CustomerAccountLock "disable purchase on account" 7c6237fea001
+task         Task_HoldOpenOrders process - Process_CustomerAccountLock "put open on account orders on hold" c74fb0b833e2
+task         Task_InformKeyAccountManager process - Process_CustomerAccountLock "inform key account manager" 50d1cf4e57d6
+
+## partner/partner-onboarding (c8) facts_hash 6fa06edb191775a5
+process      Process_PartnerOnboarding process - Process_PartnerOnboarding "process partneronboarding" bc7c50d46fb8
+msg_throw    Task_RequestCreditCheck process - Process_PartnerOnboarding "kreditpruefungangefordert" 77cef0317473
+msg_catch    Task_AwaitCreditDecision process - Process_PartnerOnboarding "kreditpruefungabgeschlossen" 981e87f86083
+evt_start    Start_DealerApplicationReceived process none Process_PartnerOnboarding "dealer application received" 78bd1bb01668
+evt_end      End_ApplicationRejected process none Process_PartnerOnboarding "dealer application rejected" 6347d302fa5a
+evt_end      End_PartnerActivated process none Process_PartnerOnboarding "partner activated" cb5e42abb525
+data_store   DataStore_CustomerMaster process - Process_PartnerOnboarding "customer master" 577eb265ec86
+task         Task_CheckDocuments process - Process_PartnerOnboarding "check trade licence and documents" 231e8b2905c3
+task         Task_CreateCustomerAccount process - Process_PartnerOnboarding "create customer account" c61f10686f64
+task         Task_NotifyRejection process - Process_PartnerOnboarding "notify applicant of rejection" cce7c8c20a20
+task         Task_SetUpDealerPrices process - Process_PartnerOnboarding "set up dealer price list" 40f0fcdb8063
+task         Task_VerifyCommercialRegister process - Process_PartnerOnboarding "verify commercial register entry" 959e8ce1eb8d
+task         Task_WelcomeCall process - Process_PartnerOnboarding "welcome call by key account manager" 150aa55bf87f
+
+## qualitaet/produktrueckruf (c8) facts_hash 6d2af1fa9ec87339
+process      Process_Produktrueckruf process - Process_Produktrueckruf "process produktrueckruf" 56552922db9d
+sig_throw    Event_ProduktrueckrufAusgeloest process signal Process_Produktrueckruf "produktrueckruf" 2b14c31866c4
+evt_start    Start_RueckrufBeschlossen process none Process_Produktrueckruf "rueckruf durch qm beschlossen" 0e090111c60e
+evt_end      End_RueckrufAbgeschlossen process none Process_Produktrueckruf "rueckruf abgeschlossen" 250afb535c38
+data_store   DataStore_Artikelstamm process - Process_Produktrueckruf "artikelstamm" fb56bcdf7cb8
+task         Task_BehoerdeInformieren process - Process_Produktrueckruf "marktueberwachungsbehoerde informieren" eaa035503277
+task         Task_ChargenErmitteln process - Process_Produktrueckruf "betroffene chargen und artikel ermitteln" 92fd8ca148ad
+task         Task_KundenInformieren process - Process_Produktrueckruf "betroffene kunden informieren" 6ae15f858161
+task         Task_WirksamkeitPruefen process - Process_Produktrueckruf "wirksamkeit des rueckrufs pruefen" bc3e1f3fa67f
+
+## qualitaet/wareneingangspruefung (c8) facts_hash af4eb80407fb2294
+process      Process_Wareneingangspruefung process - Process_Wareneingangspruefung "process wareneingangspruefung" 7549a0d79469
+evt_start    Start_PruefungAngefordert process none Process_Wareneingangspruefung "pruefung angefordert" b50ade57a6d6
+evt_end      End_WareFreigegeben process none Process_Wareneingangspruefung "ware freigegeben" 73d35d6bb2ea
+task         Task_MaengelruegeVersenden process - Process_Wareneingangspruefung "maengelruege per e mail an lieferanten" 716cb47276cf
+task         Task_PruefentscheidAbleiten process - Process_Wareneingangspruefung "pruefentscheid ableiten" 0d7fdc7b1cf8
+task         Task_PruefmerkmaleErfassen process - Process_Wareneingangspruefung "pruefmerkmale erfassen" 42d2c35891c8
+task         Task_SperrbestandBuchen process - Process_Wareneingangspruefung "ware in sperrbestand buchen" 44a8d48d2bee
+task         Task_StichprobeZiehen process - Process_Wareneingangspruefung "stichprobe nach aql ziehen" 706f7caa0462
+
+## service/ersatzlieferung (c8) facts_hash dcb4a6d7421ab921
+process      Process_Ersatzlieferung process - Process_Ersatzlieferung "process ersatzlieferung" ef9fff8a4b98
+call         Call_ErsatzwareKommissionieren process - Process_Ersatzlieferung "process kommissionierung" fa2e16e4b1c5
+call         Call_ErsatzwareVersenden process - Process_Ersatzlieferung "process shipping" d0130dde5848
+evt_start    Start_ErsatzlieferungAngefordert process none Process_Ersatzlieferung "ersatzlieferung angefordert" abbbe5caaf94
+evt_end      End_LieferungVersendet process none Process_Ersatzlieferung "lieferung versendet" c32c76fce9f1
+task         Task_ErsatzauftragAnlegen process - Process_Ersatzlieferung "kostenlosen ersatzauftrag anlegen" 52ac8b3bd005
+task         Task_KundenInformieren process - Process_Ersatzlieferung "kunden ueber sendungsnummer informieren" 81e16fcb2fe2
+
+## service/kundenbenachrichtigung (c8) facts_hash 4db89f55937b7bdd
+process      Process_Kundenbenachrichtigung process - Process_Kundenbenachrichtigung "process kundenbenachrichtigung" 7f56906d10c6
+msg_catch    Start_LieferungVerspaetet process message Process_Kundenbenachrichtigung "lieferungverspaetet" 627c5f6a5cf4
+evt_end      End_KundeInformiert process none Process_Kundenbenachrichtigung "kunde informiert" 66862fcf6a72
+data_store   DataStore_CrmKunden process - Process_Kundenbenachrichtigung "crm kunden" abc747f0aacc
+task         Task_KundenAnrufen process - Process_Kundenbenachrichtigung "kunden anrufen und gutschein anbieten" 9b2972645bfd
+task         Task_KundendatenLaden process - Process_Kundenbenachrichtigung "kundendaten und kanalpraeferenz laden" e13b4564b584
+task         Task_VerzugsinfoSenden process - Process_Kundenbenachrichtigung "verzugsinformation per e mail senden" 417903635964
+
+## service/reklamation (c8) facts_hash 0905641796388a01
+process      Process_Reklamation process - Process_Reklamation "process reklamation" 6a6de8ef234d
+call         Call_Ersatzlieferung process - Process_Reklamation "process ersatzlieferung" d1de26201978
+msg_throw    Task_AntwortSenden process - Process_Reklamation "antwort" c48d0692ffb9
+msg_throw    Task_GutschriftAnfordern process - Process_Reklamation "gutschriftangefordert" 74e239e3bbb9
+msg_throw    Task_RuecksendungVeranlassen process - Process_Reklamation "returnrequested" b43e4d44ae7c
+msg_catch    Event_GutschriftErstellt process message Process_Reklamation "gutschrifterstellt" 88e4cc5b92fa
+msg_catch    Start_ReklamationEingegangen process message Process_Reklamation "reklamationeingegangen" d11c19a9695c
+msg_catch    Start_ReklamationZurueckgezogen event_subprocess message Process_Reklamation "reklamationzurueckgezogen" e60840d320e7
+evt_end      End_ReklamationAbgeschlossen process none Process_Reklamation "reklamation abgeschlossen" 1932c43c61b4
+evt_end      End_SerienfehlerGemeldet process none Process_Reklamation "serienfehler an qm gemeldet" 65530958e18d
+evt_end      End_VorgangGeschlossen event_subprocess none Process_Reklamation "vorgang geschlossen" a672a3ed1946
+data_store   DataStore_CrmKunden process - Process_Reklamation "crm kunden" abc747f0aacc
+message_flow MessageFlow_Participant_Kunde_Start_ReklamationEingegangen process - - "reklamation" 5d5937e780a1
+message_flow MessageFlow_Participant_Kunde_Start_ReklamationZurueckgezogen process - - "rueckzug" c844dd72ab40
+message_flow MessageFlow_Task_AntwortSenden_Participant_Kunde process - - "antwort" 13c782bc51c1
+lane         Lane_Kundenservice process - Process_Reklamation "kundenservice" 50ffe1997033
+lane         Lane_Qualitaetssicherung process - Process_Reklamation "qualitaetssicherung" 766c856c4d45
+task         Task_ReklamationBewerten process - Process_Reklamation "reklamation fachlich bewerten" 7aec850b8ae3
+task         Task_ReklamationErfassen process - Process_Reklamation "reklamation erfassen" 83f6f08f1dad
+task         Task_VorgangSchliessen event_subprocess - Process_Reklamation "vorgang schliessen" e3d4cb9fe003
+
+## service/returns (c8) facts_hash 33a87b4514cd5003
+process      Process_Returns process - Process_Returns "process returns" 18818decefb0
+call         Call_ShipExchangeItem process - Process_Returns "exchangeprocess" bcf22019dff7 dynamic
+msg_throw    Task_RequestCreditNote process - Process_Returns "creditnoterequested" 20ffef3e034f
+msg_catch    Start_ReturnRequested process message Process_Returns "returnrequested" 59aa758eb11d
+msg_catch    Task_AwaitCreditNote process - Process_Returns "gutschrifterstellt" 38d10bbced68
+sig_catch    Start_ProductRecall event_subprocess signal Process_Returns "produktrueckruf" 1a4fadd5dbf0
+evt_end      End_RecallCaseFlagged event_subprocess none Process_Returns "return flagged as recall case" 784cc9edeace
+evt_end      End_ReturnCompleted process none Process_Returns "return completed" 9fa92e50dc5b
+evt_end      End_ReturnExpired process none Process_Returns "return expired" 548284d127c1
+data_store   DataStore_Inventory process - Process_Returns "inventory" cc81b19d9c16
+task         Task_CreateReturnLabel process - Process_Returns "create return label" b68ed2655df2
+task         Task_FlagRecallCase event_subprocess - Process_Returns "flag return as recall case" e8e13383ee9c
+task         Task_InspectReturnedGoods process - Process_Returns "receive and inspect returned goods" 40539f42e8ee
+task         Task_RestockGoods process - Process_Returns "restock goods" 66c74e378547
+
+## vertrieb/marketplace-order-import (c8) facts_hash 24b523cfe5fd300e
+process      Process_MarketplaceOrderImport process - Process_MarketplaceOrderImport "process marketplaceorderimport" 54ba55b8f58e
+msg_throw    End_OrderRejected process message Process_MarketplaceOrderImport "orderrejected" 45ccd3e712bd
+msg_throw    Event_ForwardOrder process message Process_MarketplaceOrderImport "orderreceived" 70a881dc2500
+msg_catch    Start_MarketplaceOrderNotified process message Process_MarketplaceOrderImport "marketplaceordernotified" c674616941b2
+evt_end      End_OrderImported process none Process_MarketplaceOrderImport "order imported" e989e09431d9
+task         Task_CheckMarketplaceRules process - Process_MarketplaceOrderImport "check marketplace rules" 03f343103963
+task         Task_FetchOrderDetails process - Process_MarketplaceOrderImport "fetch order details from marketplace" 60b9916be46e
+task         Task_MapOrder process - Process_MarketplaceOrderImport "map to nordwind order format" d2be15ec825c
+
+## vertrieb/order-handling (c8) facts_hash 371ba3b6ea1c6235
+process      Process_OrderHandling process - Process_OrderHandling "process orderhandling" 738948c1484b
+call         Call_FraudCheck process - Process_OrderHandling "process fraudcheck" 2b494f131b10
+call         Call_PickAndPack process - Process_OrderHandling "process kommissionierung" b28d14ddfc8d
+call         Call_ShipOrder process - Process_OrderHandling "process shipping" e19cb95791e4
+msg_throw    Task_RequestCreditCheck process - Process_OrderHandling "kreditpruefungangefordert" 77cef0317473
+msg_throw    Task_SendConfirmation process - Process_OrderHandling "send order confirmation" 999d7bbfb126 label-key
+msg_throw    Task_SendRejection process - Process_OrderHandling "send rejection" 6d7c2ab94c1f label-key
+msg_catch    Event_PaymentAllocated process message Process_OrderHandling "zahlungzugeordnet" 624a20fafabd
+msg_catch    Start_InvoiceSent event_subprocess message Process_OrderHandling "invoicesent" 7908c31e5590
+msg_catch    Start_OrderCancelled event_subprocess message Process_OrderHandling "ordercancelled" 8bec3f4a23fa
+msg_catch    Start_OrderReceived process message Process_OrderHandling "orderreceived" 595306a0d278
+msg_catch    Task_WaitForCreditDecision process - Process_OrderHandling "kreditpruefungabgeschlossen" 2db5cdc56bd2
+sig_catch    Start_ProductRecall event_subprocess signal Process_OrderHandling "produktrueckruf" 1a4fadd5dbf0
+evt_end      End_OrderCancelled event_subprocess none Process_OrderHandling "order cancellation processed" afc2a72cd90e
+evt_end      End_OrderCheckedForRecall event_subprocess none Process_OrderHandling "order checked for recall" 529d4ebc1649
+evt_end      End_OrderCompleted process none Process_OrderHandling "order completed" 592fdae5551d
+evt_end      End_OrderRejected process none Process_OrderHandling "order rejected" 7516e4d8496d
+evt_end      End_StatusInvoiced event_subprocess none Process_OrderHandling "order status set to invoiced" 9ebc0392f84a
+data_store   DataStore_CustomerMaster process - Process_OrderHandling "customer master" 577eb265ec86
+message_flow MessageFlow_Participant_Customer_Start_OrderCancelled process - - "cancellation" 2160b3be4a3e
+message_flow MessageFlow_Participant_Customer_Start_OrderReceived process - - "order" 4779541b4419
+message_flow MessageFlow_Task_SendConfirmation_Participant_Customer process - - "order confirmation" 2986567578b7
+message_flow MessageFlow_Task_SendRejection_Participant_Customer process - - "rejection" 7e351d427f49
+task         Task_CancelOrder event_subprocess - Process_OrderHandling "cancel order and release stock" eaf8b1cf3598
+task         Task_CheckOrderForRecall event_subprocess - Process_OrderHandling "check order for recalled items" 473748b17278
+task         Task_SetStatusInvoiced event_subprocess - Process_OrderHandling "set order status to invoiced" 363c7f9985fc
+task         Task_ValidateOrder process - Process_OrderHandling "validate order" af1ea20f178e

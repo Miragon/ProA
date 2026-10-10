@@ -1,0 +1,261 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+/* Miragon brand tokens (--cd-*), vendored unchanged from miragon-brand:modeler-tool-design. */
+@import './theme/cd-tokens.generated.css';
+
+/* `dark:` classes in shadcn components stay inert: ProA has exactly one (light) mode and never sets `.dark`. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  /* Miragon status and brand colours (§3.3): text in the base colour, fills in -soft. */
+  --color-success: var(--cd-success);
+  --color-success-soft: var(--cd-success-soft);
+  --color-warning: var(--cd-warning);
+  --color-warning-soft: var(--cd-warning-soft);
+  --color-danger: var(--cd-danger);
+  --color-danger-soft: var(--cd-danger-soft);
+  --color-info: var(--cd-info);
+  --color-info-soft: var(--cd-info-soft);
+  --color-brand: var(--cd-gruen);
+  --color-link: var(--cd-blau-link);
+  --color-contour: var(--cd-kontur);
+  --color-paper: var(--cd-grau);
+  /* CI radii: sm 6px (badges), md 12px (standard: buttons, inputs, cards), lg 16px (panels). */
+  --radius-sm: var(--cd-radius-sm);
+  --radius-md: 8px;
+  --radius-lg: var(--cd-radius-md);
+  --radius-xl: var(--cd-radius-lg);
+  --radius-2xl: var(--cd-radius-lg);
+  --radius-3xl: var(--cd-radius-lg);
+  --radius-4xl: var(--cd-radius-pill);
+  /* CI elevation, tinted with brand black. */
+  --shadow-xs: var(--cd-shadow-1);
+  --shadow-sm: var(--cd-shadow-1);
+  --shadow-md: var(--cd-shadow-2);
+  --shadow-lg: var(--cd-shadow-3);
+  --ease-out: var(--cd-ease-out);
+  --ease-in-out: var(--cd-ease);
+}
+
+/* App aliases over the --cd-* tokens (one mode, no dark override). */
+:root {
+  color-scheme: light;
+  --paper: var(--cd-grau);
+  --surface: var(--cd-weiss);
+  --ink: var(--cd-schwarz);
+  --ink-muted: var(--cd-text-leise);
+  --line: var(--cd-linie);
+  --accent-fill: var(--cd-blau);
+  --accent-ink: var(--cd-blau-link);
+  --brand: var(--cd-gruen);
+  /* dialog backdrop, derived from --cd-nacht (§8) */
+  --overlay: color-mix(in srgb, var(--cd-nacht) 42%, transparent);
+
+  /* shadcn semantic tokens mapped onto the Miragon palette */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--cd-blau);
+  --primary-foreground: var(--cd-weiss);
+  --primary-hover: var(--cd-blau-link);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--ink);
+  --muted: color-mix(in srgb, var(--cd-linie) 45%, var(--cd-weiss));
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--cd-info-soft);
+  --accent-foreground: var(--accent-ink);
+  --destructive: var(--cd-danger);
+  --border: var(--line);
+  --input: var(--cd-kontur);
+  --ring: var(--accent-ink);
+  --radius: var(--cd-radius-md);
+}
+
+/*
+ * Height of the read-only demo's banner (issue #3): 0 unless the banner marks
+ * the document (`<html data-proa-demo>`). Full-height layouts subtract it.
+ */
+:root {
+  --proa-banner-h: 0px;
+}
+:root[data-proa-demo] {
+  --proa-banner-h: 2.5rem;
+}
+
+/* The viewport below the demo banner (the whole viewport outside the demo). */
+@utility h-app-viewport {
+  height: calc(100svh - var(--proa-banner-h));
+}
+@utility min-h-app-viewport {
+  min-height: calc(100svh - var(--proa-banner-h));
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    @apply font-mono;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* bpmn-js canvas (model view): endpoints of the selected relation. Colour plus overlay label, never colour alone. */
+.proa-canvas .djs-element.proa-endpoint .djs-visual > :first-child {
+  stroke: var(--cd-blau) !important;
+  stroke-width: 3px !important;
+}
+.proa-canvas .djs-element.proa-endpoint .djs-visual > rect:first-child,
+.proa-canvas .djs-element.proa-endpoint .djs-visual > circle:first-child,
+.proa-canvas .djs-element.proa-endpoint .djs-visual > polygon:first-child {
+  fill: color-mix(in srgb, var(--cd-blau) 12%, var(--cd-weiss)) !important;
+}
+.proa-canvas .djs-element.proa-related .djs-visual > :first-child {
+  stroke: var(--cd-blau-link) !important;
+  stroke-dasharray: 4 3;
+}
+.proa-canvas .djs-element.proa-finding .djs-visual > :first-child {
+  stroke: var(--cd-warning) !important;
+  stroke-width: 3px !important;
+}
+.proa-canvas .djs-element.proa-evidence .djs-visual > :first-child {
+  stroke: var(--cd-success) !important;
+  stroke-width: 3px !important;
+  stroke-dasharray: 6 3;
+}
+.proa-overlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: var(--cd-radius-sm);
+  background: var(--cd-blau);
+  color: var(--cd-weiss);
+  font:
+    600 11px/1.5 'Geist Variable',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  white-space: nowrap;
+  box-shadow: var(--cd-shadow-1);
+  pointer-events: none;
+}
+.proa-overlay[data-tone='warning'] {
+  background: var(--cd-warning);
+}
+.proa-overlay[data-tone='evidence'] {
+  background: var(--cd-success);
+}
+.proa-canvas .djs-container {
+  font-family: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Value chain canvas (M4 §4/§5), scoped under .proa-vc. The renderer's own CSS
+ * (diagram-js.css plus its .vc-* rules) is loaded with the lazy chain chunk;
+ * ProA adds badges, finding/invalid/selected markers (always with a text label
+ * or the side panel, never colour alone) and moves the palette below the
+ * floating header. A step's colour carries its kind, so markers change the
+ * stroke's width and dashes, not its colour (except an invalid element).
+ */
+.proa-vc-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: var(--cd-radius-sm);
+  border: 1px solid var(--cd-linie);
+  background: var(--cd-weiss);
+  color: var(--cd-schwarz);
+  font:
+    600 11px/16px 'Geist Variable',
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  white-space: nowrap;
+  box-shadow: var(--cd-shadow-1);
+  pointer-events: none;
+}
+.proa-vc-badge[data-tone='warning'] {
+  border-color: var(--cd-warning);
+  background: var(--cd-warning-soft);
+  color: var(--cd-warning);
+}
+.proa-vc-badge[data-tone='finding'] {
+  border-color: var(--cd-warning);
+  background: var(--cd-weiss);
+  color: var(--cd-warning);
+  font-weight: 500;
+}
+.proa-vc-badge[data-tone='invalid'] {
+  border-color: var(--cd-danger);
+  background: var(--cd-danger-soft);
+  color: var(--cd-danger);
+}
+.proa-vc .djs-element.proa-vc-finding .djs-visual > path:first-child {
+  stroke-dasharray: 7 4;
+}
+.proa-vc .djs-element.proa-vc-selected .djs-visual > path:first-child {
+  stroke-width: 4px;
+}
+.proa-vc .djs-element.proa-vc-invalid .djs-visual > path:first-child {
+  stroke: var(--cd-danger) !important;
+  stroke-width: 4px;
+}
+.proa-vc .djs-palette {
+  top: 176px;
+  left: 16px;
+}
+/* The renderer paints its container white; the chain sits on ProA's dotted paper like the model view. */
+.proa-vc .vc-container {
+  background: transparent;
+}
+.proa-vc-labels {
+  display: inline-flex;
+  gap: 4px;
+  pointer-events: none;
+}

@@ -1,0 +1,54 @@
+key: logistik/speditionsversand
+engine: c7
+name: Speditionsversand
+notes: >-
+  Legacy pallet freight process, still on C7. Started by WareVersandbereit
+  from the C8 picking process (cross-engine); the none end "Ware
+  versandbereit" inside the picking subprocess is not a sender (none end vs
+  message start, and nested: event-def-mismatch, subprocess-scope). Throws LieferungVersendet to invoicing (exact key). Its
+  none end "Lieferung verspätet" throws nothing, so the C8 customer
+  notification never hears of pallet delays (event-def-mismatch).
+  Collaboration with a black-box freight forwarder.
+
+collaboration:
+  participants:
+    - { id: Participant_Speditionsversand, name: Nordwind Logistik – Speditionsversand, process: Process_Speditionsversand }
+    - { id: Participant_Spedition, name: Spedition }
+  messageFlows:
+    - { from: Task_AuftragAnSpeditionSenden, to: Participant_Spedition, name: Speditionsauftrag }
+
+processes:
+  - id: Process_Speditionsversand
+    name: Speditionsversand (Paletten)
+    documentation: Beauftragt eine Spedition mit dem Palettenversand an Großkunden und bestätigt die Verladung.
+    elements:
+      - type: startEvent
+        id: Start_WareVersandbereit
+        name: Ware versandbereit
+        message: WareVersandbereit
+      - { type: serviceTask, id: Task_SpeditionsauftragErstellen, name: Speditionsauftrag erstellen }
+      - type: sendTask
+        id: Task_AuftragAnSpeditionSenden
+        name: Auftrag an Spedition senden
+        message: Speditionsauftrag
+      - type: userTask
+        id: Task_VerladungBestaetigen
+        name: Verladung bestätigen
+        candidateGroups: versand
+        boundary:
+          - id: Boundary_AbholungUeberfaellig
+            name: Abholung 24 Stunden überfällig
+            timer: { duration: PT24H }
+            interrupting: false
+            next: Task_DispositionInformieren
+      - type: intermediateThrowEvent
+        id: Event_LieferungVersendet
+        name: Lieferung versendet
+        message: LieferungVersendet
+      - { type: endEvent, id: End_SpeditionsversandAbgeschlossen, name: Speditionsversand abgeschlossen }
+
+      - type: userTask
+        id: Task_DispositionInformieren
+        name: Disposition informieren
+        candidateGroups: versand
+      - { type: endEvent, id: End_LieferungVerspaetet, name: Lieferung verspätet }

@@ -1,0 +1,64 @@
+key: marktkommunikation/lieferbeginn
+engine: c8
+name: Lieferbeginn anmelden
+notes: >-
+  GPKE registration (as before LFW24, 2025) of a new supply point with the grid operator
+  (black-box pool, internal UTILMD message flows). Started by vertrieb/umzug
+  (BelieferungBeauftragt, exact key); reports "Lieferbeginn gemeldet" to the C7
+  billing intake (cross-engine-message). "Anmeldung bestätigt" is a near-miss
+  of "Abmeldung bestätigt" in marktkommunikation/lieferantenwechsel. "Anmeldung
+  abgelehnt" (the grid operator rejects the registration) has the same label as
+  the none end of the PV registration in netz/pv-einspeisung (generic-name).
+  "Lieferbeginn gemeldet" is the antonym of "Lieferende gemeldet" in
+  marktkommunikation/lieferantenwechsel (distractor).
+
+collaboration:
+  participants:
+    - { id: Participant_Wechselmanagement, name: Stadtwerke Auental - Wechselmanagement, process: Process_Lieferbeginn }
+    - { id: Participant_Netzbetreiber, name: Netzbetreiber }
+  messageFlows:
+    - { from: Task_AnmeldungSenden, to: Participant_Netzbetreiber, name: Anmeldung (UTILMD) }
+    - { from: Participant_Netzbetreiber, to: Event_AnmeldungBestaetigt, name: Bestätigung (UTILMD) }
+    - { from: Participant_Netzbetreiber, to: Event_AnmeldungAbgelehnt, name: Ablehnung (UTILMD) }
+
+processes:
+  - id: Process_Lieferbeginn
+    name: Lieferbeginn anmelden
+    documentation: >-
+      Anmeldung einer Marktlokation beim zuständigen Netzbetreiber, wenn die
+      Stadtwerke einen Kunden an einer neuen Adresse beliefern. Nach der
+      Bestätigung wird der Lieferbeginn an die Abrechnung gemeldet.
+    dataStores:
+      - { id: DataStore_Marktpartner, name: Marktpartnerstamm }
+    elements:
+      - type: startEvent
+        id: Start_BelieferungBeauftragt
+        name: Belieferung beauftragt
+        message: BelieferungBeauftragt
+      - type: serviceTask
+        id: Task_NetzbetreiberErmitteln
+        name: Zuständigen Netzbetreiber ermitteln
+        reads: [DataStore_Marktpartner]
+      - { type: sendTask, id: Task_AnmeldungSenden, name: Anmeldung an Netzbetreiber senden }
+      - type: eventBasedGateway
+        id: Gateway_AntwortNetzbetreiber
+        next: [Event_AnmeldungBestaetigt, Event_AnmeldungAbgelehnt]
+      - type: intermediateCatchEvent
+        id: Event_AnmeldungBestaetigt
+        name: Anmeldung bestätigt
+        message: { name: AnmeldungBestaetigt, correlationKey: "=marktlokation" }
+      - type: intermediateThrowEvent
+        id: Event_LieferbeginnGemeldet
+        name: Lieferbeginn gemeldet
+        message: { name: LieferbeginnGemeldet, correlationKey: "=vertragskonto" }
+      - { type: endEvent, id: End_LieferbeginnAngemeldet, name: Lieferbeginn angemeldet }
+
+      - type: intermediateCatchEvent
+        id: Event_AnmeldungAbgelehnt
+        name: Anmeldung abgelehnt
+        message: { name: AnmeldungAbgelehnt, correlationKey: "=marktlokation" }
+      - type: userTask
+        id: Task_AblehnungsgrundKlaeren
+        name: Ablehnungsgrund klären
+        candidateGroups: wechselmanagement
+      - { type: endEvent, id: End_AnmeldungGescheitert, name: Anmeldung gescheitert }

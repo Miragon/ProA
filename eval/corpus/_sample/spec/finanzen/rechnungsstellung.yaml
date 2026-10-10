@@ -1,0 +1,38 @@
+key: finanzen/rechnungsstellung
+engine: c8
+name: Rechnungsstellung
+notes: >-
+  Started by the c7 message WareVersandbereit (cross-engine, identical
+  message name). Calls an output channel dynamically and a dunning process
+  that does not exist anywhere in the landscape.
+
+processes:
+  - id: Process_Rechnungsstellung
+    name: Rechnungsstellung
+    dataStores:
+      - { id: DataStore_KundenStammdaten, name: Kunden-Stammdaten }
+    elements:
+      - type: startEvent
+        id: Start_WareVersandbereit
+        name: Ware versandbereit
+        message: WareVersandbereit
+      - type: serviceTask
+        id: Task_RechnungErstellen
+        name: Rechnung erstellen
+        reads: [DataStore_KundenStammdaten]
+      - type: callActivity
+        id: Call_RechnungAusgeben
+        name: Rechnung ausgeben
+        calledElement: "=ausgabekanal"
+      - type: intermediateThrowEvent
+        id: Event_RechnungVersendet
+        name: Rechnung versendet
+        message: { name: RechnungVersendet, correlationKey: "=auftragsnummer" }
+      - type: callActivity
+        id: Call_Mahnwesen
+        name: Mahnwesen vorbereiten
+        calledElement: Process_Mahnwesen
+      - type: endEvent
+        id: End_RechnungsstellungAbgeschlossen
+        name: Rechnungsstellung abgeschlossen
+        signal: RechnungsstellungAbgeschlossen

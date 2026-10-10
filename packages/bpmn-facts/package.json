@@ -1,0 +1,24 @@
+{
+  "name": "@proa/bpmn-facts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fact extraction from Camunda 7 and 8 BPMN (CONCEPT §2), with XML hardening and limits",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@proa/contracts": "workspace:0.0.0",
+    "bpmn-moddle": "10.3.1",
+    "camunda-bpmn-moddle": "8.0.2",
+    "zeebe-bpmn-moddle": "2.0.0"
+  },
+  "devDependencies": {
+    "yaml": "2.9.1"
+  }
+}

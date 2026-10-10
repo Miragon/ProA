@@ -1,0 +1,90 @@
+# Throwaway Camunda 7 and Camunda 8 engines for deploy-check.mjs.
+#
+#   docker compose -f engines.compose.yaml up -d --wait    # ~1 min on first start
+#   node deploy-check.mjs --all                            # or: pnpm deploy-check
+#   docker compose -f engines.compose.yaml down -v         # removes containers and volumes
+#
+# Image tags match ENGINES in lib/constants.mjs and the engines of the
+# landscapes. Nothing is persisted: H2 in memory on both sides, and the
+# anonymous volumes of the c8 image go away with `down -v`. Host ports are
+# bound to 127.0.0.1 and can be moved with PROA_C7_PORT, PROA_C8_PORT,
+# PROA_C8_GRPC_PORT and PROA_C8_MGMT_PORT (deploy-check reads PROA_C7_URL and
+# PROA_C8_URL).
+#
+# No authentication: c7 run has none on /engine-rest by default, and c8 runs
+# with unprotectedApi. Local evaluation only.
+name: proa-eval-engines
+
+services:
+  c7:
+    # Camunda 7 Run: REST API at /engine-rest, Cockpit at /camunda (demo/demo)
+    image: camunda/camunda-bpm-platform:run-7.24.0
+    ports:
+      - "127.0.0.1:${PROA_C7_PORT:-18080}:8080"
+    environment:
+      JAVA_OPTS: "-Xmx768m"
+      # no invoice example: the engine holds only what deploy-check deploys
+      CAMUNDA_BPM_RUN_EXAMPLE_ENABLED: "false"
+      # in-memory H2 instead of the image's file database
+      SPRING_DATASOURCE_URL: "jdbc:h2:mem:process-engine;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/engine-rest/version || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 15s
+
+  c8:
+    # Camunda 8 orchestration cluster (Zeebe, Operate, Tasklist) in one image:
+    # REST API v2 at /v2, gRPC on 26500, Operate at /operate (demo/demo).
+    # Same setup as the official lightweight docker-compose of
+    # camunda/camunda-distributions (8.9), minus connectors, with H2 in memory.
+    image: camunda/camunda:8.9.22
+    ports:
+      - "127.0.0.1:${PROA_C8_PORT:-18088}:8080"
+      - "127.0.0.1:${PROA_C8_GRPC_PORT:-26500}:26500"
+      - "127.0.0.1:${PROA_C8_MGMT_PORT:-19600}:9600"
+    mem_limit: 2g
+    configs:
+      - source: c8-config
+        target: /usr/local/camunda/config/application.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9600/actuator/health/status || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 80
+      start_period: 20s
+
+configs:
+  c8-config:
+    content: |
+      camunda:
+        system:
+          cpu-thread-count: 2
+          io-thread-count: 2
+        security:
+          authentication:
+            method: basic
+            unprotectedApi: true
+          authorizations:
+            enabled: false
+          initialization:
+            users:
+              - username: demo
+                password: demo
+                name: Demo User
+                email: demo@example.com
+            defaultRoles.admin.users:
+              - demo
+        data:
+          secondary-storage:
+            type: rdbms
+            rdbms:
+              url: "jdbc:h2:mem:camunda;DB_CLOSE_DELAY=-1"
+              username: sa
+              password: ""
+              flushInterval: PT0.5S
+              queueSize: 1000
+        mcp:
+          enabled: false
