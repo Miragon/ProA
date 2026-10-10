@@ -15,6 +15,7 @@ import {
   listAutoAcceptRules,
   listAutoAccepted,
   listModels,
+  listNoLinks,
   listPlacements,
   listProjects,
   listUnplacedProcesses,
@@ -32,6 +33,7 @@ import type {
   AutoAcceptRuleList,
   Landscape,
   Model,
+  NoLink,
   Placement,
   PlacementAssertion,
   Project,
@@ -59,6 +61,7 @@ export const keys = {
   project: (project: string) => ['project', project] as const,
   models: (project: string) => ['project', project, 'models'] as const,
   landscape: (project: string) => ['project', project, 'landscape'] as const,
+  noLinks: (project: string) => ['project', project, 'no-links'] as const,
   agentTokens: (project: string) => ['project', project, 'agent-tokens'] as const,
   relation: (project: string, id: string) => ['project', project, 'relation', id] as const,
   assertions: (project: string, id: string) =>
@@ -146,6 +149,14 @@ export const landscapeQuery = (project: string) =>
   queryOptions({
     queryKey: keys.landscape(project),
     queryFn: (): Promise<Landscape> => unwrap(getLandscape({ client: api, path: { project } })),
+  });
+
+/** Agents' live, current no-links, also on pairs without a relation (oldest first). */
+export const noLinksQuery = (project: string) =>
+  queryOptions({
+    queryKey: keys.noLinks(project),
+    queryFn: async (): Promise<NoLink[]> =>
+      (await unwrap(listNoLinks({ client: api, path: { project } }))).items,
   });
 
 /** One relation, also an obsolete one (the landscape leaves those out). */

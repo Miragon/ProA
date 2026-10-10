@@ -37,17 +37,30 @@ const COMMON_HEADERS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * `Strict-Transport-Security` of the read-only demo on https origins (one
+ * year, this host only: a custom domain's other hosts are not ProA's).
+ */
+export const DEMO_HSTS = 'max-age=31536000';
+
+export interface SecurityHeaderOptions {
+  /** Add {@link DEMO_HSTS} (the read-only demo served over https only). */
+  hsts?: boolean;
+}
+
+/**
  * Security headers on every response, errors included (CONCEPT §6): nosniff,
  * no framing, no referrer, same-origin resource and opener policies, and a
  * CSP: {@link WEB_UI_CSP} for the web UI, {@link API_CSP} for API, MCP and
- * health paths. Register first, so it also wraps the local guard's 403.
+ * health paths; HSTS only where asked (the demo on https). Register first, so
+ * it also wraps the local guard's 403.
  */
-export function securityHeaders(): MiddlewareHandler {
+export function securityHeaders(options: SecurityHeaderOptions = {}): MiddlewareHandler {
   return async (c, next) => {
     await next();
     const headers: Record<string, string> = {
       ...COMMON_HEADERS,
       'content-security-policy': isReservedPath(c.req.path) ? API_CSP : WEB_UI_CSP,
+      ...(options.hsts ? { 'strict-transport-security': DEMO_HSTS } : {}),
     };
     try {
       for (const [name, value] of Object.entries(headers)) c.res.headers.set(name, value);

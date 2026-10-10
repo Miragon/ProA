@@ -82,6 +82,9 @@ import {
   UnsureOutcome,
   recordingPath,
   recordingSegment,
+  DEMO_SAFE_METHODS,
+  DEMO_WRITE_EXEMPT_OPERATIONS,
+  Health,
 } from '../src/index.ts';
 
 describe('refs', () => {
@@ -302,6 +305,53 @@ describe('openapi problem responses', () => {
 
   it('declares 403 insufficient-scope on listProjects (a token without proa:read)', () => {
     expect(Object.keys(apiRoutes.listProjects.responses)).toEqual(['200', '401', '403', '422']);
+  });
+});
+
+describe('read-only demo (issue #3)', () => {
+  const routes = Object.values(apiRoutes);
+  const descriptionOf403 = (route: (typeof routes)[number]): string | undefined =>
+    (route.responses as Record<string, { description: string } | undefined>)['403']?.description;
+
+  it('has the problem code demo-readonly (403)', () => {
+    expect(PROBLEMS['demo-readonly']).toEqual({ status: 403, title: 'Read-only demo' });
+    expect(createProblem('demo-readonly').type).toBe('urn:proa:problem:demo-readonly');
+  });
+
+  it('documents demo-readonly on every write route except the session routes', () => {
+    const exempt: readonly string[] = DEMO_WRITE_EXEMPT_OPERATIONS;
+    const safe: readonly string[] = DEMO_SAFE_METHODS;
+    const writes = routes.filter((r) => !safe.includes(r.method));
+    expect(writes.length).toBeGreaterThan(20);
+    for (const route of writes) {
+      const documented = descriptionOf403(route)?.includes('`demo-readonly`') === true;
+      expect(documented, route.operationId).toBe(!exempt.includes(route.operationId));
+    }
+    expect(exempt.every((id) => routes.some((r) => r.operationId === id))).toBe(true);
+  });
+
+  it('documents it on no read route and keeps the other problems of a merged 403', () => {
+    for (const route of routes.filter((r) => r.method === 'get')) {
+      expect(descriptionOf403(route) ?? '', route.operationId).not.toContain('demo-readonly');
+    }
+    expect(descriptionOf403(apiRoutes.decideRelation)).toBe(
+      'Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`',
+    );
+    // The responses keep their status order.
+    expect(Object.keys(apiRoutes.createProject.responses)).toEqual([
+      '201',
+      '401',
+      '403',
+      '409',
+      '422',
+    ]);
+  });
+
+  it('reports the demo in Health only when it is one', () => {
+    const local = { status: 'ok', version: '1', db: 'ok' };
+    expect(Health.parse(local)).toEqual(local);
+    expect(Health.parse({ ...local, demo: 'readonly' }).demo).toBe('readonly');
+    expect(Health.safeParse({ ...local, demo: 'writable' }).success).toBe(false);
   });
 });
 

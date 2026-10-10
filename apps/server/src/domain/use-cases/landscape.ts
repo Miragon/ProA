@@ -8,6 +8,8 @@ import {
   type Landscape,
   type ModelId,
   type ModelStage,
+  type NoLinkList,
+  type NoLinkQuery,
   type PageQuery,
   type ProcessInfo,
   type Ref,
@@ -25,6 +27,7 @@ import { visibleFindings } from '../findings.ts';
 import { policy } from '../policy.ts';
 import type { HeadFact } from '../ports.ts';
 import { relationViews } from '../relation-state.ts';
+import { toNoLink } from '../views.ts';
 import { ALL, type UseCaseDeps } from './deps.ts';
 
 /** What `whichProcessesUse` looks up (CONCEPT §4: "which processes throw message X"). */
@@ -186,6 +189,24 @@ export function landscapeUseCases(deps: UseCaseDeps) {
         const [view] = await relationViews(tx, project.id, [relation], deps.expectedProcedure());
         if (!view) throw new Error('relation view missing');
         return view;
+      });
+    },
+
+    /**
+     * Agents' live, current no-links (CONCEPT §3 "judge each pair once"),
+     * also on pairs without a relation, oldest first; `modelKey` keeps those
+     * with an endpoint in that model. Current as on `Relation.noLinks`: both
+     * models unchanged since the judgement, the procedure claims name now.
+     */
+    async listNoLinks(actor: Actor, projectRef: string, query: NoLinkQuery): Promise<NoLinkList> {
+      return deps.store.read(async (tx) => {
+        const { project } = await policy.require(tx, actor, 'read', projectRef);
+        const live = await tx.noLinks.listLive(
+          project.id,
+          query.modelKey === undefined ? {} : { touchingModelKey: query.modelKey },
+          deps.expectedProcedure(),
+        );
+        return { items: live.filter((n) => n.current).map(toNoLink) };
       });
     },
 

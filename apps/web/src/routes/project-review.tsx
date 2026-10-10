@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import { StageBadge } from '@/components/badges';
 import { BulkAcceptDialog } from '@/components/review/bulk-accept-dialog';
 import { HeldList } from '@/components/review/held-list';
+import { NoLinkList } from '@/components/review/no-link-list';
 import { PlainText } from '@/components/review/plain-text';
 import { QueueTable } from '@/components/review/queue-table';
 import { StageBar } from '@/components/review/stage-bar';
@@ -35,9 +36,17 @@ import { errorMessage } from '@/lib/api';
 import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
 import { nameUsage } from '@/lib/generic-names';
 import { STAGES, TIERS, TIER_ORDER, formatDateTime } from '@/lib/labels';
-import { analysesQuery, landscapeQuery, modelsQuery, valueChainQuery } from '@/lib/queries';
+import { useProjectPermissions } from '@/lib/permissions';
+import {
+  analysesQuery,
+  landscapeQuery,
+  modelsQuery,
+  noLinksQuery,
+  valueChainQuery,
+} from '@/lib/queries';
 import {
   heldList,
+  noLinkList,
   parseQueueFilters,
   proposalsByTier,
   reviewQueue,
@@ -52,8 +61,11 @@ import { openPlacementCount } from '@/lib/value-chain';
 import { projectRoute } from './project';
 
 interface ReviewSearch extends QueueFilters {
-  /** `held`: the list of held relations instead of the proposals. */
-  view?: 'held';
+  /**
+   * `held`: the list of held relations instead of the proposals; `no-links`:
+   * the agents' no-links (read-only).
+   */
+  view?: 'held' | 'no-links';
 }
 
 export const projectReviewRoute = createRoute({
@@ -61,7 +73,7 @@ export const projectReviewRoute = createRoute({
   path: 'review',
   validateSearch: (search: Record<string, unknown>): ReviewSearch => ({
     ...parseQueueFilters(search),
-    ...(search['view'] === 'held' ? { view: 'held' as const } : {}),
+    ...(search['view'] === 'held' || search['view'] === 'no-links' ? { view: search['view'] } : {}),
   }),
   component: ReviewInbox,
 });
@@ -78,11 +90,14 @@ function StageModels({
   stage,
   models,
   onModel,
+  canRequeue,
 }: {
   project: string;
   stage: ModelStage;
   models: readonly Model[];
   onModel: (key: string) => void;
+  /** Offer „Erneut einplanen“ (editors and owners; never on the read-only demo). */
+  canRequeue: boolean;
 }) {
   const state = TASK_STATE[stage];
   const tasks = useQuery({ ...analysesQuery(project, state ?? 'queued'), enabled: !!state });
@@ -177,7 +192,7 @@ function StageModels({
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  {stage === 'agent_failed' || expired ? (
+                  {canRequeue && (stage === 'agent_failed' || expired) ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -230,8 +245,10 @@ function ReviewInbox() {
   // Placements are reviewed on the value chain page; the inbox only points there (404: no chain).
   const chain = useQuery(valueChainQuery(project));
   const openPlacements = chain.data ? openPlacementCount(chain.data) : 0;
+  const noLinks = useQuery(noLinksQuery(project));
   const { resolve, byModel } = useProjectFacts(project, models.data);
   const autoIndex = useAutoAcceptIndex(project);
+  const can = useProjectPermissions(project);
   const [bulkTier, setBulkTier] = useState<Tier | null>(null);
 
   const { stage, tier, model } = search;
@@ -252,6 +269,10 @@ function ReviewInbox() {
   const held = useMemo(
     () => heldList(relations, modelList, filters),
     [relations, modelList, filters],
+  );
+  const unlinked = useMemo(
+    () => noLinkList(noLinks.data ?? [], modelList, filters),
+    [noLinks.data, modelList, filters],
   );
   const counts = useMemo(() => stageCounts(modelList), [modelList]);
   const facts = useMemo<Fact[]>(() => [...byModel.values()].flatMap((f) => f.facts), [byModel]);
@@ -286,11 +307,13 @@ function ReviewInbox() {
           <MapIcon />
           <AlertTitle>
             {openPlacements === 1
-              ? '1 Platzierung wartet auf deine Prüfung'
-              : `${openPlacements} Platzierungen warten auf deine Prüfung`}
+              ? `1 Platzierung wartet auf ${can.canReview ? 'deine ' : ''}Prüfung`
+              : `${openPlacements} Platzierungen warten auf ${can.canReview ? 'deine ' : ''}Prüfung`}
           </AlertTitle>
           <AlertDescription>
-            Platzierungen (Prozess auf Schritt) prüfst du auf der Wertschöpfungskette.{' '}
+            {can.canReview
+              ? 'Platzierungen (Prozess auf Schritt) prüfst du auf der Wertschöpfungskette.'
+              : 'Platzierungen (Prozess auf Schritt) stehen auf der Wertschöpfungskette.'}{' '}
             <Link
               to="/projects/$project/value-chain"
               params={{ project }}
@@ -307,6 +330,7 @@ function ReviewInbox() {
           project={project}
           stage={search.stage}
           models={modelList}
+          canRequeue={can.canWrite}
           onModel={(model) =>
             // Models waiting for clarification have only held items: show those.
             set({ model, view: search.stage === 'waiting_for_clarification' ? 'held' : undefined })
@@ -316,7 +340,9 @@ function ReviewInbox() {
 
       <Tabs
         value={search.view ?? 'proposals'}
-        onValueChange={(value) => set({ view: value === 'held' ? 'held' : undefined })}
+        onValueChange={(value) =>
+          set({ view: value === 'held' || value === 'no-links' ? value : undefined })
+        }
       >
         <TabsList variant="line" aria-label="Prüfliste">
           <TabsTrigger value="proposals">
@@ -325,6 +351,13 @@ function ReviewInbox() {
           <TabsTrigger value="held">
             Vorgemerkt <span className="tabular-nums">{held.length}</span>
           </TabsTrigger>
+          <TabsTrigger
+            value="no-links"
+            title="Paare, zwischen denen ein Agent keinen Zusammenhang sieht"
+          >
+            Kein Zusammenhang{' '}
+            <span className="tabular-nums">{noLinks.data ? unlinked.length : '…'}</span>
+          </TabsTrigger>
         </TabsList>
 
         <div
@@ -332,23 +365,26 @@ function ReviewInbox() {
           role="search"
           aria-label="Prüfliste filtern"
         >
-          <Field className="w-auto">
-            <FieldLabel htmlFor="review-tier">Stufe</FieldLabel>
-            <NativeSelect
-              id="review-tier"
-              value={search.tier ?? ALL}
-              onChange={(e) =>
-                set({ tier: e.target.value === ALL ? undefined : (e.target.value as Tier) })
-              }
-            >
-              <NativeSelectOption value={ALL}>Alle Stufen</NativeSelectOption>
-              {TIER_ORDER.map((t) => (
-                <NativeSelectOption key={t} value={t}>
-                  {TIERS[t].label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
+          {/* A no-link has no tier: that tab filters by model and stage only. */}
+          {search.view !== 'no-links' ? (
+            <Field className="w-auto">
+              <FieldLabel htmlFor="review-tier">Stufe</FieldLabel>
+              <NativeSelect
+                id="review-tier"
+                value={search.tier ?? ALL}
+                onChange={(e) =>
+                  set({ tier: e.target.value === ALL ? undefined : (e.target.value as Tier) })
+                }
+              >
+                <NativeSelectOption value={ALL}>Alle Stufen</NativeSelectOption>
+                {TIER_ORDER.map((t) => (
+                  <NativeSelectOption key={t} value={t}>
+                    {TIERS[t].label}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </Field>
+          ) : null}
           <Field className="w-auto min-w-56">
             <FieldLabel htmlFor="review-model">Modell</FieldLabel>
             <NativeSelect
@@ -374,7 +410,7 @@ function ReviewInbox() {
               Filter zurücksetzen
             </Button>
           ) : null}
-          {search.view !== 'held' && groups.length > 0 ? (
+          {can.canReview && search.view === undefined && groups.length > 0 ? (
             <div
               className="ml-auto flex flex-wrap items-center gap-2"
               role="group"
@@ -417,11 +453,15 @@ function ReviewInbox() {
                 </EmptyTitle>
                 <EmptyDescription>
                   {counts.waiting_for_agent > 0
-                    ? `${counts.waiting_for_agent} ${counts.waiting_for_agent === 1 ? 'Modell wartet' : 'Modelle warten'} auf einen Agenten. Verbinde einen Agenten, der die Analyse-Pipeline abarbeitet; seine Vorschläge erscheinen hier.`
+                    ? `${counts.waiting_for_agent} ${counts.waiting_for_agent === 1 ? 'Modell wartet' : 'Modelle warten'} auf einen Agenten. ${
+                        can.isOwner
+                          ? 'Verbinde einen Agenten, der die Analyse-Pipeline abarbeitet; seine Vorschläge erscheinen hier.'
+                          : 'Sobald ein Agent die Analyse-Pipeline abarbeitet, erscheinen seine Vorschläge hier.'
+                      }`
                     : 'Alles geprüft. Neue Vorschläge erscheinen hier, sobald ein Agent oder eine Regel sie macht.'}
                 </EmptyDescription>
               </EmptyHeader>
-              {counts.waiting_for_agent > 0 ? (
+              {can.isOwner && counts.waiting_for_agent > 0 ? (
                 <EmptyContent>
                   <Button variant="outline" asChild>
                     <Link to="/projects/$project/agents" params={{ project }}>
@@ -435,11 +475,33 @@ function ReviewInbox() {
           )}
         </TabsContent>
         <TabsContent value="held" className="pt-2">
-          <HeldList project={project} relations={held} resolve={resolve} filters={filters} />
+          <HeldList
+            project={project}
+            relations={held}
+            resolve={resolve}
+            filters={filters}
+            canAnswer={can.canReview}
+          />
+        </TabsContent>
+        <TabsContent value="no-links" className="pt-2">
+          {noLinks.isError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Einschätzungen konnten nicht geladen werden</AlertTitle>
+              <AlertDescription>{errorMessage(noLinks.error)}</AlertDescription>
+            </Alert>
+          ) : noLinks.data ? (
+            <NoLinkList
+              items={unlinked}
+              resolve={resolve}
+              filtered={filters.model !== undefined || filters.stage !== undefined}
+            />
+          ) : (
+            <Skeleton className="h-40 w-full" />
+          )}
         </TabsContent>
       </Tabs>
 
-      {bulkTier ? (
+      {bulkTier && can.canReview ? (
         <BulkAcceptDialog
           project={project}
           tier={bulkTier}

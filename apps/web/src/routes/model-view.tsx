@@ -274,7 +274,7 @@ function ModelView() {
 
   return (
     <div
-      className="relative h-svh w-full overflow-hidden bg-paper bg-[radial-gradient(var(--cd-linie)_1px,transparent_1px)] [background-size:16px_16px]"
+      className="relative h-app-viewport w-full overflow-hidden bg-paper bg-[radial-gradient(var(--cd-linie)_1px,transparent_1px)] [background-size:16px_16px]"
       data-testid="model-view"
     >
       {content.data ? (

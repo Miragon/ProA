@@ -135,6 +135,9 @@ import type {
   ListModelsData,
   ListModelsErrors,
   ListModelsResponses,
+  ListNoLinksData,
+  ListNoLinksErrors,
+  ListNoLinksResponses,
   ListPlacementsData,
   ListPlacementsErrors,
   ListPlacementsResponses,
@@ -240,7 +243,7 @@ export const deleteSession = <ThrowOnError extends boolean = false>(
 /**
  * Local mode: open an owner session (HttpOnly cookie) for the web UI or the CLI
  *
- * Local mode only (`PROA_AUTH=local`). Sets the `proa_session` cookie (HttpOnly, SameSite=Strict); requests carrying it act as the single owner on an interactive client. The server accepts it only from localhost (Host and Origin checks).
+ * Local mode only (`PROA_AUTH=local`). Sets the `proa_session` cookie (HttpOnly, SameSite=Strict); requests carrying it act as the single owner on an interactive client. The server accepts it only from localhost (Host and Origin checks). On a read-only demo (`PROA_DEMO=readonly`, `Health.demo`) the session is a viewer with scope `proa:read` instead, accepted from the demo's public origins. A body over 4096 bytes answers 413 `payload-too-large` before it is read.
  */
 export const createSession = <ThrowOnError extends boolean = false>(
   options?: Options<CreateSessionData, ThrowOnError>,
@@ -478,6 +481,20 @@ export const listFindings = <ThrowOnError extends boolean = false>(
   (options.client ?? client).get<ListFindingsResponses, ListFindingsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/projects/{project}/findings',
+    ...options,
+  });
+
+/**
+ * Agents' live, current no-links (pairs judged unrelated), also on pairs without a relation
+ *
+ * Every live no-link whose basis is still current (both models unchanged, the procedure claims name now), oldest first; `modelKey` keeps those with an endpoint in that model. A no-link on a pair that also has a relation shows there too (`Relation.noLinks`).
+ */
+export const listNoLinks = <ThrowOnError extends boolean = false>(
+  options: Options<ListNoLinksData, ThrowOnError>,
+): RequestResult<ListNoLinksResponses, ListNoLinksErrors, ThrowOnError> =>
+  (options.client ?? client).get<ListNoLinksResponses, ListNoLinksErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/projects/{project}/no-links',
     ...options,
   });
 

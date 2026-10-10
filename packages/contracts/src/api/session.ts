@@ -15,6 +15,14 @@ export const SESSION_COOKIE = 'proa_session';
 /** Lifetime of a local-mode session cookie (12 hours). */
 export const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 
+/**
+ * Bytes a `POST /api/v1/session` body may have (it is `{"client":"proa-web"}`
+ * at most): the server refuses a longer one with 413 before reading it, so
+ * no caller can make it buffer a large body (the route needs no session and
+ * is public on the read-only demo).
+ */
+export const MAX_SESSION_BODY_BYTES = 4 * 1024;
+
 export const CreateSessionBody = z.object({ client: InteractiveClient.default('proa-web') }).meta({
   id: 'CreateSessionBody',
   description: 'Request body to open a local-mode owner session.',

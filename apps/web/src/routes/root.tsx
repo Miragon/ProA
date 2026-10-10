@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Link, Outlet, createRootRouteWithContext } from '@tanstack/react-router';
 
+import { DemoBanner } from '@/components/demo-banner';
 import { PageShell } from '@/components/page-shell';
 import { Toaster } from '@/components/toaster';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ export interface RouterContext {
 function RootLayout() {
   return (
     <>
+      <DemoBanner />
       <Outlet />
       <Toaster />
     </>

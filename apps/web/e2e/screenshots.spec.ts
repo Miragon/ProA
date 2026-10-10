@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { DEMO_SKIP, probeServer } from './server-mode';
+
 /**
  * Screenshots of the M1 UI for docs/proa-2/screenshots, taken from a running
  * ProA with the seeded landscapes (`proa seed`). Opt-in: runs only with
@@ -23,8 +25,9 @@ test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async ({ request }) => {
   test.skip(!DIR, 'set PROA_SCREENSHOTS_DIR to take the screenshots');
-  const health = await request.get('/health', { timeout: 3000 }).catch(() => null);
-  test.skip(!health?.ok(), 'no ProA server at PROA_E2E_URL');
+  const mode = await probeServer(request);
+  test.skip(mode === 'down', 'no ProA server at PROA_E2E_URL');
+  test.skip(mode === 'demo', DEMO_SKIP);
   mkdirSync(DIR ?? '.', { recursive: true });
 });
 

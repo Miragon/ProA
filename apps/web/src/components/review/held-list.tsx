@@ -105,11 +105,13 @@ function HeldItem({
   relation,
   resolve,
   filters,
+  canAnswer,
 }: {
   project: string;
   relation: Relation;
   resolve: RefResolver;
   filters: QueueFilters;
+  canAnswer: boolean;
 }) {
   const assertions = useQuery(assertionsQuery(project, relation.id));
   const answers = assertions.data ? answersSinceHold(relation, assertions.data) : [];
@@ -183,26 +185,30 @@ function HeldItem({
         </div>
       ) : null}
 
-      <AnswerForm project={project} relationId={relation.id} />
+      {canAnswer ? <AnswerForm project={project} relationId={relation.id} /> : null}
     </li>
   );
 }
 
 /**
  * Held relations ("vorgemerkt", CONCEPT §3): their own list, with the hold
- * note, the question and label, the answers so far and a field for the next
- * answer. An answer is a note; it reaches the next agent run.
+ * note, the question and label, the answers so far and, for reviewers, a
+ * field for the next answer. An answer is a note; it reaches the next agent
+ * run. Viewers (and the read-only demo) read the list without the field.
  */
 export function HeldList({
   project,
   relations,
   resolve,
   filters = {},
+  canAnswer = true,
 }: {
   project: string;
   relations: readonly Relation[];
   resolve: RefResolver;
   filters?: QueueFilters;
+  /** Show the answer field (editors and owners). */
+  canAnswer?: boolean;
 }) {
   if (relations.length === 0) {
     return (
@@ -213,8 +219,9 @@ export function HeldList({
           </EmptyMedia>
           <EmptyTitle className="text-base font-semibold">Nichts vorgemerkt</EmptyTitle>
           <EmptyDescription>
-            Merke eine Relation mit „Vormerken“ (H) vor, wenn eine Frage offen ist. Sie erscheint
-            dann hier mit einem Feld für die Antwort.
+            {canAnswer
+              ? 'Merke eine Relation mit „Vormerken“ (H) vor, wenn eine Frage offen ist. Sie erscheint dann hier mit einem Feld für die Antwort.'
+              : 'Vorgemerkte Relationen mit offener Frage erscheinen hier.'}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -223,7 +230,14 @@ export function HeldList({
   return (
     <ul aria-label="Vorgemerkte Relationen" className="flex flex-col gap-3">
       {relations.map((r) => (
-        <HeldItem key={r.id} project={project} relation={r} resolve={resolve} filters={filters} />
+        <HeldItem
+          key={r.id}
+          project={project}
+          relation={r}
+          resolve={resolve}
+          filters={filters}
+          canAnswer={canAnswer}
+        />
       ))}
     </ul>
   );

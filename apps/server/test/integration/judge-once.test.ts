@@ -18,6 +18,7 @@ import {
   type ClaimInput,
   type DeclaredProcedure,
   type ModelPage,
+  type NoLinkList,
   type Relation,
   type RelationPage,
   type RequeueResult,
@@ -163,6 +164,14 @@ async function relationOf(project: string, pair: { from: string; to: string }) {
     ).json()) as RelationPage
   ).items;
   return [...live, ...obsolete].find((r) => r.from === pair.from && r.to === pair.to);
+}
+
+/** `GET …/no-links` as a reader sees it (optionally of one model). */
+async function listedNoLinks(project: string, modelKey?: string) {
+  const query = modelKey === undefined ? '' : `?modelKey=${encodeURIComponent(modelKey)}`;
+  const res = await t.asOwner(`/api/v1/projects/${project}/no-links${query}`);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as NoLinkList).items;
 }
 
 /** The live no-links on a typed pair, oldest first. */
@@ -603,6 +612,21 @@ describe('disagreements stay visible', () => {
       ],
     };
     expect(await relationOf(project, MESSAGE)).toMatchObject(expected);
+    // The no-link list shows both, also the one on a pair without a relation, oldest first.
+    expect(await relationOf(project, TRIGGER)).toBeUndefined();
+    const listed = await listedNoLinks(project);
+    expect(listed.map(keyOf)).toEqual([keyOf(TRIGGER), keyOf(MESSAGE)]);
+    expect(listed[0]).toMatchObject({
+      id: expect.stringMatching(/^nlk_/) as unknown,
+      ...TRIGGER,
+      handle: 'agent:test proa:read proa:propose',
+      origin: SENDER,
+      reason: 'no-evidence: nein',
+    });
+    // The same no-link the relation shows as an objection.
+    expect(listed[1]?.id).toBe((await relationOf(project, MESSAGE))?.noLinks[0]?.id);
+    expect((await listedNoLinks(project, RECEIVER)).map(keyOf)).toEqual(listed.map(keyOf));
+    expect(await listedNoLinks(project, 'c/other')).toEqual([]);
     // A requeue of either side keeps both judgements.
     for (const key of [SENDER, RECEIVER]) {
       await requeue(project, [key]);
@@ -615,6 +639,7 @@ describe('disagreements stay visible', () => {
     // Only current no-links show: after a new receiver version, none (until it is analysed).
     expect((await t.putModel(project, RECEIVER, fakeBpmn(receiverV2()))).status).toBe(200);
     expect((await relationOf(project, MESSAGE))?.noLinks).toEqual([]);
+    expect(await listedNoLinks(project)).toEqual([]);
   }
 
   it('another principal’s no-link against a link', async () => {

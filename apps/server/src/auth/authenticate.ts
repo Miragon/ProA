@@ -1,4 +1,4 @@
-import { OWNER_KEY_PREFIX } from '@proa/contracts';
+import { OWNER_KEY_PREFIX, type InteractiveClient } from '@proa/contracts';
 import { getCookie } from 'hono/cookie';
 import type { MiddlewareHandler } from 'hono';
 
@@ -19,6 +19,17 @@ export interface AuthenticateOptions {
   allowOwner: boolean;
   /** Checks a presented local owner key (`proa_ok_…`); `null`/absent: no owner key configured. */
   ownerKey?: OwnerKeyVerifier | null;
+  /**
+   * The actor of a valid session cookie; default: the local owner
+   * (`localOwnerActor`). The read-only demo passes its viewer.
+   */
+  sessionActor?: (client: InteractiveClient) => Promise<Actor>;
+  /**
+   * Refuse every `Authorization` header with 401 and this detail, before any
+   * lookup (the read-only demo accepts no credentials); `null`/absent: check
+   * them as usual.
+   */
+  rejectCredentials?: string | null;
 }
 
 /** `WWW-Authenticate` of a rejected bearer token (RFC 6750). */
@@ -39,13 +50,26 @@ function rejectionDetail(secret: string | undefined, ownerAllowed: boolean): str
  *   revoked, expired or malformed token, and an owner key where none is
  *   accepted, is answered 401 right away;
  * - else, if allowed, a valid `proa_session` cookie → the local owner on the
- *   cookie's interactive client;
+ *   cookie's interactive client (or `sessionActor`: the demo's viewer);
+ * - with `rejectCredentials` (the read-only demo), any `Authorization`
+ *   header is answered 401 before any lookup;
  * - else anonymous (`actor = null`); handlers that need a caller answer 401.
  */
 export function authenticate(options: AuthenticateOptions): MiddlewareHandler<AppEnv> {
+  const sessionActor =
+    options.sessionActor ??
+    ((client: InteractiveClient) => options.useCases.localOwnerActor(client));
   return async (c, next) => {
     let actor: Actor | null = null;
     const authorization = c.req.header('authorization');
+    if (authorization !== undefined && options.rejectCredentials) {
+      return problemResponse(
+        'unauthorized',
+        options.rejectCredentials,
+        {},
+        { 'www-authenticate': INVALID_TOKEN_CHALLENGE },
+      );
+    }
     if (authorization !== undefined) {
       const secret = /^Bearer[ ]+(\S+)[ ]*$/i.exec(authorization)?.[1];
       if (secret?.startsWith(OWNER_KEY_PREFIX)) {
@@ -65,7 +89,7 @@ export function authenticate(options: AuthenticateOptions): MiddlewareHandler<Ap
     } else if (options.allowOwner) {
       const cookie = getCookie(c, SESSION_COOKIE);
       const claims = cookie ? options.sessions.verify(cookie) : null;
-      if (claims) actor = await options.useCases.localOwnerActor(claims.client);
+      if (claims) actor = await sessionActor(claims.client);
     }
     c.set('actor', actor);
     return next();

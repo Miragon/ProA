@@ -3,6 +3,8 @@ import { join, relative } from 'node:path';
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
+import { DEMO_SKIP, probeServer } from './server-mode';
+
 /**
  * The value chain page (M4 S3) against a running server with the built UI:
  * the empty state and a chain created in the browser, the golden dev chain
@@ -238,9 +240,13 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   test.setTimeout(120_000);
   const url = baseURL ?? 'http://127.0.0.1:7400';
   const probe = await playwright.request.newContext({ baseURL: url });
-  const health = await probe.get('/health', { timeout: 3000 }).catch(() => null);
+  const mode = await probeServer(probe);
   await probe.dispose();
-  test.skip(!health?.ok(), 'no ProA server at PROA_E2E_URL; start one to run the value chain flow');
+  test.skip(
+    mode === 'down',
+    'no ProA server at PROA_E2E_URL; start one to run the value chain flow',
+  );
+  test.skip(mode === 'demo', DEMO_SKIP);
 
   owner = await playwright.request.newContext({ baseURL: url });
   expect((await owner.post('/api/v1/session', { data: { client: 'proa-web' } })).ok()).toBe(true);

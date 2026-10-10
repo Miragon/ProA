@@ -44,7 +44,7 @@ import {
   SubmitAnalysisBody,
 } from './analyses.ts';
 import { Me } from './auth.ts';
-import { CreateSessionBody, SESSION_COOKIE } from './session.ts';
+import { CreateSessionBody, MAX_SESSION_BODY_BYTES, SESSION_COOKIE } from './session.ts';
 import { API_PREFIX, PageQuery, ProjectParam } from './common.ts';
 import { Health } from './health.ts';
 import { Landscape } from './landscape.ts';
@@ -77,6 +77,8 @@ import {
 import { CreateProjectBody, Project, ProjectPage } from './projects.ts';
 import {
   FindingList,
+  NoLinkList,
+  NoLinkQuery,
   Relation,
   RelationAssertion,
   RelationAssertionList,
@@ -207,6 +209,59 @@ const READ_PROBLEMS = [
 ] as const;
 
 /**
+ * Methods a read-only demo (`PROA_DEMO=readonly`, issue #3) serves; it answers
+ * every other method with 403 `demo-readonly`, except on
+ * {@link DEMO_WRITE_EXEMPT_OPERATIONS}.
+ */
+export const DEMO_SAFE_METHODS = ['get', 'head', 'options'] as const;
+
+/**
+ * The only write routes a read-only demo serves: opening and ending the
+ * visitor's (viewer) session of the web UI.
+ */
+export const DEMO_WRITE_EXEMPT_OPERATIONS = ['createSession', 'deleteSession'] as const;
+
+/**
+ * Adds 403 `demo-readonly` to every route a read-only demo refuses (method
+ * not GET, not a session route), in status order and merged into an existing
+ * 403. Done once here, so a new write route can never miss it.
+ */
+function withDemoReadOnly<T extends Record<string, RouteConfig>>(routes: T): T {
+  const exempt: readonly string[] = DEMO_WRITE_EXEMPT_OPERATIONS;
+  const safe: readonly string[] = DEMO_SAFE_METHODS;
+  const demo = problems('demo-readonly')[PROBLEMS['demo-readonly'].status];
+  const out: Record<string, RouteConfig> = {};
+  for (const [name, route] of Object.entries(routes)) {
+    if (safe.includes(route.method) || exempt.includes(route.operationId ?? name) || !demo) {
+      out[name] = route;
+      continue;
+    }
+    const status = String(PROBLEMS['demo-readonly'].status);
+    const responses: RouteConfig['responses'] = {};
+    let placed = false;
+    for (const [code, response] of Object.entries(route.responses)) {
+      if (code === status) {
+        const previous = response as { description: string };
+        responses[code] = {
+          ...response,
+          description: `${previous.description}, \`demo-readonly\``,
+        };
+        placed = true;
+        continue;
+      }
+      if (!placed && Number(code) > Number(status)) {
+        responses[status] = demo;
+        placed = true;
+      }
+      responses[code] = response;
+    }
+    if (!placed) responses[status] = demo;
+    out[name] = { ...route, responses };
+  }
+  return out as T;
+}
+
+/**
  * Every REST route of the ProA API (CONCEPT §5), as zod-to-openapi route
  * configs. The server mounts them with `@hono/zod-openapi`'s `createRoute`;
  * `buildOpenApiDocument()` turns them into the OpenAPI 3.1 document the client
@@ -214,8 +269,12 @@ const READ_PROBLEMS = [
  *
  * `{project}` takes a project id or key. `{key}` in `models/by-key/{key}` is a
  * model key with `/` percent-encoded as `%2F`.
+ *
+ * Every route whose method is not GET, except the session routes, also
+ * documents 403 `demo-readonly` ({@link withDemoReadOnly}): a read-only demo
+ * (`PROA_DEMO=readonly`, issue #3) refuses it before anything else runs.
  */
-export const apiRoutes = {
+export const apiRoutes = withDemoReadOnly({
   getHealth: {
     method: 'get',
     path: '/health',
@@ -234,7 +293,10 @@ export const apiRoutes = {
     description:
       `Local mode only (\`PROA_AUTH=local\`). Sets the \`${SESSION_COOKIE}\` cookie (HttpOnly, ` +
       'SameSite=Strict); requests carrying it act as the single owner on an interactive client. ' +
-      'The server accepts it only from localhost (Host and Origin checks).',
+      'The server accepts it only from localhost (Host and Origin checks). On a read-only demo ' +
+      '(`PROA_DEMO=readonly`, `Health.demo`) the session is a viewer with scope `proa:read` ' +
+      "instead, accepted from the demo's public origins. A body over " +
+      `${MAX_SESSION_BODY_BYTES} bytes answers 413 \`payload-too-large\` before it is read.`,
     security: [],
     request: {
       body: { required: false, content: { [JSON_TYPE]: { schema: CreateSessionBody } } },
@@ -246,7 +308,7 @@ export const apiRoutes = {
           'Set-Cookie': z.string().meta({ description: `\`${SESSION_COOKIE}=…\`` }),
         }),
       },
-      ...problems('forbidden', 'unsupported-media-type', 'validation-failed'),
+      ...problems('forbidden', 'payload-too-large', 'unsupported-media-type', 'validation-failed'),
     },
   },
   deleteSession: {
@@ -465,6 +527,20 @@ export const apiRoutes = {
     summary: 'Deterministic findings of the project head',
     request: { params: projectParams },
     responses: { 200: json(FindingList, 'Findings'), ...problems(...READ_PROBLEMS) },
+  },
+  listNoLinks: {
+    method: 'get',
+    path: `${API_PREFIX}/projects/{project}/no-links`,
+    operationId: 'listNoLinks',
+    tags: ['relations'],
+    summary:
+      "Agents' live, current no-links (pairs judged unrelated), also on pairs without a relation",
+    description:
+      'Every live no-link whose basis is still current (both models unchanged, the procedure ' +
+      'claims name now), oldest first; `modelKey` keeps those with an endpoint in that model. ' +
+      'A no-link on a pair that also has a relation shows there too (`Relation.noLinks`).',
+    request: { params: projectParams, query: NoLinkQuery },
+    responses: { 200: json(NoLinkList, 'No-links'), ...problems(...READ_PROBLEMS) },
   },
 
   getRelationAssertions: {
@@ -1147,6 +1223,6 @@ export const apiRoutes = {
       ...problems(...READ_PROBLEMS, ...AUTO_ACCEPT_PROBLEMS, 'human-decision-required'),
     },
   },
-} as const satisfies Record<string, RouteConfig>;
+} as const satisfies Record<string, RouteConfig>);
 
 export type ApiRouteName = keyof typeof apiRoutes;

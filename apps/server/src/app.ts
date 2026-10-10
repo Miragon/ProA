@@ -1,10 +1,16 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { OPENAPI_PATH, apiRoutes, type DeclaredProcedure } from '@proa/contracts';
+import {
+  OPENAPI_PATH,
+  apiRoutes,
+  type DeclaredProcedure,
+  type InteractiveClient,
+} from '@proa/contracts';
 import { getProcedure } from '@proa/procedures';
 
 import { libraryAnalysis } from './analysis.ts';
 import { authenticate, requireAuthentication } from './auth/authenticate.ts';
 import { localRequestGuard } from './auth/local-guard.ts';
+import { publicRequestGuard } from './auth/public-guard.ts';
 import { ownerKeyVerifier } from './auth/owner-key.ts';
 import { createSessionCodec, type SessionCodec } from './auth/session.ts';
 import type { Config } from './config.ts';
@@ -13,6 +19,7 @@ import { createStore } from './db/store.ts';
 import type { AnalysisPort, Clock, Notifier } from './domain/ports.ts';
 import { createUseCases, type UseCases } from './domain/use-cases/index.ts';
 import type { AppEnv } from './http/context.ts';
+import { demoReadOnlyGuard } from './http/demo-guard.ts';
 import { problemFromError, problemResponse, validationHook } from './http/problem.ts';
 import { registerAgentTokenRoutes } from './http/routes/agent-tokens.ts';
 import { registerAnalysisRoutes } from './http/routes/analyses.ts';
@@ -28,12 +35,12 @@ import { registerSystemRoutes } from './http/routes/system.ts';
 import { registerValueChainRoutes } from './http/routes/value-chains.ts';
 import { securityHeaders } from './http/security-headers.ts';
 import { mountWebUi } from './http/web-ui.ts';
-import { mountMcp } from './mcp/http.ts';
+import { MCP_PATH, mountMcp } from './mcp/http.ts';
 import { PROA_VERSION } from './version.ts';
 
 export interface AppDeps {
   config: Pick<Config, 'authMode' | 'webDist'> &
-    Partial<Pick<Config, 'originPorts' | 'sessionSecret'>>;
+    Partial<Pick<Config, 'originPorts' | 'sessionSecret' | 'demo'>>;
   database: Database;
   /** Defaults to {@link PROA_VERSION}. */
   version?: string;
@@ -73,10 +80,21 @@ export interface ProaApp {
   placeholders: string[];
 }
 
+/** Detail of the 401 for any credential the read-only demo is sent. */
+export const DEMO_NO_CREDENTIALS =
+  'the read-only demo accepts no credentials (no agent tokens, no owner key); open the web UI';
+
 /**
  * Builds the ProA HTTP application: `/health`, REST `/api/v1` (routes from
  * `@proa/contracts`), MCP `/mcp`, and the web UI. Pure wiring, no I/O;
  * `main.ts` serves it. {@link createApp} returns just the Hono app.
+ *
+ * With `config.demo` (the read-only demo, `PROA_DEMO=readonly`, issue #3):
+ * the public Host/Origin guard instead of the local one, `/mcp` answers 404,
+ * every write answers 403 `demo-readonly` before authentication
+ * ({@link demoReadOnlyGuard}), sessions are the viewer
+ * (`demoVisitorActor`), credentials are refused with 401 and the owner key
+ * is ignored. The routes stay the same: the guard alone refuses writes.
  */
 export function createProaApp(deps: AppDeps): ProaApp {
   const version = deps.version ?? PROA_VERSION;
@@ -91,15 +109,33 @@ export function createProaApp(deps: AppDeps): ProaApp {
   const sessions = deps.sessions ?? createSessionCodec(deps.config.sessionSecret ?? undefined);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
 
-  app.use('*', securityHeaders());
-  if (deps.config.authMode === 'local') {
+  const demo = deps.config.demo ?? null;
+  app.use('*', securityHeaders(demo ? { hsts: demo.publicOrigins.every(isHttps) } : {}));
+  if (demo) {
+    app.use('*', publicRequestGuard(demo.publicOrigins));
+    app.all(MCP_PATH, demoMcpOff);
+    app.all(`${MCP_PATH}/*`, demoMcpOff);
+    app.use('*', demoReadOnlyGuard());
+  } else if (deps.config.authMode === 'local') {
     app.use(
       '*',
       localRequestGuard(deps.config.originPorts ? { originPorts: deps.config.originPorts } : {}),
     );
   }
-  const ownerKey = deps.ownerKey ? ownerKeyVerifier(deps.ownerKey) : null;
-  app.use('/api/*', authenticate({ useCases, sessions, allowOwner: true, ownerKey }));
+  const ownerKey = !demo && deps.ownerKey ? ownerKeyVerifier(deps.ownerKey) : null;
+  const sessionActor = (client: InteractiveClient) =>
+    demo ? useCases.demoVisitorActor(client) : useCases.localOwnerActor(client);
+  app.use(
+    '/api/*',
+    authenticate({
+      useCases,
+      sessions,
+      allowOwner: true,
+      ownerKey,
+      sessionActor,
+      rejectCredentials: demo ? DEMO_NO_CREDENTIALS : null,
+    }),
+  );
   app.use(
     '/api/*',
     requireAuthentication(
@@ -108,8 +144,13 @@ export function createProaApp(deps: AppDeps): ProaApp {
     ),
   );
 
-  registerSystemRoutes(app, { database: deps.database, version });
-  registerSessionRoutes(app, { useCases, sessions });
+  registerSystemRoutes(app, { database: deps.database, version, demo: demo !== null });
+  registerSessionRoutes(app, {
+    useCases,
+    sessions,
+    sessionActor,
+    secureCookie: demo !== null && demo.publicOrigins.every(isHttps),
+  });
   registerProjectRoutes(app, useCases);
   registerModelRoutes(app, useCases);
   registerRelationRoutes(app, useCases);
@@ -120,13 +161,25 @@ export function createProaApp(deps: AppDeps): ProaApp {
   registerPlacementRoutes(app, useCases);
   registerAutoAcceptRoutes(app, useCases);
 
-  mountMcp(app, { version, useCases, auth: { sessions } });
+  if (!demo) mountMcp(app, { version, useCases, auth: { sessions } });
   const placeholders = mountNotImplementedRoutes(app);
   if (deps.config.webDist) mountWebUi(app, deps.config.webDist);
 
   app.notFound((c) => problemResponse('not-found', `no route for ${c.req.method} ${c.req.path}`));
   app.onError((err, c) => problemFromError(err, new URL(c.req.url).origin));
   return { app, useCases, sessions, placeholders };
+}
+
+function isHttps(origin: string): boolean {
+  return origin.startsWith('https://');
+}
+
+/** `/mcp` on the read-only demo: not mounted; agents have nothing to do there. */
+function demoMcpOff(): Response {
+  return problemResponse(
+    'not-found',
+    'MCP is off in the read-only demo: agents cannot connect here (run ProA locally to connect one)',
+  );
 }
 
 /** The procedure a claim names: `proa-relations` at its current version (`@proa/procedures`). */

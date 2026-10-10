@@ -49,6 +49,8 @@ describe('web app', () => {
 
   it('offers an empty state with exactly two actions when there is no project', async () => {
     const queryClient = new QueryClient();
+    // Creating and seeding show once the server's mode is known (never on the read-only demo).
+    queryClient.setQueryData(healthQuery.queryKey, { status: 'ok', version: '2', db: 'ok' });
     queryClient.setQueryData(projectsQuery.queryKey, []);
     const html = await render('/', queryClient);
     expect(html).toContain('Noch kein Projekt');
@@ -57,8 +59,19 @@ describe('web app', () => {
   });
 
   it('routes project tabs and the model view', async () => {
-    const tabs = await render('/projects/demo/relations');
+    // The write tabs show once the role is known (owners here).
+    const owner = new QueryClient();
+    owner.setQueryData(projectQuery('demo').queryKey, {
+      id: 'prj_01TEST',
+      key: 'demo',
+      name: 'Demo',
+      role: 'owner',
+      lastSeq: 1,
+      createdAt: '2026-10-07T09:00:00.000Z',
+    });
+    const tabs = await render('/projects/demo/relations', owner);
     expect(tabs).toContain('Relationen');
+    expect(tabs).toContain('Hochladen');
     expect(tabs).toContain('Agent verbinden');
     const view = await render('/projects/demo/models/vertrieb/auftragsabwicklung?relation=rel_1');
     expect(view).toContain('vertrieb/auftragsabwicklung');

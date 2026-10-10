@@ -1,0 +1,133 @@
+# Public read-only demo of ProA 2.0 on Fly.io (issue #3; docs/proa-2/DEVELOPMENT.md,
+# "Demo deployment (Fly.io)"). Every push to claude/proa-2 that touches the 2.0
+# workspace deploys docker/Dockerfile.demo with a fresh seed; a manual run deploys
+# again (a fresh seed) or only restarts the machine (the deploy's seed again).
+# Until the owner sets the secret FLY_API_TOKEN, every run skips with a notice and
+# stays green. Switches to develop with the cut-over (CONCEPT §9).
+name: Demo deploy
+
+on:
+  push:
+    branches: [claude/proa-2]
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'eval/corpus/**'
+      - 'eval/value-chains/**'
+      - 'docker/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.node-version'
+      - '.github/workflows/demo-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'deploy: build and deploy a fresh seed; restart: stop and start the machine (same seed, seconds)'
+        type: choice
+        options: [deploy, restart]
+        default: deploy
+
+permissions:
+  contents: read
+
+# One deploy at a time; a running deploy is never cut off.
+concurrency:
+  group: demo-deploy
+  cancel-in-progress: false
+
+env:
+  FLY_APP: ${{ vars.FLY_DEMO_APP || 'proa-demo' }}
+  FLYCTL_VERSION: 0.4.108
+  # sha256 of flyctl_${FLYCTL_VERSION}_Linux_x86_64.tar.gz (the release's checksums file).
+  FLYCTL_SHA256: 38173df9dadd6a1f413ce435b6745b29ce2893c0ba918af17d7a1eced8089844
+
+jobs:
+  deploy:
+    name: Deploy the read-only demo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Fly.io set up?
+        id: fly
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::notice title=Demo deploy skipped::FLY_API_TOKEN is not set (docs/proa-2/DEVELOPMENT.md, Demo deployment (Fly.io))"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.fly.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The release tarball with a pinned checksum instead of a setup action.
+      - name: Install flyctl
+        if: steps.fly.outputs.enabled == 'true'
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/flyctl.tar.gz" \
+            "https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSION}/flyctl_${FLYCTL_VERSION}_Linux_x86_64.tar.gz"
+          echo "${FLYCTL_SHA256}  $RUNNER_TEMP/flyctl.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/flyctl"
+          tar -xzf "$RUNNER_TEMP/flyctl.tar.gz" -C "$RUNNER_TEMP/flyctl" flyctl
+          echo "$RUNNER_TEMP/flyctl" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flyctl/flyctl" version
+
+      # Builds on Fly's remote builder; the seed runs in the build (a broken seed
+      # fails it). Bluegreen: the old release serves until the new one is healthy.
+      - name: Deploy (fresh seed)
+        if: steps.fly.outputs.enabled == 'true' && (github.event_name == 'push' || inputs.action == 'deploy')
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          PUBLIC_ORIGIN: ${{ vars.FLY_DEMO_PUBLIC_ORIGIN }}
+          SEED_ID: ${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -- --config docker/fly.demo.toml --app "$FLY_APP" --remote-only --ha=false \
+            --build-arg "PROA_DEMO_SEED=$SEED_ID"
+          if [ -n "$PUBLIC_ORIGIN" ]; then set -- "$@" --env "PROA_PUBLIC_ORIGIN=$PUBLIC_ORIGIN"; fi
+          flyctl deploy "$@"
+
+      # Stop and start (not `fly apps restart`, which skips stopped and suspended
+      # machines): every start copies the seed again.
+      - name: Restart (same seed)
+        if: steps.fly.outputs.enabled == 'true' && github.event_name == 'workflow_dispatch' && inputs.action == 'restart'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          ids=$(flyctl machine list --app "$FLY_APP" -q)
+          if [ -z "$ids" ]; then echo "::error::no machine in $FLY_APP; deploy first"; exit 1; fi
+          # shellcheck disable=SC2086
+          flyctl machine stop --app "$FLY_APP" $ids || true
+          # shellcheck disable=SC2086
+          flyctl machine start --app "$FLY_APP" $ids
+
+      - name: Set up pnpm (version from package.json packageManager)
+        if: steps.fly.outputs.enabled == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node
+        if: steps.fly.outputs.enabled == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install
+        if: steps.fly.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # From the outside: the demo reports itself, shows both landscapes as a
+      # viewer and refuses every write route and MCP.
+      - name: Smoke check
+        if: steps.fly.outputs.enabled == 'true'
+        env:
+          PUBLIC_ORIGIN: ${{ vars.FLY_DEMO_PUBLIC_ORIGIN }}
+        run: |
+          url="https://${FLY_APP}.fly.dev"
+          if [ -n "$PUBLIC_ORIGIN" ]; then url="${PUBLIC_ORIGIN%%,*}"; fi
+          pnpm --filter @proa/demo check --url "$url" --wait 180

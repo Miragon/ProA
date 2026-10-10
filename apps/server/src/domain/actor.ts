@@ -31,6 +31,10 @@ export const AGENT_TOKEN_ISSUER = 'urn:proa:agent-token';
 export const SYSTEM_ISSUER = 'urn:proa:system';
 /** Subject (and handle) of the rule tier's system principal. */
 export const RULES_SUBJECT = 'proa-rules';
+/** Issuer of the read-only demo's visitor principal (issue #3). */
+export const DEMO_ISSUER = 'urn:proa:demo';
+/** Subject (and handle) of the read-only demo's visitor: a viewer of every project. */
+export const DEMO_VISITOR_SUBJECT = 'visitor';
 
 /**
  * `source_kind` of an assertion, derived from the credential and never sent

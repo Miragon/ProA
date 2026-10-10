@@ -49,6 +49,7 @@ import { ApiError, errorMessage } from '@/lib/api';
 import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
 import { downloadText } from '@/lib/download';
 import { clearDraft, draftOffer, listDrafts, writeDraft, type DraftRef } from '@/lib/drafts';
+import { useProjectPermissions } from '@/lib/permissions';
 import { formatDateTime } from '@/lib/labels';
 import { OUTSIDE_STEP } from '@/lib/limits';
 import {
@@ -105,7 +106,8 @@ export function ValueChainPage() {
   const canvas = useRef<ChainCanvasHandle>(null);
 
   const info = useQuery(projectQuery(project));
-  const canReview = info.data !== undefined && info.data.role !== 'viewer';
+  // Editors and owners; viewers and the read-only demo get the viewer only.
+  const { canReview } = useProjectPermissions(project);
   const detailQ = useQuery(valueChainQuery(project));
   const detail = detailQ.data;
   const missing = detailQ.error instanceof ApiError && detailQ.error.status === 404;
@@ -594,7 +596,7 @@ export function ValueChainPage() {
 
   return (
     <div
-      className="relative h-svh w-full overflow-hidden bg-paper bg-[radial-gradient(var(--cd-linie)_1px,transparent_1px)] [background-size:16px_16px]"
+      className="relative h-app-viewport w-full overflow-hidden bg-paper bg-[radial-gradient(var(--cd-linie)_1px,transparent_1px)] [background-size:16px_16px]"
       data-testid="value-chain-page"
       data-mode={mode}
     >

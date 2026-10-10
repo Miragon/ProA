@@ -1,4 +1,4 @@
-import { AgentTokenList, CreatedAgentToken, Me } from '@proa/contracts';
+import { AgentTokenList, CreatedAgentToken, MAX_SESSION_BODY_BYTES, Me } from '@proa/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -178,6 +178,25 @@ describe('owner session (local mode)', () => {
     const del = await t.request('/api/v1/session', { method: 'DELETE' });
     expect(del.status).toBe(204);
     expect(del.headers.get('set-cookie')).toMatch(/proa_session=;.*Max-Age=0/);
+  });
+
+  it('caps the body: at the cap the session opens, one byte over answers 413', async () => {
+    const json = JSON.stringify({ client: 'proa-cli' });
+    const atCap = await t.request('/api/v1/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: json.padEnd(MAX_SESSION_BODY_BYTES, ' '),
+    });
+    expect(atCap.status).toBe(200);
+    expect(Me.parse(await atCap.json()).clientId).toBe('proa-cli');
+    const over = await t.request('/api/v1/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: json.padEnd(MAX_SESSION_BODY_BYTES + 1, ' '),
+    });
+    expect(over.status).toBe(413);
+    expect(((await over.json()) as { code: string }).code).toBe('payload-too-large');
+    expect(over.headers.get('set-cookie')).toBeNull();
   });
 
   it('refuses sessions to foreign origins and hosts (403)', async () => {

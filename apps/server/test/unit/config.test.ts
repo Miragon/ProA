@@ -2,7 +2,12 @@ import os from 'node:os';
 
 import { describe, expect, it } from 'vitest';
 
-import { ConfigError, DEFAULT_DATABASE_URL, loadConfig } from '../../src/config.ts';
+import {
+  ConfigError,
+  DEFAULT_DATABASE_URL,
+  loadConfig,
+  parsePublicOrigins,
+} from '../../src/config.ts';
 
 describe('loadConfig', () => {
   it('defaults to local mode on 127.0.0.1:7400 and the Compose database', () => {
@@ -18,6 +23,8 @@ describe('loadConfig', () => {
       sessionSecret: null,
       ownerKeyFile: `${os.homedir()}/.local/state/proa/owner-key`,
       allowNonLoopback: false,
+      // Issue #3: local mode is no demo.
+      demo: null,
     });
   });
 
@@ -89,5 +96,103 @@ describe('loadConfig', () => {
       expect(String(err)).toMatch(/PROA_PORT/);
       expect(String(err)).toMatch(/DATABASE_URL/);
     }
+  });
+});
+
+describe('loadConfig: the read-only demo (PROA_DEMO=readonly, issue #3)', () => {
+  const demo = {
+    PROA_WEB_DIST: '',
+    PROA_DEMO: 'readonly',
+    PROA_PUBLIC_ORIGIN: 'https://proa-demo.fly.dev',
+  };
+
+  it('reads the public origins, binds any host without an opt-in and runs no migrations', () => {
+    const config = loadConfig({ ...demo, PROA_HOST: '0.0.0.0', PROA_PORT: '8080' });
+    expect(config).toEqual({
+      port: 8080,
+      host: '0.0.0.0',
+      databaseUrl: DEFAULT_DATABASE_URL,
+      authMode: 'local',
+      webDist: null,
+      migrateOnStart: false,
+      originPorts: [],
+      sessionSecret: null,
+      ownerKeyFile: null,
+      allowNonLoopback: false,
+      demo: { publicOrigins: ['https://proa-demo.fly.dev'] },
+    });
+    expect(
+      loadConfig({
+        ...demo,
+        PROA_PUBLIC_ORIGIN:
+          'https://proa.example.org, https://proa-demo.fly.dev,https://proa.example.org',
+        PROA_OWNER_KEY_FILE: '',
+        PROA_MIGRATE: 'off',
+      }).demo,
+    ).toEqual({ publicOrigins: ['https://proa.example.org', 'https://proa-demo.fly.dev'] });
+    // http only on a loopback host: the demo image run locally.
+    expect(
+      loadConfig({
+        ...demo,
+        PROA_PUBLIC_ORIGIN: 'http://127.0.0.1:7480,http://localhost:7480,http://[::1]:7480',
+      }).demo?.publicOrigins,
+    ).toEqual(['http://127.0.0.1:7480', 'http://localhost:7480', 'http://[::1]:7480']);
+  });
+
+  it('needs the public origins, each a bare canonical https origin', () => {
+    expect(() => loadConfig({ PROA_WEB_DIST: '', PROA_DEMO: 'readonly' })).toThrow(
+      /PROA_PUBLIC_ORIGIN is required/,
+    );
+    for (const bad of [
+      'http://proa-demo.fly.dev',
+      'https://proa-demo.fly.dev/',
+      'https://proa-demo.fly.dev/app',
+      'https://proa-demo.fly.dev?x=1',
+      'https://PROA-demo.fly.dev',
+      'https://proa-demo.fly.dev:443',
+      'proa-demo.fly.dev',
+      'https://a.example,',
+      'ftp://proa-demo.fly.dev',
+      ' ',
+    ]) {
+      expect(() => loadConfig({ ...demo, PROA_PUBLIC_ORIGIN: bad }), bad).toThrow(ConfigError);
+    }
+    expect(parsePublicOrigins('https://a.example/,http://10.0.0.1').problems).toEqual([
+      'https://a.example/: write the bare origin https://a.example (no path, no trailing slash)',
+      'http://10.0.0.1: must be https (http only on a loopback host)',
+    ]);
+    expect(() => loadConfig({ ...demo, PROA_DEMO: 'writable' })).toThrow(/PROA_DEMO/);
+  });
+
+  it('refuses everything that would let a visitor write or act as the owner, listing all', () => {
+    const cases: Array<[Record<string, string>, RegExp]> = [
+      [{ PROA_OWNER_KEY_FILE: '/var/lib/proa/owner-key' }, /PROA_OWNER_KEY_FILE/],
+      [{ PROA_ORIGIN_PORTS: '7400' }, /PROA_ORIGIN_PORTS/],
+      [{ PROA_ALLOW_NON_LOOPBACK: '1' }, /PROA_ALLOW_NON_LOOPBACK/],
+      [{ PROA_MIGRATE: 'auto' }, /PROA_MIGRATE=auto/],
+    ];
+    for (const [extra, message] of cases) {
+      expect(() => loadConfig({ ...demo, ...extra }), JSON.stringify(extra)).toThrow(message);
+    }
+    expect(() => loadConfig({ ...demo, PROA_OWNER_KEY_FILE: '/k', PROA_MIGRATE: 'auto' })).toThrow(
+      /PROA_OWNER_KEY_FILE[\s\S]*PROA_MIGRATE=auto/,
+    );
+  });
+
+  it('keeps local mode as it was: no public origin without the demo', () => {
+    expect(() =>
+      loadConfig({ PROA_WEB_DIST: '', PROA_PUBLIC_ORIGIN: 'https://proa-demo.fly.dev' }),
+    ).toThrow(/only the read-only demo has a public origin/);
+    expect(() =>
+      loadConfig({
+        PROA_WEB_DIST: '',
+        PROA_HOST: '0.0.0.0',
+        PROA_PUBLIC_ORIGIN: 'https://proa-demo.fly.dev',
+        PROA_ALLOW_NON_LOOPBACK: '1',
+      }),
+    ).toThrow(ConfigError);
+    expect(() => loadConfig({ PROA_WEB_DIST: '', PROA_HOST: '0.0.0.0' })).toThrow(
+      /not a loopback address/,
+    );
   });
 });

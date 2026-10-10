@@ -187,3 +187,57 @@ jobs:
       - name: Stop
         if: always()
         run: docker compose -p proa2 -f docker/compose.yaml down -v
+
+  demo:
+    name: Read-only demo image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # docker/Dockerfile.demo as Fly.io builds it (issue #3): the seed (both
+      # landscapes, value chains, the simulation agent) runs in the build, so a
+      # broken seed fails here before any deploy.
+      - name: Build and start
+        run: docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --build --wait
+
+      # The runtime image has no eval directory, CLI or agent, and /opt/proa-demo
+      # only the seeded data directory and its description.
+      - name: Image holds no eval answers
+        run: |
+          docker compose -p proa2-demo -f docker/compose.demo.yaml exec -T demo sh -c 'test ! -e /app/eval && test ! -e /app/apps/cli && test ! -e /app/apps/agent-sim && test "$(ls -A /opt/proa-demo | sort | tr "\n" " ")" = "pgdata-template seed.json "'
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Health, both landscapes as a viewer with agent proposals and placements,
+      # every write route 403 demo-readonly, MCP 404, credentials 401.
+      - name: Check the demo
+        run: pnpm --filter @proa/demo check --url http://127.0.0.1:7480
+
+      # A restart is the owner's reset: the container starts from the seed again.
+      - name: Restart returns to the seed
+        run: |
+          docker compose -p proa2-demo -f docker/compose.demo.yaml restart demo
+          docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --wait
+          pnpm --filter @proa/demo check --url http://127.0.0.1:7480
+
+      - name: Logs
+        if: always()
+        run: docker compose -p proa2-demo -f docker/compose.demo.yaml logs --no-color
+
+      - name: Stop
+        if: always()
+        run: docker compose -p proa2-demo -f docker/compose.demo.yaml down -v

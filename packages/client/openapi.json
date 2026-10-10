@@ -579,6 +579,13 @@
               "ok",
               "down"
             ]
+          },
+          "demo": {
+            "type": "string",
+            "enum": [
+              "readonly"
+            ],
+            "description": "Present only on a read-only demo: nothing can be changed."
           }
         },
         "required": [
@@ -685,6 +692,7 @@
           "insufficient-scope",
           "forbidden",
           "human-decision-required",
+          "demo-readonly",
           "not-found",
           "method-not-allowed",
           "conflict",
@@ -1692,6 +1700,67 @@
           "items"
         ],
         "description": "Deterministic findings of the project head."
+      },
+      "NoLinkList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NoLink"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Live, current agent no-links, oldest first."
+      },
+      "NoLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/NoLinkId"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "call",
+              "message",
+              "signal",
+              "trigger"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "handle": {
+            "type": "string"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "from",
+          "to",
+          "handle",
+          "origin",
+          "reason",
+          "at"
+        ],
+        "description": "An agent judgement that a typed pair is unrelated."
       },
       "RelationAssertionList": {
         "type": "object",
@@ -8583,7 +8652,7 @@
           "system"
         ],
         "summary": "Local mode: open an owner session (HttpOnly cookie) for the web UI or the CLI",
-        "description": "Local mode only (`PROA_AUTH=local`). Sets the `proa_session` cookie (HttpOnly, SameSite=Strict); requests carrying it act as the single owner on an interactive client. The server accepts it only from localhost (Host and Origin checks).",
+        "description": "Local mode only (`PROA_AUTH=local`). Sets the `proa_session` cookie (HttpOnly, SameSite=Strict); requests carrying it act as the single owner on an interactive client. The server accepts it only from localhost (Host and Origin checks). On a read-only demo (`PROA_DEMO=readonly`, `Health.demo`) the session is a viewer with scope `proa:read` instead, accepted from the demo's public origins. A body over 4096 bytes answers 413 `payload-too-large` before it is read.",
         "security": [],
         "requestBody": {
           "required": false,
@@ -8618,6 +8687,16 @@
           },
           "403": {
             "description": "Problem: `forbidden`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Problem: `payload-too-large`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8803,7 +8882,7 @@
             }
           },
           "403": {
-            "description": "Problem: `forbidden`",
+            "description": "Problem: `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9149,7 +9228,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9260,7 +9339,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9663,7 +9742,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9992,7 +10071,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10187,6 +10266,93 @@
         }
       }
     },
+    "/api/v1/projects/{project}/no-links": {
+      "get": {
+        "operationId": "listNoLinks",
+        "tags": [
+          "relations"
+        ],
+        "summary": "Agents' live, current no-links (pairs judged unrelated), also on pairs without a relation",
+        "description": "Every live no-link whose basis is still current (both models unchanged, the procedure claims name now), oldest first; `modelKey` keeps those with an endpoint in that model. A no-link on a pair that also has a relation shows there too (`Relation.noLinks`).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(?:prj_[0-7][0-9A-HJKMNP-TV-Z]{25}|[a-z0-9]+(?:-[a-z0-9]+)*)$",
+              "description": "Project id (`prj_…`) or project key.",
+              "example": "nordwind-handel"
+            },
+            "required": true,
+            "description": "Project id (`prj_…`) or project key.",
+            "name": "project",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ModelKey"
+            },
+            "required": false,
+            "description": "Immutable model key: lowercase slug segments separated by `/`.",
+            "name": "modelKey",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No-links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoLinkList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem: `unauthorized`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem: `insufficient-scope`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem: `not-found`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Problem: `validation-failed`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/relations/{relation}/assertions": {
       "get": {
         "operationId": "getRelationAssertions",
@@ -10327,7 +10493,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10443,7 +10609,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10550,7 +10716,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10656,7 +10822,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10839,7 +11005,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11022,7 +11188,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11285,7 +11451,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12082,7 +12248,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12178,7 +12344,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12388,7 +12554,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12523,7 +12689,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12648,7 +12814,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12825,7 +12991,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13020,7 +13186,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13122,7 +13288,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13343,7 +13509,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13591,7 +13757,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13670,7 +13836,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13843,7 +14009,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13931,7 +14097,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14141,7 +14307,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14270,7 +14436,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14380,7 +14546,7 @@
             }
           },
           "403": {
-            "description": "Problem: `insufficient-scope`, `forbidden`",
+            "description": "Problem: `insufficient-scope`, `forbidden`, `demo-readonly`",
             "content": {
               "application/problem+json": {
                 "schema": {

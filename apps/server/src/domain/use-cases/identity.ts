@@ -1,6 +1,13 @@
 import type { InteractiveClient, Me, PrincipalId } from '@proa/contracts';
 
-import { LOCAL_ISSUER, RULES_SUBJECT, SYSTEM_ISSUER, type Actor } from '../actor.ts';
+import {
+  DEMO_ISSUER,
+  DEMO_VISITOR_SUBJECT,
+  LOCAL_ISSUER,
+  RULES_SUBJECT,
+  SYSTEM_ISSUER,
+  type Actor,
+} from '../actor.ts';
 import { hashAgentTokenSecret, isWellFormedAgentToken } from '../agent-token-secret.ts';
 import { tokenRole } from '../policy.ts';
 import type { PrincipalRecord } from '../ports.ts';
@@ -11,6 +18,23 @@ const TOUCH_INTERVAL_MS = 60_000;
 
 /** Subject and handle of the single human of local mode. */
 export const LOCAL_OWNER_SUBJECT = 'owner';
+
+/** The read-only demo's visitor principal (issue #3). */
+const DEMO_VISITOR = {
+  kind: 'user',
+  iss: DEMO_ISSUER,
+  subject: DEMO_VISITOR_SUBJECT,
+  handle: DEMO_VISITOR_SUBJECT,
+} as const;
+
+/** What {@link identityUseCases}' `grantDemoVisitor` did. */
+export interface DemoVisitorGrant {
+  principalId: PrincipalId;
+  /** Project keys that got the viewer membership now. */
+  granted: string[];
+  /** Project keys where the visitor already was a member. */
+  existing: string[];
+}
 
 function memo<T>(load: () => Promise<T>): () => Promise<T> {
   let value: Promise<T> | undefined;
@@ -42,6 +66,16 @@ export function identityUseCases(deps: UseCaseDeps) {
       }),
     );
     return p.id;
+  });
+
+  const demoVisitor = memo<PrincipalRecord>(async () => {
+    const found = await deps.store.read((tx) => tx.principals.find(DEMO_VISITOR));
+    if (!found) {
+      throw new Error(
+        'the read-only demo has no visitor: run apps/server/src/demo-bootstrap.ts against the seeded database first',
+      );
+    }
+    return found;
   });
 
   return {
@@ -94,6 +128,50 @@ export function identityUseCases(deps: UseCaseDeps) {
         scopes: token.scopes,
         binding: { projectId: token.projectId, role: tokenRole(token.scopes) },
       };
+    },
+
+    /**
+     * The read-only demo (`PROA_DEMO=readonly`, issue #3, CONCEPT §6): every
+     * session is the visitor, a user on an interactive client with scope
+     * `proa:read` only and the viewer role in every project
+     * ({@link grantDemoVisitor}). The policy therefore denies every write by
+     * scope and by role, behind the HTTP guard that refuses them first. A
+     * lookup only: the demo's database is read-only.
+     *
+     * @throws if the visitor was never granted (the demo refuses to start)
+     */
+    async demoVisitorActor(client: InteractiveClient): Promise<Actor> {
+      const visitor = await demoVisitor();
+      return {
+        principalId: visitor.id,
+        kind: 'user',
+        handle: visitor.handle,
+        clientId: client,
+        interactive: true,
+        scopes: ['proa:read'],
+        binding: null,
+      };
+    },
+
+    /**
+     * Prepares a seeded database for the read-only demo (issue #3): ensures
+     * the visitor principal and makes it a viewer of every project. A system
+     * operation without an actor, like `queueFirstPlacementTasks`: no route or
+     * MCP tool reaches it; `demo-bootstrap.ts` runs it while the demo image is
+     * built. The visitor is useless outside the demo, where no credential
+     * resolves to it.
+     */
+    async grantDemoVisitor(): Promise<DemoVisitorGrant> {
+      return deps.store.write(async (tx) => {
+        const visitor = await tx.principals.ensure(DEMO_VISITOR);
+        const granted: string[] = [];
+        const existing: string[] = [];
+        for (const project of await tx.projects.listAll()) {
+          const outcome = await tx.memberships.ensure(project.id, visitor.id, 'viewer');
+          (outcome === 'created' ? granted : existing).push(project.key);
+        }
+        return { principalId: visitor.id, granted, existing };
+      });
     },
 
     /** `GET /me`. */

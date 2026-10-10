@@ -238,6 +238,10 @@ export type Health = {
   status: 'ok' | 'degraded';
   version: string;
   db: 'ok' | 'down';
+  /**
+   * Present only on a read-only demo: nothing can be changed.
+   */
+  demo?: 'readonly';
 };
 
 /**
@@ -285,6 +289,7 @@ export type ProblemCode =
   | 'insufficient-scope'
   | 'forbidden'
   | 'human-decision-required'
+  | 'demo-readonly'
   | 'not-found'
   | 'method-not-allowed'
   | 'conflict'
@@ -674,6 +679,27 @@ export type RelationPage = {
  */
 export type FindingList = {
   items: Array<Finding>;
+};
+
+/**
+ * Live, current agent no-links, oldest first.
+ */
+export type NoLinkList = {
+  items: Array<NoLink>;
+};
+
+/**
+ * An agent judgement that a typed pair is unrelated.
+ */
+export type NoLink = {
+  id: NoLinkId;
+  type: 'call' | 'message' | 'signal' | 'trigger';
+  from: Ref;
+  to: Ref;
+  handle: string;
+  origin: ModelKey;
+  reason: string;
+  at: Timestamp;
 };
 
 /**
@@ -2661,6 +2687,10 @@ export type CreateSessionErrors = {
    */
   403: ApiProblem;
   /**
+   * Problem: `payload-too-large`
+   */
+  413: ApiProblem;
+  /**
    * Problem: `unsupported-media-type`
    */
   415: ApiProblem;
@@ -2758,7 +2788,7 @@ export type CreateProjectErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `forbidden`
+   * Problem: `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -2898,7 +2928,7 @@ export type DeleteModelErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -2990,7 +3020,7 @@ export type PutModelByKeyErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3197,7 +3227,7 @@ export type ImportModelsErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3353,7 +3383,7 @@ export type ProposeRelationErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3465,6 +3495,53 @@ export type ListFindingsResponses = {
 
 export type ListFindingsResponse = ListFindingsResponses[keyof ListFindingsResponses];
 
+export type ListNoLinksData = {
+  body?: never;
+  path: {
+    /**
+     * Project id (`prj_…`) or project key.
+     */
+    project: string;
+  };
+  query?: {
+    /**
+     * Immutable model key: lowercase slug segments separated by `/`.
+     */
+    modelKey?: ModelKey;
+  };
+  url: '/api/v1/projects/{project}/no-links';
+};
+
+export type ListNoLinksErrors = {
+  /**
+   * Problem: `unauthorized`
+   */
+  401: ApiProblem;
+  /**
+   * Problem: `insufficient-scope`
+   */
+  403: ApiProblem;
+  /**
+   * Problem: `not-found`
+   */
+  404: ApiProblem;
+  /**
+   * Problem: `validation-failed`
+   */
+  422: ApiProblem;
+};
+
+export type ListNoLinksError = ListNoLinksErrors[keyof ListNoLinksErrors];
+
+export type ListNoLinksResponses = {
+  /**
+   * No-links
+   */
+  200: NoLinkList;
+};
+
+export type ListNoLinksResponse = ListNoLinksResponses[keyof ListNoLinksResponses];
+
 export type GetRelationAssertionsData = {
   body?: never;
   path: {
@@ -3535,7 +3612,7 @@ export type WithdrawProposalErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3588,7 +3665,7 @@ export type DecideRelationErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3638,7 +3715,7 @@ export type DecideRelationsErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3688,7 +3765,7 @@ export type AddRelationNoteErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3776,7 +3853,7 @@ export type CreateValueChainErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3830,7 +3907,7 @@ export type DeleteValueChainErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -3979,7 +4056,7 @@ export type PutValueChainContentErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4373,7 +4450,7 @@ export type PostPlacementsErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4419,7 +4496,7 @@ export type DecidePlacementsErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4523,7 +4600,7 @@ export type WithdrawPlacementProposalErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4582,7 +4659,7 @@ export type DecidePlacementErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4640,7 +4717,7 @@ export type AddPlacementNoteErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`
+   * Problem: `insufficient-scope`, `human-decision-required`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4733,7 +4810,7 @@ export type ClaimAnalysesErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4820,7 +4897,7 @@ export type SubmitAnalysisErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4870,7 +4947,7 @@ export type ReleaseAnalysisErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -4976,7 +5053,7 @@ export type RequeueAnalysesErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5108,7 +5185,7 @@ export type CreateAgentTokenErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5154,7 +5231,7 @@ export type RevokeAgentTokenErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5239,7 +5316,7 @@ export type CreateAutoAcceptRuleErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5283,7 +5360,7 @@ export type PreviewAutoAcceptRuleErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5381,7 +5458,7 @@ export type ReviseAutoAcceptRuleErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5439,7 +5516,7 @@ export type ApplyAutoAcceptRuleErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**
@@ -5488,7 +5565,7 @@ export type RevokeAutoAcceptedErrors = {
    */
   401: ApiProblem;
   /**
-   * Problem: `insufficient-scope`, `forbidden`
+   * Problem: `insufficient-scope`, `forbidden`, `demo-readonly`
    */
   403: ApiProblem;
   /**

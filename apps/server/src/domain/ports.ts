@@ -597,17 +597,29 @@ export interface ProjectRepo {
   ): Promise<(ProjectRecord & { role: Role })[]>;
   /** `SELECT … FOR UPDATE`: serializes writers of one project. */
   lockForWrite(projectId: ProjectId): Promise<ProjectRecord>;
+  /** Every project, ordered by key (system operations only, e.g. `grantDemoVisitor`). */
+  listAll(): Promise<ProjectRecord[]>;
 }
 
 export interface PrincipalRepo {
   /** Finds or creates the principal with this `(iss, kind, subject)`. */
   ensure(identity: Omit<PrincipalRecord, 'id'>): Promise<PrincipalRecord>;
+  /** The principal with this `(iss, kind, subject)`, without creating it (reads only). */
+  find(
+    identity: Pick<PrincipalRecord, 'iss' | 'kind' | 'subject'>,
+  ): Promise<PrincipalRecord | null>;
   insert(p: PrincipalRecord): Promise<void>;
 }
 
 export interface MembershipRepo {
   roleOf(projectId: ProjectId, principalId: PrincipalId): Promise<Role | null>;
   insert(projectId: ProjectId, principalId: PrincipalId, role: Role): Promise<void>;
+  /** Inserts the membership unless one exists (an existing role is left as it is). */
+  ensure(
+    projectId: ProjectId,
+    principalId: PrincipalId,
+    role: Role,
+  ): Promise<'created' | 'existing'>;
 }
 
 export interface AgentTokenRepo {

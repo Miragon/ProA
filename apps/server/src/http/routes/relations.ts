@@ -10,7 +10,7 @@ export function landscapeEtag(seq: number): string {
   return `"s${seq}"`;
 }
 
-/** Landscape, relations and findings (CONCEPT §5). */
+/** Landscape, relations, findings and agents' no-links (CONCEPT §5). */
 export function registerRelationRoutes(app: App, useCases: UseCases): void {
   app.openapi(createRoute(apiRoutes.getLandscape), async (c) => {
     const actor = requireActor(c);
@@ -49,5 +49,10 @@ export function registerRelationRoutes(app: App, useCases: UseCases): void {
   app.openapi(createRoute(apiRoutes.listFindings), async (c) => {
     const { project } = c.req.valid('param');
     return c.json(await useCases.listFindings(requireActor(c), project), 200);
+  });
+
+  app.openapi(createRoute(apiRoutes.listNoLinks), async (c) => {
+    const { project } = c.req.valid('param');
+    return c.json(await useCases.listNoLinks(requireActor(c), project, c.req.valid('query')), 200);
   });
 }

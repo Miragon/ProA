@@ -160,8 +160,14 @@ export async function unwrapWithResponse<T>(
   return { data: result.data as T, response: result.response };
 }
 
+/** The message for a write the read-only demo refused (403 `demo-readonly`, issue #3). */
+export const DEMO_READONLY_MESSAGE = 'Das ist eine Demo: Hier kannst du nichts ändern.';
+
 /** A short German message for any error thrown by {@link unwrap}. */
 export function errorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.problem.code === 'demo-readonly') {
+    return DEMO_READONLY_MESSAGE;
+  }
   if (error instanceof ApiError) {
     const detail = error.problem.detail ? `: ${error.problem.detail}` : '';
     return `${error.problem.title}${detail}`;

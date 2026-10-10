@@ -1,7 +1,9 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+import { DEMO_SKIP, probeServer } from './server-mode';
 
 /**
  * Smoke test (M1): projects → relations → model view, against a running
@@ -19,15 +21,6 @@ function bpmnFiles(dir: string): string[] {
     const path = join(dir, name);
     return statSync(path).isDirectory() ? bpmnFiles(path) : name.endsWith('.bpmn') ? [path] : [];
   });
-}
-
-async function serverUp(request: APIRequestContext): Promise<boolean> {
-  try {
-    const response = await request.get('/health', { timeout: 3000 });
-    return response.ok();
-  } catch {
-    return false;
-  }
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -56,10 +49,9 @@ test.afterEach(() => {
 });
 
 test.beforeAll(async ({ request }) => {
-  test.skip(
-    !(await serverUp(request)),
-    'no ProA server at PROA_E2E_URL; start one to run the smoke test',
-  );
+  const mode = await probeServer(request);
+  test.skip(mode === 'down', 'no ProA server at PROA_E2E_URL; start one to run the smoke test');
+  test.skip(mode === 'demo', DEMO_SKIP);
   // The API request context keeps the owner session cookie, like the browser does.
   expect((await request.post('/api/v1/session', { data: { client: 'proa-web' } })).ok()).toBe(true);
   const created = await request.post('/api/v1/projects', {

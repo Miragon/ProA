@@ -21,7 +21,9 @@ changes, findings and `baseline-prefix/1` ([below](#value-chain-and-placements-m
 placement review, save with dry run, conflict and drafts, link editing, drill-down
 ([below](#value-chain-in-the-web-ui-m4), [M4 S3](#m4-s3-2026-10-09)); and the LLM-free placement
 eval `eval:placements`, `proa seed --value-chains` and German texts for the rule tier
-([below](#value-chain-and-placements-m4), [M4 S4](#m4-s4-2026-10-09)). The 1.x tree (`backend/`, `frontend/`,
+([below](#value-chain-and-placements-m4), [M4 S4](#m4-s4-2026-10-09)). The public read-only demo of
+issue #3 (owner decision 20) is built and checked locally, not deployed yet
+([Demo deployment (Fly.io)](#demo-deployment-flyio)). The 1.x tree (`backend/`, `frontend/`,
 Maven) lives next to it, untouched, until the cut-over PR.
 
 The [Quickstart](#quickstart-docker) and [Troubleshooting](#troubleshooting) were run end to end on
@@ -60,6 +62,7 @@ end to end](#verified-end-to-end) lists exactly what was run and what was not.
 | The `placement` pipeline kind (M4 S5, [below](#the-placement-pipeline-and-proa-placements-m4-s5)): task kinds and subjects (migration 0008), judge each process once (input hashes, `placement_input`, one open task per chain, follow-ups at submit), the claim input `proa-claim-placement/1`, placement submissions with supersession and unsure verdicts, the chain's stage, the procedure, prompts and skill, the placement live gate | working over REST and MCP; unit and real-PostgreSQL tests (`placement-pipeline.test.ts`: every trigger and stage, supersession, the unsure memory, truncation with one follow-up, saves during a lease), the simulation agent on both landscapes, the procedure drift test, Playwright for the Import; no LLM run yet |
 | Value chain and placements over REST, MCP and CLI (M4 S2, [below](#value-chain-and-placements-m4)): `prepareRevision` (canonical bytes, ProA rules, kinds, ranks, fingerprints, `structure_hash`), 19 routes (`If-Match`/`If-None-Match`, `dryRun`, decisions incl. bulk, unplaced processes, findings), six MCP tools, `proa value-chain push\|pull`, the rule tier's key proposals, placements that follow model ingest and deletion, server tiers with `baseline-prefix/1` (`@proa/relations`), token revocation | working over REST, MCP and the CLI (and since S3 in the web UI); unit tests (document rules, structure incl. the golden dev chain, impact, items, tiers, rules, findings, `baseline-prefix/1`), real-PostgreSQL tests (REST, placements, rule tier, the dev landscape with its golden chain through model changes, policy matrix, MCP contract), the CLI against a fake API and end to end |
 | Auto-accept rules (owner decision 19, [below](#auto-accept-rules-owner-decision-19)): the tables `auto_accept_rule` and `auto_accept_rule_revision` and the assertion marker (migrations 0009/0010), the evaluator with its safeguards in all four agent write paths, apply and revoke with dry runs, the preview and the ledger (`src/domain/auto-accept/`), seven owner-only routes and the ledger for every reviewer, `proa rules …`, the tab „Regeln“ with marks and filters in the review views, the „Auto-accept what-if“ of `eval:replay` | working over REST, the CLI and the web UI (no MCP by design); unit tests (evaluator, status with revocations, preview, rules, the what-if), real-PostgreSQL tests (relations and placements end to end, revocation, migration on existing data, constraints, policy matrix), CLI unit and e2e tests, web component tests and Playwright (`e2e/auto-accept.spec.ts`) against a throwaway stack; MCP snapshots and recordings unchanged |
+| Read-only demo on Fly.io (issue #3, owner decision 20, [below](#demo-deployment-flyio)): `PROA_DEMO=readonly` in the server (the read-only guard before authentication, the viewer session, `demo-readonly`, MCP off, credentials refused, the public Host/Origin guard, `Health.demo`), the read-only database role and the visitor (`demo-bootstrap.ts`), the web UI's banner and role gating, `apps/demo` (`proa-demo seed\|serve\|check`), `docker/Dockerfile.demo` with the seed baked in, `docker/compose.demo.yaml`, `docker/fly.demo.toml`, `.github/workflows/demo-deploy.yml` and the CI job `demo`; after the review round: the session body capped at 4 KiB, `proa-demo check` never writes to a non-demo, the agents' no-links in the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, every role and mode) | built and checked locally (the image, `proa-demo check`, the Playwright walk, restart = seed, no eval file in the image; [Read-only demo, issue #3](#read-only-demo-issue-3-2026-10-10)); unit and real-PostgreSQL tests (every write route 403 with three credentials and none forgotten, every GET route over the read-only role, a 700 MB session body cut off at 4 KiB); **not deployed**: no Fly account was available, so flyctl, the remote builder, suspend and the workflow have not run |
 
 ## Quickstart (Docker)
 
@@ -389,6 +392,213 @@ use port 7400: stop the container first (`docker compose -p proa2 -f docker/comp
 proa`). With the checkout CLI against the Docker server, copy the container's owner key (see
 [Local mode](#local-mode-who-is-calling-concept-6)).
 
+## Demo deployment (Fly.io)
+
+A public ProA 2.0 to show others (issue [#3](https://github.com/Miragon/ProA/issues/3), owner
+decision 20 in [HANDOFF.md](HANDOFF.md) §4): both landscapes, `nordwind-handel` and
+`stadtwerke-auental`, with their value chains, worked by the simulation agent, on one Fly.io
+machine. **Everyone sees everything, nobody can change anything**, and there is no login. No
+Camunda engine, no LLM credential, no Fly secret.
+
+### What it is
+
+- **One image, `docker/Dockerfile.demo`** (the product image `docker/Dockerfile` is unchanged):
+  PostgreSQL 17.11 from its official image (Debian trixie), the Node 24.21.0 binary of the product
+  image, the server, the built web UI and the supervisor `@proa/demo` (`apps/demo`,
+  `proa-demo seed | serve | check`).
+- **The seed is made while the image is built** (`proa-demo seed`, stage `seed`): `initdb`,
+  PostgreSQL on loopback, the server in normal local mode on loopback, `proa seed
+  nordwind-handel stadtwerke-auental --value-chains --issue-tokens --token-name agent-sim`, then
+  `proa-agent-sim` per project with its token (both task kinds, default `sim-policy-1`, from the
+  claim inputs alone), a check that every task is done and the agent proposed, asked, no-linked
+  and placed, then `apps/server/src/demo-bootstrap.ts` (the visitor and the read-only role),
+  `VACUUM (FREEZE, ANALYZE)` and a clean shutdown. The data directory becomes
+  `/opt/proa-demo/pgdata-template`, described by `/opt/proa-demo/seed.json` (seed id, time,
+  counts). A broken seed fails the build, so Fly keeps the release that runs. The build arg
+  `PROA_DEMO_SEED` names the seed and is the seed layer's only changing input: the deploy
+  workflow passes its run and attempt (`<run_id>.<run_attempt>`), so every workflow deploy seeds
+  afresh, while a build with an unchanged value (the default `local`, e.g. a second manual
+  `fly deploy` of the same commit or a local `--build`) reuses the cached seed. On 2026-10-10 the seed took about 5 s: `nordwind-handel` 31 models, 48 agent
+  proposals (12 with a question), 150 no-links, 29 placement proposals, 3 „Agent unsicher“;
+  `stadtwerke-auental` 26 models, 52 proposals (15 with a question), 101 no-links, 25 placements,
+  2 unsure.
+- **Every start is the seed** (`proa-demo serve`, the entry point): it copies the template to
+  `/tmp/proa-demo`, starts PostgreSQL on 127.0.0.1 (no autovacuum, no durability: the data is a
+  throwaway copy) and the server with `PROA_DEMO=readonly` on 0.0.0.0:8080, as the read-only
+  role. SIGTERM or SIGINT stop the server, then PostgreSQL; if either dies, the supervisor stops
+  the other and exits 1, and Fly restarts the machine from the seed. Start to healthy: about 2 s
+  locally.
+- **Three write barriers.** (1) The server's read-only guard answers every method other than
+  GET, HEAD and OPTIONS with 403 `demo-readonly`, on every path, before authentication; the only
+  exceptions are `POST` and `DELETE /api/v1/session`. (2) Every session is the visitor
+  (`urn:proa:demo` / `visitor`), a user with scope `proa:read` only and the viewer role in every
+  project, so the domain policy denies writes as well. (3) The server connects as the role
+  `proa_demo` with `default_transaction_read_only = on` and `statement_timeout = 30s`; a write
+  that slipped through fails in PostgreSQL. Besides: `/mcp` answers 404, any `Authorization`
+  header 401, there is no owner key, and the server refuses to start in demo mode unless its
+  database role is read-only and the visitor exists. The session routes, the only writes anyone
+  reaches, carry no data, and `POST /api/v1/session` reads at most 4 KiB
+  (`MAX_SESSION_BODY_BYTES`, 413 `payload-too-large` before the body is read; in local mode too),
+  so no request can fill the 1 GB machine's memory.
+- **Host and Origin** follow the public origins (`PROA_PUBLIC_ORIGIN`, by default
+  `https://$FLY_APP_NAME.fly.dev`): `Host` must be one of their hosts (or a loopback name),
+  `Origin` must be one of them exactly; `GET /health` is exempt for Fly's checker. The session
+  cookie is `Secure` and the server sends `Strict-Transport-Security` when every origin is https.
+- **The web UI** shows the banner „Demo – nur lesen. Du kannst dir alles ansehen, aber nichts
+  ändern. Die Vorschläge stammen vom Simulationsagenten (ohne LLM).“ with a link to the
+  repository (it promises no nightly reset) and hides every write action: no „Neues Projekt“, no
+  tabs „Hochladen“, „Agent verbinden“, „Regeln“ (their URLs show a notice and send no request),
+  no bulk accept, „Erneut einplanen“, answer field or decision panel (A/R/H/C do nothing), no
+  value chain editing. Read views stay: models, model view, relations, findings, the inbox with
+  „Kein Zusammenhang“ and the review screen in read mode, the value chain page and the step view.
+  Screenshots: [projects](screenshots/demo-01-projects.png),
+  [model view](screenshots/demo-02-model-view.png), [inbox](screenshots/demo-03-inbox.png),
+  [review screen](screenshots/demo-04-review.png),
+  [value chain](screenshots/demo-05-value-chain.png),
+  [no-links](screenshots/demo-06-no-links.png).
+- **No-links** (decision 20(4)): the inbox tab „Kein Zusammenhang“ lists every live, current
+  agent no-link with its reason (`GET /api/v1/projects/{p}/no-links`), also on pairs without a
+  relation; on a pair with one it shows as „Einwand“ in the queue and on the review screen as
+  well. The simulation agent alone no-links only pairs without a relation (its proposals and
+  no-links never meet, and with its default thresholds it no-links none of the rule tier's
+  proposals), so on the demo the tab is where its 150 and 101 no-links show; the queue has no
+  „Einwand“. The tab is read-only for every role and in every mode.
+- **Holdout:** the runtime image holds no `eval/` directory, no CLI and no simulation agent, and
+  `/opt/proa-demo` holds only the template and `seed.json`; the database holds models, value
+  chains and agent proposals, never expected answers. `docker/Dockerfile.demo.dockerignore` (a
+  superset of the product's, next to the Dockerfile for BuildKit and named as `ignorefile` in
+  `docker/fly.demo.toml` for flyctl's own upload) keeps answers, recordings and reports out of the
+  build context, the stage `prod-seed` removes them again and the runtime stage checks.
+
+### Run it locally
+
+```sh
+docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --build --wait   # http://127.0.0.1:7480
+pnpm --filter @proa/demo check --url http://127.0.0.1:7480                      # every write refused?
+PROA_E2E_URL=http://127.0.0.1:7480 pnpm --filter @proa/web e2e demo             # the browser walk
+docker compose -p proa2-demo -f docker/compose.demo.yaml restart demo           # back to the seed
+docker compose -p proa2-demo -f docker/compose.demo.yaml down -v && docker image rm proa-demo:local
+```
+
+The image tag is `proa-demo:local` (`PROA_DEMO_IMAGE` sets another), never the product's
+`proa:local`; `PROA_DEMO_PORT` moves the port. The container has one CPU and 1 GB, as the Fly
+machine. `--build` reuses the cached seed while nothing changed; `PROA_DEMO_SEED=$(date +%s)
+docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --build --wait` seeds afresh (the
+compose file passes it as the build arg). The other Playwright specs skip themselves on a demo server,
+`demo.spec.ts` on any other. `proa-demo check` sends nothing but `GET /health` to a server that
+is not a read-only demo, and no write unless the session is the visitor and a viewer of every
+listed project; its write walk names the project `proa-demo-check-none` and the chain key
+`none`, so a mistyped URL (the owner's `proa2` stack on 7400) cannot lose data.
+
+### One-time setup on Fly.io (owner)
+
+1. Install flyctl (`brew install flyctl`) and log in: `fly auth login`.
+2. Create the app (the name is global on fly.dev; take another if `proa-demo` is taken):
+   `fly apps create proa-demo --org <org>` (`fly orgs list` shows the organizations).
+3. A deploy token for this app only, as the repository secret. It **expires after one year**
+   (`8760h`; note the date): then every deploy, reset and restart fails with an authorization
+   error until you run the same two commands again (see [Troubleshooting](#troubleshooting-the-demo)).
+   ```sh
+   fly tokens create deploy --app proa-demo --expiry 8760h   # prints FlyV1 …
+   gh secret set FLY_API_TOKEN --repo Miragon/ProA           # paste it
+   ```
+4. Only for another app name: `gh variable set FLY_DEMO_APP --repo Miragon/ProA --body <name>`
+   (the workflow passes it as `--app`; `docker/fly.demo.toml` names `proa-demo`).
+5. The first deploy: a push to `claude/proa-2` that touches `apps/`, `packages/`,
+   `eval/corpus/`, `eval/value-chains/`, `docker/` or the workflow (that run also registers the
+   workflow for `gh workflow run`, see the reset below), or from the checkout's root:
+   `fly deploy --config docker/fly.demo.toml --app proa-demo --remote-only --ha=false
+   --build-arg PROA_DEMO_SEED=manual-$(date +%s)` (the build arg makes the seed fresh; without
+   it a second manual deploy of the same commit reuses the remote builder's cached seed). The
+   build runs on Fly's remote builder, the seed included; then https://proa-demo.fly.dev.
+6. Optional, a domain of your own: `fly certs add demo.example.org --app proa-demo`, the DNS
+   records `fly certs show demo.example.org --app proa-demo` names, then
+   `gh variable set FLY_DEMO_PUBLIC_ORIGIN --repo Miragon/ProA --body
+   "https://demo.example.org,https://proa-demo.fly.dev"` and a deploy (the workflow passes it as
+   `PROA_PUBLIC_ORIGIN` and checks the first origin).
+
+**Costs:** one `shared-cpu-1x` machine with 1 GB, suspended while nobody visits
+(`auto_stop_machines = "suspend"`), so Fly bills its running time and the storage of its root file
+system and snapshot; a blue-green deploy runs a second machine for a few minutes. Current prices:
+https://fly.io/docs/about/pricing/. **No Fly secrets:** the issue listed `DATABASE_URL` and
+`PROA_SESSION_SECRET`, but PostgreSQL runs inside the machine (its URL never leaves the
+container) and the session key is random per start, which only ends the visitors' viewer
+sessions; the web UI opens a new one by itself.
+
+### Reset the demo
+
+Nothing resets on a timer, and visitors have no reset endpoint (owner decision 20: „doch nicht
+nachts … aber ich muss es machen können“). The demo cannot drift (nothing can be written), so a
+reset is either a fresh seed or a plain restart. **The one documented action for a fresh seed**
+of the current `claude/proa-2` commit (a few minutes; the old release serves until the new one
+is healthy):
+
+```sh
+gh workflow run demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2
+gh run watch --repo Miragon/ProA   # optional: pick the new "Demo deploy" run and follow it
+```
+
+GitHub documents both halves of this on its `workflow_dispatch` page ("Events that trigger
+workflows"): the event, and the "Run workflow" button, need the workflow file on the default
+branch (`develop`, still 1.x until the cut-over, so there is no button), and "Once a workflow
+has run at least once, you can dispatch it against any branch or tag via the GitHub API or
+GitHub CLI". The first push run on `claude/proa-2` (setup step 5) is that first run; try the
+command once afterwards (without the secret the run just skips with a notice) and note the
+result here.
+
+When `gh` is not at hand or the dispatch fails, the same fresh seed from the checkout's root
+(once: `fly auth login`; it deploys the checked-out commit):
+
+```sh
+fly deploy --config docker/fly.demo.toml --app proa-demo --remote-only --ha=false \
+  --build-arg PROA_DEMO_SEED=manual-$(date +%s)
+```
+
+The same seed again, in seconds (every start copies the seed; once: `fly auth login`), which
+always works, also with an expired deploy token:
+
+```sh
+fly machine stop  --app proa-demo $(fly machine list --app proa-demo -q)
+fly machine start --app proa-demo $(fly machine list --app proa-demo -q)
+#   or: gh workflow run demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2 -f action=restart
+```
+
+In the browser, GitHub → Actions → "Demo deploy" → a run → "Re-run all jobs" is only an
+alternative, with limits GitHub documents ("Re-run workflows and jobs"): a run can be re-run up
+to 30 days after it first ran, and a re-run repeats the run's event with its commit
+(`GITHUB_SHA`) and inputs. So it gives a fresh seed of the current head only when you re-run the
+newest run that deployed it, a push run or a `deploy` dispatch; a re-run of a `restart` dispatch
+only restarts, and a re-run of an older push run deploys that older commit again.
+
+`fly apps restart` is not used: it restarts running machines only, and the demo's machine is
+often suspended. Links into the demo survive a restart, not a deploy (a new seed has new ids).
+
+### Troubleshooting the demo
+
+| Symptom | Cause and fix |
+|---|---|
+| The workflow is green but nothing was deployed; notice "Demo deploy skipped" | The secret `FLY_API_TOKEN` is missing or empty (setup step 3). |
+| No "Run workflow" button for "Demo deploy" | Shown only for workflows on `develop` (the default branch). Use `gh workflow run demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2` ([Reset the demo](#reset-the-demo)). |
+| `gh workflow run demo-deploy.yml …`: workflow not found | GitHub dispatches a workflow outside the default branch only once it has run: push a change to a path of the workflow's filter first, or deploy from the checkout with `fly deploy … --build-arg PROA_DEMO_SEED=manual-$(date +%s)`. |
+| No "Re-run all jobs" button | The run is older than 30 days (GitHub's limit). Use `gh workflow run …` or `fly deploy …` ([Reset the demo](#reset-the-demo)). |
+| Deploy, reset or restart fails with `unauthorized`, `401` or a token error | The deploy token from setup step 3 expired (one year) or was revoked: `fly tokens create deploy --app proa-demo --expiry 8760h \| gh secret set FLY_API_TOKEN --repo Miragon/ProA` (once: `fly auth login`), then run the workflow again. The demo keeps serving meanwhile, and `fly machine stop`/`start` work with your own login. |
+| A manual `fly deploy` shows the old seed (`fly logs`: the start line `demo: seed <id> from <time>` names the earlier seed) | It ran without a new `PROA_DEMO_SEED`, so the remote builder reused its cached seed: pass `--build-arg PROA_DEMO_SEED=manual-$(date +%s)`. |
+| The build fails in stage `seed` | The seed's log names the failed step (`demo seed: …`, the server's and PostgreSQL's lines). The running release keeps serving. |
+| 403 `forbidden` "answers only under its public address" | The address is not in `PROA_PUBLIC_ORIGIN`: set `FLY_DEMO_PUBLIC_ORIGIN` with every origin (custom domain and fly.dev) and deploy. |
+| 403 `demo-readonly` | Expected for every write; the web UI shows „Das ist eine Demo: Hier kannst du nichts ändern.“ if one slips through. |
+| The machine restarts again and again | `fly logs --app proa-demo`: the supervisor exits 1 when the server or PostgreSQL dies (`demo: … ended unexpectedly`), the server when its role is not read-only or the visitor is missing. |
+
+### Configuration of the demo
+
+| Variable | Where | |
+|---|---|---|
+| `PROA_DEMO` | server | `readonly`: the read-only demo; anything else is refused. Refused together with a non-empty `PROA_OWNER_KEY_FILE`, `PROA_ORIGIN_PORTS`, `PROA_ALLOW_NON_LOOPBACK=1` and `PROA_MIGRATE=auto` (migrations default to off) |
+| `PROA_PUBLIC_ORIGIN` | server, `proa-demo serve` | required with `PROA_DEMO`: comma-separated bare origins, `https://` (or `http://` on a loopback host); refused without `PROA_DEMO`. `proa-demo serve` defaults it to `https://$FLY_APP_NAME.fly.dev` (Fly sets `FLY_APP_NAME`) |
+| `PROA_HOST`, `PROA_PORT`, `PROA_WEB_DIST` | image | `0.0.0.0`, `8080`, `/app/apps/web/dist` |
+| `PROA_DEMO_SEED` | build arg | the seed id in `seed.json` and the log; default `local`. The seed layer's only changing input: the workflow passes `<run_id>.<run_attempt>`, a manual build a value of its own (an unchanged value reuses the cached seed); `docker/compose.demo.yaml` passes it through |
+| `FLY_API_TOKEN` | repository secret | the deploy token; without it the workflow skips |
+| `FLY_DEMO_APP`, `FLY_DEMO_PUBLIC_ORIGIN` | repository variables | optional: another app name; the public origins of a custom domain |
+
 ## Reference
 
 ### Layout
@@ -397,6 +607,7 @@ proa`). With the checkout CLI against the Docker server, copy the container's ow
 apps/server/      @proa/server  Hono + @hono/zod-openapi, Drizzle + pg, MCP (src/{domain,db,http,mcp,auth})
 apps/cli/         @proa/cli     the `proa` command (commander)
 apps/agent-sim/   @proa/agent-sim  `proa-agent-sim`: LLM-free simulation agent over MCP (src/{policy,agent,connect,recorder,program}.ts)
+apps/demo/        @proa/demo    `proa-demo seed|serve|check`: the read-only demo's seed, supervisor and check (issue #3)
 apps/web/         @proa/web     React 19 + Vite + Tailwind v4 + shadcn + TanStack (src/{routes,components,lib,theme}, test/, e2e/)
 packages/contracts/  zod schemas, types, REST route configs, buildOpenApiDocument()
 packages/client/     hey-api client generated from the contracts (src/generated is generated)
@@ -410,14 +621,16 @@ examples/agents/  reference setups: claude-code/, claude-desktop/, codex/; not w
 eval/tools/       @proa/eval-tools: corpus generator/validator (.mjs) + eval:candidates, eval:replay, eval:live, eval:placements (src/*.ts)
 eval/recordings/  agent recordings <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl (eval:replay input)
 eval/value-chains/  golden value chains + expected placements (M4); validate-value-chains.mjs (deps from eval/tools)
-docker/           compose.yaml (project proa2), Dockerfile
+docker/           compose.yaml (project proa2), Dockerfile; the read-only demo: Dockerfile.demo (+ .dockerignore),
+                  compose.demo.yaml (project proa2-demo), fly.demo.toml
 docs/proa-2/      CONCEPT.md, HANDOFF.md, M1-SKELETON.md, M2-PIPELINE-REVIEW.md, M3-RELATIONS-PROCEDURE.md, M3-LIVE-RUNS.md,
                   M4-VALUE-CHAIN.md, this file, screenshots/
 ```
 
 Package dependencies point one way: `contracts` ← `bpmn-facts` ← `relations` ← `server`;
 `contracts` ← `client` ← `cli`, `web`; `contracts` ← `agent-sim` (talks to the server over MCP
-only; the server's integration test uses it as a dev dependency); `procedures` (no dependencies)
+only; the server's integration test uses it as a dev dependency); `contracts` ← `demo` (runs the
+server, the CLI and the agent as child processes, never imports them); `procedures` (no dependencies)
 ← `server`, `eval-tools`; `eval-tools` (`contracts`, `bpmn-facts`, `relations`, `procedures`) is
 a dev dependency of the server, whose integration test reads a project the way `eval:live` does
 (`eval/tools/src/index.ts` exports only the light modules: the REST reader, the mapping, the gate,
@@ -457,6 +670,9 @@ Node cannot load it).
 | `pnpm --filter @proa/web e2e value-chain.spec` | Playwright value chain flow (M4 S3) against a running ProA: its own projects `vc-<time>` (nordwind-handel with its golden chain), `vc-empty-<time>` and `vc-sketch-<time>`, an agent token, placements over REST, then the page in the browser incl. the CSS check |
 | `pnpm --filter @proa/web e2e value-chain-import` | the renderer's import check in Chromium on a Vite-served harness page (no ProA server): the golden dev chain and synthetic chains import without warnings with the layouter's waypoints, ProA's ids never repeat; `PROA_E2E_VC_EXTRA=<path>` checks another chain (counts only) |
 | `PROA_SCREENSHOTS_DIR=$PWD/docs/proa-2/screenshots pnpm --filter @proa/web e2e screenshots` | retakes the M1 screenshots from a running, seeded ProA; with `… e2e review` the `m2-*.png`, with `… e2e value-chain.spec` the `m4-01` … `m4-08`, with `… e2e value-chain-draft value-chain-agent` the `m4-12` … `m4-14` |
+| `docker compose -p proa2-demo -f docker/compose.demo.yaml up -d --build --wait` | the read-only demo image with its seed on http://127.0.0.1:7480 ([Demo deployment](#demo-deployment-flyio)) |
+| `pnpm --filter @proa/demo check --url <demo> [--wait <s>] [--json]` | checks a running demo from outside: health, both landscapes as a viewer with agent proposals, questions, no-links and placements, every write route 403 `demo-readonly`, MCP 404, credentials 401; exit 1 on a failure. Writes nothing to a server that is not a read-only demo (only `GET /health`, then the failure „not a read-only demo“) |
+| `PROA_E2E_URL=http://127.0.0.1:7480 pnpm --filter @proa/web e2e demo` | Playwright walk through the demo's read views; fails on any write request, API error or write action shown (skips on a non-demo server) |
 | `pnpm --filter @proa/client generate` | regenerates `packages/client` after a contracts change |
 | `pnpm --filter @proa/procedures generate` | writes one skill per released pipeline procedure (`plugins/proa/skills/relations/SKILL.md` from `relations.md`, `plugins/proa/skills/placements/SKILL.md` from `placements.md`) and `PLUGIN_VERSION` into `plugins/proa/.claude-plugin/plugin.json`; run it after every change of a procedure or a wrapper and commit the result ([Conventions](#conventions)) |
 | `pnpm --filter @proa/server db:generate` | writes the next migration after a schema change |
@@ -475,6 +691,8 @@ Node cannot load it).
 | `PROA_ORIGIN_PORTS` | `PROA_PORT,7401` | ports a localhost `Origin` may use; compose sets `PROA_HOST_PORT,7401` |
 | `PROA_SESSION_SECRET` | random per process | key of the session cookie (≥ 32 characters); without it a restart ends every session (the UI reopens its session by itself) |
 | `PROA_OWNER_KEY_FILE` | `$XDG_STATE_HOME/proa/owner-key`, else `~/.local/state/proa/owner-key` | the CLI's owner key, created on first start; `/var/lib/proa/owner-key` in the image; empty string: no owner key |
+| `PROA_DEMO` | unset | `readonly`: the public read-only demo ([Demo deployment](#demo-deployment-flyio)); needs `PROA_PUBLIC_ORIGIN` and a read-only database role; refused with an owner key file, `PROA_ORIGIN_PORTS`, `PROA_ALLOW_NON_LOOPBACK=1` or `PROA_MIGRATE=auto` |
+| `PROA_PUBLIC_ORIGIN` | unset | the demo's public origins (comma-separated `https://host[:port]`, `http://` on loopback only); refused without `PROA_DEMO`, so local mode can never be opened by it |
 
 `docker/compose.yaml` reads `PROA_HOST_PORT` (default `7400`) and `PROA_DB_PORT` (default
 `55432`) for the published ports, and sets `PROA_CONTAINER=proa2-proa-1`, so `proa token create`
@@ -542,6 +760,10 @@ Local mode has one human, the **owner**, and any number of **agent tokens**.
   `error="invalid_token"`. MCP accepts agent tokens only.
 - Without credentials every contract route answers 401 with `WWW-Authenticate: Bearer`, except
   `/health`, `/api/v1/openapi.json` and `/api/v1/session`.
+- The read-only demo (`PROA_DEMO=readonly`) is a variant of this mode: the session is the viewer
+  `visitor` instead of the owner, every write answers 403 `demo-readonly`, MCP 404 and any
+  credential 401 ([Demo deployment](#demo-deployment-flyio)). Without `PROA_DEMO` nothing of it
+  applies.
 
 ```sh
 curl -s -c jar -X POST http://127.0.0.1:7400/api/v1/session
@@ -798,7 +1020,10 @@ never change the status and reach the next claim input. Every relation carries `
 `provenance` (the assertion its status rests on: kind, verdict, source, handle, client, declared
 procedure and model, tier, confidence, rationale, question, label) and, since 0.2.0, `noLinks`:
 the live, current agent no-links on the same `(type, from, to)` (`{id, handle, origin, reason,
-at}`, oldest first; one batched query per list, currency computed in SQL). Storing or
+at}`, oldest first; one batched query per list, currency computed in SQL).
+`GET …/no-links[?modelKey=]` lists every live, current agent no-link of the project
+(`{id, type, from, to, handle, origin, reason, at}`, oldest first), also on pairs without a
+relation, which `Relation.noLinks` cannot show (the inbox tab „Kein Zusammenhang“). Storing or
 withdrawing a no-link moves the version of the relation on its pair, and so does a new head
 `facts_hash` of a model (ingest, delete) for every relation on the pair of a live no-link touching
 it, since currency may flip either way (a revert makes an older no-link current again); so a bulk
@@ -1628,7 +1853,7 @@ the server); after `pnpm build` the server serves it at http://127.0.0.1:7400.
 |---|---|
 | `/` | projects (name, key, role, `s<seq>`), "Neues Projekt" (key slugified from the name) |
 | `/projects/{key}` | **Modelle**: key, name, engine (C7/C8), head revision, stage (CONCEPT §3), open items; stage filter `?stage=` |
-| `/projects/{key}/review` | **Prüfen** (M2, the tab counts open proposals): models per pipeline stage (a stage filters; for "Agent arbeitet" the holder and lease, for "Agent gescheitert" the error and "Erneut einplanen"), then **Vorschläge** (the review queue) and **Vorgemerkt** (`?view=held`); filters `?stage=&tier=&model=` stay in the URL and travel to the review screen ([below](#review-in-the-web-ui-m2)) |
+| `/projects/{key}/review` | **Prüfen** (M2, the tab counts open proposals): models per pipeline stage (a stage filters; for "Agent arbeitet" the holder and lease, for "Agent gescheitert" the error and "Erneut einplanen"), then **Vorschläge** (the review queue), **Vorgemerkt** (`?view=held`) and **Kein Zusammenhang** (`?view=no-links`: the agents' live, current no-links with their reasons, also on pairs without a relation; read-only, filtered by model and stage); filters `?stage=&tier=&model=` stay in the URL and travel to the review screen ([below](#review-in-the-web-ui-m2)) |
 | `/projects/{key}/review/{relation}` | **Review screen** of one relation, also the relation detail and the `reviewUrl` of `human-decision-required` ([below](#review-in-the-web-ui-m2)) |
 | `/projects/{key}/relations` | **Relationen**: quick filters (all, accepted by rule, key-tier proposals, all proposals), filters status/tier/type/model in the URL (`?status=&tier=&type=&model=`), for owners also the preset „Automatisch angenommen“ and the filter `?auto=any|aar_…` (owner decision 19); type, from → to with element label, model key and process, tier, status, endpoint state, confidence, provenance (from `Relation.provenance`), details (refs, version, attributes); "Prüfen" opens the review screen, the crosshair the model view. |
 | `/projects/{key}/findings` | **Befunde** grouped by kind, each ref with a link into the model view |
@@ -1651,6 +1876,22 @@ matched, agent proposals the principal handle plus the declared procedure (`id@v
 model, human decisions the handle and the verdict; only a relation without provenance falls back
 to what tier and attributes say. Element labels come from the facts of every head revision
 (`GET …/revisions/{r}/facts`, cached per revision).
+
+**Roles and the read-only demo** (issue #3): `src/lib/permissions.ts` (`useProjectPermissions`)
+derives what the caller may do from `Project.role`: editors and owners write and review, owners
+manage agent tokens and rules, viewers only read; every permission is false until the role is
+loaded, so a write action never flashes up. `src/lib/server-mode.ts` reads `Health.demo`: on the
+read-only demo every permission is false as well (its session is a viewer anyway), the banner
+(`components/demo-banner.tsx`) marks the document (`<html data-proa-demo>`, the full-height
+layouts subtract `--proa-banner-h`), and the projects page hides „Neues Projekt“ and the seed
+hint (shown once `/health` has answered). Write tabs are hidden („Hochladen“ for editors and
+owners, „Agent verbinden“ and „Regeln“ for owners only); their URLs render
+`components/read-only-notice.tsx` without a request. Empty states follow the same gates: an
+empty project offers „Modelle hochladen“ to editors and owners and „Agent verbinden“ to owners,
+a viewer reads „Dieses Projekt hat noch keine Modelle.“; the inbox asks only owners to connect
+an agent, and its placements callout says „deine Prüfung“ only to reviewers. `errorMessage`
+turns a 403 `demo-readonly` into „Das ist eine Demo: Hier kannst du nichts ändern.“. Local mode
+is unchanged: its single user owns every project.
 
 #### Auto-accept rules in the web UI (owner decision 19)
 
@@ -2295,6 +2536,29 @@ agent's recordings ([Recordings](#simulation-agent-and-evalreplay-m2)).
   request, `--help`) and an e2e test that seeds `_sample` into `sample-run-1` with the token
   `claude-code-1`, whose handle is `agent:claude-code-1`; a second seed into that key exits 1 and
   changes nothing (same `seq`, 3 models, 1 token).
+- Read-only demo (issue #3): `apps/server/test/integration/demo-mode.test.ts` (real PostgreSQL
+  and libraries: `nordwind-handel` seeded with its chain and worked by the simulation agent, then
+  `grantDemoVisitor` and the read-only role with a random name; every registered write route
+  answers 403 `demo-readonly` with the visitor's cookie, anonymously and with the seed token, and
+  that set equals the contracts' write routes; unknown methods and paths too; nothing in the
+  database changes; the session is the visitor and a viewer; every GET contract route answers 2xx
+  over the read-only role, or 403 `insufficient-scope` beyond reading; a direct UPDATE as the role
+  fails with SQLSTATE 25006, its statement timeout is 30 s; `/mcp` 404 for every method;
+  credentials 401; local mode next to it unchanged). Unit: `demo-mode.test.ts` (health with and
+  without the flag, byte for byte in local mode; the Host/Origin matrix and `/health` under any
+  Host; every write route 403 with three credentials; case and encoding; MCP routes absent; HSTS
+  and the `Secure` cookie), `config.test.ts` (every refusal, the origin forms, local mode
+  unchanged), `policy.test.ts` (the visitor may only read), `demo-image.test.ts` (the demo
+  Dockerfile's base images and pnpm equal the product's and the tests' PostgreSQL, the seed stage,
+  the runtime stage copies no eval file, the demo .dockerignore keeps every exclusion of the
+  product's, `fly.demo.toml` and the workflow's pins and skip). `apps/demo/test` (`pnpm --filter
+  @proa/demo test`, a fake spawner and fetch): the seed's steps and environments, no secret in the
+  log or on a command line, every failure stopping what it started; serve from a fresh copy,
+  signal order, exit 1 when a child dies, the origins; the check against a fake demo and a
+  broken one; the command line. Web: `test/demo-mode.test.tsx` (banner, projects page, tabs,
+  notices without requests, inbox, held list, review screen without the decision panel,
+  `errorMessage`). Playwright: `e2e/demo.spec.ts` against the demo image; the other specs skip
+  on a demo server (`e2e/server-mode.ts`).
 - `apps/cli`: `pnpm --filter @proa/cli test:unit` (commands against a fake REST API, owner key
   file checks, the MCP bridge against the SDK's in-memory `createMcpHandler`) and `test:e2e`:
   starts `node apps/server/src/main.ts` as a child process on a free port with its own database
@@ -2740,8 +3004,21 @@ be up to date, with no untracked file there), and the web build. Job `docker`: b
 and starts the Compose stack (`up -d --build --wait`), checks `/health` and `/`, runs `proa seed`,
 `proa seed --value-chains` and `proa status` in the container, checks that the image holds the
 golden chain files and no `expected.yaml`, `expected-placements.yaml`, `*.md`, `*.mjs` or
-`*.jsonl` under `/app/eval`, then the live check (`test:live`) against it. Actions are pinned
-to commit SHAs. The Playwright tests (also the value chain import harness and CSS check) are not
+`*.jsonl` under `/app/eval`, then the live check (`test:live`) against it. Job `demo` (issue
+#3): builds and starts `docker/compose.demo.yaml` (the seed runs in the build, so a broken seed
+fails here first), checks that the runtime image has no `eval/`, CLI or agent and only the seed
+in `/opt/proa-demo`, runs `proa-demo check`, restarts the container and checks again. Actions are
+pinned to commit SHAs.
+
+`.github/workflows/demo-deploy.yml` deploys the demo to Fly.io on pushes to `claude/proa-2` that
+touch `apps/`, `packages/`, `eval/corpus/`, `eval/value-chains/`, `docker/`, the root package
+files or itself, and by hand (`workflow_dispatch`, input `action`: `deploy` or `restart`); one
+run at a time, never cancelled. Without the secret `FLY_API_TOKEN` it skips with a notice and
+stays green. It installs flyctl 0.4.108 from the release tarball with its sha256 (no setup
+action), deploys with `--remote-only --ha=false` and the run as seed id, and runs `proa-demo
+check` against the public URL. It does not wait for CI 2.0 (`workflow_run` triggers only
+workflows on the default branch); the build-time seed, the blue-green health check and the
+check gate it. With the cut-over it moves to `develop` ([Demo deployment](#demo-deployment-flyio)). The Playwright tests (also the value chain import harness and CSS check) are not
 in CI; the bundle guard of the web (`apps/web/test/bundle.test.ts`) runs with `pnpm test`. `examples/agents` is outside the workspace:
 CI only runs Prettier over its JSON files; `run-headless.sh` is not shellchecked, and no setup
 runs against a model. `eval:live` needs a live project and is not in CI either.
@@ -3512,3 +3789,117 @@ rows and exit codes.
 
 Not run: a run with a model, Claude Desktop, the owner's `proa2` stack, other browsers than
 Chromium, the other M1 screenshots.
+
+### Read-only demo, issue #3 (2026-10-10)
+
+On macOS (arm64) with Docker Desktop (Compose v5.5.1), Node 24.15 and Playwright's Chromium; the
+owner's `proa2` stack (ports 7400, 55432) stayed untouched.
+
+1. A throwaway compose project `proa2-testdb` (PostgreSQL 17.11 on 127.0.0.1:55491) for the test
+   suites (`PROA_TEST_DATABASE_URL`) and the manual runs below.
+2. The demo image as Fly would build it, under a tag of its own:
+   `PROA_DEMO_IMAGE=proa-demo:verify docker compose -p proa2-demo-verify -f
+   docker/compose.demo.yaml up -d --build --wait` (968 MB, arm64). The seed stage took about 5 s
+   (the counts in [What it is](#what-it-is)); the server listened about 1 s after the container
+   started.
+   `pnpm --filter @proa/demo check --url http://127.0.0.1:7480`: 124 checks passed, 0 failed.
+3. Holdout: in the container no `/app/eval`, `/app/apps/cli` or `/app/apps/agent-sim`,
+   `/opt/proa-demo` holds `pgdata-template` and `seed.json` only, and `find / -xdev` finds no
+   `expected*.yaml`, `expected-placements*`, `*.jsonl`, recordings, reports or even a
+   `value-chain.vc.json`; a `pg_dump` of the demo database (3.5 MB) contains none of
+   `must_link`, `must_not_link`, `may_link`, `expected.yaml` or `expected-placements`. `docker history` shows no `eval` copy into the
+   runtime stage. As the role `proa_demo`, `default_transaction_read_only` is `on` and an UPDATE
+   fails ("cannot execute UPDATE in a read-only transaction").
+4. Reset: `docker compose … restart demo` was healthy again after 2 s with the same `lastSeq`
+   (`s253`, `s227`) and relation ids, and PostgreSQL started from the template ("database system
+   was shut down at" the build's time). Idle memory 156 MiB of the 1 GB limit, one CPU.
+5. Playwright against the demo (`PROA_E2E_URL=http://127.0.0.1:7480`): `demo.spec.ts` 10 passed
+   (one earlier run hung once in the stadtwerke value chain test and passed on every rerun);
+   the whole suite there: 13 passed (the demo walk and the Vite-served import harness), 49
+   skipped (the writing flows skip on the demo). The screenshots `demo-0*.png` came from that run.
+6. Local mode next to it: the server from the checkout on 127.0.0.1:7492 with the freshly built
+   UI and its own owner key in a scratch directory, a database in `proa2-testdb`: the whole
+   Playwright suite 45 passed, 17 skipped (the demo walk, the screenshots, the holdout import
+   check of `PROA_E2E_VC_EXTRA`).
+7. The server in demo mode from the checkout: refused to start as the superuser ("needs a
+   read-only database role"), then as the read-only role without the visitor ("run
+   demo-bootstrap.ts"), and started after `demo-bootstrap.ts`.
+8. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser: no
+   violations, 125 modules), `CI=1 pnpm -r test` with `PROA_TEST_DATABASE_URL` (server 1,381 in 63
+   files, web 283 in 30, cli 116 plus 7 live tests skipped, eval/tools 95, agent-sim 57, demo 23,
+   relations 85, bpmn-facts 134, contracts 66, procedures 37, client 4), `pnpm eval:candidates`
+   (pass), `pnpm eval:replay` and `pnpm eval:placements` (pass, no change under `eval/`),
+   `drizzle-kit generate` (no schema changes); the client regenerated (the problem code
+   `demo-readonly`, `Health.demo`, `demo-readonly` on the write routes); a second generation
+   changes nothing. The bundle guard: entry chunk 198.9 KB gzip of the 200 KB ceiling (+1.3 KB
+   for the banner, the notices and the permission hooks), chain-only code 37.0 of 40 KB.
+   actionlint 1.7.12 (without shellcheck) finds nothing in `demo-deploy.yml` and `ci-2.yml`.
+9. Then `docker compose -p proa2-demo-verify … down -v`, `docker image rm proa-demo:verify`
+   and `docker compose -p proa2-testdb … down -v`.
+
+Not run, because no Fly account was available: `flyctl deploy` and the remote builder (the seed
+in a Fly build step, an amd64 build), `flyctl config validate` (it needs a login), suspend and
+resume, `fly machine stop`/`start`, a custom domain, the workflow on GitHub (the skip without
+the secret, `gh workflow run … --ref claude/proa-2`, "Re-run all jobs") and the CI job `demo`.
+`docker/fly.demo.toml` was checked against the Fly configuration reference (docs.fly.io) and the
+flyctl v0.4.108 source (how `dockerfile` and `ignorefile` resolve), and parsed as TOML.
+
+**Review round (2026-10-10, same machine).** Nine findings were checked against the code; all
+were real and are fixed: the session body cap (an anonymous chunked 700 MB `POST
+/api/v1/session` had pushed the 1 GB container to SIGKILL), `proa-demo check` writing to a
+local-mode server as the owner (it had deleted a value chain), the reset docs (the 30-day limit
+and the repeated commit and inputs of "Re-run all jobs", GitHub's documented dispatch of a
+branch workflow once it has run), the deploy token's expiry, the cached seed of a manual
+`fly deploy`, the no-links missing from the review (decision 20(4); now the inbox tab „Kein
+Zusammenhang“ with `GET …/no-links`), write entry points in empty states for non-writers, and
+gaps in the demo walk and the role tests.
+
+1. A throwaway compose project `proa2-rvdb` (PostgreSQL 17.11 on 127.0.0.1:55493) for the
+   suites (`PROA_TEST_DATABASE_URL`) and the local server below.
+2. Gates: `pnpm format:check`, `pnpm -r typecheck`, `pnpm -r lint` (dependency-cruiser: no
+   violations, 125 modules), `CI=1 pnpm -r test` (server 1,387 in 63 files, web 295 in 30, cli
+   116 plus 7 skipped, eval/tools 95, agent-sim 57, demo 25, relations 85, bpmn-facts 134,
+   contracts 66, procedures 37, client 4), `pnpm eval:candidates`, `pnpm eval:replay` and
+   `pnpm eval:placements` (pass, no change under `eval/`), `drizzle-kit generate` (no schema
+   changes); the client regenerated (`listNoLinks`, `NoLink`, 413 on `createSession`), a second
+   generation changes nothing. The bundle guard: entry chunk 199.6 KB gzip of the 200 KB ceiling
+   (a lazy-loaded no-link list measured 204.7 KB, as the split chunks compress worse, so the list
+   is a static import).
+3. The demo image under its own tag with a fresh seed: `PROA_DEMO_SEED=review2b-<time>
+   PROA_DEMO_IMAGE=proa-demo:review2 PROA_DEMO_PORT=7483 docker compose -p proa2-demo-review2 -f
+   docker/compose.demo.yaml up -d --build --wait` (968 MB; seed stage 5.8 s, 18.8 s on the
+   first, cold build; `seed.json` carried the passed id). `proa-demo check`: 124 passed, 0
+   failed. Both projects as `viewer`; `nordwind-handel` 31 models, 48 agent proposals (12 with a
+   question), 150 no-links, 29 agent placement proposals, its chain with 34 steps;
+   `stadtwerke-auental` 26, 52 (15), 101, 25, 38 steps. All 28 write routes of the contracts 403
+   `demo-readonly` with the visitor's cookie and anonymously; `/mcp` 404 for GET, POST and
+   DELETE.
+4. The attack of the finding against the container: `head -c 700000000 /dev/zero | tr '\0' ' ' |
+   curl -X POST -T - -H 'content-type: application/json' …/api/v1/session` answered 413
+   `payload-too-large` after about 115 KB had been sent; memory stayed at 184 MiB, no restart, a
+   normal session opened afterwards.
+5. Health only after the seed: polling `/health` every 50 ms across `docker restart` gave no
+   answer at all until the server listened, which it does only after PostgreSQL has started
+   from the copied template ("database system was shut down at" the build's time); first 200
+   about 2 s after PostgreSQL was ready, 5.3 s after the restart. The `lastSeq` (`s253`) was the
+   same before and after.
+6. Holdout: the runtime image has no `/app/eval`, CLI or agent, `/opt/proa-demo` holds
+   `pgdata-template` and `seed.json` only, `find / -xdev` finds no `expected*`, `*.jsonl`,
+   `value-chain.vc.json` or `eval/` path (none in `node_modules` either); a `pg_dump` of the
+   demo database (3.5 MB) contains none of `must_link`, `must_not_link`, `may_link`,
+   `expected.yaml`, `expected-placements`; the only `eval` in `docker history` is the runtime
+   stage's check. The build context, exported with `Dockerfile.demo.dockerignore` (file names
+   listed, none opened), holds under `eval/corpus` only `*.bpmn` and `landscape.yaml`, under
+   `eval/value-chains` only the two `value-chain.vc.json`, and no `eval/recordings` or
+   `eval/reports`.
+7. Playwright against the demo: `demo.spec.ts` 12 passed (with the no-link tests and the wider
+   write-action list), the screenshots `demo-0*.png` retaken, `demo-06-no-links.png` new.
+8. Local mode next to it: the server from the checkout on 127.0.0.1:7494 (its own owner key in a
+   scratch directory, database `proa_e2e` in `proa2-rvdb`, the freshly built UI), `proa seed
+   nordwind-handel --value-chains`: `proa-demo check --url http://127.0.0.1:7494` failed with
+   „not a read-only demo: no write route was tried“, the chain still answered 200 and `lastSeq`
+   stayed 111. The whole Playwright suite: 45 passed, 19 skipped (the demo walk, the screenshots,
+   the `PROA_E2E_VC_EXTRA` check).
+9. Then the server stopped by its PID, `docker compose -p proa2-demo-review2 … down -v`,
+   `docker image rm proa-demo:review2` and `docker compose -p proa2-rvdb … down -v`; the owner's
+   `proa2` stack and `proa:local` untouched.

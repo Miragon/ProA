@@ -42,6 +42,7 @@ import {
 import { api, errorMessage, unwrap } from '@/lib/api';
 import { formatDate } from '@/lib/labels';
 import { keys, projectsQuery } from '@/lib/queries';
+import { useServerMode } from '@/lib/server-mode';
 import { isProjectKey, slugify } from '@/lib/slug';
 
 import { rootRoute } from './root';
@@ -139,6 +140,10 @@ function NewProjectDialog({ trigger }: { trigger: ReactNode }) {
 
 function ProjectsPage() {
   const projects = useQuery(projectsQuery);
+  const mode = useServerMode();
+  // Creating projects and seeding are for a ProA of your own: hidden until the
+  // server's mode is known, and never on the read-only demo.
+  const writable = mode.known && !mode.demo;
 
   return (
     <PageShell>
@@ -150,7 +155,7 @@ function ProjectsPage() {
             zwischen den Prozessen.
           </p>
         </div>
-        {projects.data && projects.data.length > 0 ? (
+        {writable && projects.data && projects.data.length > 0 ? (
           <NewProjectDialog
             trigger={
               <Button>
@@ -180,27 +185,35 @@ function ProjectsPage() {
             </EmptyMedia>
             <EmptyTitle className="text-base font-semibold">Noch kein Projekt</EmptyTitle>
             <EmptyDescription>
-              Leg ein Projekt an und lade BPMN-Modelle hoch. Die Testlandschaften lädst du im Repo
-              mit <code className="font-mono">{SEED_COMMAND}</code>.
+              {mode.demo ? (
+                'Diese Demo zeigt gerade kein Projekt.'
+              ) : (
+                <>
+                  Leg ein Projekt an und lade BPMN-Modelle hoch. Die Testlandschaften lädst du im
+                  Repo mit <code className="font-mono">{SEED_COMMAND}</code>.
+                </>
+              )}
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent className="flex-row justify-center">
-            <NewProjectDialog
-              trigger={
-                <Button>
-                  <PlusIcon data-icon="inline-start" />
-                  Neues Projekt
-                </Button>
-              }
-            />
-            <CopyButton
-              value={SEED_COMMAND}
-              label="Seed-Befehl kopieren"
-              copiedMessage="Befehl kopiert"
-              variant="ghost"
-              size="default"
-            />
-          </EmptyContent>
+          {writable ? (
+            <EmptyContent className="flex-row justify-center">
+              <NewProjectDialog
+                trigger={
+                  <Button>
+                    <PlusIcon data-icon="inline-start" />
+                    Neues Projekt
+                  </Button>
+                }
+              />
+              <CopyButton
+                value={SEED_COMMAND}
+                label="Seed-Befehl kopieren"
+                copiedMessage="Befehl kopiert"
+                variant="ghost"
+                size="default"
+              />
+            </EmptyContent>
+          ) : null}
         </Empty>
       ) : (
         <div className="rounded-xl border bg-card">
@@ -243,7 +256,7 @@ function ProjectsPage() {
           </Table>
         </div>
       )}
-      {projects.data?.length === 0 ? null : (
+      {projects.data?.length === 0 || !writable ? null : (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <TerminalIcon className="size-4" aria-hidden />
           Testlandschaften laden: <code className="font-mono">{SEED_COMMAND}</code>

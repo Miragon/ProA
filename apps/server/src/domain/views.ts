@@ -3,6 +3,7 @@ import type {
   AgentToken,
   AnalysisTask,
   Model,
+  NoLink,
   Project,
   Relation,
   RelationAssertion,
@@ -96,6 +97,20 @@ export function basisOf(history: readonly StoredAssertion[]): StoredAssertion | 
 function toRelationNoLink(n: StoredNoLink): RelationNoLink {
   return {
     id: n.id,
+    handle: n.handle,
+    origin: n.origin,
+    reason: n.reason,
+    at: iso(n.createdAt),
+  };
+}
+
+/** A live no-link of the project as the no-link list shows it (`GET …/no-links`). */
+export function toNoLink(n: StoredNoLink): NoLink {
+  return {
+    id: n.id,
+    type: n.type,
+    from: n.fromRef,
+    to: n.toRef,
     handle: n.handle,
     origin: n.origin,
     reason: n.reason,

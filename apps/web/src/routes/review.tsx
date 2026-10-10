@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  EyeIcon,
   LocateIcon,
   TriangleAlertIcon,
 } from 'lucide-react';
@@ -20,8 +21,9 @@ import { Kbd } from '@/components/ui/kbd';
 import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ApiError, errorMessage } from '@/lib/api';
-import { useAutoAcceptIndex, useCanReview, useIsOwner } from '@/lib/auto-accept-actions';
+import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
 import type { CanvasHighlight } from '@/lib/bpmn-elements';
+import { useProjectPermissions } from '@/lib/permissions';
 import {
   assertionsQuery,
   contentQuery,
@@ -214,8 +216,9 @@ function ReviewScreen() {
   const landscape = useQuery(landscapeQuery(project));
   const models = useQuery(modelsQuery(project));
   const { resolve, byModel } = useProjectFacts(project, models.data);
-  const owner = useIsOwner(project);
-  const reviewer = useCanReview(project);
+  const can = useProjectPermissions(project);
+  const owner = can.isOwner;
+  const reviewer = can.canReview;
   const autoIndex = useAutoAcceptIndex(project);
   const facts = useMemo<Fact[]>(() => [...byModel.values()].flatMap((f) => f.facts), [byModel]);
   const modelKeys = useMemo(() => new Set((models.data ?? []).map((m) => m.key)), [models.data]);
@@ -323,7 +326,7 @@ function ReviewScreen() {
 
   return (
     <div
-      className="relative h-svh w-full overflow-hidden bg-paper bg-[radial-gradient(var(--cd-linie)_1px,transparent_1px)] [background-size:16px_16px]"
+      className="relative h-app-viewport w-full overflow-hidden bg-paper bg-[radial-gradient(var(--cd-linie)_1px,transparent_1px)] [background-size:16px_16px]"
       data-testid="review-screen"
     >
       {relation && from && to && models.data ? (
@@ -487,24 +490,39 @@ function ReviewScreen() {
         </div>
         {relation ? (
           <div className="flex flex-col gap-2 border-t bg-card p-4">
-            <DecisionPanel
-              project={project}
-              relation={relation}
-              resolve={resolve}
-              facts={facts}
-              onDecided={onDecided}
-              onReload={() =>
-                void queryClient.invalidateQueries({ queryKey: keys.project(project) })
-              }
-            />
+            {reviewer ? (
+              <DecisionPanel
+                project={project}
+                relation={relation}
+                resolve={resolve}
+                facts={facts}
+                onDecided={onDecided}
+                onReload={() =>
+                  void queryClient.invalidateQueries({ queryKey: keys.project(project) })
+                }
+              />
+            ) : can.known ? (
+              // Viewers and the read-only demo: no decision panel, so A/R/H/C do nothing.
+              <p
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+                data-testid="read-only-review"
+              >
+                <EyeIcon className="size-4 shrink-0" aria-hidden />
+                {can.demo
+                  ? 'Nur lesen – in der Demo entscheidest du nicht.'
+                  : 'Nur lesen – entscheiden dürfen Bearbeiter und Inhaber.'}
+              </p>
+            ) : null}
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <Kbd>J</Kbd>
                 <Kbd>K</Kbd> weiter, zurück
               </span>
-              <span className="inline-flex items-center gap-1">
-                <Kbd>A</Kbd> <Kbd>R</Kbd> <Kbd>H</Kbd> <Kbd>C</Kbd> entscheiden
-              </span>
+              {reviewer ? (
+                <span className="inline-flex items-center gap-1">
+                  <Kbd>A</Kbd> <Kbd>R</Kbd> <Kbd>H</Kbd> <Kbd>C</Kbd> entscheiden
+                </span>
+              ) : null}
             </p>
           </div>
         ) : null}

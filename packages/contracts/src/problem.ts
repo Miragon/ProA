@@ -14,6 +14,8 @@ export const PROBLEM_TYPE_BASE = 'urn:proa:problem:';
  * and `supported`), `revision-conflict` (412, with `headRev` and `etag`) and
  * `precondition-required` (428, a content save without `If-Match`); M4b:
  * `wrong-task-kind` (422, a submission with items of the other task kind).
+ * Issue #3: `demo-readonly` (403, any write to a read-only demo,
+ * `PROA_DEMO=readonly`).
  */
 export const ProblemCode = z
   .enum([
@@ -23,6 +25,7 @@ export const ProblemCode = z
     'insufficient-scope',
     'forbidden',
     'human-decision-required',
+    'demo-readonly',
     'not-found',
     'method-not-allowed',
     'conflict',
@@ -51,6 +54,7 @@ export const PROBLEMS = {
   'insufficient-scope': { status: 403, title: 'Insufficient scope' },
   forbidden: { status: 403, title: 'Forbidden' },
   'human-decision-required': { status: 403, title: 'Human decision required' },
+  'demo-readonly': { status: 403, title: 'Read-only demo' },
   'not-found': { status: 404, title: 'Not found' },
   'method-not-allowed': { status: 405, title: 'Method not allowed' },
   conflict: { status: 409, title: 'Conflict' },

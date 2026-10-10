@@ -9,6 +9,7 @@ import { PreviewDialog } from '@/components/rules/preview-dialog';
 import { RevokeDialog } from '@/components/rules/revoke-dialog';
 import { RuleDialog } from '@/components/rules/rule-dialog';
 import { RuleHistoryDialog } from '@/components/rules/rule-history';
+import { ReadOnlyNotice } from '@/components/read-only-notice';
 import { RuleTable } from '@/components/rules/rule-table';
 import { SystemRuleCard } from '@/components/rules/system-rule-card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -34,6 +35,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage } from '@/lib/api';
 import { useAutoAcceptIndex } from '@/lib/auto-accept-actions';
+import { useProjectPermissions } from '@/lib/permissions';
 import { agentTokensQuery, autoAcceptRulesQuery, keys, projectQuery } from '@/lib/queries';
 import { autoAcceptApplyDryRunQuery } from '@/lib/auto-accept-queries';
 
@@ -56,7 +58,8 @@ export function RulesPage() {
   const { project } = projectRulesRoute.useParams();
   const queryClient = useQueryClient();
   const info = useQuery(projectQuery(project));
-  const owner = info.data?.role === 'owner';
+  const can = useProjectPermissions(project);
+  const owner = can.isOwner;
   const rules = useQuery({ ...autoAcceptRulesQuery(project), enabled: owner });
   const tokens = useQuery({ ...agentTokensQuery(project), enabled: owner });
   const autoIndex = useAutoAcceptIndex(project);
@@ -86,12 +89,12 @@ export function RulesPage() {
   if (info.isPending) return <Skeleton className="h-40 w-full" />;
   if (!owner) {
     return (
-      <Alert>
-        <AlertTitle>Nur für Inhaber</AlertTitle>
-        <AlertDescription>
-          Annahmeregeln sehen und pflegen nur die Inhaber dieses Projekts.
-        </AlertDescription>
-      </Alert>
+      <ReadOnlyNotice
+        demo={can.demo}
+        title="Nur für Inhaber"
+        demoText="In der Demo gibt es keine Annahmeregeln."
+        roleText="Annahmeregeln sehen und pflegen nur die Inhaber dieses Projekts."
+      />
     );
   }
   if (rules.isError) {

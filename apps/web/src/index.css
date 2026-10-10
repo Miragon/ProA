@@ -98,6 +98,25 @@
   --radius: var(--cd-radius-md);
 }
 
+/*
+ * Height of the read-only demo's banner (issue #3): 0 unless the banner marks
+ * the document (`<html data-proa-demo>`). Full-height layouts subtract it.
+ */
+:root {
+  --proa-banner-h: 0px;
+}
+:root[data-proa-demo] {
+  --proa-banner-h: 2.5rem;
+}
+
+/* The viewport below the demo banner (the whole viewport outside the demo). */
+@utility h-app-viewport {
+  height: calc(100svh - var(--proa-banner-h));
+}
+@utility min-h-app-viewport {
+  min-height: calc(100svh - var(--proa-banner-h));
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

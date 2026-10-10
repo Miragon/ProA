@@ -134,6 +134,24 @@ export function heldList(
     );
 }
 
+/**
+ * Agents' no-links for the inbox tab „Kein Zusammenhang“, with the model and
+ * stage filters of the proposals (a no-link has no tier), in the server's
+ * order (oldest first).
+ */
+export function noLinkList<T extends Pick<Relation, 'from' | 'to'>>(
+  noLinks: readonly T[],
+  models: readonly ModelInfo[],
+  filters: QueueFilters = {},
+): T[] {
+  const stageOf = new Map(models.map((m) => [m.key, m.stage]));
+  return noLinks.filter((n) => {
+    const keys = modelKeysOf(n);
+    if (filters.model !== undefined && !keys.includes(filters.model)) return false;
+    return filters.stage === undefined || keys.some((k) => stageOf.get(k) === filters.stage);
+  });
+}
+
 /** Number of models per pipeline stage (every stage present, zero included). */
 export function stageCounts(models: readonly Pick<Model, 'stage'>[]): Record<ModelStage, number> {
   const counts = Object.fromEntries(STAGE_ORDER.map((s) => [s, 0])) as Record<ModelStage, number>;

@@ -8,7 +8,8 @@ import { useMemo } from 'react';
 
 import { api, unwrap } from './api';
 import { EMPTY_AUTO_ACCEPT_INDEX, indexLedger, type AutoAcceptIndex } from './auto-accept';
-import { autoAcceptedQuery, keys, projectQuery } from './queries';
+import { useProjectPermissions } from './permissions';
+import { autoAcceptedQuery, keys } from './queries';
 
 /**
  * Auto-accept marks and revocations (owner decision 19): who may see rules
@@ -27,17 +28,15 @@ export function useInvalidateProject(project: string) {
 
 /**
  * Whether the caller owns the project: only owners see and maintain
- * auto-accept rules and revoke acceptances.
+ * auto-accept rules and revoke acceptances (never on the read-only demo).
  */
 export function useIsOwner(project: string): boolean {
-  const info = useQuery(projectQuery(project));
-  return info.data?.role === 'owner';
+  return useProjectPermissions(project).isOwner;
 }
 
 /** Whether the caller reviews in the project (editor or owner): they see the marks. */
 export function useCanReview(project: string): boolean {
-  const info = useQuery(projectQuery(project));
-  return info.data?.role === 'owner' || info.data?.role === 'editor';
+  return useProjectPermissions(project).canReview;
 }
 
 /**

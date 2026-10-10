@@ -709,9 +709,27 @@ function repos(db: Conn): Tx {
         if (!rows[0]) throw new Error(`project ${projectId} not found`);
         return toProject(rows[0]);
       },
+      async listAll() {
+        const rows = await db.select().from(s.project).orderBy(asc(s.project.key));
+        return rows.map(toProject);
+      },
     },
 
     principals: {
+      async find(identity) {
+        const rows = await db
+          .select()
+          .from(s.principal)
+          .where(
+            and(
+              eq(s.principal.iss, identity.iss),
+              eq(s.principal.kind, identity.kind),
+              eq(s.principal.subject, identity.subject),
+            ),
+          );
+        const row = rows[0];
+        return row ? ({ ...row, id: row.id as PrincipalId } satisfies PrincipalRecord) : null;
+      },
       async ensure(identity) {
         const match = and(
           eq(s.principal.iss, identity.iss),
@@ -747,6 +765,14 @@ function repos(db: Conn): Tx {
       },
       async insert(projectId, principalId, role) {
         await db.insert(s.membership).values({ projectId, principalId, role });
+      },
+      async ensure(projectId, principalId, role) {
+        const rows = await db
+          .insert(s.membership)
+          .values({ projectId, principalId, role })
+          .onConflictDoNothing()
+          .returning({ projectId: s.membership.projectId });
+        return rows.length > 0 ? 'created' : 'existing';
       },
     },
 

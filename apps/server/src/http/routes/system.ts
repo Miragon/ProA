@@ -7,9 +7,14 @@ import type { App } from '../context.ts';
 export interface SystemRouteDeps {
   database: Pick<Database, 'ping'>;
   version: string;
+  /** The read-only demo (`PROA_DEMO=readonly`): health says so, for the web UI. */
+  demo?: boolean;
 }
 
-/** `GET /health` (200 ok / 503 database down) and `GET /api/v1/openapi.json`. */
+/**
+ * `GET /health` (200 ok / 503 database down; `demo: "readonly"` only on the
+ * read-only demo) and `GET /api/v1/openapi.json`.
+ */
 export function registerSystemRoutes(app: App, deps: SystemRouteDeps): void {
   app.openapi(createRoute(apiRoutes.getHealth), async (c) => {
     const up = await deps.database.ping();
@@ -17,6 +22,7 @@ export function registerSystemRoutes(app: App, deps: SystemRouteDeps): void {
       status: up ? 'ok' : 'degraded',
       version: deps.version,
       db: up ? 'ok' : 'down',
+      ...(deps.demo ? { demo: 'readonly' as const } : {}),
     };
     return up ? c.json(body, 200) : c.json(body, 503);
   });

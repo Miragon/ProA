@@ -20,6 +20,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorMessage } from '@/lib/api';
 import { STAGES, STAGE_ORDER } from '@/lib/labels';
+import { useProjectPermissions } from '@/lib/permissions';
 import { modelsQuery } from '@/lib/queries';
 
 import { projectRoute } from './project';
@@ -46,6 +47,7 @@ function ModelsTab() {
   const { stage } = projectModelsRoute.useSearch();
   const navigate = projectModelsRoute.useNavigate();
   const models = useQuery(modelsQuery(project));
+  const can = useProjectPermissions(project);
   const list = useMemo(() => models.data ?? [], [models.data]);
 
   if (models.isPending) return <Skeleton className="h-40 w-full" />;
@@ -65,24 +67,30 @@ function ModelsTab() {
           </EmptyMedia>
           <EmptyTitle className="text-base font-semibold">Noch keine Modelle</EmptyTitle>
           <EmptyDescription>
-            Lade BPMN-Dateien hoch. ProA liest die Fakten, verknüpft eindeutige Aufrufe sofort und
-            schlägt gleiche Nachrichtennamen als Relationen vor.
+            {can.canWrite
+              ? 'Lade BPMN-Dateien hoch. ProA liest die Fakten, verknüpft eindeutige Aufrufe sofort und schlägt gleiche Nachrichtennamen als Relationen vor.'
+              : 'Dieses Projekt hat noch keine Modelle.'}
           </EmptyDescription>
         </EmptyHeader>
-        <EmptyContent className="flex-row justify-center">
-          <Button asChild>
-            <Link to="/projects/$project/upload" params={{ project }}>
-              <UploadIcon data-icon="inline-start" />
-              Modelle hochladen
-            </Link>
-          </Button>
-          <Button variant="ghost" asChild>
-            <Link to="/projects/$project/agents" params={{ project }}>
-              <PlugIcon data-icon="inline-start" />
-              Agent verbinden
-            </Link>
-          </Button>
-        </EmptyContent>
+        {/* Write actions only for whoever may use them (never on the read-only demo). */}
+        {can.canWrite ? (
+          <EmptyContent className="flex-row justify-center">
+            <Button asChild>
+              <Link to="/projects/$project/upload" params={{ project }}>
+                <UploadIcon data-icon="inline-start" />
+                Modelle hochladen
+              </Link>
+            </Button>
+            {can.isOwner ? (
+              <Button variant="ghost" asChild>
+                <Link to="/projects/$project/agents" params={{ project }}>
+                  <PlugIcon data-icon="inline-start" />
+                  Agent verbinden
+                </Link>
+              </Button>
+            ) : null}
+          </EmptyContent>
+        ) : null}
       </Empty>
     );
 

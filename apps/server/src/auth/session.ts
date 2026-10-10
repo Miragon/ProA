@@ -61,13 +61,18 @@ export function createSessionCodec(
   };
 }
 
-/** `Set-Cookie` attributes of the session cookie (no `Secure`: local mode is plain http on localhost). */
-export function sessionCookieOptions(maxAgeSeconds: number) {
+/**
+ * `Set-Cookie` attributes of the session cookie. No `Secure` in local mode
+ * (plain http on localhost); the read-only demo sets it when every public
+ * origin is https.
+ */
+export function sessionCookieOptions(maxAgeSeconds: number, secure = false) {
   return {
     path: '/',
     httpOnly: true,
     sameSite: 'Strict' as const,
     maxAge: maxAgeSeconds,
+    ...(secure ? { secure: true } : {}),
   };
 }
 

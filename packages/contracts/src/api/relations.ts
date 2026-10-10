@@ -113,6 +113,42 @@ export const RelationQuery = z.object({
 });
 export type RelationQuery = z.infer<typeof RelationQuery>;
 
+/**
+ * A live, current agent no-link of the project (CONCEPT §3 "judge each pair
+ * once"): an agent judged the typed pair and found it unrelated, on the head
+ * versions of both models under the procedure claims name now (as
+ * {@link RelationNoLink}, which shows only the no-links on a pair that also
+ * has a relation). Read-only: reviewers see what agents ruled out.
+ */
+export const NoLink = z
+  .object({
+    id: NoLinkId,
+    /** The relation type the pair was judged for (never `manual`). */
+    type: RelationType.exclude(['manual']),
+    from: Ref,
+    to: Ref,
+    /** Pseudonymous handle of the judging principal, e.g. `agent:claude code`. */
+    handle: z.string(),
+    /** The model whose analysis stored it. */
+    origin: ModelKey,
+    /** As the agent wrote it, `<code>: <sentence>`. */
+    reason: z.string(),
+    at: Timestamp,
+  })
+  .meta({ id: 'NoLink', description: 'An agent judgement that a typed pair is unrelated.' });
+export type NoLink = z.infer<typeof NoLink>;
+
+export const NoLinkQuery = z.object({
+  /** Only no-links with an endpoint in this model. */
+  modelKey: ModelKey.optional(),
+});
+export type NoLinkQuery = z.infer<typeof NoLinkQuery>;
+
+export const NoLinkList = z
+  .object({ items: z.array(NoLink) })
+  .meta({ id: 'NoLinkList', description: 'Live, current agent no-links, oldest first.' });
+export type NoLinkList = z.infer<typeof NoLinkList>;
+
 export const FindingList = z
   .object({ items: z.array(Finding) })
   .meta({ id: 'FindingList', description: 'Deterministic findings of the project head.' });

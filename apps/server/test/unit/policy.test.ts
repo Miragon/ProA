@@ -121,3 +121,27 @@ describe('scopes and token roles', () => {
     expect(evaluate(agent, 'admin', 'owner')?.code).toBe('forbidden');
   });
 });
+
+describe('the read-only demo visitor (issue #3)', () => {
+  // As `demoVisitorActor` builds it: a user on proa-web with proa:read only, viewer everywhere.
+  const visitor: Actor = {
+    principalId: 'prn_01J9Z3N4X5Q6R7S8T9V0W1X2Y3',
+    kind: 'user',
+    handle: 'visitor',
+    clientId: 'proa-web',
+    interactive: true,
+    scopes: ['proa:read'],
+    binding: null,
+  };
+
+  it('may read, nothing else: denied by scope first, by the viewer role behind it', () => {
+    expect(evaluate(visitor, 'read', 'viewer')).toBeNull();
+    for (const permission of ['propose', 'write', 'review', 'admin'] as const) {
+      expect(evaluate(visitor, permission, 'viewer')?.code, permission).toBe('insufficient-scope');
+      // Even with every scope, the viewer role denies.
+      const scoped: Actor = { ...visitor, scopes: ['proa:review', 'proa:write'] };
+      expect(evaluate(scoped, permission, 'viewer')?.code, permission).toBe('forbidden');
+    }
+    expect(evaluate(visitor, 'read', null)?.code).toBe('not-found');
+  });
+});

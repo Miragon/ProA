@@ -52,13 +52,18 @@ and code are in English.
   rules; off by default, never retroactive (apply with a dry run), conservative safeguards, a
   preview with the project's empirical precision, marks and filters in the review views for
   every reviewer, bulk, per-agent and single revoke; `eval:replay` gained the „Auto-accept
-  what-if“ at 0.8/0.9/0.95; a review round's fixes are in, see §7).
+  what-if“ at 0.8/0.9/0.95; a review round's fixes are in, see §7), and the **public read-only
+  demo** (issue [#3](https://github.com/Miragon/ProA/issues/3), owner decision 20, 2026-10-10:
+  `PROA_DEMO=readonly`, the demo image with the seed baked in, Fly.io
+  configuration and deploy workflow, built and checked locally, a review round's fixes are in;
+  **not deployed**, the owner's Fly setup is open, see §7 "Demo deployment, issue #3").
 - **Next:** the **owner's live runs** of `proa-relations@0.2.0` and `proa-placements@0.1.0`
   (`docs/proa-2/M3-LIVE-RUNS.md`, steps 1–6 and 6a: 3 runs per landscape and model incl. the
   holdout), a chain drafted in Claude Desktop and rated, the holdout import check; **S6** (the OKF
   extension) waits for the R1 OKF export. After the live runs the owner chooses auto-accept
-  thresholds from the what-if (§7 "Auto-accept rules"). A public demo on Fly.io is tracked in issue
-  [#3](https://github.com/Miragon/ProA/issues/3) (its open questions are listed there).
+  thresholds from the what-if (§7 "Auto-accept rules"). The public demo needs the owner's
+  one-time Fly.io setup and first deploy (§7 "Demo deployment, issue #3";
+  DEVELOPMENT.md "Demo deployment (Fly.io)").
 
 ## 2. Read in this order
 
@@ -77,7 +82,7 @@ and code are in English.
 | Item | State |
 |---|---|
 | `develop` | 1.x platform overhaul (squash `eb3539b`). Protected by ruleset "main": PRs only, **squash merges only**, linear history, **signed commits**, no bypass actors, no required checks yet. |
-| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs · `ada3fdc` judge-once review fixes · `01cd1cf` docs · `d21401f` token test fix · M4: `be4308f` S0 · `b9481b7` S1 · `e90fbba` S2 · `e4890ef` S3 · `bef64e0` S4 · S5 with its review fixes (`53e7acf`) · decision 19 (auto-accept rules) in the commit after `53e7acf`. |
+| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs · `ada3fdc` judge-once review fixes · `01cd1cf` docs · `d21401f` token test fix · M4: `be4308f` S0 · `b9481b7` S1 · `e90fbba` S2 · `e4890ef` S3 · `bef64e0` S4 · S5 with its review fixes (`53e7acf`) · `9b7bcb0` decision 19 (auto-accept rules) · decision 20 (read-only demo, issue #3) in the commit after `9b7bcb0`. |
 | PR #2 | Draft, base `develop`, CI (`ci-2.yml`: typecheck/lint/test, docker image + compose live check) green. **Merge only with the owner's explicit OK.** |
 | 1.x tree | `backend/`, `frontend/`, `pom.xml`, `mvnw*`, `.mvn/`, `Dockerfile`, `eclipse-formatter.xml`, `Makefile`, `scripts/`, `docker-compose.yml`, `.githooks/` and the 1.x workflows (`backend-tests.yml`, `frontend-checks.yml`, `deploy.yml`, `release.yml`) are still present and **must not be modified** on this branch. The cut-over PR removes them (CONCEPT §9). |
 | Tags/releases | None in ProA yet. Plan: tag `v1.3.0` on `eb3539b` + branch `maintenance/1.x` + 1.x image **right before the cut-over merge** (owner decision), not now. |
@@ -140,6 +145,43 @@ and code are in English.
     and can be revoked in bulk. **Delivered 2026-10-10**: CONCEPT §2
     "Auto-accept marker", §3 review workflow step 5, DEVELOPMENT.md "Auto-accept rules (owner
     decision 19)".
+20. **Public demo on Fly.io** (issue #3, 2026-10-10): (1) **read-only** demo mode: everyone sees
+    everything, nobody can change anything; no MCP, no tokens; (2) **both landscapes**,
+    `nordwind-handel` and `stadtwerke-auental`, with their value chains (`proa seed
+    --value-chains`); (3) **deployed on every push to `claude/proa-2`** now (`develop` still holds
+    1.x; the workflow switches to `develop` with the cut-over); (4) after seeding, a **run of the
+    simulation agent**, so the review shows agent proposals, questions, no-links and placement
+    proposals; (5) **no automatic nightly reset** (first asked for, then withdrawn: „doch nicht
+    nachts … aber ich muss es machen können“): the owner resets the demo on demand, with
+    one documented action; visitors have no reset endpoint. No Camunda engines; ProA holds no LLM
+    credentials. **Built 2026-10-10** (not deployed): CONCEPT §6 "Read-only demo", DEVELOPMENT.md
+    "Demo deployment (Fly.io)" with "Reset the demo".
+
+**Taken during issue #3 by the implementing agent (the owner may overrule; details in
+DEVELOPMENT.md "Demo deployment (Fly.io)"):** the seed is made **while the image is built** and
+baked in as a PostgreSQL data directory; every start copies it, so a restart is the reset and a
+broken seed fails the build; PostgreSQL 17.11 comes from its official image with the Node binary
+copied in, inside the same machine (no Fly Postgres, no volume, **no Fly secret**: the issue's
+`DATABASE_URL` and `PROA_SESSION_SECRET` are not needed); the supervisor is a typed workspace
+package `apps/demo` (`proa-demo seed|serve|check`); the visitor is a principal of its own
+(`urn:proa:demo`/`visitor`, scope `proa:read`, viewer of every project, granted at build time),
+so the policy denies writes behind the HTTP guard; the guard refuses every non-GET/HEAD/OPTIONS
+method before authentication with the new problem code `demo-readonly`, documented on every write
+route of the contracts; credentials are refused (401), `/mcp` answers 404; a third barrier, a
+read-only database role (`default_transaction_read_only`, `statement_timeout` 30 s), and the
+server refuses to start in demo mode without it; `PROA_PUBLIC_ORIGIN` (default
+`https://$FLY_APP_NAME.fly.dev`) replaces localhost in the Host/Origin checks, and is refused
+outside the demo; the web UI hides write actions **by role** (viewers in general, which also
+prepares server mode), the tab „Regeln“ stays owner-only (so it is hidden in the demo instead of
+read-only), „Agent verbinden“ is now owner-only too (agent tokens are an owner action, CONCEPT
+§6); the banner text promises no nightly reset; Fly: region `fra`, `shared-cpu-1x` with 1 GB,
+**`auto_stop_machines = "suspend"`** (resume in well under a second, storage-only cost; the data
+cannot drift), blue-green deploys behind `/health`, restart policy `on-failure` (not `always`,
+which keeps machines from stopping), `--ha=false`; flyctl 0.4.108 from the release tarball with
+its sha256 instead of the setup action; the reset is a redeploy (fresh seed) or `fly machine
+stop`/`start` (same seed), and the workflow's manual run offers both; a CI job `demo` builds and
+checks the image; the seed's agent tokens stay (revoking them would withdraw their proposals;
+the demo accepts no credential).
 
 **Taken during M3 by the implementing agent (the owner may overrule; details in
 `M3-RELATIONS-PROCEDURE.md`):** agents write rationales, questions, no-link reasons and summaries
@@ -225,12 +267,14 @@ overall, the holdout aggregate only with „< 5“ and a secondary suppression o
 | `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name --value-chains] / token create\|list\|revoke / value-chain push\|pull / rules list\|show\|add\|edit\|enable\|disable\|preview\|apply\|revoke / mcp` (stdio bridge) |
 | `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen; since M4 S3 the value chain page (`/projects/{key}/value-chain`: renderer viewer/modeler in a lazy chunk, placement review, save with dry run and conflict, drafts, link editing) and the step view; since decision 19 the tab „Regeln“ (auto-accept rules with live preview, apply, revoke) and the marks and filters of auto-accepted items in the review views |
 | `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP, both task kinds since M4 S5 |
+| `apps/demo` | `proa-demo seed\|serve\|check` (issue #3): seeds the read-only demo while its image is built, supervises PostgreSQL and the server in the container, checks a running demo from outside |
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
 | `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate, `eval:placements` (M4 S4: the golden value chains, the rule tier and `baseline-prefix/1`), the „Auto-accept what-if“ of `eval:replay` (decision 19) |
 | `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.2.0` and `proa-placements@0.1.0`; the owner's live runs go here too) and generated reports incl. both live gates, pairs judged twice and uncovered pairs |
 | `eval/value-chains` | golden value chains + expected placements for both landscapes (M4); `validate-value-chains.mjs` checks them with `@miragon/value-chain-schema-model` 0.3.0 from npm (pinned in `eval/tools`) and its built-in cross-check, run by `pnpm test` |
-| `docker/` | `compose.yaml` (project `proa2`: PostgreSQL 17 on 127.0.0.1:55432, ProA on 127.0.0.1:7400) and `Dockerfile` |
-| `.github/workflows/ci-2.yml` | 2.0 CI (path-filtered; 1.x workflows untouched) |
+| `docker/` | `compose.yaml` (project `proa2`: PostgreSQL 17 on 127.0.0.1:55432, ProA on 127.0.0.1:7400) and `Dockerfile`; the read-only demo (issue #3): `Dockerfile.demo` with its `.dockerignore`, `compose.demo.yaml` (project `proa2-demo`, 127.0.0.1:7480), `fly.demo.toml` |
+| `.github/workflows/ci-2.yml` | 2.0 CI (path-filtered; 1.x workflows untouched), since issue #3 with the job `demo` |
+| `.github/workflows/demo-deploy.yml` | deploys the read-only demo to Fly.io on pushes to `claude/proa-2` and by hand (`deploy` or `restart`); skips until the secret `FLY_API_TOKEN` exists |
 
 **Key metrics (eval, no LLM):**
 
@@ -519,6 +563,63 @@ until the owner creates one.
   open proposals only after reading the dry run list.
 - Decide the new open questions in §8.
 
+### Demo deployment, issue #3 (built 2026-10-10, not deployed)
+
+Owner decision 20 (§4). Built on `claude/proa-2` in the commit after the auto-accept rules:
+`PROA_DEMO=readonly` in the server (the read-only guard, the viewer session,
+`demo-readonly`, MCP off, credentials refused, the public Host/Origin guard, `Health.demo`), the
+visitor and the read-only database role (`demo-bootstrap.ts`), the web UI's banner and role
+gating, `apps/demo`, `docker/Dockerfile.demo` (+ `.dockerignore`), `docker/compose.demo.yaml`,
+`docker/fly.demo.toml`, `.github/workflows/demo-deploy.yml`, the CI job `demo`, tests at every
+level and these docs. Verified locally (DEVELOPMENT.md "Read-only demo, issue #3"): the image
+builds with the seed in about 5 s, starts in about 1 s, `proa-demo check` passes, the
+Playwright walk passes, a restart is back at the seed, the image holds no eval file and the
+database no expected answer, every gate passes. **Nothing ran on Fly.io or GitHub:** no Fly
+account was available.
+
+**Review round (2026-10-10, same day):** `POST /api/v1/session` reads at most 4 KiB (a single
+anonymous 700 MB request had killed the 1 GB machine; now 413 before reading, in local mode
+too); `proa-demo check` sends nothing but `GET /health` to a server that is not a read-only
+demo and no write unless the session is the visitor (it had deleted `nordwind-handel`'s value
+chain on a local-mode server), and its write walk names keys that exist nowhere; the agents'
+no-links now show in the review, as decision 20(4) asks: the inbox tab „Kein Zusammenhang“ with
+the new read route `GET …/no-links` (every role, every mode; the simulation agent's 150 and 101
+no-links are on pairs without a relation, which `Relation.noLinks` cannot show; the implementing
+agent chose this over a seed change, which decision 17 forbids anyway: no pair is judged
+twice); an empty project and the inbox offer write actions only to the roles that have them;
+the demo walk checks more write actions (also by test id) and the no-links; the reset docs name
+`gh workflow run` as the one fresh-seed action (GitHub documents dispatching a branch workflow
+once it has run), the local `fly deploy … --build-arg PROA_DEMO_SEED=manual-$(date +%s)` as the
+fallback, "Re-run all jobs" only with its limits (30 days, same commit and inputs), and the
+deploy token's one-year expiry with its renewal.
+
+**Owner actions** (the commands are in DEVELOPMENT.md "Demo deployment (Fly.io)"):
+- One-time: `fly auth login`, `fly apps create proa-demo --org <org>` (another name if taken,
+  then the repository variable `FLY_DEMO_APP`), `fly tokens create deploy --app proa-demo --expiry
+  8760h` and `gh secret set FLY_API_TOKEN --repo Miragon/ProA`. **The token expires after one
+  year:** note the date; renewing is the same two commands (`fly tokens create deploy --app
+  proa-demo --expiry 8760h | gh secret set FLY_API_TOKEN --repo Miragon/ProA`).
+- The first deploy: commit and push (the workflow runs on the paths it watches), or `gh workflow
+  run demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2`; then open
+  https://proa-demo.fly.dev and run `pnpm --filter @proa/demo check --url
+  https://proa-demo.fly.dev`.
+- After the first push run, try `gh workflow run demo-deploy.yml --repo Miragon/ProA --ref
+  claude/proa-2` once (GitHub documents dispatching a workflow outside the default branch once
+  it has run) and note the result in DEVELOPMENT.md "Reset the demo".
+- **Reset** whenever wanted, the one documented action for a fresh seed: `gh workflow run
+  demo-deploy.yml --repo Miragon/ProA --ref claude/proa-2`. Fallback from the checkout: `fly
+  deploy --config docker/fly.demo.toml --app proa-demo --remote-only --ha=false --build-arg
+  PROA_DEMO_SEED=manual-$(date +%s)`. The same seed in seconds: `fly machine stop`/`start` (or
+  the manual run with `-f action=restart`). "Re-run all jobs" in the browser works only within
+  30 days and only on the newest run that deployed the current head (it repeats commit and
+  inputs).
+- Optional: a custom domain (`fly certs add`, DNS, `FLY_DEMO_PUBLIC_ORIGIN`), a comment on issue
+  #3 with the URL, and the open questions in §8 (legal notice, no-links in the review).
+
+Unverified until the first deploy: the seed inside Fly's remote builder (an amd64 build; locally
+arm64), `fly.demo.toml` as flyctl reads it (`flyctl config validate` needs a login), suspend and
+resume, the workflow's skip, deploy, restart and check steps.
+
 ### Later (R1 and beyond)
 
 Process network map (diagram-js + elkjs, saved views, impact analysis, end-to-end paths), lint
@@ -554,6 +655,8 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | Auto-accept: results | Submission and ad-hoc results report the status before rules ran (an agent's `proposed` may already be accepted; `get_relations` shows the truth). Keeps recordings comparable and agents uninformed. Keep? | Decision 19 |
 | Auto-accept: marks for editors | Editors see which acceptances a rule made (the ledger names rule, revision, agent and confidence, never the criteria); only owners see the rules, apply and revoke. Keep, or show the marks to viewers too? | Decision 19 review |
 | Auto-accept: take-over | A rule whose author lost the owner role matches nothing until an owner saves it; saving it, also unchanged, makes that owner its author (its later acceptances are recorded under them). Keep, or add an explicit „Übernehmen“ action? | Decision 19 review |
+| Demo: legal notice | A public website run by Miragon likely needs an Impressum and a privacy notice (Fly logs IP addresses; the demo sets a functional session cookie). Provide the links and the banner gets them. | Issue #3 |
+| Demo: no-links in the review | Decision 20(4) asks the review to show no-links; the simulation agent's are all on pairs without a relation, where no „Einwand“ can appear. The review round added the inbox tab „Kein Zusammenhang“ (`GET …/no-links`, read-only, every role and mode, model and stage filters). Keep it there, move it (e.g. per model in the model view), or also want example disagreements („Einwand“ on proposals, which needs a second agent's verdict on judged pairs and so conflicts with decision 17)? | Issue #3, review round |
 
 ## 9. Working agreements and pitfalls
 

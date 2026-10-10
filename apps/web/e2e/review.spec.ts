@@ -4,6 +4,8 @@ import { join, relative } from 'node:path';
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
+import { DEMO_SKIP, probeServer } from './server-mode';
+
 /**
  * The M2 review flow (M2 item 7) against a running server with the built UI.
  * It creates its own project from eval/corpus/nordwind-handel, works part of
@@ -138,9 +140,10 @@ test.beforeAll(async ({ playwright, baseURL }) => {
   const probe = await playwright.request.newContext({
     baseURL: baseURL ?? 'http://127.0.0.1:7400',
   });
-  const health = await probe.get('/health', { timeout: 3000 }).catch(() => null);
+  const mode = await probeServer(probe);
   await probe.dispose();
-  test.skip(!health?.ok(), 'no ProA server at PROA_E2E_URL; start one to run the review flow');
+  test.skip(mode === 'down', 'no ProA server at PROA_E2E_URL; start one to run the review flow');
+  test.skip(mode === 'demo', DEMO_SKIP);
 
   // owner: project, models, agent token (the context keeps the session cookie)
   owner = await playwright.request.newContext({ baseURL: baseURL ?? 'http://127.0.0.1:7400' });

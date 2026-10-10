@@ -38,7 +38,7 @@ function ServerStatus() {
  */
 export function PageShell({ crumbs, children }: { crumbs?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="flex min-h-app-viewport flex-col">
       <header className="mx-auto flex w-full max-w-6xl items-center gap-3 px-6 pt-5 pb-2">
         <Link
           to="/"
