@@ -2,10 +2,11 @@
  * Token revocation on the value chain side (CONCEPT §6 "revoking a token or
  * service withdraws its proposals", M4 S2): every live placement proposal of
  * the revoked principal is withdrawn under that principal, caused by the
- * revoking owner. Nothing is queued (M4a has no placement pipeline); rule
- * proposals, human decisions and other principals' proposals stay.
+ * revoking owner; rule proposals, human decisions and other principals'
+ * proposals stay. The caller (M4b) forgets the verdicts the lost pipeline
+ * proposals stood for and queues the placement task again.
  */
-import type { PrincipalId, ProjectId } from '@proa/contracts';
+import type { PrincipalId, ProjectId, ValueChainId } from '@proa/contracts';
 
 import type { Actor } from '../actor.ts';
 import type { PlacementAssertionRecord, Tx } from '../ports.ts';
@@ -20,7 +21,8 @@ const byCodePoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 
  * Withdraws the live placement proposals of `principalId` on every live
  * chain of the project (the caller holds the project lock).
  *
- * @returns the number of withdrawals
+ * @returns the number of withdrawals and, per chain, the processes whose
+ *   withdrawn proposal came from a placement task's submission
  */
 export async function withdrawPlacementProposalsOf(
   tx: Tx,
@@ -28,8 +30,9 @@ export async function withdrawPlacementProposalsOf(
   projectId: ProjectId,
   principalId: PrincipalId,
   reason: string,
-): Promise<number> {
+): Promise<{ withdrawn: number; pipelineLost: Map<ValueChainId, Set<string>> }> {
   let withdrawn = 0;
+  const pipelineLost = new Map<ValueChainId, Set<string>>();
   for (const chain of await tx.valueChains.list(projectId)) {
     if (chain.headRevisionId === null) continue;
     const placements = await tx.placements.forChain(projectId, chain.id);
@@ -71,7 +74,13 @@ export async function withdrawPlacementProposalsOf(
         clientId: actor.clientId,
       });
       withdrawn++;
+      if (stance.submissionId !== null) {
+        pipelineLost.set(
+          chain.id,
+          (pipelineLost.get(chain.id) ?? new Set()).add(placement.processRef),
+        );
+      }
     }
   }
-  return withdrawn;
+  return { withdrawn, pipelineLost };
 }

@@ -17,11 +17,13 @@ eval/
     deploy-check.mjs         deploys the models to real Camunda 7 and 8 engines
     engines.compose.yaml     those engines, for Docker
     src/candidates.ts        the eval:candidates gate (TypeScript, uses @proa/bpmn-facts and @proa/relations)
-    src/replay.ts            eval:replay: scores recorded agent submissions, reports the live gate
+    src/replay.ts            eval:replay: scores recorded agent submissions (both task kinds), reports the live gates
     src/live.ts              eval:live: records a live run from a ProA project, scores it, checks the live gate
     src/live-recordings.ts   eval:live's REST reader and the mapping to recording lines
     src/live-gate.ts         the live gate (eval:live enforces it, eval:replay reports it)
     src/placements*.ts       eval:placements (M4): the golden value chains against the process facts, the rule tier and baseline-prefix/1
+    src/placements-replay*.ts  eval:replay's placement part (M4b): placement recordings on the golden chain
+    src/placement-live-gate.ts the placement live gate (eval:live enforces it, eval:replay reports it)
     lib/  test/
   recordings/
     <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl   agent runs: simulation agent and live runs (below)
@@ -182,6 +184,34 @@ recordings. It is deterministic and enforces nothing: it exits 1 only for an
 unreadable recording or an unknown landscape, 2 on a usage error. CI regenerates the report and
 requires no diff, so new recordings are committed together with the report.
 
+**Placement recordings** (M4b, `placements-replay.ts`): a recording of the procedure
+`proa-placements` holds placement lines (`kind: "placement"`, the chain revision
+`valueChain {key, rev, contentHash}` instead of a model and revision, the
+placements and unsure items as sent, the result with `skipped` as a count); a
+file never mixes kinds (eval:replay refuses it). eval:replay scores them against
+`value-chains/<landscape>/expected-placements.yaml` with the eval:placements
+scorer, after the relations sections (`replay.md`, key `placements` in
+`replay.json`; the relations part stays as it was). A recording counts only on
+the golden chain: every line's content hash must be the sha256 of
+`value-chain.vc.json`, else eval:replay exits 1 ("not comparable (edited
+chain)"). The run's placements are the union of its valid items (applied,
+duplicate, suppressed, reopened; `@outside` included), one per (process, step)
+with its highest confidence, ranked per process by confidence (ties by step
+id): precision, recall, recall@1 and @3, area recall@1, F1, trap rate, traps
+at ≥ 0.8, unsure, skipped and invalid items, next to `baseline-prefix/1` with
+and without votes. The dev landscape adds traps, wrong top-1 and the musts
+missed; the holdout shows aggregates only (as `placements.md`). The simulation
+agent under `proa-placements@0.1.0` on `nordwind-handel`: 29 placements and 3
+unsure for 32 processes, precision 57.7 %, recall (= recall@1) 46.9 %, area
+recall@1 56.3 %, F1 51.7 %, trap rate 29.2 %, 6 traps at ≥ 0.8 (the baseline:
+43.8 % with votes, 46.9 % without). The placement live gate per procedure,
+landscape and `llmModel` over the live runs: **fail** if a run has a trap at
+≥ 0.8 or the mean recall@1 is below the higher recall@1 of the two baseline
+rows plus 20 points (dev: 66.9 %); **incomplete** below 3 runs; else **pass**.
+eval:live records placement tasks too (the chain revision's number and content
+hash from the revision listing), refuses a run on an edited chain and exits 1
+on a failing placement gate.
+
 The simulation agent under `proa-relations@0.2.0`: `nordwind-handel` 48 pairs,
 precision 73.3 %, recall 78.6 %, F1 75.9 %, must_not_link 12 (3 at ≥ 0.8);
 `stadtwerke-auental` 52 pairs, 64.0 %, 80.0 %, 71.1 %, 11 (2); no pair judged
@@ -323,7 +353,9 @@ and a miss only the holdout shows is documented, not special-cased.
   the console. `reports/replay.md` and `replay.json` do list pairs per recording
   (must_not_link hits, unlisted proposals, missed must_link pairs); whoever
   works on the procedure does not open their holdout sections.
-  `reports/placements.md` and `placements.json` show the holdout as
+  The placement sections of `reports/replay.md` and `replay.json` (M4b) show
+  the holdout's placement recordings as aggregates only, like
+  `reports/placements.md` and `placements.json`, which show the holdout as
   aggregate numbers only, none over fewer than 5 processes: no per-item
   lists, the rule tier as its gate and proposal count only (its proposals
   follow from the public chain file and model names, so a class split would
@@ -332,6 +364,9 @@ and a miss only the holdout shows is documented, not special-cased.
   whole-landscape numbers only. Whoever works on a procedure may open both
   files; they still carry the holdout's whole-landscape numbers, so tune
   nothing against them.
+- **The holdout placement recording** (`recordings/proa-placements@…/agent-sim/…/stadtwerke-auental.jsonl`)
+  is compared by the server test by sha256, line and byte counts only (no diff
+  is ever printed; `-u` writes it); nobody opens it.
 - **Recordings and server texts.** Since M4 S4 the rule tier's finding details
   are German; the claim input carries them, so the committed agent-sim
   recordings were re-recorded (only `input.bytes` changed, checked by a

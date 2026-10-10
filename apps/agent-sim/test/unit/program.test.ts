@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { RecordingLine } from '@proa/contracts';
+import { RelationRecordingLine } from '@proa/contracts';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import type { AgentReport } from '../../src/agent.ts';
@@ -37,8 +37,10 @@ describe('proa-agent-sim', () => {
     expect(t.out()).toBe(
       [
         'agent-sim: 2 tasks (2 submitted, 0 dry run, 0 failed); stopped: no-work',
-        '  8 proposals (2 with a question), 2 no-links',
-        '  results: applied 8, duplicate 0, suppressed 0, reopened 0, invalid 0; withdrawn by supersession 0',
+        '  relations: 2 tasks, 8 proposals (2 with a question), 2 no-links',
+        '    results: applied 8, duplicate 0, suppressed 0, reopened 0, invalid 0; withdrawn by supersession 0',
+        '  placement: 0 tasks, 0 placements (0 with a question), 0 unsure, 0 skipped, 0 follow-ups',
+        '    results: applied 0, duplicate 0, suppressed 0, reopened 0, invalid 0; withdrawn by supersession 0',
         '',
       ].join('\n'),
     );
@@ -75,7 +77,7 @@ describe('proa-agent-sim', () => {
     const report = JSON.parse(t.out()) as AgentReport;
     const file = path.join(cwd, 'recordings/proa-relations@0.0.1/agent-sim/policy-x/demo.jsonl');
     expect(report.recordings).toEqual([file]);
-    const line = RecordingLine.parse(JSON.parse(await readFile(file, 'utf8')));
+    const line = RelationRecordingLine.parse(JSON.parse(await readFile(file, 'utf8')));
     expect(line.llmModel).toBe('policy x');
     expect(line.task).toBeUndefined();
     expect(line.input).toMatchObject({ summary: true });
@@ -86,6 +88,25 @@ describe('proa-agent-sim', () => {
       [0.8, true],
     ]);
     expect(proa.submissions[0]?.['llmModel']).toBe('policy x');
+  });
+
+  it('claims the kinds --kinds names and summarizes them', async () => {
+    const proa = fakeProa({ tasks: 1, placements: 1 });
+    const t = io(proa, { PROA_TOKEN: TOKEN });
+    expect(await runSim(['--kinds', 'placement', '-q'], t.io)).toBe(0);
+    expect(proa.claims.map((c) => c['kinds'])).toEqual([['placement'], ['placement']]);
+    expect(t.out()).toBe(
+      [
+        'agent-sim: 1 tasks (1 submitted, 0 dry run, 0 failed); stopped: no-work',
+        '  placement: 1 tasks, 6 placements (2 with a question), 2 unsure, 0 skipped, 0 follow-ups',
+        '    results: applied 6, duplicate 0, suppressed 0, reopened 0, invalid 0; withdrawn by supersession 0',
+        '',
+      ].join('\n'),
+    );
+    const both = fakeProa({ tasks: 0, placements: 1 });
+    const t2 = io(both, { PROA_TOKEN: TOKEN });
+    expect(await runSim(['--kinds', 'relations,placement', '-q'], t2.io)).toBe(0);
+    expect(both.claims[0]?.['kinds']).toEqual(['relations', 'placement']);
   });
 
   it('dry run exits 0 and submits nothing', async () => {
@@ -126,6 +147,8 @@ describe('proa-agent-sim', () => {
       ['--propose-at', '1.5'],
       ['--max-tasks', '0'],
       ['--record-input', 'all'],
+      ['--kinds', 'decide'],
+      ['--kinds', 'placement,placement'],
       ['--bogus'],
     ]) {
       const t = io(null);

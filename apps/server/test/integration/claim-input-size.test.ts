@@ -10,16 +10,31 @@
  * sizes and counts, never the content of a model's input.
  */
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
-import { ClaimInput, ClaimedAnalysis, type SubmitAnalysisInput } from '@proa/contracts';
+import {
+  ClaimInput,
+  ClaimedRelationsAnalysis,
+  PlacementClaimInput,
+  type SubmitAnalysisInput,
+} from '@proa/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { libraryAnalysis } from '../../src/analysis.ts';
 import { claimInputBytes } from '../../src/domain/claim-input.ts';
+import { jsonBytes } from '../../src/domain/payload.ts';
 import { startTestApp, type TestApp } from '../support/app.ts';
 import { corpusFiles, importAll } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
-import { RELATIONS_PROCEDURE, asAgent, claim, submit } from '../support/pipeline.ts';
+import {
+  RELATIONS_PROCEDURE,
+  asAgent,
+  claim,
+  claimPlacement,
+  placementSubmission,
+  submit,
+  submitPlacement,
+} from '../support/pipeline.ts';
 
 const LANDSCAPES = ['nordwind-handel', 'stadtwerke-auental'] as const;
 const LIMIT_BYTES = 100 * 1024;
@@ -32,7 +47,7 @@ const REASON = `no-evidence: ${'Die Bezeichnungen ähneln sich, beschreiben aber
 
 let database: TestDatabase;
 let t: TestApp;
-const claimed = new Map<string, ClaimedAnalysis[]>();
+const claimed = new Map<string, ClaimedRelationsAnalysis[]>();
 const modelCounts = new Map<string, number>();
 
 beforeAll(async () => {
@@ -45,7 +60,7 @@ beforeAll(async () => {
     modelCounts.set(landscape, files.length);
     const outcomes = await importAll(owner, landscape, files);
     expect(outcomes.every((o) => o.outcome === 'created')).toBe(true);
-    const items: ClaimedAnalysis[] = [];
+    const items: ClaimedRelationsAnalysis[] = [];
     for (;;) {
       const batch = await claim(owner, { projectId: landscape, max: 5 });
       if (batch.length === 0) break;
@@ -123,7 +138,7 @@ describe.each(LANDSCAPES)('claim input of every model of %s', (landscape) => {
     expect(items).toHaveLength(modelCounts.get(landscape) ?? -1);
     expect(new Set(items.map((i) => i.modelKey)).size).toBe(items.length);
     for (const item of items) {
-      expect(ClaimedAnalysis.safeParse(item).success, item.modelKey).toBe(true);
+      expect(ClaimedRelationsAnalysis.safeParse(item).success, item.modelKey).toBe(true);
       expect(ClaimInput.parse(item.input).facts.length, item.modelKey).toBeGreaterThan(0);
     }
   });
@@ -189,4 +204,87 @@ describe.each(LANDSCAPES)('claim input of every model of %s', (landscape) => {
     // Both landscapes exercise every addition.
     for (const [what, n] of Object.entries(seen)) expect(n, what).toBeGreaterThan(0);
   });
+});
+
+/**
+ * The placement claim input (M4 §3.2, `proa-claim-placement/1`) stays below
+ * the same ceiling: each scored landscape with its golden chain, the first
+ * claim (every due process, at most 50, within the 96,000-byte budget), then
+ * again after LLM-sized proposals for every process and a structural save,
+ * when each process lists its proposals. Prints sizes and counts only (for
+ * the holdout no names at all).
+ */
+describe.each(LANDSCAPES)('placement claim input of %s', (landscape) => {
+  const project = `${landscape}-chain`;
+  const chainFile = new URL(
+    `../../../../eval/value-chains/${landscape}/value-chain.vc.json`,
+    import.meta.url,
+  );
+
+  it(`stays below ${LIMIT_BYTES / 1024} KB, also with LLM-sized proposals`, async () => {
+    await t.createProject(project);
+    const owner = (path: string, init?: RequestInit) => t.asOwner(path, init);
+    await importAll(owner, project, await corpusFiles(landscape));
+    const document = JSON.parse(await readFile(chainFile, 'utf8')) as {
+      elements: { elementType: string; name: string }[];
+    };
+    const created = await t.asOwner(`/api/v1/projects/${project}/value-chains`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: 'main', content: document }),
+    });
+    expect(created.status).toBe(201);
+    const token = await t.createToken(project, ['proa:read', 'proa:propose']);
+    const agent = asAgent(t, token.secret);
+
+    const [first] = await claimPlacement(agent, { projectId: project });
+    if (!first) throw new Error('no placement task');
+    expect(PlacementClaimInput.parse(first.input)).toEqual(first.input);
+    const firstBytes = jsonBytes(first.input);
+    expect(first.input.processes.length).toBeGreaterThan(0);
+    expect(firstBytes).toBeLessThan(LIMIT_BYTES);
+
+    // LLM-sized proposals for every process, then a structural save: each is due again.
+    await submitPlacement(
+      agent,
+      first.taskId,
+      placementSubmission(
+        first,
+        first.input.processes.map((p) => ({
+          step: p.hints[0]?.step ?? first.input.steps[0]?.id ?? '@outside',
+          process: p.process,
+          confidence: 0.6,
+          rationale: RATIONALE,
+          evidence: [p.process],
+          question: 'Gehört der Prozess wirklich auf diesen Schritt oder auf den übergeordneten?',
+        })),
+      ),
+    );
+    const step = document.elements.find((e) => e.elementType === 'step');
+    if (step) step.name = `${step.name} (neu)`;
+    const head = (await (
+      await t.asOwner(`/api/v1/projects/${project}/value-chains/main`)
+    ).json()) as {
+      valueChain: { headRev: number };
+    };
+    const saved = await t.asOwner(`/api/v1/projects/${project}/value-chains/main/content`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'if-match': `"r${head.valueChain.headRev}"` },
+      body: JSON.stringify(document),
+    });
+    expect(saved.status).toBe(200);
+    const [again] = await claimPlacement(agent, { projectId: project });
+    if (!again) throw new Error('no placement task after the save');
+    expect(PlacementClaimInput.parse(again.input)).toEqual(again.input);
+    const againBytes = jsonBytes(again.input);
+    const proposals = again.input.processes.reduce((n, p) => n + p.proposals.length, 0);
+    expect(proposals).toBeGreaterThan(0);
+    expect(againBytes).toBeLessThan(LIMIT_BYTES);
+    console.log(
+      `${landscape} placement claim: ${first.input.processes.length} processes, ` +
+        `${first.input.steps.length} steps, ${(firstBytes / 1024).toFixed(1)} KB; ` +
+        `with ${proposals} LLM-sized proposals ${(againBytes / 1024).toFixed(1)} KB` +
+        `${again.input.truncated ? ` (truncated, ${again.input.remaining} more)` : ''}`,
+    );
+  }, 120_000);
 });

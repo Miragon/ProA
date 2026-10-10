@@ -146,7 +146,10 @@ export const assertionsQuery = (project: string, id: string) =>
       (await unwrap(getRelationAssertions({ client: api, path: { project, relation: id } }))).items,
   });
 
-/** Analysis tasks in one state, newest first (who works on what, why a task failed). */
+/**
+ * Relations tasks in one state, newest first (who works on what, why a task
+ * failed); the value chain's placement task shows on the chain page.
+ */
 export const analysesQuery = (project: string, state: AnalysisTaskState) =>
   queryOptions({
     queryKey: keys.analyses(project, state),
@@ -156,7 +159,7 @@ export const analysesQuery = (project: string, state: AnalysisTaskState) =>
           listAnalyses({
             client: api,
             path: { project },
-            query: { state, limit: MAX_PAGE_LIMIT, cursor },
+            query: { state, kind: 'relations', limit: MAX_PAGE_LIMIT, cursor },
           }),
         ),
       ),

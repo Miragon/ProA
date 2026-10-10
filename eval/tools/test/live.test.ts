@@ -20,6 +20,7 @@ import {
   agentOf,
   buildRecordings,
   fetchStoredAnalyses,
+  isStoredPlacement,
   recordingLineOf,
   type StoredAnalysis,
 } from '../src/live-recordings.ts';
@@ -246,14 +247,29 @@ test('builds one file per procedure, agent and model, lines sorted by model key 
 test('refuses a stored payload that is no submission, and a landscape that is no project key', async () => {
   const [rest] = await storedRun();
   assert.ok(rest);
-  const { relations: _relations, ...payload } = rest.submission.payload;
+  const broken = { ...rest.submission.payload, relations: 'none' };
   assert.throws(
-    () => recordingLineOf({ ...rest, submission: { ...rest.submission, payload } }, { landscape: 'sample' }),
+    () => recordingLineOf({ ...rest, submission: { ...rest.submission, payload: broken } }, { landscape: 'sample' }),
     (err: unknown) =>
       err instanceof LiveSourceError &&
       /task ana_01JAKKKKKKKKKKKKKKKKKKKK01: the stored payload is no submission \(relations: /.test(err.message),
   );
+  const { procedure: _procedure, ...undeclared } = rest.submission.payload;
+  assert.throws(
+    () => recordingLineOf({ ...rest, submission: { ...rest.submission, payload: undeclared } }, { landscape: 'sample' }),
+    /the stored payload is no submission \(procedure: /,
+  );
   assert.throws(() => recordingLineOf(rest, { landscape: '_sample' }), /no proa-recording\/1 line \(landscape: /);
+});
+
+test('maps a REST relations payload without relations (only no-links) to relations: []', async () => {
+  const [rest] = await storedRun();
+  assert.ok(rest);
+  // Over REST the server stores the raw body: a submission of no-links alone has no relations.
+  const { relations: _relations, ...payload } = rest.submission.payload;
+  const line = recordingLineOf({ ...rest, submission: { ...rest.submission, payload } }, { landscape: 'sample' });
+  assert.deepEqual(line.submission.relations, []);
+  assert.deepEqual(line.submission.noLinks, recordingLineOf(rest, { landscape: 'sample' }).submission.noLinks);
 });
 
 // ------------------------------------------------------------- REST reader
@@ -264,13 +280,18 @@ function task(id: string, modelId: string, modelKey: string, revisionId: string)
   return {
     id: id as AnalysisTask['id'],
     projectId: 'prj_01JAKKKKKKKKKKKKKKKKKKKK01',
+    kind: 'relations',
+    subjectKind: 'model',
     modelId: modelId as AnalysisTask['modelId'],
     modelKey,
     revisionId: revisionId as AnalysisTask['revisionId'],
-    kind: 'relations',
+    valueChainId: null,
+    valueChainKey: null,
+    valueChainRevisionId: null,
     state: 'done',
     attempts: 1,
     factsHash: HASH,
+    inputHash: null,
     leaseUntil: '2026-10-08T10:15:00.000Z',
     claimedBy: 'agent:claude-desktop-1',
     lastError: null,
@@ -353,7 +374,7 @@ test('reads every done analysis over REST: pages, stored submissions, revision n
   const server = await fakeServer();
   const stored = await fetchStoredAnalyses({ url: 'http://proa.test/', token: TOKEN, project: PROJECT, fetch: server.fetch });
   assert.deepEqual(
-    stored.map((s) => [s.modelKey, s.rev, s.submission.taskId]),
+    stored.map((s) => (isStoredPlacement(s) ? [] : [s.modelKey, s.rev, s.submission.taskId])),
     [
       [P, 1, 'ana_01JAKKKKKKKKKKKKKKKKKKKK02'],
       [A, 2, 'ana_01JAKKKKKKKKKKKKKKKKKKKK01'],
@@ -436,7 +457,7 @@ test('eval:live writes the run, scores it and reports the live gate', async () =
     );
     const text = await readFile(path.join(dir, 'rec', rel), 'utf8');
     assert.deepEqual(
-      parseRecording(rel, text).lines.map((l) => l.modelKey),
+      parseRecording(rel, text).lines.map((l) => ('modelKey' in l ? l.modelKey : null)),
       [P, A],
     );
 
@@ -665,7 +686,7 @@ test('eval:live warns about another declared procedure version; usage errors exi
     // Runtime errors: exit 1, no usage text.
     const [rest, mcp] = await storedRun();
     assert.ok(rest && mcp);
-    const { relations: _relations, ...payload } = rest.submission.payload;
+    const payload = { ...rest.submission.payload, relations: 'none' };
     const broken = await fakeServer([{ ...rest, submission: { ...rest.submission, payload } }, mcp]);
     const unreachable: FakeServer = { fetch: () => Promise.reject(new TypeError('fetch failed')), seen: [] };
     const runtime: Array<[string[], FakeServer, RegExp]> = [

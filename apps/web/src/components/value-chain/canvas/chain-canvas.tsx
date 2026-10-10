@@ -2,7 +2,13 @@
 import '@/lib/zod-csp';
 import '@miragon/value-chain-renderer/assets/value-chain.css';
 
-import { Modeler, NavigatedViewer, isStep, isVcShape } from '@miragon/value-chain-renderer';
+import {
+  Modeler,
+  NavigatedViewer,
+  isStep,
+  isVcConnection,
+  isVcShape,
+} from '@miragon/value-chain-renderer';
 import {
   createEmptyDocument,
   parseDocumentJSON,
@@ -15,7 +21,9 @@ import { applyOverlays } from './overlays';
 import { PROA_MODULES } from './proa-modules';
 import type {
   CanvasService,
+  CommandStackService,
   ElementRegistryService,
+  ModelingService,
   OverlaysService,
   SelectionService,
   VcElement,
@@ -43,6 +51,10 @@ interface Diagram {
   get(name: 'overlays'): OverlaysService;
   get(name: 'selection'): SelectionService;
   get(name: 'vcModeling'): VcModelingService;
+  /** Modeler only. */
+  get(name: 'modeling'): ModelingService;
+  /** Modeler only. */
+  get(name: 'commandStack'): CommandStackService;
 }
 
 const services = (instance: Instance) => instance as unknown as Diagram;
@@ -86,6 +98,19 @@ function fitFree(diagram: Diagram): void {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message.slice(0, 500) : String(error);
+}
+
+/**
+ * Lays every connection out again with the renderer's layouter (an imported
+ * draft, M4 §3.3: "rough waypoints are fine"), then clears the command stack:
+ * the result is the imported state, not an undoable edit.
+ */
+function relayout(diagram: Diagram): void {
+  const modeling = diagram.get('modeling');
+  for (const connection of diagram.get('elementRegistry').getAll().filter(isVcConnection)) {
+    modeling.layoutConnection(connection);
+  }
+  diagram.get('commandStack').clear();
 }
 
 const ChainCanvas = forwardRef<ChainCanvasHandle, ChainCanvasProps>(
@@ -151,12 +176,18 @@ const ChainCanvas = forwardRef<ChainCanvasHandle, ChainCanvasProps>(
       takePending.current = take;
       void Promise.resolve().then(() => {
         if (disposed) return;
-        const { text, emptyName, key } = latest.current.document;
+        const { text, emptyName, key, relayout: layout } = latest.current.document;
         try {
           const found = created.importDocument(
             text === null ? createEmptyDocument(emptyName) : parseDocumentJSON(text),
           );
-          if (viewbox.current) services(created).get('canvas').viewbox(viewbox.current);
+          if (layout && mode === 'edit') {
+            relayout(services(created));
+            // The re-layout's commands are part of the import: no change to report.
+            clearTimeout(timer);
+            pending = false;
+            fitFree(services(created));
+          } else if (viewbox.current) services(created).get('canvas').viewbox(viewbox.current);
           else fitFree(services(created));
           settled = true;
           setWarnings(found.length);

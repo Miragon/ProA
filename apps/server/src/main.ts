@@ -1,7 +1,7 @@
 // ProA server entry point: `node src/main.ts` (Node 24 strips the types).
 import { serve } from '@hono/node-server';
 
-import { createApp } from './app.ts';
+import { createProaApp } from './app.ts';
 import { loadOrCreateOwnerKey } from './auth/owner-key.ts';
 import { isLoopbackHost, loadConfig } from './config.ts';
 import { createDatabase } from './db/client.ts';
@@ -37,7 +37,18 @@ if (config.migrateOnStart) {
   await runMigrations(database.db);
 }
 
-const app = createApp({ config, database, ownerKey });
+const { app, useCases } = createProaApp({ config, database, ownerKey });
+
+// Chains that predate the placement pipeline (migration 0008) get their first placement task.
+try {
+  const queued = await useCases.queueFirstPlacementTasks();
+  if (queued > 0) console.log(`queued the first placement task of ${queued} value chain(s)`);
+} catch (err) {
+  console.error(
+    `proa: could not queue first placement tasks: ${err instanceof Error ? err.message : String(err)}`,
+  );
+}
+
 const server = serve({ fetch: app.fetch, hostname: config.host, port: config.port }, (info) => {
   const host = info.family === 'IPv6' ? `[${info.address}]` : info.address;
   console.log(

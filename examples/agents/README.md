@@ -2,7 +2,16 @@
 
 How LLM agents work ProA's analysis pipeline: claim a relations task, judge the candidate pairs
 with the procedure `proa-relations` ([`packages/procedures/relations.md`](../../packages/procedures/relations.md)),
-submit proposals, and let humans decide in the review screen. ProA itself holds no LLM
+submit proposals, and let humans decide in the review screen; or claim the value chain's
+placement task and place its processes on steps with the procedure `proa-placements`
+([`packages/procedures/placements.md`](../../packages/procedures/placements.md), M4b), decided on
+the value chain page. Each run works one kind: `/proa:relations` or `/proa:placements` in Claude
+Code (`run-headless.sh --skill placements`), the start prompts
+[`start-prompt.de.md`](claude-desktop/start-prompt.de.md) and
+[`start-prompt-placements.de.md`](claude-desktop/start-prompt-placements.de.md) in Claude Desktop,
+`work_pipeline` with `kind: placement` elsewhere. Drafting a chain is no pipeline task: the MCP
+prompt `draft_value_chain` (or [`start-prompt-draft.de.md`](claude-desktop/start-prompt-draft.de.md))
+makes an agent write a `.vc.json` that a human imports on the value chain page. ProA itself holds no LLM
 credentials and runs no model; these setups are documentation. They are not workspace packages,
 nothing imports them, the Docker image does not contain them, and CI runs none of them against a
 model.
@@ -10,7 +19,7 @@ model.
 | Setup | Transport | Auth to ProA | Model access, who runs it | Context per task | Verified |
 |---|---|---|---|---|---|
 | [Claude Code, interactive](claude-code/README.md#interactive) | HTTP `/mcp` | agent token, `Authorization: Bearer ${PROA_TOKEN}` ([`mcp.json`](claude-code/mcp.json)) | the owner's Claude subscription, in a terminal | one session for many tasks (`/proa:relations <project> <n>`); after compaction the agent reloads the procedure | plugin and marketplace pass `claude plugin validate --strict`; skill drift-tested; no model run |
-| [Claude Code, headless](claude-code/README.md#headless-run-headlesssh) | HTTP `/mcp` | as above | the owner's Claude subscription (refuses `ANTHROPIC_API_KEY` unless `--allow-api-billing`), [`run-headless.sh`](claude-code/run-headless.sh) | a fresh `claude -p` per batch of n tasks | `bash -n`, shellcheck, dry run against fakes; no model run |
+| [Claude Code, headless](claude-code/README.md#headless-run-headlesssh) | HTTP `/mcp` | as above | the owner's Claude subscription (refuses `ANTHROPIC_API_KEY` unless `--allow-api-billing`), [`run-headless.sh`](claude-code/run-headless.sh) (`--skill placements` for placement tasks) | a fresh `claude -p` per batch of n tasks | `bash -n`, shellcheck, dry run against fakes (`--skill placements`: `bash -n` and a dry run, no shellcheck); no model run |
 | [Claude Desktop](claude-desktop/README.md) | stdio bridge `proa mcp` (in the container or from the checkout) → HTTP | agent token in the entry's `env` | the owner's Claude subscription, in the app | one chat per batch, started with [`start-prompt.de.md`](claude-desktop/start-prompt.de.md) | both entries are started as Claude Desktop starts them by CI's live check; the app itself not |
 | [Codex](codex/README.md) | HTTP `/mcp` | `bearer_token_env_var = "PROA_TOKEN"` ([`config.toml`](codex/config.toml)) | the user's OpenAI account | one session; the start prompt loads the procedure | checked against OpenAI's documentation, parses as TOML; not run |
 
@@ -37,10 +46,16 @@ model.
 
 ## Where the instructions come from
 
-The procedure text is written once, in `packages/procedures/relations.md`. `get_procedure`
-serves it as is; the MCP prompt `work_pipeline` (`projectId?`, `maxTasks?` 1–100) and the Claude
-Code skill `/proa:relations [project] [max-tasks]` add only the scope, the model declaration and
-the reload rule, rendered by one helper in `@proa/procedures` (`renderPipelineWrapper`). The
-skill [`plugins/proa/skills/relations/SKILL.md`](../../plugins/proa/skills/relations/SKILL.md)
-is generated (`pnpm --filter @proa/procedures generate`); a test fails when it, or the plugin
-version, lags behind the procedure.
+Each procedure text is written once, in `packages/procedures/relations.md` and
+`packages/procedures/placements.md`. `get_procedure` serves it as is; the MCP prompt
+`work_pipeline` (`projectId?`, `maxTasks?` 1–100, `kind?` `relations` or `placement`) and the
+Claude Code skills `/proa:relations [project] [max-tasks]` and `/proa:placements [project]
+[max-tasks]` add only the scope (the placements wrapper claims with `kinds: ["placement"]`), the
+model declaration and the reload rule, rendered by one helper in `@proa/procedures`
+(`renderPipelineWrapper`); `place_processes` wraps the placements procedure for ad-hoc work
+(`renderAdHocWrapper`). The skills
+[`plugins/proa/skills/relations/SKILL.md`](../../plugins/proa/skills/relations/SKILL.md) and
+[`plugins/proa/skills/placements/SKILL.md`](../../plugins/proa/skills/placements/SKILL.md) are
+generated (`pnpm --filter @proa/procedures generate`); a test fails when one lags behind its
+procedure, when a released skill changes, or when the skills change without a new plugin version
+(plugin 0.3.0 ships both).

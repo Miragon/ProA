@@ -19,9 +19,10 @@ import { build, type Plugin, type UserConfig } from 'vite';
  *    The entry stays under a gzip ceiling, so a page that slips into it shows.
  * 3. The main CSS has no `.vc-` rule (the renderer's CSS comes with the chunk).
  * 4. Budget: with the diagram-js (+ diagram-js-direct-editing) dependency
- *    closure split into a shared chunk, the code only the chain canvas loads
- *    is at most 40 KB gzip. It counts the chunks reachable from the canvas'
- *    dynamic import and from no other entry: the page's route chunk is an
+ *    closure split into a shared chunk, the code only the chain canvas (and
+ *    the import's document check, which shares schema-model and zod with it)
+ *    loads is at most 40 KB gzip. It counts the chunks reachable from those
+ *    two dynamic imports and from no other entry: the page's route chunk is an
  *    entry of its own, so panels, dialogs and the save logic there do not
  *    count; only what the canvas module itself pulls in does (zod, the
  *    renderer and schema-model take about 35 KB). Raising the budget is an
@@ -152,6 +153,13 @@ function reachable(chunks: readonly ChunkInfo[], start: string): Set<string> {
 
 const isChainEntry = (c: ChunkInfo) =>
   c.isDynamicEntry && (c.facadeModuleId ?? '').endsWith(`canvas${sep}chain-canvas.tsx`);
+/**
+ * The import's document check (M4 §3.3), loaded by the page before an import:
+ * part of the chain code, so what it shares with the canvas (schema-model,
+ * zod) still counts as chain-only.
+ */
+const isChainCheckEntry = (c: ChunkInfo) =>
+  c.isDynamicEntry && (c.facadeModuleId ?? '').endsWith(`canvas${sep}check-document.ts`);
 const CHAIN_PACKAGES = [
   'zod',
   '@miragon/value-chain-renderer',
@@ -227,9 +235,11 @@ describe('web bundle (M4 §5 bundle guard)', { timeout: 120_000 }, () => {
     });
     const chain = chunks.find(isChainEntry);
     expect(chain).toBeDefined();
+    const check = chunks.find(isChainCheckEntry);
+    expect(check).toBeDefined();
     const others = new Set<string>();
     for (const c of chunks) {
-      if ((c.isEntry || c.isDynamicEntry) && c !== chain)
+      if ((c.isEntry || c.isDynamicEntry) && c !== chain && c !== check)
         for (const name of reachable(chunks, c.fileName)) others.add(name);
     }
     const djs = new Set(
@@ -238,7 +248,12 @@ describe('web bundle (M4 §5 bundle guard)', { timeout: 120_000 }, () => {
         .map((c) => c.fileName),
     );
     expect(djs.size).toBeGreaterThan(0);
-    const only = [...reachable(chunks, chain?.fileName ?? '')]
+    const only = [
+      ...new Set([
+        ...reachable(chunks, chain?.fileName ?? ''),
+        ...reachable(chunks, check?.fileName ?? ''),
+      ]),
+    ]
       .filter((name) => !others.has(name) && !djs.has(name))
       .map((name) => chunks.find((c) => c.fileName === name))
       .filter((c): c is ChunkInfo => c !== undefined);

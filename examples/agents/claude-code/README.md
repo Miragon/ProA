@@ -1,13 +1,16 @@
 # Claude Code
 
 Claude Code reaches ProA over HTTP (`/mcp`, agent token as bearer header) and gets the
-relations procedure from the plugin [`plugins/proa`](../../../plugins/proa): the skill
+procedures from the plugin [`plugins/proa`](../../../plugins/proa): the skills
 `/proa:relations [project] [max-tasks]`, generated from
-[`packages/procedures/relations.md`](../../../packages/procedures/relations.md). The plugin
+[`packages/procedures/relations.md`](../../../packages/procedures/relations.md), and
+`/proa:placements [project] [max-tasks]` (the value chain's placement tasks, M4b), generated from
+[`packages/procedures/placements.md`](../../../packages/procedures/placements.md). The plugin
 carries no MCP server; [`mcp.json`](mcp.json) configures the connection, so the tools keep the
 names `mcp__proa__*`. Without the plugin, the server's MCP prompt `work_pipeline` gives the same
 instructions: `/proa:work_pipeline` in the `/` menu (marked `(MCP)`), or
-`/mcp__proa__work_pipeline <projectId> <maxTasks>` (arguments space-separated, in this order).
+`/mcp__proa__work_pipeline <projectId> <maxTasks> <kind>` (arguments space-separated, in this
+order; `kind` is `relations`, the default, or `placement`).
 
 | File | |
 |---|---|
@@ -49,6 +52,9 @@ Then, in the session:
 /proa:relations nordwind-handel-cc-1 5
 ```
 
+For placements (a project seeded with `--value-chains`, M4b): `/proa:placements
+nordwind-handel-cc-p1 1`; one placement task usually covers every process of a chain (up to 50).
+
 `--allowedTools "mcp__proa__*"` approves ProA's tools for this session (otherwise Claude Code
 asks before every call). `MAX_MCP_OUTPUT_TOKENS` raises Claude Code's MCP output limit for builds
 that do not read the `anthropic/maxResultSizeChars` ProA's tools declare: claim inputs reach
@@ -65,13 +71,14 @@ claude plugin marketplace add ~/Code/ai-plattform/ProA   # or from GitHub: Mirag
 claude plugin install proa@proa
 ```
 
-The plugin version equals the procedure version (a test in `@proa/procedures` enforces it, and
-another keeps a released version's skill from changing). Only an install from the GitHub
-marketplace is a cached copy pinned to that version: it stays until a new procedure version is
+The plugin has its own version since it ships two skills (0.3.0: `proa-relations@0.2.0` and
+`proa-placements@0.1.0`); a test in `@proa/procedures` pins every skill's sha256 per plugin
+release, and another keeps a released procedure version's skill from changing. Only an install from the GitHub
+marketplace is a cached copy pinned to that version: it stays until a new plugin version is
 released, then `claude plugin marketplace update proa && claude plugin update proa@proa` and a
 new session. `--plugin-dir` and a marketplace added from your checkout load the checkout's
-current files at every session start. Only users start `/proa:relations`
-(`disable-model-invocation: true`); the model cannot invoke it on its own.
+current files at every session start. Only users start `/proa:relations` and `/proa:placements`
+(`disable-model-invocation: true`); the model cannot invoke them on its own.
 
 ## Headless: `run-headless.sh`
 
@@ -80,6 +87,16 @@ export PROA_TOKEN=proa_at_…
 examples/agents/claude-code/run-headless.sh nordwind-handel-cc-1 claude-opus-5-5 5 20
 #                                            run project          model           batch max-batches
 ```
+
+With `--skill placements` before the project (`run-headless.sh --skill placements
+nordwind-handel-cc-p1 claude-opus-5-5 1 5`) the batches run `/proa:placements` and the script
+counts placement tasks only (`pending?projectId=<project>&kinds=placement`). A chain has one open
+placement task, and the follow-up of a truncated claim (more than 50 due processes, or the
+96,000-byte budget) or of a chain or model change during the lease is queued at submit, so the
+pending count can stay at 1 after a batch that worked a task. For placements the script also reads
+`GET /api/v1/projects/<project>/value-chains/main` before and after each batch and prints
+`due: <before> -> <after> (placement task <id> -> <id>)`; a batch made progress when the pending
+count fell, the chain's latest placement task changed, or its due count fell.
 
 Each batch is one `claude -p "/proa:relations <project> <batch>"` in the run's temporary directory
 outside the checkout with `--output-format json --strict-mcp-config --mcp-config mcp.json
@@ -90,7 +107,8 @@ after each batch the script asks `GET /api/v1/analyses/pending?projectId=<projec
 token; `curl`, and `node` to read the JSON) and stops when nothing is pending (exit 0), after
 `max-batches` (exit 0), when a batch failed (`claude` exited non-zero, or its JSON result is
 missing, not a `success`, or has `is_error`; exit 1), or when a batch made no progress (pending
-did not go down; exit 1). The JSON result of every batch (`result`, `num_turns`, `total_cost_usd`, …) lands in
+did not go down, and for placements neither the latest placement task changed nor the due count
+fell; exit 1). The JSON result of every batch (`result`, `num_turns`, `total_cost_usd`, …) lands in
 `PROA_LOG_DIR` (default: a new directory under `$TMPDIR`; the script refuses a directory that
 already holds `batch-*.json` from an earlier run); the script prints one line per batch and the
 estimated total.
@@ -113,12 +131,19 @@ key), so the script does not pass it.
 
 - `claude plugin validate plugins/proa` and `claude plugin validate .` (the marketplace) pass,
   also with `--strict` (Claude Code 2.1.294); the validator checks the manifests, not the skill.
-- The skill frontmatter parses as YAML; `@proa/procedures` tests compare the committed skill with
-  the render of `relations.md` and the plugin version with the procedure version.
+- The skill frontmatter parses as YAML; `@proa/procedures` tests compare each committed skill with
+  its render, and the plugin version with `PLUGIN_VERSION` and `PLUGIN_RELEASES` (the sha256 of
+  every skill per plugin release).
 - `run-headless.sh`: `bash -n`, shellcheck 0.10.0 without findings, and dry runs (bash 3.2) against
   a fake pending endpoint and a fake `claude`: arguments, temporary directory, a run to the end, a
   failed batch (non-zero exit, `is_error`), no progress, a reused `PROA_LOG_DIR`, and a `PROA_URL`
   with a trailing slash.
+- `--skill placements` (M4 S5): `bash -n` and dry runs against a fake pending and value chain
+  endpoint and a fake `claude`: two batches of `/proa:placements` with every pending request
+  `&kinds=placement`, the first leaving pending at 1 while the due count falls (80 → 30, a new
+  task id) and counted as progress, the second ending at 0; a batch that moved nothing (pending 1,
+  due 80, the same task) stops with exit 1; a refused `--skill`; the relations path unchanged
+  (pending 2 → 1 → 0, `PROA_URL` with a trailing slash). shellcheck was not available.
 - Not verified: a run with a model. That `claude -p "/proa:relations …"` expands the skill
   follows the [headless documentation](https://code.claude.com/docs/en/headless) ("User-invoked
   skills and custom commands work. Include `/skill-name` in the prompt string and Claude Code

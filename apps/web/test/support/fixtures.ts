@@ -364,6 +364,15 @@ export function chainDetail(
     steps: [],
     orgUnits: [],
     findings: [],
+    pipeline: {
+      stage: 'incorporated',
+      task: null,
+      reviewItems: 0,
+      heldItems: 0,
+      due: 0,
+      unsure: 0,
+    },
+    unsure: [],
     ...rest,
     placements: placements.map(summary),
   };

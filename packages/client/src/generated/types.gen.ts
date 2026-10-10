@@ -296,6 +296,7 @@ export type ProblemCode =
   | 'lease-lost'
   | 'task-cancelled'
   | 'already-submitted'
+  | 'wrong-task-kind'
   | 'payload-too-large'
   | 'unsupported-media-type'
   | 'internal'
@@ -969,6 +970,8 @@ export type ValueChainDetail = {
   orgUnits: Array<ValueChainOrgUnit>;
   placements: Array<PlacementSummary>;
   findings: Array<ValueChainFinding>;
+  pipeline: ValueChainPipeline;
+  unsure: Array<ValueChainUnsure>;
 };
 
 /**
@@ -1072,6 +1075,46 @@ export type ValueChainFindingKind =
  * Review state of a process without a home step.
  */
 export type UnplacedState = 'none' | 'proposed' | 'held';
+
+/**
+ * Stage of the chain's placement pipeline.
+ */
+export type ValueChainPipeline = {
+  stage: ModelStage;
+  task: {
+    id: AnalysisTaskId;
+    state: AnalysisTaskState;
+    attempts: number;
+    leaseUntil: Timestamp | null;
+    claimedBy: string | null;
+  } | null;
+  reviewItems: number;
+  heldItems: number;
+  due: number;
+  unsure: number;
+};
+
+/**
+ * Analysis task id (`ana_` + ULID).
+ */
+export type AnalysisTaskId = string;
+
+/**
+ * State of an analysis task.
+ */
+export type AnalysisTaskState = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
+
+/**
+ * A process the agent was unsure about.
+ */
+export type ValueChainUnsure = {
+  process: Ref;
+  name: string | null;
+  reason: string;
+  by: string;
+  at: Timestamp;
+  current: boolean;
+};
 
 /**
  * A page of ValueChainRevision items.
@@ -1209,7 +1252,23 @@ export type UnplacedProcess = {
     name: string;
     score: number;
   }>;
+  judged?: {
+    outcome: PlacementInputOutcome;
+    reason?: string;
+    by: string;
+    at: Timestamp;
+  };
+  inTask?: {
+    taskId: AnalysisTaskId;
+    claimedBy: string | null;
+    leaseUntil: Timestamp;
+  };
 };
+
+/**
+ * The agent's last verdict on a process.
+ */
+export type PlacementInputOutcome = 'proposed' | 'unsure' | 'skipped';
 
 /**
  * A page of Placement items.
@@ -1431,9 +1490,21 @@ export type ClaimResult = {
 };
 
 /**
- * A claimed analysis task with its lease and input.
+ * A claimed analysis task with its lease and input, by kind.
  */
-export type ClaimedAnalysis = {
+export type ClaimedAnalysis =
+  | ({
+      kind: 'relations';
+    } & ClaimedRelationsAnalysis)
+  | ({
+      kind: 'placement';
+    } & ClaimedPlacementAnalysis);
+
+/**
+ * A claimed relations task with its lease and input.
+ */
+export type ClaimedRelationsAnalysis = {
+  kind: 'relations';
   taskId: AnalysisTaskId;
   projectId: ProjectId;
   projectKey: ProjectKey;
@@ -1446,11 +1517,6 @@ export type ClaimedAnalysis = {
   procedure: DeclaredProcedure;
   input: ClaimInput;
 };
-
-/**
- * Analysis task id (`ana_` + ULID).
- */
-export type AnalysisTaskId = string;
 
 /**
  * Input of a claimed relations task (compact).
@@ -1604,6 +1670,151 @@ export type ClaimSkip = {
 };
 
 /**
+ * A claimed placement task with its lease and input.
+ */
+export type ClaimedPlacementAnalysis = {
+  kind: 'placement';
+  taskId: AnalysisTaskId;
+  projectId: ProjectId;
+  projectKey: ProjectKey;
+  valueChainId: ValueChainId;
+  valueChainKey: ValueChainKey;
+  revisionId: ValueChainRevisionId;
+  rev: number;
+  attempt: number;
+  leaseToken: string;
+  leaseUntil: Timestamp;
+  procedure: DeclaredProcedure;
+  input: PlacementClaimInput;
+};
+
+/**
+ * Input of a claimed placement task (compact).
+ */
+export type PlacementClaimInput = {
+  format: 'proa-claim-placement/1';
+  valueChain: {
+    id: ValueChainId;
+    key: ValueChainKey;
+    name: string;
+    revisionId: ValueChainRevisionId;
+    rev: number;
+    contentHash: Sha256Hex;
+    structureHash: Sha256Hex;
+  };
+  steps: Array<ClaimPlacementStep>;
+  processes: Array<ClaimPlacementProcess>;
+  examples: Array<{
+    step: string;
+    process: Ref;
+    name: string | null;
+  }>;
+  truncated: boolean;
+  remaining: number;
+};
+
+/**
+ * A value chain step in a placement claim.
+ */
+export type ClaimPlacementStep = {
+  id: string;
+  name: string;
+  path: Array<string>;
+  kind: StepKind;
+  rank: number;
+  depth: number;
+  parentId: string | null;
+  children: Array<string>;
+  link?: Ref;
+};
+
+/**
+ * A process to place (compact).
+ */
+export type ClaimPlacementProcess = {
+  process: Ref;
+  name: string | null;
+  modelKey: ModelKey;
+  lanes: Array<string>;
+  starts: Array<string>;
+  ends: Array<string>;
+  doc?: string;
+  neighbours: Array<{
+    process: Ref;
+    via: Array<{
+      relationId: RelationId;
+      type: RelationType;
+      direction: 'out' | 'in';
+    }>;
+    steps: Array<string>;
+  }>;
+  calls: {
+    out: Array<{
+      process: Ref;
+      relationId: RelationId;
+      status: RelationStatus;
+    }>;
+    in: Array<{
+      process: Ref;
+      relationId: RelationId;
+      status: RelationStatus;
+    }>;
+  };
+  hints: Array<{
+    step: string;
+    name: string;
+    score: number;
+  }>;
+  proposals: Array<ClaimPlacementProposal>;
+  decisions: Array<ClaimPlacementDecision>;
+  unsure?: {
+    reason: string;
+    by: string;
+    at: Timestamp;
+  };
+};
+
+/**
+ * A live placement proposal (compact).
+ */
+export type ClaimPlacementProposal = {
+  placementId: PlacementId;
+  step: string;
+  status: RelationStatus;
+  tier: PlacementTier;
+  confidence: number | null;
+  by: string;
+  source: SourceKind;
+  mine?: true;
+  question?: string;
+  rationale?: string;
+  notes?: Array<ClaimPlacementNote>;
+};
+
+/**
+ * A human note on a placement (compact).
+ */
+export type ClaimPlacementNote = {
+  text: string;
+  at: Timestamp;
+};
+
+/**
+ * A human placement decision (compact).
+ */
+export type ClaimPlacementDecision = {
+  placementId: PlacementId;
+  step: string;
+  stepLive: boolean;
+  verdict: Verdict;
+  note?: string;
+  question?: string;
+  label?: string;
+  at: Timestamp;
+  notes?: Array<ClaimPlacementNote>;
+};
+
+/**
  * Request body to claim analysis tasks.
  */
 export type ClaimAnalysisBody = {
@@ -1613,7 +1824,13 @@ export type ClaimAnalysisBody = {
   projectId?: string;
   modelKey?: ModelKey;
   max?: number;
+  kinds?: Array<AnalysisKind>;
 };
+
+/**
+ * Kind of an analysis task.
+ */
+export type AnalysisKind = 'relations' | 'placement';
 
 /**
  * Claimable tasks per project.
@@ -1626,6 +1843,89 @@ export type PendingAnalyses = {
     pending: number;
   }>;
 };
+
+/**
+ * Outcome of a submission, by kind.
+ */
+export type AnalysisSubmissionResult = PlacementSubmissionResult | SubmissionResult;
+
+/**
+ * Outcome of a placement task submission, per item.
+ */
+export type PlacementSubmissionResult = {
+  kind: 'placement';
+  taskId: AnalysisTaskId;
+  submissionId: string;
+  replayed: boolean;
+  placements: {
+    items: Array<{
+      index: number;
+      result: PipelinePlacementOutcome;
+      placementId: PlacementId | null;
+      status: RelationStatus | null;
+    }>;
+    counts: {
+      applied: number;
+      duplicate: number;
+      suppressed: number;
+      reopened: number;
+      invalid: number;
+    };
+  };
+  unsure: {
+    items: Array<{
+      index: number;
+      result: UnsureOutcome;
+    }>;
+    counts: {
+      stored: number;
+      duplicate: number;
+      invalid: number;
+    };
+  };
+  withdrawn: number;
+  skipped: {
+    count: number;
+    processes: Array<Ref>;
+  };
+  followUp: boolean;
+};
+
+/**
+ * Outcome of one placement item of a submission.
+ */
+export type PipelinePlacementOutcome =
+  | 'applied'
+  | 'duplicate'
+  | 'suppressed'
+  | 'reopened'
+  | 'invalid:malformed-step'
+  | 'invalid:malformed-ref'
+  | 'invalid:outside-task-input'
+  | 'invalid:confidence-out-of-range'
+  | 'invalid:rationale-too-long'
+  | 'invalid:question-too-long'
+  | 'invalid:too-much-evidence'
+  | 'invalid:control-characters'
+  | 'invalid:rationale-required'
+  | 'invalid:unknown-step'
+  | 'invalid:unknown-process'
+  | 'invalid:unknown-evidence'
+  | 'invalid:too-many-steps';
+
+/**
+ * Outcome of one unsure item.
+ */
+export type UnsureOutcome =
+  | 'stored'
+  | 'duplicate'
+  | 'invalid:malformed-ref'
+  | 'invalid:outside-task-input'
+  | 'invalid:unknown-process'
+  | 'invalid:reason-required'
+  | 'invalid:reason-too-long'
+  | 'invalid:control-characters'
+  | 'invalid:also-placed';
 
 /**
  * Outcome of a submission, per item.
@@ -1715,8 +2015,10 @@ export type SubmitAnalysisBody = {
   submissionId: string;
   procedure: DeclaredProcedure;
   llmModel?: string | null;
-  relations: Array<ProposalItem>;
+  relations?: Array<ProposalItem>;
   noLinks?: Array<NoLinkItem>;
+  placements?: Array<PlacementItem>;
+  unsure?: Array<UnsureItem>;
   summary?: string | null;
   costUsd?: number | null;
 };
@@ -1745,6 +2047,14 @@ export type NoLinkItem = {
 };
 
 /**
+ * A process the agent could not place with confidence.
+ */
+export type UnsureItem = {
+  process: string;
+  reason?: string;
+};
+
+/**
  * The released task is queued again.
  */
 export type ReleaseResult = {
@@ -1769,18 +2079,23 @@ export type AnalysisTaskPage = {
 };
 
 /**
- * An analysis task of one model revision.
+ * An analysis task of a model revision or of the value chain.
  */
 export type AnalysisTask = {
   id: AnalysisTaskId;
   projectId: ProjectId;
-  modelId: ModelId;
-  modelKey: ModelKey;
-  revisionId: RevisionId;
-  kind: 'relations';
+  kind: AnalysisKind;
+  subjectKind: AnalysisSubjectKind;
+  modelId: ModelId | null;
+  modelKey: ModelKey | null;
+  revisionId: RevisionId | null;
+  valueChainId: ValueChainId | null;
+  valueChainKey: ValueChainKey | null;
+  valueChainRevisionId: ValueChainRevisionId | null;
   state: AnalysisTaskState;
   attempts: number;
-  factsHash: Sha256Hex;
+  factsHash: Sha256Hex | null;
+  inputHash: Sha256Hex | null;
   leaseUntil: Timestamp | null;
   claimedBy: string | null;
   lastError: string | null;
@@ -1790,9 +2105,9 @@ export type AnalysisTask = {
 };
 
 /**
- * State of an analysis task.
+ * What an analysis task analyses.
  */
-export type AnalysisTaskState = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
+export type AnalysisSubjectKind = 'model' | 'value_chain';
 
 /**
  * Outcome per model of a requeue.
@@ -1803,14 +2118,19 @@ export type RequeueResult = {
     outcome: 'queued' | 'open' | 'not-found';
     taskId: AnalysisTaskId | null;
   }>;
+  valueChain?: {
+    outcome: 'queued' | 'open' | 'nothing-due' | 'not-found';
+    taskId: AnalysisTaskId | null;
+  };
 };
 
 /**
- * Models to analyse again (e.g. after a procedure upgrade).
+ * Models to analyse again (e.g. after a procedure upgrade), or the value chain placement task.
  */
 export type RequeueBody = {
   modelKeys?: Array<ModelKey>;
   all?: true;
+  valueChain?: true;
 };
 
 /**
@@ -1828,7 +2148,7 @@ export type AnalysisSubmission = {
   payload: {
     [key: string]: unknown;
   };
-  result: SubmissionResult;
+  result: AnalysisSubmissionResult;
   createdAt: Timestamp;
 };
 
@@ -4045,6 +4365,7 @@ export type GetPendingAnalysesData = {
      * Project id (`prj_…`) or project key.
      */
     projectId?: string;
+    kinds?: AnalysisKind | Array<AnalysisKind>;
     wait?: number | null;
   };
   url: '/api/v1/analyses/pending';
@@ -4115,7 +4436,7 @@ export type SubmitAnalysisErrors = {
    */
   413: ApiProblem;
   /**
-   * Problem: `validation-failed`
+   * Problem: `validation-failed`, `wrong-task-kind`
    */
   422: ApiProblem;
 };
@@ -4126,7 +4447,7 @@ export type SubmitAnalysisResponses = {
   /**
    * The outcome per item
    */
-  200: SubmissionResult;
+  200: AnalysisSubmissionResult;
 };
 
 export type SubmitAnalysisResponse = SubmitAnalysisResponses[keyof SubmitAnalysisResponses];
@@ -4190,6 +4511,10 @@ export type ListAnalysesData = {
      * State of an analysis task.
      */
     state?: AnalysisTaskState;
+    /**
+     * Kind of an analysis task.
+     */
+    kind?: AnalysisKind;
     /**
      * Immutable model key: lowercase slug segments separated by `/`.
      */

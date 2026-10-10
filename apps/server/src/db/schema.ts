@@ -12,7 +12,8 @@
  *   `no_link_withdrawal`, `value_chain_revision` and `placement_assertion`
  *   are append-only (triggers in migrations 0001_append_only.sql,
  *   0005_judge_once_triggers.sql and 0007_value_chain_triggers.sql);
- *   `value_chain_step` only ever takes its tombstone (0007).
+ *   `value_chain_step` only ever takes its tombstone (0007); `placement_input`
+ *   is mutable memory (M4b).
  *
  * After changing this file run `pnpm --filter @proa/server db:generate` and
  * commit the new migration in `apps/server/drizzle/`.
@@ -35,8 +36,8 @@ import {
   type FactAttrs,
   type MessageFlowInfo,
   type ProcessInfo,
+  type AnalysisSubmissionResult,
   type RevisionSource,
-  type SubmissionResult,
   type TypedPair,
 } from '@proa/contracts';
 import { sql, type SQL } from 'drizzle-orm';
@@ -60,6 +61,8 @@ import {
   type AnyPgColumn,
   type PgTableExtraConfigValue,
 } from 'drizzle-orm/pg-core';
+
+import type { PlacementClaim } from '../domain/ports.ts';
 
 /** Raw bytes (`bytea`); revisions keep the uploaded BPMN verbatim. */
 const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
@@ -87,7 +90,11 @@ function oneOf(column: AnyPgColumn, values: readonly string[]): SQL {
 export const PRINCIPAL_KINDS = ['user', 'service', 'system'] as const;
 export const ASSERTION_KINDS = values(AssertionKind.options);
 export const VERDICTS = ['accept', 'reject', 'hold'] as const;
-export const TASK_KINDS = ['relations'] as const;
+export const TASK_KINDS = ['relations', 'placement'] as const;
+/** What a task analyses (M4 §8): a model revision (`relations`) or the value chain (`placement`). */
+export const TASK_SUBJECT_KINDS = ['model', 'value_chain'] as const;
+/** The agent's last verdict on a process (`placement_input`, M4 §3.2). */
+export const PLACEMENT_INPUT_OUTCOMES = ['proposed', 'unsure', 'skipped'] as const;
 export const TASK_STATES = ['queued', 'claimed', 'done', 'failed', 'cancelled'] as const;
 export const LINK_TYPES = ['call', 'message', 'signal', 'trigger'] as const;
 export const JUDGING_SOURCE_KINDS = ['agent', 'human'] as const;
@@ -430,15 +437,29 @@ export const relationAssertion = pgTable(
   ],
 );
 
+/**
+ * Analysis tasks (CONCEPT §3). The subject is a model revision
+ * (`subject_kind = 'model'`, kind `relations`: `model_id`, `revision_id`,
+ * `facts_hash`) or the value chain (`value_chain`, kind `placement`, M4 §8:
+ * `value_chain_id`, `value_chain_revision_id` (the head at queue time, then
+ * the head its claim showed), `input_hash` (digest of the processes due when
+ * queued), `placement_claim`).
+ */
 export const analysisTask = pgTable(
   'analysis_task',
   {
     id: text().primaryKey(),
     projectId: text().notNull(),
-    modelId: text().notNull(),
-    revisionId: text().notNull(),
+    subjectKind: text({ enum: TASK_SUBJECT_KINDS }).notNull().default('model'),
+    modelId: text(),
+    revisionId: text(),
+    valueChainId: text(),
+    valueChainRevisionId: text(),
     kind: text({ enum: TASK_KINDS }).notNull(),
-    factsHash: text().notNull(),
+    /** `relations` tasks: the analysed revision's facts hash. */
+    factsHash: text(),
+    /** `placement` tasks: digest of the due processes and their input hashes when queued. */
+    inputHash: text(),
     state: text({ enum: TASK_STATES }).notNull(),
     leaseTokenHash: text(),
     claimedBy: text().references(() => principal.id),
@@ -453,14 +474,19 @@ export const analysisTask = pgTable(
      * without a submission.
      */
     assignment: jsonb().$type<TypedPair[]>(),
-    /** A judgement this claim relied on was withdrawn: its submit queues a follow-up task. */
+    /**
+     * A judgement this claim relied on was withdrawn (relations), or the chain or
+     * the models changed during the lease (placement): its submit queues a follow-up task.
+     */
     requeueAfter: boolean().notNull().default(false),
+    /** `placement` tasks: what the latest claim showed; cleared when the task leaves `claimed` unsubmitted. */
+    placementClaim: jsonb().$type<PlacementClaim>(),
     /** Seq of the `analysis.queued` event; orders tasks of a model (created_at ties within a transaction). */
     seq: seqColumn().notNull(),
     createdAt: createdAt(),
     updatedAt: timestamptz().notNull().defaultNow(),
   },
-  (t) => [
+  (t): PgTableExtraConfigValue[] => [
     unique('analysis_task_project_id_unique').on(t.projectId, t.id),
     foreignKey({
       name: 'analysis_task_model_fk',
@@ -472,14 +498,45 @@ export const analysisTask = pgTable(
       columns: [t.projectId, t.revisionId],
       foreignColumns: [modelRevision.projectId, modelRevision.id],
     }),
-    // One open task per model and kind (CONCEPT §2).
+    foreignKey({
+      name: 'analysis_task_value_chain_fk',
+      columns: [t.projectId, t.valueChainId],
+      foreignColumns: [valueChain.projectId, valueChain.id],
+    }),
+    // The revision belongs to the task's chain.
+    foreignKey({
+      name: 'analysis_task_value_chain_revision_fk',
+      columns: [t.projectId, t.valueChainId, t.valueChainRevisionId],
+      foreignColumns: [
+        valueChainRevision.projectId,
+        valueChainRevision.valueChainId,
+        valueChainRevision.id,
+      ],
+    }),
+    // One open task per model and kind (CONCEPT §2) …
     uniqueIndex('analysis_task_open_unique')
       .on(t.modelId, t.kind)
-      .where(sql`${t.state} in ('queued', 'claimed')`),
+      .where(sql`${t.state} in ('queued', 'claimed') and ${t.subjectKind} = 'model'`),
+    // … and per value chain and kind (M4 §3.2: no two placement claims ever coexist).
+    uniqueIndex('analysis_task_open_chain_unique')
+      .on(t.valueChainId, t.kind)
+      .where(sql`${t.state} in ('queued', 'claimed') and ${t.subjectKind} = 'value_chain'`),
     index('analysis_task_model_idx').on(t.projectId, t.modelId, t.kind, t.seq),
+    index('analysis_task_chain_idx').on(t.projectId, t.valueChainId, t.kind, t.seq),
     index('analysis_task_state_idx').on(t.state, t.createdAt),
     check('analysis_task_kind_check', oneOf(t.kind, TASK_KINDS)),
     check('analysis_task_state_check', oneOf(t.state, TASK_STATES)),
+    check('analysis_task_subject_kind_check', oneOf(t.subjectKind, TASK_SUBJECT_KINDS)),
+    // The subject's columns, and only those (M4 §8).
+    check(
+      'analysis_task_subject_check',
+      sql`(${t.subjectKind} = 'model' and ${t.modelId} is not null and ${t.revisionId} is not null and ${t.factsHash} is not null and ${t.valueChainId} is null and ${t.valueChainRevisionId} is null and ${t.inputHash} is null and ${t.placementClaim} is null) or (${t.subjectKind} = 'value_chain' and ${t.valueChainId} is not null and ${t.valueChainRevisionId} is not null and ${t.inputHash} is not null and ${t.modelId} is null and ${t.revisionId} is null and ${t.factsHash} is null and ${t.assignment} is null)`,
+    ),
+    // Relations tasks analyse models, placement tasks the value chain.
+    check(
+      'analysis_task_kind_subject_check',
+      sql`(${t.kind} = 'relations') = (${t.subjectKind} = 'model')`,
+    ),
   ],
 );
 
@@ -500,7 +557,7 @@ export const analysisSubmission = pgTable(
     declared: jsonb().$type<{ procedure: DeclaredProcedure; llmModel: string | null }>().notNull(),
     /** The request as received, minus the lease token. */
     payload: jsonb().$type<Record<string, unknown>>().notNull(),
-    result: jsonb().$type<SubmissionResult>().notNull(),
+    result: jsonb().$type<AnalysisSubmissionResult>().notNull(),
     seq: seqColumn().notNull(),
     createdAt: createdAt(),
   },
@@ -840,9 +897,10 @@ export const placementAssertion = pgTable(
     stepFp: text(),
     processFp: text(),
     /**
-     * Basis of a pipeline proposal (M4b, judge each subject once): the
-     * chain's `structure_hash` and the `facts_hash` of the process's model as
-     * the agent saw them; null for every other assertion.
+     * Basis of a pipeline proposal (M4b, judge each subject once): digests of
+     * what the claim showed of the chain's steps and of the process
+     * (`chainInputDigest`, `processInputDigest`); null for every other
+     * assertion.
      */
     stepHash: text(),
     processHash: text(),
@@ -898,6 +956,57 @@ export const placementAssertion = pgTable(
     check(
       'placement_assertion_basis_check',
       sql`(${t.stepHash} is null) = (${t.processHash} is null) and (${t.stepHash} is null or ${t.kind} = 'proposal')`,
+    ),
+  ],
+);
+
+/**
+ * The agent's last verdict per process and chain (M4 §3.2, judge each process
+ * once): the process's input hash when it was judged, and the outcome
+ * (`proposed`, `unsure` with the reason, or `skipped`). A process is offered
+ * to a placement task again only when its current input hash differs. Written
+ * by placement submissions (`task_id` set) and by agents' ad-hoc proposals
+ * (`task_id` null); deleted when the judgement is lost (a revoked token, a
+ * withdrawn pipeline proposal). Mutable memory, not history.
+ */
+export const placementInput = pgTable(
+  'placement_input',
+  {
+    projectId: text().notNull(),
+    valueChainId: text().notNull(),
+    /** `<model_key>#<process_id>`. */
+    processRef: text().notNull(),
+    inputHash: text().notNull(),
+    /** The placement task whose submission wrote it; null for an ad-hoc proposal. */
+    taskId: text(),
+    /** The judging agent. */
+    principalId: text()
+      .notNull()
+      .references(() => principal.id),
+    outcome: text({ enum: PLACEMENT_INPUT_OUTCOMES }).notNull(),
+    /** The agent's reason, for `unsure` only. */
+    reason: text(),
+    /** Seq of the event of the write (the submission's `analysis.done`, else the project's last). */
+    seq: seqColumn().notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamptz().notNull().defaultNow(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    primaryKey({ columns: [t.valueChainId, t.processRef] }),
+    foreignKey({
+      name: 'placement_input_chain_fk',
+      columns: [t.projectId, t.valueChainId],
+      foreignColumns: [valueChain.projectId, valueChain.id],
+    }),
+    foreignKey({
+      name: 'placement_input_task_fk',
+      columns: [t.projectId, t.taskId],
+      foreignColumns: [analysisTask.projectId, analysisTask.id],
+    }),
+    check('placement_input_outcome_check', oneOf(t.outcome, PLACEMENT_INPUT_OUTCOMES)),
+    check(
+      'placement_input_reason_check',
+      sql`(${t.outcome} = 'unsure') = (${t.reason} is not null)`,
     ),
   ],
 );
@@ -990,4 +1099,55 @@ export const modelPipeline = pgView('model_pipeline', {
     where x.project_id = m.project_id and (x.from_model = m.key or x.to_model = m.key)
   ) r
   where m.deleted_seq is null
+`);
+
+/**
+ * `value_chain_pipeline` (M4 §3.5): the stage of each live chain's
+ * `placement` pipeline, mapped as CONCEPT §3 maps a model's. From the latest
+ * non-cancelled placement task: claimed → agent_working, failed →
+ * agent_failed, queued → waiting_for_agent; done, or no task yet (a chain
+ * created before M4b, or nothing ever due), → waiting_for_review (any review
+ * item), waiting_for_clarification (only held items), incorporated. Review
+ * items: proposed placements on a live step generation and accepted ones
+ * whose endpoint is not ok (the page's open items); held items: held
+ * placements.
+ */
+export const valueChainPipeline = pgView('value_chain_pipeline', {
+  projectId: text('project_id').notNull(),
+  valueChainId: text('value_chain_id').notNull(),
+  taskId: text('task_id'),
+  taskState: text('task_state', { enum: TASK_STATES }),
+  reviewItems: integer('review_items').notNull(),
+  heldItems: integer('held_items').notNull(),
+  stage: text('stage').notNull(),
+}).as(sql`
+  select c.project_id, c.id as value_chain_id, t.id as task_id, t.state as task_state,
+         i.review_items, i.held_items,
+         case
+           when t.state = 'claimed' then 'agent_working'
+           when t.state = 'failed' then 'agent_failed'
+           when t.state = 'queued' then 'waiting_for_agent'
+           when i.review_items > 0 then 'waiting_for_review'
+           when i.held_items > 0 then 'waiting_for_clarification'
+           else 'incorporated'
+         end as stage
+  from value_chain c
+  left join lateral (
+    select a.id, a.state from analysis_task a
+    where a.project_id = c.project_id and a.value_chain_id = c.id
+      and a.kind = 'placement' and a.state <> 'cancelled'
+    order by a.seq desc
+    limit 1
+  ) t on true
+  cross join lateral (
+    select
+      (count(*) filter (where (x.status = 'proposed' and s.deleted_seq is null)
+        or (x.status = 'accepted' and x.endpoint_state <> 'ok')))::int as review_items,
+      (count(*) filter (where x.status = 'held'))::int as held_items
+    from placement x
+    join value_chain_step s on s.value_chain_id = x.value_chain_id
+      and s.element_id = x.element_id and s.generation = x.generation
+    where x.project_id = c.project_id and x.value_chain_id = c.id
+  ) i
+  where c.deleted_seq is null
 `);

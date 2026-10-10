@@ -40,13 +40,18 @@ and code are in English.
   in the side panel, save with dry run, conflict and drafts, link editing, drill-down; the bundle
   guard, the import harness and the CSS check in Playwright), and **M4 S4** (2026-10-09:
   `eval:placements` with its committed report, `proa seed --value-chains`, German texts for the
-  rule tier; with it **M4a is done**, the CI confirmation of `eval:placements` follows the next
-  push).
-- **Next:** the **owner's live runs** of `proa-relations@0.2.0` (`docs/proa-2/M3-LIVE-RUNS.md`: 3
-  runs per landscape incl. the holdout), then **M4b** (value chain / Wertschöpfungskette, slices
-  S5–S6: the `placement` pipeline kind, the `proa-placements` procedure, drafts, recordings
-  scored by `eval:replay`; on `@miragon/value-chain-*` 0.3.0; the owner accepted the defaults of
-  M4 §11). Owner actions from S4: the holdout import check, a review of the German server texts.
+  rule tier; with it **M4a is done**, `eval:placements` green in CI since the push of S4), and
+  **M4 S5** (2026-10-09: the `placement` pipeline kind with judge each process once,
+  the procedure `proa-placements@0.1.0` and the skill `/proa:placements` (plugin 0.3.0), the
+  prompts `place_processes` and `draft_value_chain`, Import of a `.vc.json` on the chain page, the
+  simulation agent's placement policy, placement recordings scored by `eval:replay`, the placement
+  live gate; M4b's code is done, its owner actions are open).
+- **Next:** the **owner's live runs** of `proa-relations@0.2.0` and `proa-placements@0.1.0`
+  (`docs/proa-2/M3-LIVE-RUNS.md`, steps 1–6 and 6a: 3 runs per landscape and model incl. the
+  holdout), a chain drafted in Claude Desktop and rated, the holdout import check; **S6** (the OKF
+  extension) waits for the R1 OKF export. **Auto-accept rules** (owner decision 19) are the next
+  slice for the implementing agent. A public demo on Fly.io is tracked in issue
+  [#3](https://github.com/Miragon/ProA/issues/3) (its open questions are listed there).
 
 ## 2. Read in this order
 
@@ -65,7 +70,7 @@ and code are in English.
 | Item | State |
 |---|---|
 | `develop` | 1.x platform overhaul (squash `eb3539b`). Protected by ruleset "main": PRs only, **squash merges only**, linear history, **signed commits**, no bypass actors, no required checks yet. |
-| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs. |
+| `claude/proa-2` | 2.0 work (see `git log origin/claude/proa-2..` for commits not yet pushed). Commits: `4f1be83` concept · `b29b289` test landscapes · `0c9f55d` M1 · `963d1de` M4 prep · `39e6699` M2 · `df07ea4` handoff · M3: `16c9f4b` claim input · `5340ee2` live tooling · `81f96e4` plugin and setups · `23873a8` procedure 0.1.0 · `37e23fe` clarifications · `d5a784f` large MCP results, image · `bb006cf` gate per model · `f50e550` docs · `f38c45c` review fixes · `0de60dc` docs · `cabdaee` no Agent SDK worker, value chain 0.3.0 · `7126f0b` judge each pair once (procedure 0.2.0) · `3f087c9` docs · `ada3fdc` judge-once review fixes · `01cd1cf` docs · `d21401f` token test fix · M4: `be4308f` S0 · `b9481b7` S1 · `e90fbba` S2 · `e4890ef` S3 · `bef64e0` S4 · S5 with its review fixes (the commit after `bef64e0`). |
 | PR #2 | Draft, base `develop`, CI (`ci-2.yml`: typecheck/lint/test, docker image + compose live check) green. **Merge only with the owner's explicit OK.** |
 | 1.x tree | `backend/`, `frontend/`, `pom.xml`, `mvnw*`, `.mvn/`, `Dockerfile`, `eclipse-formatter.xml`, `Makefile`, `scripts/`, `docker-compose.yml`, `.githooks/` and the 1.x workflows (`backend-tests.yml`, `frontend-checks.yml`, `deploy.yml`, `release.yml`) are still present and **must not be modified** on this branch. The cut-over PR removes them (CONCEPT §9). |
 | Tags/releases | None in ProA yet. Plan: tag `v1.3.0` on `eb3539b` + branch `maintenance/1.x` + 1.x image **right before the cut-over merge** (owner decision), not now. |
@@ -90,7 +95,8 @@ and code are in English.
 8. **Pipeline** of models: not yet analysed → agent working → waiting for review / waiting for
    clarification → incorporated (owner's idea, CONCEPT §3).
 9. **Auto-accept only unambiguous calls** (static `calledElement` / `zeebe:calledElement`
-   matching exactly one process id, not the caller). Everything else is a proposal.
+   matching exactly one process id, not the caller). Everything else is a proposal. Extended by
+   decision 19: the owner may add rules that accept further proposals.
 10. **"Vormerken" (hold)** = note + optional question/label, no assignee in v1.
 11. **LICENSE unchanged** (CC BY-NC-SA 4.0, much 1.x code by envite authors); all packages
     `private: true`, nothing published to npm until the license is decided (prerequisite for
@@ -116,6 +122,15 @@ and code are in English.
     process, a second only by a reviewer's decision; a step rename sends accepted placements to
     re-confirm; org units are owners of top-level steps, not agent evidence; one chain per project
     in M4; step kinds by colour until upstream has a category.
+19. **Auto-accept rules** (2026-10-10): the owner maintains rules that accept agent proposals
+    without a click: "up to x % confidence the agent may link by itself". Scope: **auto-accept
+    only** (no glossary or fixed mappings), for **relations and placements**. Design the owner
+    agreed to: a rule names the kind, the tier and a minimum confidence, optionally an agent or a
+    model; the acceptance is recorded as decided **by the owner's rule** (agents still only
+    propose, the check "agents never decide" stays); never for a pair or process with an open
+    agent question, an objection or no-link of another agent, or a human decision; off by
+    default; a preview shows what a rule would have accepted so far; accepted items are marked
+    and can be revoked in bulk. To be built after S5.
 
 **Taken during M3 by the implementing agent (the owner may overrule; details in
 `M3-RELATIONS-PROCEDURE.md`):** agents write rationales, questions, no-link reasons and summaries
@@ -137,6 +152,22 @@ judgements made on another version of its model; judgements of different princip
 coexist, so disagreements reach the reviewer; recordings keep the `uncovered` count, not the pairs.
 This answers the former open questions "Supersession scope" and "No-links in review".
 
+**Taken during M4 S5 by the implementing agents (the owner may overrule; details in
+`M4-VALUE-CHAIN.md` §3.2 "As delivered in S5" and §9 "S5 as delivered"):** decision 17 (no work
+twice) holds for placements as **judge each process once**: a process is judged again only when
+its input hash changes (its model's facts, the chain's structure and step generations, its
+neighbours through accepted relations with their accepted steps, the last human or rule-tier
+assertion on it; never agent activity); at most one placement task per chain is open (no parallel
+placement agents per project), follow-ups are queued only at submit; unsure and skipped processes
+are remembered until their input changes; ad-hoc agent proposals count as the agent's verdict
+(`judged`); a submission withdraws stale pipeline proposals of anyone and the caller's own
+unrepeated ones, other agents' current proposals stay. `facts_hash` keeps its name and chain tasks
+get `input_hash` (instead of the rename M4 §8 planned). `work_pipeline` works one kind per run
+(`kind`, default relations with the released text). The plugin has its own version (0.3.0) with
+a release table. New pipeline withdrawal reasons for placements are German; the relation ones stay
+English. The placement live gate's bar is the higher recall@1 of `baseline-prefix/1` with and
+without votes plus 20 points. The simulation agent's placement policy extends `sim-policy-1`.
+
 ## 5. What exists (2.0 workspace)
 
 | Path | Content |
@@ -145,16 +176,16 @@ This answers the former open questions "Supersession scope" and "No-links in rev
 | `packages/client` | hey-api client generated from the OpenAPI document (drift test) |
 | `packages/bpmn-facts` | C7/C8 fact extraction, hostile-XML protection, `FACTS_VERSION` |
 | `packages/relations` | rule tier (unambiguous calls, key-tier proposals, findings), candidates for agents, 1.x baseline, pair assessor, and since M4 S2 `baseline-prefix/1` and the name-stem rule for placements (`placement.ts`) |
-| `packages/procedures` | the released procedure `proa-relations@0.2.0` (`relations.md`; judge each pair once), the wrappers for the `work_pipeline` prompt and the Claude Code skill, the skill generator and drift tests |
-| `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin with the generated skill `/proa:relations [project] [max-tasks]`; version = procedure version |
-| `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh`), Claude Desktop (configs + German start prompt), Codex; documentation, not in the image |
+| `packages/procedures` | the released procedures `proa-relations@0.2.0` (`relations.md`; judge each pair once) and `proa-placements@0.1.0` (`placements.md`, `kind: placement`, M4 S5; judge each process once), the wrappers for the `work_pipeline` and `place_processes` prompts and the Claude Code skills, the `draft_value_chain` prompt text (`prompts/`), the skill generator and drift tests |
+| `plugins/proa`, `.claude-plugin/marketplace.json` | Claude Code plugin 0.3.0 with the generated skills `/proa:relations` and `/proa:placements [project] [max-tasks]`; its own version since two skills ship (a test pins every skill's sha256 per plugin release) |
+| `examples/agents` | reference setups: Claude Code (interactive and `run-headless.sh [--skill placements]`), Claude Desktop (configs + German start prompts for relations, placements and drafting a chain), Codex; documentation, not in the image |
 | `apps/server` | Hono server: domain (pure, dependency-cruiser enforced), Drizzle/PostgreSQL, REST `/api/v1`, MCP `/mcp` (stateless Streamable HTTP), local mode, agent tokens, pipeline, review; since M4 S1/S2 the value chain and placements (`src/domain/value-chain/`: storage, lifecycle, `prepareRevision`, rule proposals, findings; REST under `/value-chains`, six MCP tools; the web page since S3) |
 | `apps/cli` | `proa health / status / import / seed [--project --issue-tokens --token-name --value-chains] / token create\|list\|revoke / value-chain push\|pull / mcp` (stdio bridge) |
 | `apps/web` | projects, models, relations, findings, bpmn-js model view, upload, connect-an-agent, inbox, review screen; since M4 S3 the value chain page (`/projects/{key}/value-chain`: renderer viewer/modeler in a lazy chunk, placement review, save with dry run and conflict, drafts, link editing) and the step view |
-| `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP |
+| `apps/agent-sim` | LLM-free reference agent that works the pipeline over MCP, both task kinds since M4 S5 |
 | `eval/corpus` | test landscapes `nordwind-handel` (dev, 31 models, 17 C7/14 C8) and `stadtwerke-auental` (holdout, 26 models, 10 C7/16 C8) + `_sample`; every model deploys on Camunda 7.24.0 and 8.9.22 |
 | `eval/tools` | spec format, BPMN generator with DI, validator, deploy check (`engines.compose.yaml`), `eval:candidates`, `eval:replay`, `eval:live` and the live gate, `eval:placements` (M4 S4: the golden value chains, the rule tier and `baseline-prefix/1`) |
-| `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.2.0`; the owner's live runs go here too) and generated reports incl. the live gate, pairs judged twice and uncovered pairs |
+| `eval/recordings`, `eval/reports` | recorded submissions (today the sim agent under `proa-relations@0.2.0` and `proa-placements@0.1.0`; the owner's live runs go here too) and generated reports incl. both live gates, pairs judged twice and uncovered pairs |
 | `eval/value-chains` | golden value chains + expected placements for both landscapes (M4); `validate-value-chains.mjs` checks them with `@miragon/value-chain-schema-model` 0.3.0 from npm (pinned in `eval/tools`) and its built-in cross-check, run by `pnpm test` |
 | `docker/` | `compose.yaml` (project `proa2`: PostgreSQL 17 on 127.0.0.1:55432, ProA on 127.0.0.1:7400) and `Dockerfile` |
 | `.github/workflows/ci-2.yml` | 2.0 CI (path-filtered; 1.x workflows untouched) |
@@ -230,9 +261,10 @@ tooling are done (`M3-RELATIONS-PROCEDURE.md`). What remains needs the owner's C
    expired, candidate-cap drift; DEVELOPMENT.md "Judge each pair once"): revisit it if the live runs'
    "judged twice" or `uncovered` numbers are not near 0.
 
-### M4 – value chain (M4a done; M4b after M3)
+### M4 – value chain (M4a done; M4b's code done, its owner actions open; S6 blocked)
 
-Follow `docs/proa-2/M4-VALUE-CHAIN.md` (slices S0–S6, ~4 weeks; S0–S4 done). **S0 is done** (2026-10-08,
+Follow `docs/proa-2/M4-VALUE-CHAIN.md` (slices S0–S6, ~4 weeks; S0–S5 done, S6 waits for the R1
+OKF export). **S0 is done** (2026-10-08,
 §9 "S0 as delivered"): schema-model 0.3.0 in `apps/server`, `apps/web` and `eval/tools`, the
 renderer 0.3.0 in `apps/web`, exact and without overrides (the published packages pin the
 diagram-js, diagram-js-direct-editing and zod versions ProA already uses; only a type-only `didi`
@@ -355,18 +387,67 @@ without a procedure version bump (the claim format and the skill are unchanged).
   switch).
 - The M3 live runs (above); seed their projects with `--value-chains` only when the run also
   covers placements (M4b).
-- Confirm "`eval:placements` is green in CI" on the next push.
+- "`eval:placements` is green in CI": confirmed (CI 2.0 run 37942115182 on `bef64e0`, the S4
+  push).
 
-**Next: M4b, S5** (M4 §9 "S5 checklist"): the task subject migration, the `placement` kind, the
-`proa-placements` procedure and prompts, recordings scored with `scorePlacementProposals`
-(`eval/tools/src/placements-score.ts`; check each recording's chain hash against
-`golden.contentHash`, pick the baseline row of the live gate: recommended with votes), placement
-sections of `replay.md` with the holdout as numbers only. After a bump of the renderer,
-schema-model or zod: rerun the bundle guard, the import harness and the CSS check (Playwright is
-not in CI). The owner accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside`
-with the reason, one home step per process (a second only by a reviewer's decision), a step
-rename sends accepted placements to re-confirm, org units as owners of top-level steps (not agent
-evidence), one chain per project, kinds by colour until upstream has a category.
+**S5 is done** (2026-10-09, M4 §9 "S5 as delivered"; M4b's code is done): analysis tasks have two
+kinds, `relations` and `placement` (subject: the value chain; migration 0008, `facts_hash` kept
+and `input_hash` added for chain tasks). **Judge each process once:** a per-process input hash
+decides when a process is due again, `placement_input` remembers the last agent verdict
+(`proposed`, `unsure` with the reason, `skipped`), one placement task per chain is open at a time,
+its claim (`proa-claim-placement/1`, ≤ 50 processes, ≤ 96 KB) is rendered under the project lock,
+follow-ups are queued at submit (truncation with progress, or a trigger during the lease), saves
+never cancel a claimed task. `claim_analysis` and `GET /analyses/pending` take `kinds` (default
+relations, so M2 clients see nothing new), `submit_analysis` takes `placements` and `unsure`
+(`wrong-task-kind` for the other kind), `get_value_chain` returns the stage and the unsure list,
+`list_unplaced_processes` marks `judged` and `inTask` processes. The procedure `proa-placements@0.1.0`
+(released; English text with invented examples, German output; a server drift test keeps it in
+line with the code), the skill `/proa:placements` (plugin 0.3.0; the relations skill unchanged),
+the prompts `work_pipeline` with `kind`, `place_processes` and `draft_value_chain`. The chain page
+imports a `.vc.json` (edit mode and the empty state; re-laid out by the layouter; unsaved until
+saved) and shows the agent's stage and „Agent unsicher“. The simulation agent works both kinds
+(`decidePlacements`: rule-tier proposals at 0.95, else `baseline-prefix/1` hints with fixed bands);
+its placement recordings are committed (the holdout's compared by digest only) and scored by
+`eval:replay` (dev: recall@1 46.9 %, as the baseline without votes; precision 57.7 %, 6 traps at ≥
+0.8: a floor, not a bar); the placement live gate needs recall@1 ≥ the better baseline row + 20
+points (dev 66.9 %) and no must_not at ≥ 0.8. Relations behave byte for byte as before (their
+recordings, report sections and released skill unchanged). Examples: `run-headless.sh --skill
+placements`, German start prompts for placements and drafting.
+
+**S5 review fixes** (2026-10-10, M4 §9 "Review fixes", still uncommitted with S5): the input
+hash covers only what a claim shows (human notes on an open proposal now appear on it in the
+claim; org units, layout, a sibling process or a task label re-offer nothing; the basis of
+pipeline proposals follows the same digests); `list_unplaced_processes` marks the processes of a
+claimed placement task `inTask` and procedure section 13 skips them (the remaining double work is
+listed in CONCEPT §3 and M4 §3.2); the server start queues the first placement task of chains
+that never had one (M4a chains after migration 0008), and reviewers queue it by hand on the chain
+page („Aufgabe einplanen“, „Erneut einplanen“) or with `proa value-chain requeue`; procedure
+sections 4 and 11 describe what a claim really carries (skill regenerated, the placements 0.1.0
+hash updated while nothing is committed); `eval:live` accepts a REST relations payload without
+`relations`; the simulation agent's rationale no longer claims a name match (recordings
+regenerated, scores unchanged); `run-headless.sh --skill placements` counts a moved task or a
+falling due count as progress; marketplace and README name both skills; the draft prompt has a
+drift test; an import on the empty state asks before it replaces a stored new-chain draft.
+
+**Owner actions from S5:**
+- Three placement live runs per landscape and model (dev first, then the holdout):
+  `M3-LIVE-RUNS.md` step 6a (`proa seed <landscape> --project <key> --value-chains --issue-tokens
+  --token-name <run>`, `/proa:placements` or `work_pipeline` with kind `placement`, `pnpm
+  eval:live`, then commit the recording with `pnpm eval:replay`'s reports). Never edit a run
+  project's chain.
+- Draft a chain in Claude Desktop (`examples/agents/claude-desktop/start-prompt-draft.de.md` or
+  the MCP prompt `draft_value_chain`), import it on the chain page, edit, save and rate it (the
+  open M4b criterion).
+- The holdout import check (from S3/S4, counts only):
+  `PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm --filter @proa/web e2e value-chain-import`.
+
+**Next: S6** (M4 §9 "S6 checklist"): the OKF extension, **blocked** until the R1 OKF export
+exists. After a bump of the renderer, schema-model or zod: rerun the bundle guard (chain-only
+37.0 of 40 KB used since S5), the import harness and the CSS check (Playwright is not in CI). The
+owner accepted the defaults of M4 §11 (2026-10-09): archived copies to `@outside` with the reason,
+one home step per process (a second only by a reviewer's decision), a step rename sends accepted
+placements to re-confirm, org units as owners of top-level steps (not agent evidence), one chain
+per project, kinds by colour until upstream has a category.
 
 ### Later (R1 and beyond)
 
@@ -390,7 +471,8 @@ removes the 1.x tree and all current workflows, rewrites README, adds `ci.yml` (
 | First users | UI upload or Git/bpmiq.yml repos? Decides whether folder/bpmiq.yml import moves earlier. | CONCEPT §12 |
 | Shared-name flag | The bulk dialog flags 20–22 of 33 key-tier pairs (names used by >2 processes), incl. legitimate broadcasts. Keep, or flag only names with several senders? | M2 web stage |
 | `correct` on a typed pair | Correcting towards a pair that already has a key-tier proposal creates a second, manual relation. Offer "accept the existing proposal instead"? | M2 e2e |
-| Revoking a token | Revoking now withdraws that token's open proposals and no-links (CONCEPT §6) and, since `0.2.0`, queues the models whose pairs it judged again, and, since M4 S2, withdraws its live placement proposals (nothing queued: no placement pipeline before M4b). Confirm. | M2 fix, 0.2.0, M4 S2 |
+| Revoking a token | Revoking now withdraws that token's open proposals and no-links (CONCEPT §6) and, since `0.2.0`, queues the models whose pairs it judged again, and, since M4 S2, withdraws its live placement proposals; since M4 S5 the chain's placement task is queued again for the processes it judged. Confirm. | M2 fix, 0.2.0, M4 S2, M4 S5 |
+| Ad-hoc verdicts | Since M4 S5 an agent's ad-hoc placement proposals count as its verdict (the pipeline does not judge those processes again); ad-hoc relation proposals do not. Keep the asymmetry? | M4 S5 |
 | Message-name matching | Names match ignoring separators (`Zahlung_Eingegangen` = `ZahlungEingegangen`). Confirm. | M1 relations |
 | Local session | `POST /api/v1/session` is open to any local process (fine single-user, not on shared machines). Add a one-time login link later? | M1 integrate |
 

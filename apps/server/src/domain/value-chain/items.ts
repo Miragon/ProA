@@ -15,6 +15,7 @@ import {
   OUTSIDE_STEP,
   hasControlCharacters,
   isRef,
+  type PipelinePlacementInvalidReason,
   type PlacementInvalidReason,
   type SourceKind,
 } from '@proa/contracts';
@@ -57,6 +58,11 @@ export interface PlacementItemContext {
 
 export type PlacementItemValidation =
   { ok: true; value: ValidPlacementProposal } | { ok: false; reason: PlacementInvalidReason };
+
+/** The validation of a placement task's submission item (M4 §3.2). */
+export type PipelinePlacementItemValidation =
+  | { ok: true; value: ValidPlacementProposal }
+  | { ok: false; reason: PipelinePlacementInvalidReason };
 
 const CONTROL = /\p{Cc}/u;
 const STEP_EVIDENCE = 'step:';
@@ -147,4 +153,27 @@ export function validatePlacementItem(
       question: item.question === '' ? null : item.question,
     },
   };
+}
+
+/**
+ * The checks of a placement task's submission item: those of
+ * {@link validatePlacementItem}, plus `outside-task-input` right after
+ * `malformed-ref` when the process is not in the task's input (the claim's
+ * processes). The context's `liveProposalSteps` is the pipeline's: the
+ * submission's own steps for the process so far plus the caller's live
+ * ad-hoc proposals of it.
+ *
+ * @param inputProcesses the processes of the task's claim
+ */
+export function validatePipelinePlacementItem(
+  item: PlacementItemDraft,
+  ctx: PlacementItemContext,
+  inputProcesses: ReadonlySet<string>,
+): PipelinePlacementItemValidation {
+  const result = validatePlacementItem(item, ctx);
+  if (!result.ok && (result.reason === 'malformed-step' || result.reason === 'malformed-ref')) {
+    return result;
+  }
+  if (!inputProcesses.has(item.process)) return { ok: false, reason: 'outside-task-input' };
+  return result;
 }

@@ -67,6 +67,19 @@ import {
   problemType,
   RECORDING_FORMAT,
   RecordingLine,
+  isPlacementLine,
+  AnalysisKind,
+  AnalysisSubmissionResult,
+  ClaimAnalysisBody,
+  ClaimedAnalysis,
+  LEASE_TOKEN_PREFIX,
+  MAX_CLAIM_PLACEMENT_PROCESSES,
+  MAX_UNSURE_ITEMS,
+  PIPELINE_PLACEMENT_INVALID_REASONS,
+  PendingQuery,
+  PlacementRecordingLine,
+  UNSURE_INVALID_REASONS,
+  UnsureOutcome,
   recordingPath,
   recordingSegment,
 } from '../src/index.ts';
@@ -710,23 +723,28 @@ describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
     },
   };
 
+  /** A relations line through the union schema (relations lines have no `kind`). */
+  const relationLine = (value: unknown) => {
+    const parsed = RecordingLine.parse(value);
+    if (isPlacementLine(parsed)) throw new Error('parsed as a placement line');
+    return parsed;
+  };
+
   it('parses a recording line, without server ids and with a summarized input', () => {
-    const parsed = RecordingLine.parse(line);
+    const parsed = relationLine(line);
     expect(parsed.task).toBeUndefined();
     expect(parsed.submission.relations[0]).toMatchObject({
       rationale: '',
       evidence: [],
       question: null,
     });
-    expect(() => RecordingLine.parse({ ...line, outcome: 'maybe' })).toThrow();
-    expect(() => RecordingLine.parse({ ...line, landscape: '_sample' })).toThrow();
-    expect(() =>
-      RecordingLine.parse({ ...line, input: { ...line.input, summary: false } }),
-    ).toThrow();
+    expect(() => relationLine({ ...line, outcome: 'maybe' })).toThrow();
+    expect(() => relationLine({ ...line, landscape: '_sample' })).toThrow();
+    expect(() => relationLine({ ...line, input: { ...line.input, summary: false } })).toThrow();
   });
 
   it('keeps the no-link type and takes the server’s no-link answers', () => {
-    const parsed = RecordingLine.parse({
+    const parsed = relationLine({
       ...line,
       submission: {
         ...line.submission,
@@ -747,17 +765,17 @@ describe('agent recordings (eval/recordings, CONCEPT §7)', () => {
     // A recording keeps the uncovered count, not the pairs.
     expect(parsed.result?.uncovered).toEqual({ count: 2 });
     // Older lines have none of them.
-    expect(RecordingLine.parse(line).result).not.toHaveProperty('noLinks');
+    expect(relationLine(line).result).not.toHaveProperty('noLinks');
   });
 
   it('parses a line built from a stored submission: no claim input', () => {
     const { input: _input, ...stored } = line;
-    const parsed = RecordingLine.parse(stored);
+    const parsed = relationLine(stored);
     expect(parsed.input).toBeUndefined();
     expect(parsed.submission.relations).toHaveLength(1);
-    expect(recordingPath(parsed)).toBe(recordingPath(RecordingLine.parse(line)));
+    expect(recordingPath(parsed)).toBe(recordingPath(relationLine(line)));
     // Still the same format: an input, if present, must be one.
-    expect(() => RecordingLine.parse({ ...stored, input: null })).toThrow();
+    expect(() => relationLine({ ...stored, input: null })).toThrow();
   });
 
   it('lays recordings out as <procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl', () => {
@@ -995,5 +1013,228 @@ describe('value chain and placement contracts (M4)', () => {
     expect(ValueChainFinding.parse(finding)).toEqual(finding);
     expect(ValueChainFinding.safeParse({ ...finding, state: 'accepted' }).success).toBe(false);
     expect(ValueChainFinding.safeParse({ ...finding, process: 'kein-ref' }).success).toBe(false);
+  });
+});
+
+describe('the placement pipeline kind (M4b)', () => {
+  const lease = `${LEASE_TOKEN_PREFIX}${'A'.repeat(43)}`;
+  const hash = 'a'.repeat(64);
+
+  it('claims relations tasks unless kinds says otherwise; kinds are distinct', () => {
+    expect(ClaimAnalysisBody.parse({})).toEqual({ max: 1, kinds: ['relations'] });
+    expect(ClaimAnalysisBody.parse({ kinds: ['placement', 'relations'] }).kinds).toEqual([
+      'placement',
+      'relations',
+    ]);
+    for (const kinds of [[], ['placement', 'placement'], ['relations', 'placement', 'x'], ['x']]) {
+      expect(ClaimAnalysisBody.safeParse({ kinds }).success, JSON.stringify(kinds)).toBe(false);
+    }
+    // The pending query takes one kind or a list (repeated query parameter).
+    expect(PendingQuery.parse({}).kinds).toBe('relations');
+    expect(PendingQuery.parse({ kinds: 'placement' }).kinds).toBe('placement');
+    expect(PendingQuery.parse({ kinds: ['relations', 'placement'] }).kinds).toEqual([
+      'relations',
+      'placement',
+    ]);
+    expect(PendingQuery.safeParse({ kinds: ['placement', 'placement'] }).success).toBe(false);
+    expect(AnalysisKind.options).toEqual(['relations', 'placement']);
+  });
+
+  it('keeps placement fields off a relations submission (no defaults) and defaults relations', () => {
+    const base = {
+      leaseToken: lease,
+      submissionId: '6f1e1a4e-4b7a-4c8e-9f5a-1d2c3b4a5f60',
+      procedure: { id: 'proa-placements', version: '0.1.0' },
+    };
+    const parsed = SubmitAnalysisBody.parse(base);
+    expect(parsed.relations).toEqual([]);
+    expect(parsed).not.toHaveProperty('placements');
+    expect(parsed).not.toHaveProperty('unsure');
+    const placed = SubmitAnalysisBody.parse({
+      ...base,
+      placements: [{ step: 'step-a', process: 'a/b#P', confidence: 2 }],
+      unsure: [{ process: 'a/b#Q' }],
+    });
+    expect(placed.placements?.[0]).toMatchObject({ rationale: '', evidence: [], question: null });
+    expect(placed.unsure).toEqual([{ process: 'a/b#Q', reason: '' }]);
+    const many = Array.from({ length: MAX_UNSURE_ITEMS + 1 }, () => ({ process: 'a/b#P' }));
+    expect(SubmitAnalysisBody.safeParse({ ...base, unsure: many }).success).toBe(false);
+  });
+
+  it('lists the pipeline reasons: the ad-hoc ones plus outside-task-input after malformed-ref', () => {
+    expect(PIPELINE_PLACEMENT_INVALID_REASONS.filter((r) => r !== 'outside-task-input')).toEqual(
+      PLACEMENT_INVALID_REASONS,
+    );
+    expect(PIPELINE_PLACEMENT_INVALID_REASONS.indexOf('outside-task-input')).toBe(
+      PIPELINE_PLACEMENT_INVALID_REASONS.indexOf('malformed-ref') + 1,
+    );
+    expect(UNSURE_INVALID_REASONS).toEqual([
+      'malformed-ref',
+      'outside-task-input',
+      'unknown-process',
+      'reason-required',
+      'reason-too-long',
+      'control-characters',
+      'also-placed',
+    ]);
+    expect(UnsureOutcome.options).toContain('invalid:also-placed');
+    expect(PROBLEMS['wrong-task-kind']).toEqual({ status: 422, title: 'Wrong task kind' });
+  });
+
+  it('requeues exactly one of models, all models or the value chain', () => {
+    expect(RequeueBody.safeParse({ valueChain: true }).success).toBe(true);
+    expect(RequeueBody.safeParse({ valueChain: true, all: true }).success).toBe(false);
+    expect(RequeueBody.safeParse({ valueChain: false }).success).toBe(false);
+  });
+
+  const placementResult = {
+    kind: 'placement' as const,
+    taskId: newId('analysisTask'),
+    submissionId: '6f1e1a4e-4b7a-4c8e-9f5a-1d2c3b4a5f60',
+    replayed: false,
+    placements: {
+      items: [{ index: 0, result: 'invalid:outside-task-input', placementId: null, status: null }],
+      counts: { applied: 0, duplicate: 0, suppressed: 0, reopened: 0, invalid: 1 },
+    },
+    unsure: {
+      items: [{ index: 0, result: 'stored' }],
+      counts: { stored: 1, duplicate: 0, invalid: 0 },
+    },
+    withdrawn: 0,
+    skipped: { count: 1, processes: ['a/b#P'] },
+    followUp: true,
+  };
+
+  it('tells the submission results apart by kind', () => {
+    expect(AnalysisSubmissionResult.parse(placementResult)).toEqual(placementResult);
+    const relations = {
+      taskId: newId('analysisTask'),
+      submissionId: 'x',
+      replayed: false,
+      items: [],
+      counts: { applied: 0, duplicate: 0, suppressed: 0, reopened: 0, invalid: 0 },
+      withdrawn: 0,
+    };
+    const parsed = AnalysisSubmissionResult.parse(relations);
+    expect(parsed).toEqual(relations);
+    expect(parsed).not.toHaveProperty('kind');
+  });
+
+  it('discriminates claimed tasks by kind', () => {
+    const claimed = {
+      kind: 'placement',
+      taskId: newId('analysisTask'),
+      projectId: newId('project'),
+      projectKey: 'demo',
+      valueChainId: newId('valueChain'),
+      valueChainKey: 'main',
+      revisionId: newId('valueChainRevision'),
+      rev: 2,
+      attempt: 1,
+      leaseToken: lease,
+      leaseUntil: '2026-10-09T10:15:00.000Z',
+      procedure: { id: 'proa-placements', version: '0.1.0' },
+      input: {
+        format: 'proa-claim-placement/1',
+        valueChain: {
+          id: newId('valueChain'),
+          key: 'main',
+          name: 'Kette',
+          revisionId: newId('valueChainRevision'),
+          rev: 2,
+          contentHash: hash,
+          structureHash: hash,
+        },
+        steps: [
+          {
+            id: 'step-a',
+            name: 'A',
+            path: ['A'],
+            kind: 'core',
+            rank: 0,
+            depth: 0,
+            parentId: null,
+            children: [],
+          },
+        ],
+        processes: [],
+        examples: [],
+        truncated: false,
+        remaining: 0,
+      },
+    };
+    const parsed = ClaimedAnalysis.parse(claimed);
+    expect(parsed.kind).toBe('placement');
+    expect(ClaimedAnalysis.safeParse({ ...claimed, kind: 'relations' }).success).toBe(false);
+    const tooMany = {
+      ...claimed,
+      input: {
+        ...claimed.input,
+        processes: Array.from({ length: MAX_CLAIM_PLACEMENT_PROCESSES + 1 }, () => ({})),
+      },
+    };
+    expect(ClaimedAnalysis.safeParse(tooMany).success).toBe(false);
+  });
+
+  it('parses placement recording lines next to relations lines', () => {
+    const line = {
+      format: RECORDING_FORMAT,
+      kind: 'placement',
+      landscape: 'nordwind-handel',
+      valueChain: { key: 'main', rev: 1, contentHash: hash },
+      agent: 'agent-sim',
+      procedure: { id: 'proa-placements', version: '0.1.0' },
+      llmModel: 'sim-policy-1',
+      input: {
+        format: 'proa-claim-placement/1',
+        summary: true,
+        steps: 3,
+        processes: 2,
+        truncated: false,
+        bytes: 1000,
+      },
+      submission: {
+        placements: [{ step: 'step-a', process: 'a/b#P', confidence: 0.9 }],
+        unsure: [{ process: 'a/b#Q', reason: 'unklar' }],
+        summary: null,
+        costUsd: null,
+      },
+      outcome: 'submitted',
+      result: {
+        replayed: false,
+        counts: placementResult.placements.counts,
+        withdrawn: 0,
+        items: [{ index: 0, result: 'applied', status: 'proposed' }],
+        unsure: placementResult.unsure,
+        skipped: { count: 0 },
+        followUp: false,
+      },
+    };
+    const parsed = RecordingLine.parse(line);
+    expect(isPlacementLine(parsed)).toBe(true);
+    expect(PlacementRecordingLine.parse(line).submission.placements[0]).toMatchObject({
+      rationale: '',
+    });
+    expect(recordingPath(parsed)).toBe(
+      'proa-placements@0.1.0/agent-sim/sim-policy-1/nordwind-handel.jsonl',
+    );
+    expect(() => RecordingLine.parse({ ...line, valueChain: undefined })).toThrow();
+  });
+
+  it('describes the chain pipeline and the judged marker in the OpenAPI document', () => {
+    const doc = buildOpenApiDocument();
+    const schemas = doc.components?.schemas ?? {};
+    for (const name of [
+      'ClaimedPlacementAnalysis',
+      'PlacementClaimInput',
+      'PlacementSubmissionResult',
+      'AnalysisSubmissionResult',
+      'ValueChainPipeline',
+      'ValueChainUnsure',
+      'PlacementInputOutcome',
+    ]) {
+      expect(schemas, name).toHaveProperty(name);
+    }
+    expect(JSON.stringify(schemas['UnplacedProcess'])).toContain('judged');
   });
 });

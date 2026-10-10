@@ -159,16 +159,9 @@ export function toRelationAssertion(a: StoredAssertion): RelationAssertion {
 }
 
 export function toAnalysisTask(t: TaskDetail): AnalysisTask {
-  return {
-    id: t.id,
-    projectId: t.projectId,
-    modelId: t.modelId,
-    modelKey: t.modelKey,
-    revisionId: t.revisionId,
-    kind: t.kind,
+  const lease = {
     state: t.state,
     attempts: t.attempts,
-    factsHash: t.factsHash,
     leaseUntil: t.leaseUntil ? iso(t.leaseUntil) : null,
     claimedBy: t.claimedByHandle,
     lastError: t.lastError,
@@ -176,6 +169,37 @@ export function toAnalysisTask(t: TaskDetail): AnalysisTask {
     createdAt: iso(t.createdAt),
     updatedAt: iso(t.updatedAt),
   };
+  return t.subjectKind === 'model'
+    ? {
+        id: t.id,
+        projectId: t.projectId,
+        kind: t.kind,
+        subjectKind: t.subjectKind,
+        modelId: t.modelId,
+        modelKey: t.modelKey,
+        revisionId: t.revisionId,
+        valueChainId: null,
+        valueChainKey: null,
+        valueChainRevisionId: null,
+        factsHash: t.factsHash,
+        inputHash: null,
+        ...lease,
+      }
+    : {
+        id: t.id,
+        projectId: t.projectId,
+        kind: t.kind,
+        subjectKind: t.subjectKind,
+        modelId: null,
+        modelKey: null,
+        revisionId: null,
+        valueChainId: t.valueChainId,
+        valueChainKey: t.valueChainKey,
+        valueChainRevisionId: t.valueChainRevisionId,
+        factsHash: null,
+        inputHash: t.inputHash,
+        ...lease,
+      };
 }
 
 export function toAgentToken(t: AgentTokenRecord): AgentToken {

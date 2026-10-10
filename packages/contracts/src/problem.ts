@@ -12,7 +12,8 @@ export const PROBLEM_TYPE_BASE = 'urn:proa:problem:';
  * M4 (value chain): `value-chain-invalid` (422, with `violations` and
  * `truncated`), `value-chain-unsupported-version` (422, with `schemaVersion`
  * and `supported`), `revision-conflict` (412, with `headRev` and `etag`) and
- * `precondition-required` (428, a content save without `If-Match`).
+ * `precondition-required` (428, a content save without `If-Match`); M4b:
+ * `wrong-task-kind` (422, a submission with items of the other task kind).
  */
 export const ProblemCode = z
   .enum([
@@ -33,6 +34,7 @@ export const ProblemCode = z
     'lease-lost',
     'task-cancelled',
     'already-submitted',
+    'wrong-task-kind',
     'payload-too-large',
     'unsupported-media-type',
     'internal',
@@ -63,6 +65,7 @@ export const PROBLEMS = {
   'lease-lost': { status: 409, title: 'Lease lost' },
   'task-cancelled': { status: 409, title: 'Task cancelled' },
   'already-submitted': { status: 409, title: 'Already submitted' },
+  'wrong-task-kind': { status: 422, title: 'Wrong task kind' },
   'payload-too-large': { status: 413, title: 'Payload too large' },
   'unsupported-media-type': { status: 415, title: 'Unsupported media type' },
   internal: { status: 500, title: 'Internal server error' },

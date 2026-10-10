@@ -6,7 +6,7 @@
  * facts → record relation assertions → recompute endpoint state → move the
  * version of relations whose no-links may change currency → refresh the
  * value chain's placements and its rule proposals (M4) → queue analysis
- * tasks → append events.
+ * tasks (relations, then the chain's placement task, M4b) → append events.
  */
 import { createHash } from 'node:crypto';
 
@@ -27,13 +27,14 @@ import type {
   AnalysisPort,
   ExtractOutcome,
   ModelRecord,
+  ModelTaskRecord,
   ProjectRecord,
   RevisionRecord,
   Store,
-  TaskRecord,
   Tx,
 } from './ports.ts';
 import { recomputeProject } from './recompute.ts';
+import { queuePlacementTasks } from './value-chain/queue.ts';
 import { syncValueChainAfterModels } from './value-chain/sync.ts';
 
 export interface IngestFile {
@@ -56,8 +57,10 @@ export interface IngestDeps {
   analysis: AnalysisPort;
   /** Id of the system principal `proa-rules` (created on first use). */
   rulesPrincipal(): Promise<PrincipalId>;
-  /** The procedure claims name (listing live no-links needs it). */
+  /** The procedure relations claims name (listing live no-links needs it). */
   expectedProcedure: () => DeclaredProcedure;
+  /** The procedure placement claims name (input hashes of the chain's processes, M4b). */
+  expectedPlacementProcedure: () => DeclaredProcedure;
 }
 
 /** sha256 (hex) of the raw bytes: identical uploads are no-ops. */
@@ -156,6 +159,17 @@ export async function ingest(
       await syncValueChainAfterModels(tx, project.id, rulesPrincipalId);
       for (const c of changed) {
         await queueAnalysis(tx, actor, project.id, c.model, c.revision, c.previousFactsHash);
+      }
+      // New, revived or changed processes may be due on the value chain (after the relation
+      // tasks, so their events keep their order); a layout-only change queues nothing.
+      if (changed.some((c) => c.previousFactsHash !== c.revision.factsHash)) {
+        await queuePlacementTasks(
+          tx,
+          actor,
+          project.id,
+          'models changed',
+          deps.expectedPlacementProcedure(),
+        );
       }
     }
     return { project, results };
@@ -278,7 +292,7 @@ export async function queueAnalysis(
   model: ModelRecord,
   revision: RevisionRecord,
   previousFactsHash: string | null,
-): Promise<TaskRecord | null> {
+): Promise<ModelTaskRecord | null> {
   const open = await tx.tasks.latest(projectId, model.id, ['queued', 'claimed']);
   if (open?.factsHash === revision.factsHash) return null;
   if (open) await cancelTask(tx, actor, projectId, model, open, 'new head with different facts');
@@ -322,7 +336,7 @@ export async function queueTask(
   model: Pick<ModelRecord, 'id' | 'key'>,
   revision: Pick<RevisionRecord, 'id' | 'factsHash'>,
   reason: 'new head' | 'requeue' | 'judgement withdrawn',
-): Promise<TaskRecord> {
+): Promise<ModelTaskRecord> {
   const id = newId('analysisTask');
   const seq = await tx.events.append(projectId, {
     type: 'analysis.queued',
@@ -339,9 +353,10 @@ export async function queueTask(
       reason,
     },
   });
-  const task: TaskRecord = {
+  const task: ModelTaskRecord = {
     id,
     projectId,
+    subjectKind: 'model',
     modelId: model.id,
     revisionId: revision.id,
     kind: 'relations',
@@ -359,7 +374,7 @@ export async function cancelTask(
   actor: Actor,
   projectId: ProjectId,
   model: ModelRecord,
-  task: TaskRecord,
+  task: ModelTaskRecord,
   reason: string,
 ): Promise<void> {
   await tx.tasks.setState(projectId, task.id, 'cancelled', reason);

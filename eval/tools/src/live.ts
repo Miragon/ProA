@@ -18,10 +18,16 @@
 // project was worked under more than one token (also with --agent, which files
 // them as one run), when it gives more than one file (the gate counts each as
 // a run) and when it replaces a file with other content. Relative paths
-// resolve against INIT_CWD, the repository root for `pnpm eval:live`. Exit
-// codes: 0 when every gate passes or is incomplete, 1 when a gate fails or on
-// a runtime error (server unreachable, 401/404, invalid data), 2 on a usage
-// error.
+// resolve against INIT_CWD, the repository root for `pnpm eval:live`.
+//
+// Placement tasks (M4b) are recorded the same way, as placement lines with
+// the chain revision (number and content hash) their claim showed, scored
+// against eval/value-chains/<landscape> (placements-replay.ts) and judged by
+// the placement live gate (placement-live-gate.ts). A run on an edited chain
+// (a content hash other than the golden chain's) is refused: its numbers
+// would mean nothing. Exit codes: 0 when every gate passes or is incomplete,
+// 1 when a gate fails or on a runtime error (server unreachable, 401/404,
+// invalid data, an edited chain), 2 on a usage error.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,15 +39,34 @@ import { getProcedure } from '@proa/procedures';
 import { CORPUS_DIR } from './corpus.ts';
 import { runLandscape } from './landscape.ts';
 import { formatLiveGate, liveGates, splitProcedure, type LiveGate } from './live-gate.ts';
-import { DEFAULT_PROA_URL, buildRecordings, fetchStoredAnalyses } from './live-recordings.ts';
-import { RECORDINGS_DIR, landscapeDir, loadRecordings, parseRecording, type RecordingFile } from './recordings.ts';
+import { DEFAULT_PROA_URL, buildRecordings, fetchStoredAnalyses, isStoredPlacement } from './live-recordings.ts';
+import {
+  formatPlacementLiveGate,
+  placementLiveGates,
+  type PlacementLiveGate,
+} from './placement-live-gate.ts';
+import { VALUE_CHAINS_DIR, loadPlacementRun } from './placements-load.ts';
+import { placementScoreLine } from './placements-replay-report.ts';
+import {
+  placementBaselines,
+  scorePlacementRecording,
+  type PlacementReplayScore,
+} from './placements-replay.ts';
+import {
+  RECORDINGS_DIR,
+  landscapeDir,
+  loadRecordings,
+  parseRecording,
+  recordingKind,
+  type RecordingFile,
+} from './recordings.ts';
 import { scoreLine } from './replay-report.ts';
 import { scoreRecording, type ReplayScore } from './replay-score.ts';
 
 export const USAGE = `usage: pnpm eval:live --project <key> [options]
 
-Records the live run of a project (its done analyses and stored submissions)
-in eval/recordings and checks the live gate.
+Records the live run of a project (its done analyses and stored submissions,
+relations and placement tasks) in eval/recordings and checks the live gates.
 
   --project <key>       project the run worked on (required)
   --landscape <name>    corpus landscape the project was seeded from
@@ -51,6 +76,7 @@ in eval/recordings and checks the live gate.
   --agent <name>        agent segment of the recording (default: the token name)
   --out <dir>           recordings directory (default: eval/recordings)
   --corpus <dir>        corpus directory (default: eval/corpus)
+  --value-chains <dir>  golden value chains (default: eval/value-chains)
   --no-write            score and check without writing
   --json                print JSON
 
@@ -83,6 +109,23 @@ class UsageError extends Error {}
 
 /** Exit code of a usage error, as `proa-agent-sim` and `run-headless.sh` have it. */
 const USAGE_EXIT = 2;
+
+/** What `--json` prints per placement recording: the numbers, not the items. */
+function placementRunSummary(s: PlacementReplayScore) {
+  return {
+    file: s.file,
+    procedure: s.procedure,
+    agent: s.agent,
+    llmModel: s.llmModel,
+    landscape: s.landscape,
+    split: s.split,
+    tasks: s.tasks,
+    numbers: s.numbers,
+    unsure: s.unsure,
+    skipped: s.skipped,
+    invalid: s.invalid,
+  };
+}
 
 /** What `--json` prints per recording: the numbers, not the pairs (no ground truth on the console). */
 function runSummary(s: ReplayScore) {
@@ -146,6 +189,7 @@ function parseOptions(argv: readonly string[]) {
         agent: { type: 'string' },
         out: { type: 'string' },
         corpus: { type: 'string' },
+        'value-chains': { type: 'string' },
         'no-write': { type: 'boolean', default: false },
         json: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
@@ -169,6 +213,7 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
   const url = values.url ?? io.env['PROA_URL'] ?? DEFAULT_PROA_URL;
   const out = path.resolve(io.cwd, values.out ?? RECORDINGS_DIR);
   const corpus = path.resolve(io.cwd, values.corpus ?? CORPUS_DIR);
+  const valueChains = path.resolve(io.cwd, values['value-chains'] ?? VALUE_CHAINS_DIR);
 
   // The landscape: named, or the project key (`proa seed` names projects after landscapes).
   const landscape = (values.landscape ?? project).replace(/^_+/, '');
@@ -187,13 +232,29 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
   // The analysed models must be the landscape's: another landscape's name would file the run under it.
   const run = await runLandscape(dir);
   const landscapeModels = new Set(run.facts.models.map((m) => m.modelKey));
-  const foreign = [...new Set(stored.map((s) => s.modelKey))].filter((k) => !landscapeModels.has(k)).sort();
+  const relationsStored = stored.filter((s) => !isStoredPlacement(s));
+  const placementStored = stored.filter(isStoredPlacement);
+  const foreign = [...new Set(relationsStored.map((s) => s.modelKey))].filter((k) => !landscapeModels.has(k)).sort();
   if (foreign.length > 0) {
     throw new UsageError(
       `project ${project} has analyses of ${foreign.length} ${foreign.length === 1 ? 'model' : 'models'} ` +
         `not in landscape ${landscape} (${foreign.slice(0, 3).join(', ')}${foreign.length > 3 ? ', …' : ''}); ` +
         'name the landscape the project was seeded from with --landscape',
     );
+  }
+  // Placement tasks count only on the golden chain: an edited chain makes the run incomparable.
+  const placementRun =
+    placementStored.length > 0 ? await loadPlacementRun(path.basename(dir), { corpusDir: corpus, valueChainsDir: valueChains }) : null;
+  if (placementRun) {
+    const edited = placementStored.filter((s) => s.valueChain.contentHash !== placementRun.golden.contentHash);
+    if (edited.length > 0) {
+      const revs = [...new Set(edited.map((s) => `r${s.valueChain.rev}`))].join(', ');
+      throw new Error(
+        `project ${project}: ${edited.length} placement ${edited.length === 1 ? 'task' : 'tasks'} worked on value chain ` +
+          `${revs}, not the golden chain of ${landscape}: not comparable (edited chain); record placement runs on a ` +
+          'freshly seeded chain (proa seed --value-chains) that nobody edited',
+      );
+    }
   }
   const built = buildRecordings(stored, { landscape, ...(values.agent !== undefined ? { agent: values.agent } : {}) });
 
@@ -249,15 +310,24 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
   const byPath = new Map<string, RecordingFile>();
   for (const f of await loadRecordings(out)) byPath.set(f.path, f);
   for (const f of files) byPath.set(f.path, f);
-  const scores = [...byPath.values()]
+  const peers = [...byPath.values()]
     .filter((f) => f.landscape === landscape && ids.has(splitProcedure(f.procedure).id))
-    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-    .map((f) => scoreRecording(f, run));
+    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const scores = peers.filter((f) => recordingKind(f) === 'relations').map((f) => scoreRecording(f, run));
   const builtPaths = new Set(files.map((f) => f.path));
   const runs = scores.filter((s) => builtPaths.has(s.file));
   // The gates the new files count in: as a live run of the group, or as its baseline.
   const gates: LiveGate[] = liveGates(scores).filter(
     (g) => g.liveRuns.some((r) => builtPaths.has(r.file)) || g.baseline.files.some((f) => builtPaths.has(f)),
+  );
+  // Placement recordings of the same procedures (earlier live runs too) and their gates.
+  const baselines = placementRun ? [placementBaselines(landscape, placementRun)] : [];
+  const placementScores = placementRun
+    ? peers.filter((f) => recordingKind(f) === 'placement').map((f) => scorePlacementRecording(f, placementRun))
+    : [];
+  const placementRuns = placementScores.filter((s) => builtPaths.has(s.file));
+  const placementGates: PlacementLiveGate[] = placementLiveGates(placementScores, baselines).filter((g) =>
+    g.liveRuns.some((r) => builtPaths.has(r.file)),
   );
 
   if (values.json) {
@@ -270,6 +340,8 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
           recordings: built.map((b) => ({ path: b.path, lines: b.lines.length })),
           runs: runs.map(runSummary),
           gates,
+          placementRuns: placementRuns.map(placementRunSummary),
+          placementGates,
         },
         null,
         2,
@@ -282,9 +354,16 @@ async function live(argv: readonly string[], io: LiveIo): Promise<number> {
     }
     for (const s of runs) io.stdout(`${scoreLine(s)}\n`);
     for (const g of gates) io.stdout(`${formatLiveGate(g)}\n`);
-    if (gates.length === 0) io.stdout('live gate: none (the recorded files are neither live runs nor the baseline of one)\n');
+    if (gates.length === 0 && runs.length > 0) {
+      io.stdout('live gate: none (the recorded files are neither live runs nor the baseline of one)\n');
+    }
+    for (const s of placementRuns) io.stdout(`${placementScoreLine(s, baselines[0])}\n`);
+    for (const g of placementGates) io.stdout(`${formatPlacementLiveGate(g)}\n`);
+    if (placementRuns.length > 0 && placementGates.length === 0) {
+      io.stdout('placement live gate: none (the recorded placement files are no live runs)\n');
+    }
   }
-  return gates.some((g) => g.status === 'fail') ? 1 : 0;
+  return gates.some((g) => g.status === 'fail') || placementGates.some((g) => g.status === 'fail') ? 1 : 0;
 }
 
 if (process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

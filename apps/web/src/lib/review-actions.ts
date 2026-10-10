@@ -74,3 +74,13 @@ export function useRequeue(project: string) {
     onSettled: invalidate,
   });
 }
+
+/** The value chain's placement task (M4 §3.2): queued when an open process is due. */
+export function useRequeueChain(project: string) {
+  const invalidate = useInvalidateProject(project);
+  return useMutation({
+    mutationFn: (): Promise<RequeueResult> =>
+      unwrap(requeueAnalyses({ client: api, path: { project }, body: { valueChain: true } })),
+    onSettled: invalidate,
+  });
+}

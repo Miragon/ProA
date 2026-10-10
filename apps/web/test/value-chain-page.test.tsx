@@ -10,6 +10,7 @@ import type {
   ChainCanvasHandle,
   ChainCanvasProps,
 } from '../src/components/value-chain/chain-canvas-types';
+import { getToasts } from '../src/lib/toast';
 import { createAppRouter } from '../src/router';
 import { chainDetail, impact, placement, step } from './support/fixtures';
 import { json, stubApi, type Call } from './support/render';
@@ -26,6 +27,8 @@ interface CanvasStub {
   warnings: number;
   /** Names of the elements on the canvas. */
   names: Record<string, string>;
+  /** Ids of the elements on the canvas (`elementIds`). */
+  ids: string[];
   /** What the page asked the canvas to change. */
   calls: unknown[][];
 }
@@ -36,6 +39,7 @@ const canvas = vi.hoisted((): CanvasStub => ({
   pending: false,
   warnings: 0,
   names: {},
+  ids: [],
   calls: [],
 }));
 vi.mock('@/components/value-chain/canvas/chain-canvas', async () => {
@@ -53,7 +57,7 @@ vi.mock('@/components/value-chain/canvas/chain-canvas', async () => {
     redo: () => undefined,
     canUndo: () => canvas.undo,
     canRedo: () => false,
-    elementIds: () => [],
+    elementIds: () => canvas.ids,
     elementInfo: (id) =>
       id in canvas.names
         ? {
@@ -115,6 +119,7 @@ afterEach(() => {
   canvas.pending = false;
   canvas.warnings = 0;
   canvas.names = { ...NAMES };
+  canvas.ids = [];
   canvas.calls = [];
 });
 
@@ -822,5 +827,393 @@ describe('value chain page: keyboard and focus', () => {
     expect(alert.textContent).toContain('2 Elemente übersprungen');
     await user.click(within(alert).getByRole('button', { name: 'Hinweis schließen' }));
     expect(screen.queryByTestId('import-warnings')).toBeNull();
+  });
+});
+
+describe('value chain page: import (M4 §3.3)', () => {
+  /** An invented draft as an agent writes it: rough waypoints, no links. */
+  const DRAFT = JSON.stringify({
+    schemaVersion: 1,
+    meta: { name: 'Musterhochschule – Wertschöpfungskette' },
+    elements: [
+      {
+        id: 'step-a',
+        elementType: 'step',
+        name: 'Bewerbung',
+        bounds: { x: 0, y: 0, width: 160, height: 60 },
+      },
+      {
+        id: 'step-b',
+        elementType: 'step',
+        name: 'Studium',
+        bounds: { x: 300, y: 0, width: 160, height: 60 },
+      },
+    ],
+    connections: [
+      {
+        id: 'seq-a-b',
+        connectionType: 'sequence',
+        source: 'step-a',
+        target: 'step-b',
+        waypoints: [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ],
+      },
+    ],
+  });
+  const file = (text: string, name = 'entwurf.vc.json') =>
+    new File([text], name, { type: 'application/json' });
+  const lastToast = () => getToasts().at(-1);
+
+  async function editing() {
+    const ctx = setup('/projects/demo/value-chain');
+    await waitFor(() => expect(stub().dataset['key']).toBe('view:r3'));
+    await ctx.user.click(screen.getByTestId('edit-chain'));
+    await waitFor(() => expect(stub().dataset['mode']).toBe('edit'));
+    return ctx;
+  }
+
+  it('offers the import to reviewers in edit mode and on the empty state, never to viewers', async () => {
+    const { user } = setup('/projects/demo/value-chain');
+    await waitFor(() => expect(stub().dataset['key']).toBe('view:r3'));
+    // View mode: no import (edit first).
+    expect(screen.queryByTestId('import-chain')).toBeNull();
+    await user.click(screen.getByTestId('edit-chain'));
+    expect(await screen.findByTestId('import-chain')).toBeTruthy();
+    const input = screen.getByTestId('import-file');
+    expect(input.getAttribute('accept')).toBe('.vc.json,application/json');
+  });
+
+  it('shows the empty state with „Importieren“ for editors only', async () => {
+    setup('/projects/demo/value-chain', { chain: null });
+    const empty = await screen.findByTestId('empty-chain');
+    expect(within(empty).getByRole('button', { name: /Importieren/ })).toBeTruthy();
+    expect(within(empty).getByRole('button', { name: /Wertschöpfungskette anlegen/ })).toBeTruthy();
+  });
+
+  it('gives viewers no import', async () => {
+    setup('/projects/demo/value-chain', { role: 'viewer', chain: null });
+    const empty = await screen.findByTestId('empty-chain');
+    expect(within(empty).queryByRole('button', { name: /Importieren/ })).toBeNull();
+    expect(screen.queryByTestId('import-file')).toBeNull();
+  });
+
+  it('refuses files in German: not JSON, too large, a schema violation, a newer format', async () => {
+    const { user } = await editing();
+    const input = screen.getByTestId('import-file');
+    const key = stub().dataset['key'];
+    await user.upload(input, file('kein json', 'kaputt.vc.json'));
+    await waitFor(() =>
+      expect(lastToast()?.description).toBe(
+        '„kaputt.vc.json“ ist keine JSON-Datei. Wähle eine .vc.json-Datei.',
+      ),
+    );
+    expect(lastToast()).toMatchObject({ tone: 'danger', title: 'Import nicht möglich' });
+    await user.upload(input, file(' '.repeat(2 * 1024 * 1024 + 1), 'riesig.vc.json'));
+    await waitFor(() =>
+      expect(lastToast()?.description).toMatch(/^„riesig\.vc\.json“ ist größer als 2 MB/),
+    );
+    await user.upload(
+      input,
+      file(
+        JSON.stringify({
+          schemaVersion: 1,
+          meta: { name: 'X' },
+          elements: [{ id: 'a' }],
+          connections: [],
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(lastToast()?.description).toMatch(
+        /^„entwurf\.vc\.json“ ist keine gültige Wertschöpfungskette \(Feld „elements\.0\.elementType“\): /,
+      ),
+    );
+    const duplicate = JSON.parse(DRAFT) as { elements: { id: string }[] };
+    duplicate.elements[1]!.id = 'step-a';
+    await user.upload(input, file(JSON.stringify(duplicate)));
+    await waitFor(() =>
+      expect(lastToast()?.description).toMatch(
+        /keine gültige Wertschöpfungskette: Duplicate id "step-a"/,
+      ),
+    );
+    await user.upload(input, file(JSON.stringify({ ...JSON.parse(DRAFT), schemaVersion: 2 })));
+    await waitFor(() =>
+      expect(lastToast()?.description).toBe(
+        '„entwurf.vc.json“ hat die Formatversion 2; ProA kennt höchstens 1. Exportiere die Kette im älteren Format oder aktualisiere ProA.',
+      ),
+    );
+    // Nothing was imported.
+    expect(stub().dataset['key']).toBe(key);
+  });
+
+  it('imports into an empty drawing at once: re-laid out, unsaved and kept as a draft', async () => {
+    const { user } = await editing();
+    const key = stub().dataset['key'];
+    // What the canvas exports after the import (the re-laid draft, canonical).
+    canvas.text = EDITED;
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT));
+    await waitFor(() => expect(stub().dataset['key']).not.toBe(key));
+    expect(screen.queryByTestId('import-confirm')).toBeNull();
+    expect(canvas.props?.document).toMatchObject({ text: DRAFT, relayout: true });
+    expect(await screen.findByTestId('unsaved')).toBeTruthy();
+    // The base stays the head (r3): the draft is stored against it, the save uses If-Match "r3".
+    expect(screen.getByTestId('chain-rev').textContent).toBe('r3');
+    expect(
+      JSON.parse(localStorage.getItem('proa:vc-draft:demo:vch_01DEMO:r3') ?? '{}'),
+    ).toMatchObject({
+      text: EDITED,
+    });
+    expect(lastToast()).toMatchObject({ title: '„entwurf.vc.json“ importiert' });
+  });
+
+  it('asks before replacing a drawing with content; „Abbrechen“ keeps it, „Ersetzen“ imports', async () => {
+    const { user } = await editing();
+    canvas.ids = ['s-vertrieb', 's-auftrag'];
+    const key = stub().dataset['key'];
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT, 'neu.vc.json'));
+    const dialog = await screen.findByTestId('import-confirm');
+    expect(dialog.textContent).toContain(
+      'Die aktuelle Zeichnung wird durch „neu.vc.json“ ersetzt.',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
+    await waitFor(() => expect(screen.queryByTestId('import-confirm')).toBeNull());
+    expect(stub().dataset['key']).toBe(key);
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT, 'neu.vc.json'));
+    await user.click(await screen.findByTestId('import-replace'));
+    await waitFor(() => expect(stub().dataset['key']).not.toBe(key));
+    expect(canvas.props?.document).toMatchObject({ text: DRAFT, relayout: true });
+  });
+
+  it('asks before replacing unsaved edits, even of an empty drawing', async () => {
+    const { user } = await editing();
+    canvas.text = EDITED;
+    act(() => canvas.props?.onChange());
+    expect(await screen.findByTestId('unsaved')).toBeTruthy();
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT));
+    expect((await screen.findByTestId('import-confirm')).textContent).toContain(
+      '„entwurf.vc.json“ ersetzt',
+    );
+  });
+
+  it('asks before a new chain from a file replaces the stored draft of a new chain; the import becomes the draft', async () => {
+    const OLD = `{"connections":[],"elements":[],"meta":{"name":"Alter Entwurf"},"schemaVersion":1}\n`;
+    const key = 'proa:vc-draft:demo:new:r0';
+    localStorage.setItem(key, JSON.stringify({ text: OLD, savedAt: '2026-10-09T09:00:00.000Z' }));
+    const { user } = setup('/projects/demo/value-chain', { chain: null });
+    await screen.findByTestId('empty-chain');
+    canvas.text = EDITED;
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT));
+    const confirm = await screen.findByTestId('import-confirm');
+    expect(confirm.textContent).toContain('Entwurf ersetzen?');
+    expect(confirm.textContent).toContain(
+      'eine neue Kette gezeichnet und nicht gespeichert; „entwurf.vc.json“ ersetzt diesen Entwurf.',
+    );
+    // „Abbrechen“ keeps the stored draft and the empty state.
+    await user.click(within(confirm).getByRole('button', { name: 'Abbrechen' }));
+    await waitFor(() => expect(screen.queryByTestId('import-confirm')).toBeNull());
+    expect(screen.getByTestId('empty-chain')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({ text: OLD });
+    // „Ersetzen“ imports without offering the old draft, and the import is the draft now.
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT));
+    await user.click(await screen.findByTestId('import-replace'));
+    await waitFor(() => expect(stub().dataset['mode']).toBe('edit'));
+    expect(canvas.props?.document).toMatchObject({ text: DRAFT, relayout: true });
+    expect(await screen.findByTestId('unsaved')).toBeTruthy();
+    expect(screen.queryByTestId('draft-dialog')).toBeNull();
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(key) ?? '{}')).toMatchObject({ text: EDITED }),
+    );
+  });
+
+  it('starts a new chain from a file on the empty state, saved with If-None-Match: *', async () => {
+    const created = { ...detail, valueChain: { ...detail.valueChain, headRev: 1 } };
+    const { calls, state, user } = setup('/projects/demo/value-chain', {
+      chain: null,
+      routes: {
+        [`PUT ${BASE}/content`]: (call) => {
+          const dryRun = call.search === '?dryRun=true';
+          if (!dryRun) {
+            state.chain = created;
+            state.head = { text: EDITED, rev: 1 };
+          }
+          return json(
+            {
+              dryRun,
+              outcome: 'created',
+              valueChain: dryRun ? null : created.valueChain,
+              revision: null,
+              impact: {
+                structureChanged: true,
+                steps: { added: [], removed: [], changed: [] },
+                placements: { stranded: 0, toReconfirm: 0, proposalsWithdrawn: 0 },
+              },
+            },
+            dryRun ? 200 : 201,
+          );
+        },
+      },
+    });
+    await screen.findByTestId('empty-chain');
+    canvas.text = EDITED;
+    await user.upload(screen.getByTestId('import-file'), file(DRAFT));
+    await waitFor(() => expect(stub().dataset['mode']).toBe('edit'));
+    expect(canvas.props?.document).toMatchObject({ text: DRAFT, relayout: true });
+    expect(await screen.findByTestId('unsaved')).toBeTruthy();
+    expect(screen.getByTestId('chain-rev').textContent).toBe('neu');
+    await user.click(screen.getByTestId('save-chain'));
+    await waitFor(() => expect(screen.getByTestId('chain-rev').textContent).toBe('r1'));
+    expect(
+      calls.filter((c) => c.method === 'PUT').map((c) => [c.search, c.headers['if-none-match']]),
+    ).toEqual([
+      ['?dryRun=true', '*'],
+      ['', '*'],
+    ]);
+  });
+});
+
+describe('value chain page: the placement agent (M4 §3.2)', () => {
+  const agentDetail = chainDetail({
+    ...detail,
+    placements,
+    pipeline: {
+      stage: 'waiting_for_review',
+      task: {
+        id: 'ana_01TASK',
+        state: 'done',
+        attempts: 1,
+        leaseUntil: null,
+        claimedBy: 'agent:claude',
+      },
+      reviewItems: 2,
+      heldItems: 0,
+      due: 3,
+      unsure: 1,
+    },
+    unsure: [
+      {
+        process: 'v/foerder#P_Antrag',
+        name: 'Fördermittelantrag',
+        reason: 'Kein Schritt beschreibt Fördermittel; <b>Dokumentation</b> leer.',
+        by: 'agent:claude',
+        at: '2026-10-09T08:30:00.000Z',
+        current: true,
+      },
+    ],
+  });
+
+  it('shows the stage with the due count, and what the agent was unsure about', async () => {
+    const { user } = setup('/projects/demo/value-chain', { chain: agentDetail });
+    const stage = await screen.findByTestId('chain-stage');
+    expect(stage.dataset['stage']).toBe('waiting_for_review');
+    expect(stage.textContent).toContain('Wartet auf Prüfung');
+    expect(screen.getByTestId('chain-due').textContent).toBe('3 Prozesse fällig');
+    const section = screen.getByRole('region', { name: 'Agent unsicher' });
+    expect(within(section).getByRole('heading').textContent).toBe('Agent unsicher(1)');
+    const item = within(section).getByTestId('unsure-process');
+    expect(item.dataset['process']).toBe('v/foerder#P_Antrag');
+    // The reason as plain text, never HTML.
+    expect(item.textContent).toContain('<b>Dokumentation</b>');
+    expect(item.querySelector('b')).toBeNull();
+    expect(item.textContent).toContain('agent:claude');
+    await user.click(within(item).getByRole('button', { name: /Platzieren/ }));
+    expect(within(item).getByRole('button', { name: /Abbrechen/ })).toBeTruthy();
+  });
+
+  it.each([
+    ['waiting_for_agent', 'Wartet auf den Agenten'],
+    ['agent_working', 'Agent arbeitet'],
+    ['agent_failed', 'Agent fehlgeschlagen'],
+    ['waiting_for_clarification', 'Wartet auf Klärung'],
+    ['incorporated', 'Eingearbeitet'],
+  ] as const)('names the stage %s „%s“', async (stage, label) => {
+    setup('/projects/demo/value-chain', {
+      chain: { ...agentDetail, pipeline: { ...agentDetail.pipeline, stage, due: 0 }, unsure: [] },
+    });
+    expect((await screen.findByTestId('chain-stage')).textContent).toContain(label);
+    expect(screen.queryByTestId('chain-due')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Agent unsicher' })).toBeNull();
+  });
+
+  it('gives viewers the unsure list without „Platzieren“', async () => {
+    setup('/projects/demo/value-chain', { role: 'viewer', chain: agentDetail });
+    const item = await screen.findByTestId('unsure-process');
+    expect(within(item).queryByRole('button', { name: /Platzieren/ })).toBeNull();
+  });
+
+  it('queues the placement task for processes due without one („Aufgabe einplanen“)', async () => {
+    const { calls, state, user } = setup('/projects/demo/value-chain', {
+      chain: agentDetail,
+      routes: {
+        'POST /api/v1/projects/demo/analyses/requeue': () => {
+          state.chain = {
+            ...agentDetail,
+            pipeline: {
+              ...agentDetail.pipeline,
+              stage: 'waiting_for_agent',
+              task: { ...agentDetail.pipeline.task!, id: 'ana_02NEXT', state: 'queued' },
+            },
+          };
+          return json({ items: [], valueChain: { outcome: 'queued', taskId: 'ana_02NEXT' } });
+        },
+      },
+    });
+    // The task is done and 3 processes are due: a reviewer's decisions queue nothing.
+    const hint = await screen.findByTestId('chain-requeue');
+    expect(hint.textContent).toContain('Für diese Prozesse ist keine Aufgabe eingeplant');
+    await user.click(within(hint).getByRole('button', { name: /Aufgabe einplanen/ }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.path.endsWith('/analyses/requeue'))?.body).toEqual({
+        valueChain: true,
+      }),
+    );
+    expect(await screen.findByText('Eingeplant')).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByTestId('chain-stage').dataset['stage']).toBe('waiting_for_agent'),
+    );
+    expect(screen.queryByTestId('chain-requeue')).toBeNull();
+  });
+
+  it('offers „Erneut einplanen“ after a failed task and reports when nothing is due', async () => {
+    const { user } = setup('/projects/demo/value-chain', {
+      chain: {
+        ...agentDetail,
+        pipeline: {
+          ...agentDetail.pipeline,
+          stage: 'agent_failed',
+          task: { ...agentDetail.pipeline.task!, state: 'failed', attempts: 3 },
+          due: 0,
+        },
+      },
+      routes: {
+        'POST /api/v1/projects/demo/analyses/requeue': () =>
+          json({ items: [], valueChain: { outcome: 'nothing-due', taskId: null } }),
+      },
+    });
+    const hint = await screen.findByTestId('chain-requeue');
+    await user.click(within(hint).getByRole('button', { name: /Erneut einplanen/ }));
+    expect(await screen.findByText('Nichts fällig')).toBeTruthy();
+  });
+
+  it('offers nothing while the task is claimed', async () => {
+    setup('/projects/demo/value-chain', {
+      chain: {
+        ...agentDetail,
+        pipeline: {
+          ...agentDetail.pipeline,
+          stage: 'agent_working',
+          task: { ...agentDetail.pipeline.task!, state: 'claimed' },
+        },
+      },
+    });
+    expect((await screen.findByTestId('chain-due')).textContent).toBe('3 Prozesse fällig');
+    expect(screen.queryByTestId('chain-requeue')).toBeNull();
+  });
+
+  it('shows viewers why processes are due, without the button', async () => {
+    setup('/projects/demo/value-chain', { role: 'viewer', chain: agentDetail });
+    const hint = await screen.findByTestId('chain-requeue');
+    expect(within(hint).queryByRole('button')).toBeNull();
   });
 });

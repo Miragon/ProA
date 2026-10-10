@@ -90,7 +90,9 @@ function StageModels({
     .filter((m) => m.stage === stage)
     .sort((a, b) => a.key.localeCompare(b.key));
   const taskOf = new Map<string, AnalysisTask>();
-  for (const t of tasks.data ?? []) if (!taskOf.has(t.modelKey)) taskOf.set(t.modelKey, t);
+  for (const t of tasks.data ?? []) {
+    if (t.modelKey !== null && !taskOf.has(t.modelKey)) taskOf.set(t.modelKey, t);
+  }
 
   if (inStage.length === 0) {
     return (

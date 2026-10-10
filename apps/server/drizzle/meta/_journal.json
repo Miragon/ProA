@@ -57,6 +57,13 @@
       "when": 1791526190113,
       "tag": "0007_value_chain_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791557548343,
+      "tag": "0008_placement_pipeline",
+      "breakpoints": true
     }
   ]
 }

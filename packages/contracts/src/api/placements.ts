@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import {
+  AnalysisTaskId,
   PlacementAssertionId,
   PlacementId,
   PrincipalId,
@@ -20,9 +21,16 @@ import {
   Verdict,
 } from '../relations.ts';
 import { orNull, plainName, plainText } from '../zod-utils.ts';
-import { MAX_QUESTION_CHARS, MAX_RATIONALE_CHARS } from './analyses.ts';
 import { Cursor, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, Timestamp, pageOf } from './common.ts';
-import { MAX_BULK_DECISIONS, MAX_LABEL_CHARS, MAX_NOTE_CHARS } from './review.ts';
+import { ModelStage } from './models.ts';
+import {
+  AnalysisTaskState,
+  MAX_BULK_DECISIONS,
+  MAX_LABEL_CHARS,
+  MAX_NOTE_CHARS,
+  MAX_QUESTION_CHARS,
+  MAX_RATIONALE_CHARS,
+} from './shared.ts';
 import {
   MAX_VALUE_CHAIN_ID_CHARS,
   ValueChain,
@@ -219,11 +227,79 @@ export const ValueChainFindingList = z
 export type ValueChainFindingList = z.infer<typeof ValueChainFindingList>;
 
 /**
+ * What the agent's last verdict on a process was (the `placement_input`
+ * memory of M4 §3.2, judge each process once): `proposed` (a pipeline
+ * submission or an ad-hoc agent proposal placed it), `unsure` (with the
+ * agent's reason) or `skipped` (a pipeline submission left it out).
+ */
+export const PlacementInputOutcome = z
+  .enum(['proposed', 'unsure', 'skipped'])
+  .meta({ id: 'PlacementInputOutcome', description: "The agent's last verdict on a process." });
+export type PlacementInputOutcome = z.infer<typeof PlacementInputOutcome>;
+
+/**
+ * The stage of the chain's `placement` pipeline (M4 §3.5, view
+ * `value_chain_pipeline`), mapped like a model's (CONCEPT §3): the latest
+ * non-cancelled placement task queued → `waiting_for_agent`, claimed →
+ * `agent_working`, failed → `agent_failed`; done, or no task yet, →
+ * `waiting_for_review` (a proposal on a live step, or an accepted placement
+ * whose endpoint is not `ok`), `waiting_for_clarification` (only held
+ * placements), else `incorporated`. `due` counts the open processes whose
+ * input changed since the agent's last verdict (the next task judges them);
+ * `unsure` the open processes the agent was unsure about on their current
+ * input. Neither changes the stage.
+ */
+export const ValueChainPipeline = z
+  .object({
+    stage: ModelStage,
+    /** The latest non-cancelled placement task; `null` before the first one. */
+    task: orNull(
+      z.object({
+        id: AnalysisTaskId,
+        state: AnalysisTaskState,
+        attempts: z.number().int().min(0),
+        leaseUntil: orNull(Timestamp),
+        /** Handle of the principal holding (or last holding) the lease. */
+        claimedBy: z.string().nullable(),
+      }),
+    ),
+    /** Placements waiting for a reviewer (the page's open items). */
+    reviewItems: z.number().int().min(0),
+    heldItems: z.number().int().min(0),
+    /** Open processes the next placement task judges. */
+    due: z.number().int().min(0),
+    /** Open processes the agent was unsure about on their current input. */
+    unsure: z.number().int().min(0),
+  })
+  .meta({ id: 'ValueChainPipeline', description: "Stage of the chain's placement pipeline." });
+export type ValueChainPipeline = z.infer<typeof ValueChainPipeline>;
+
+/**
+ * An open process the agent was unsure about ("Agent unsicher"): its reason,
+ * who said so and when; `current` while the process's input is unchanged
+ * since (otherwise the next placement task judges it again).
+ */
+export const ValueChainUnsure = z
+  .object({
+    process: Ref,
+    /** Process name, else the pool name; `null` without one. */
+    name: z.string().nullable(),
+    reason: z.string(),
+    /** Handle of the agent. */
+    by: z.string(),
+    at: Timestamp,
+    current: z.boolean(),
+  })
+  .meta({ id: 'ValueChainUnsure', description: 'A process the agent was unsure about.' });
+export type ValueChainUnsure = z.infer<typeof ValueChainUnsure>;
+
+/**
  * A value chain with its head structure: the steps (code point order of
  * their ids) with kind, rank, owners, link and placement counts, the org
  * units, every non-obsolete placement, including those on removed steps
- * (open items: only a rejection or a correction closes them), and the
- * findings.
+ * (open items: only a rejection or a correction closes them), the findings,
+ * the stage of its placement pipeline and the open processes the agent was
+ * unsure about (by process ref).
  */
 export const ValueChainDetail = z
   .object({
@@ -232,6 +308,8 @@ export const ValueChainDetail = z
     orgUnits: z.array(ValueChainOrgUnit),
     placements: z.array(PlacementSummary),
     findings: z.array(ValueChainFinding),
+    pipeline: ValueChainPipeline,
+    unsure: z.array(ValueChainUnsure),
   })
   .meta({
     id: 'ValueChainDetail',
@@ -587,6 +665,34 @@ export const UnplacedProcess = z
     hints: z
       .array(z.object({ step: z.string(), name: z.string(), score: z.number().min(0) }))
       .max(UNPLACED_HINTS),
+    /**
+     * An agent judged the process on its current input (a pipeline task or an
+     * ad-hoc proposal; judge each process once): skip it unless you have new
+     * evidence. Left out otherwise.
+     */
+    judged: z
+      .object({
+        outcome: PlacementInputOutcome,
+        /** The agent's reason, for `unsure`. */
+        reason: z.string().optional(),
+        /** Handle of the agent. */
+        by: z.string(),
+        at: Timestamp,
+      })
+      .optional(),
+    /**
+     * The process is in the input of the chain's placement task that an
+     * agent holds right now (claimed, lease not expired): that agent judges
+     * it, so skip it (judge each process once). Left out otherwise.
+     */
+    inTask: z
+      .object({
+        taskId: AnalysisTaskId,
+        /** Handle of the agent holding the task. */
+        claimedBy: z.string().nullable(),
+        leaseUntil: Timestamp,
+      })
+      .optional(),
   })
   .meta({ id: 'UnplacedProcess', description: 'A process without a home step on the chain.' });
 export type UnplacedProcess = z.infer<typeof UnplacedProcess>;

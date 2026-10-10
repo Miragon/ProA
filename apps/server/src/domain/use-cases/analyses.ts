@@ -1,23 +1,30 @@
 /**
- * The analysis pipeline (CONCEPT §3 "Claim and lease", M2 items 1–3):
- * claim, submit, release, the pending long-poll, requeue and the task list.
- * Claims and submissions need `proa:propose` and the editor role in the
- * task's project; the lease token binds a claim to its task and principal.
+ * The analysis pipeline (CONCEPT §3 "Claim and lease", M2 items 1–3, M4b):
+ * claim, submit, release, the pending long-poll, requeue and the task list,
+ * for both task kinds: `relations` (a model revision) and `placement` (the
+ * value chain, `placement-tasks.ts`). Claims and submissions need
+ * `proa:propose` and the editor role in the task's project; the lease token
+ * binds a claim to its task and principal.
  */
 import {
   LEASE_MINUTES,
   MAX_ATTEMPTS,
   MAX_SUBMISSION_BYTES,
   MAX_UNCOVERED_PAIRS,
+  VALUE_CHAIN_KEY,
   isRef,
   newId,
   parseRef,
+  type AnalysisKind,
   type AnalysisQuery,
   type AnalysisSubmission,
+  type AnalysisSubmissionResult,
   type AnalysisTaskId,
   type AnalysisTaskPage,
   type ClaimAnalysisBody,
   type ClaimResult,
+  type ClaimedRelationsAnalysis,
+  type DeclaredProcedure,
   type NoLinkOutcome,
   type PendingAnalyses,
   type PendingQuery,
@@ -60,6 +67,8 @@ import { jsonBytes, storablePayload } from '../payload.ts';
 import { effectiveScopes, evaluate, policy } from '../policy.ts';
 import type {
   AssertionRecord,
+  ChainTaskDetail,
+  ModelTaskDetail,
   NoLinkRecord,
   ProjectRecord,
   RelationRecord,
@@ -75,10 +84,23 @@ import {
   type ProposalContext,
 } from '../proposals.ts';
 import { byRelation, naturalKey } from '../relation-state.ts';
+import {
+  cancelPlacementTask,
+  loadPipelineInputs,
+  insertPlacementTask,
+} from '../value-chain/queue.ts';
+import { loadChainState } from '../value-chain/chain-state.ts';
 import { toAnalysisTask } from '../views.ts';
 import { ALL, type UseCaseDeps } from './deps.ts';
+import { renderPlacementClaim, submitPlacementAnalysis } from './placement-tasks.ts';
 
 const MINUTE = 60_000;
+/**
+ * Claim rounds per call: a round after the first runs only when a placement
+ * task had nothing left to judge (cancelled, freeing its slot), and a
+ * cancelled chain task leaves no open task, so a few rounds always suffice.
+ */
+const CLAIM_ROUNDS = 10;
 
 /**
  * The projects a claim or the pending count covers: the given one (policy
@@ -136,10 +158,46 @@ const noLinkKey = (n: Pick<StoredNoLink, 'type' | 'fromRef' | 'toRef'>) =>
   pairKey({ type: n.type, from: n.fromRef, to: n.toRef });
 
 /** A claimed task of this call, with its lease token. */
-interface Claimed {
-  task: TaskDetail;
+interface Claimed<T extends TaskDetail = TaskDetail> {
+  task: T;
   token: string;
   project: ProjectRecord;
+}
+
+const isModelTask = (c: Claimed): c is Claimed<ModelTaskDetail> => c.task.subjectKind === 'model';
+const isChainTask = (c: Claimed): c is Claimed<ChainTaskDetail> =>
+  c.task.subjectKind === 'value_chain';
+
+/**
+ * The subject part of a task event's payload (`analysis.claimed`,
+ * `analysis.released`, `analysis.failed`) and its subject ref: the model of a
+ * relations task (unchanged since M2), the chain of a placement task.
+ */
+function taskSubject(task: TaskDetail): { subjectRef: string; payload: Record<string, unknown> } {
+  return task.subjectKind === 'model'
+    ? {
+        subjectRef: task.modelKey,
+        payload: {
+          taskId: task.id,
+          kind: task.kind,
+          modelId: task.modelId,
+          modelKey: task.modelKey,
+        },
+      }
+    : {
+        subjectRef: task.valueChainId,
+        payload: {
+          taskId: task.id,
+          kind: task.kind,
+          valueChainId: task.valueChainId,
+          key: task.valueChainKey,
+        },
+      };
+}
+
+/** Normalizes `kinds` of the pending query (one value or a list). */
+function kindsOf(kinds: PendingQuery['kinds']): AnalysisKind[] {
+  return Array.isArray(kinds) ? kinds : [kinds];
 }
 
 /**
@@ -154,13 +212,13 @@ async function renderClaims(
   tx: Tx,
   deps: UseCaseDeps,
   actor: Actor,
-  claimed: readonly Claimed[],
+  claimed: readonly Claimed<ModelTaskDetail>[],
   now: Date,
   leaseUntil: Date,
-): Promise<ClaimResult['items']> {
+): Promise<ClaimedRelationsAnalysis[]> {
   const procedure = deps.expectedProcedure();
-  const result: ClaimResult['items'] = [];
-  const byProject = new Map<ProjectId, Claimed[]>();
+  const result: ClaimedRelationsAnalysis[] = [];
+  const byProject = new Map<ProjectId, Claimed<ModelTaskDetail>[]>();
   for (const c of claimed) byProject.set(c.project.id, [...(byProject.get(c.project.id) ?? []), c]);
   for (const [projectId, group] of byProject) {
     const projectFacts = await tx.facts.headProjectFacts(projectId);
@@ -183,11 +241,16 @@ async function renderClaims(
     const assignedRelations = relations.filter(isAssignedRelation);
     const relationPairsOf = (modelKey: string) =>
       assignedRelations.filter((r) => touches(r, modelKey)).map(relationPair);
-    // Open tasks by model key; this call's tasks are claimed already, without assignment.
-    const open = new Map<string, TaskDetail>();
+    // Open relations tasks by model key; this call's tasks are claimed already, without
+    // assignment. Placement tasks judge no pairs.
+    const open = new Map<string, ModelTaskDetail>();
     for (const state of ['queued', 'claimed'] as const) {
-      for (const t of await tx.tasks.list(projectId, { state }, { limit: ALL })) {
-        open.set(t.modelKey, t);
+      for (const t of await tx.tasks.list(
+        projectId,
+        { state, kind: 'relations' },
+        { limit: ALL },
+      )) {
+        if (t.subjectKind === 'model') open.set(t.modelKey, t);
       }
     }
     // What a partner's claim would assign (rule 2 stays symmetric).
@@ -265,6 +328,7 @@ async function renderClaims(
         claimant: actor.principalId,
       });
       result.push({
+        kind: 'relations',
         taskId: task.id,
         projectId: project.id,
         projectKey: project.key,
@@ -295,8 +359,8 @@ async function renderClaims(
 async function sawModel(
   tx: Tx,
   projectId: ProjectId,
-  partner: TaskDetail,
-  task: TaskDetail,
+  partner: ModelTaskDetail,
+  task: ModelTaskDetail,
   headSeq: number | undefined,
 ): Promise<boolean> {
   if (partner.claimedSeq === null) return false;
@@ -326,19 +390,13 @@ async function failExpiredTasks(
     `lease expired ${MAX_ATTEMPTS} times`,
   );
   for (const t of failed) {
+    const subject = taskSubject(t);
     await tx.events.append(t.projectId, {
       type: 'analysis.failed',
       principalId: actor.principalId,
       clientId: actor.clientId,
-      subjectRef: t.modelKey,
-      payload: {
-        taskId: t.id,
-        kind: t.kind,
-        modelId: t.modelId,
-        modelKey: t.modelKey,
-        attempts: t.attempts,
-        reason: t.lastError,
-      },
+      subjectRef: subject.subjectRef,
+      payload: { ...subject.payload, attempts: t.attempts, reason: t.lastError },
     });
   }
 }
@@ -350,6 +408,15 @@ async function failExpiredTasks(
  * newer analysis with proposals from an older input. `null`: still current.
  */
 async function supersededFailure(tx: Tx, task: TaskDetail): Promise<string | null> {
+  if (task.subjectKind === 'value_chain') {
+    const latest = await tx.tasks.latestForChain(task.projectId, task.valueChainId, TASK_STATES);
+    if (latest && latest.seq > task.seq) {
+      return 'superseded by a newer analysis task of the value chain';
+    }
+    const chain = await tx.valueChains.findInProject(task.projectId, task.valueChainId);
+    if (!chain) return 'the value chain was deleted after the task failed';
+    return null;
+  }
   const latest = await tx.tasks.latest(task.projectId, task.modelId, TASK_STATES);
   if (latest && latest.seq > task.seq) return 'superseded by a newer analysis task of the model';
   const model = await tx.models.findInProject(task.projectId, task.modelId);
@@ -364,12 +431,16 @@ async function supersededFailure(tx: Tx, task: TaskDetail): Promise<string | nul
 
 export function analysisUseCases(deps: UseCaseDeps) {
   /** Claimable counts per project, now. */
-  async function claimable(projects: readonly ProjectRecord[]): Promise<PendingAnalyses> {
+  async function claimable(
+    projects: readonly ProjectRecord[],
+    kinds: readonly AnalysisKind[],
+  ): Promise<PendingAnalyses> {
     const counts = await deps.store.read((tx) =>
       tx.tasks.countClaimable(
         projects.map((p) => p.id),
         deps.clock.now(),
         MAX_ATTEMPTS,
+        kinds,
       ),
     );
     const items = projects.map((p) => ({
@@ -401,9 +472,12 @@ export function analysisUseCases(deps: UseCaseDeps) {
     /**
      * `claim_analysis` (CONCEPT §3): one transaction locks the projects,
      * fails tasks whose lease expired at the last attempt, claims up to
-     * `max` tasks with `FOR UPDATE SKIP LOCKED`, sets a hashed lease token
-     * and `claimed_seq` per task, and renders the inputs with their
-     * assignments ({@link renderClaims}). If an input cannot be built, the
+     * `max` tasks of the caller's `kinds` with `FOR UPDATE SKIP LOCKED`,
+     * sets a hashed lease token and `claimed_seq` per task, and renders the
+     * inputs: relations tasks with their assignments ({@link renderClaims}),
+     * placement tasks at the chain's head (`renderPlacementClaim`). A
+     * placement task with nothing left to judge is cancelled, and the free
+     * slots are claimed again (bounded). If an input cannot be built, the
      * tasks are handed back at once (the caller never sees their tokens).
      *
      * @throws {DomainError} `insufficient-scope`, `forbidden`, `not-found`
@@ -421,63 +495,102 @@ export function analysisUseCases(deps: UseCaseDeps) {
 
         await failExpiredTasks(tx, actor, ids, now);
 
-        const tasks = await tx.tasks.claim({
-          projectIds: ids,
-          modelKey: body.modelKey,
-          principalId: actor.principalId,
-          now,
-          leaseUntil,
-          maxAttempts: MAX_ATTEMPTS,
-          limit: body.max,
-        });
-        const out: Claimed[] = [];
-        for (const task of tasks) {
-          const token = newLeaseToken();
-          await tx.tasks.setLeaseHash(
-            task.projectId,
-            task.id,
-            leaseTokenHash(task.id, actor.principalId, token),
-          );
-          const claimedSeq = await tx.events.append(task.projectId, {
-            type: 'analysis.claimed',
-            principalId: actor.principalId,
-            clientId: actor.clientId,
-            subjectRef: task.modelKey,
-            payload: {
-              taskId: task.id,
-              kind: task.kind,
-              modelId: task.modelId,
-              modelKey: task.modelKey,
-              revisionId: task.revisionId,
-              attempt: task.attempts,
-              leaseUntil: leaseUntil.toISOString(),
-            },
-          });
-          await tx.tasks.setClaimedSeq(task.projectId, task.id, claimedSeq);
-          const project = projects.find((p) => p.id === task.projectId);
-          if (!project)
-            throw new Error(`claimed a task of an unexpected project ${task.projectId}`);
-          out.push({ task: { ...task, claimedSeq }, token, project });
-        }
-        if (out.length === 0) return { items: [] };
+        const all: Claimed[] = [];
+        const items: ClaimResult['items'] = [];
+        let slots = body.max;
         try {
-          return { items: await renderClaims(tx, deps, actor, out, now, leaseUntil) };
+          // Each round claims, then renders; only a cancelled placement task frees a slot for
+          // another round, and a cancelled chain task leaves no open task behind.
+          for (let round = 0; round < CLAIM_ROUNDS && slots > 0; round++) {
+            const tasks = await tx.tasks.claim({
+              projectIds: ids,
+              kinds: body.kinds,
+              modelKey: body.modelKey,
+              principalId: actor.principalId,
+              now,
+              leaseUntil,
+              maxAttempts: MAX_ATTEMPTS,
+              limit: slots,
+            });
+            if (tasks.length === 0) break;
+            const batch: Claimed[] = [];
+            for (const task of tasks) {
+              const token = newLeaseToken();
+              await tx.tasks.setLeaseHash(
+                task.projectId,
+                task.id,
+                leaseTokenHash(task.id, actor.principalId, token),
+              );
+              const subject = taskSubject(task);
+              const claimedSeq = await tx.events.append(task.projectId, {
+                type: 'analysis.claimed',
+                principalId: actor.principalId,
+                clientId: actor.clientId,
+                subjectRef: subject.subjectRef,
+                payload: {
+                  ...subject.payload,
+                  ...(task.subjectKind === 'model' ? { revisionId: task.revisionId } : {}),
+                  attempt: task.attempts,
+                  leaseUntil: leaseUntil.toISOString(),
+                },
+              });
+              await tx.tasks.setClaimedSeq(task.projectId, task.id, claimedSeq);
+              const project = projects.find((p) => p.id === task.projectId);
+              if (!project)
+                throw new Error(`claimed a task of an unexpected project ${task.projectId}`);
+              batch.push({ task: { ...task, claimedSeq }, token, project });
+            }
+            all.push(...batch);
+            const rendered = new Map<string, ClaimResult['items'][number]>();
+            const relations = batch.filter(isModelTask);
+            if (relations.length > 0) {
+              for (const item of await renderClaims(tx, deps, actor, relations, now, leaseUntil)) {
+                rendered.set(item.taskId, item);
+              }
+            }
+            let cancelled = 0;
+            for (const c of batch.filter(isChainTask)) {
+              const item = await renderPlacementClaim(
+                tx,
+                deps.expectedPlacementProcedure(),
+                actor,
+                c,
+                leaseUntil,
+              );
+              if (item) {
+                rendered.set(item.taskId, item);
+                continue;
+              }
+              await cancelPlacementTask(
+                tx,
+                actor,
+                { id: c.task.valueChainId, key: c.task.valueChainKey, projectId: c.task.projectId },
+                c.task,
+                'nothing left to judge',
+              );
+              all.splice(all.indexOf(c), 1);
+              cancelled++;
+            }
+            // In claim order.
+            for (const c of batch) {
+              const item = rendered.get(c.task.id);
+              if (item) items.push(item);
+            }
+            slots -= batch.length - cancelled;
+            if (cancelled === 0) break;
+          }
+          return { items };
         } catch (failure) {
           // The caller never sees the lease tokens: hand the tasks back at once.
-          for (const { task } of out) {
+          for (const { task } of all) {
             await tx.tasks.release(task.projectId, task.id, 'the claim input could not be built');
+            const subject = taskSubject(task);
             await tx.events.append(task.projectId, {
               type: 'analysis.released',
               principalId: actor.principalId,
               clientId: actor.clientId,
-              subjectRef: task.modelKey,
-              payload: {
-                taskId: task.id,
-                kind: task.kind,
-                modelId: task.modelId,
-                modelKey: task.modelKey,
-                reason: 'the claim input could not be built',
-              },
+              subjectRef: subject.subjectRef,
+              payload: { ...subject.payload, reason: 'the claim input could not be built' },
             });
           }
           return { failure };
@@ -501,17 +614,19 @@ export function analysisUseCases(deps: UseCaseDeps) {
      *
      * A late submit passes while the token and principal match and the task
      * was neither claimed again nor cancelled (also after the task failed).
-     * Replaying the `submissionId` returns the stored result.
+     * Replaying the `submissionId` returns the stored result. A placement
+     * task's submission is recorded by `submitPlacementAnalysis`; items of
+     * the other kind are 422 `wrong-task-kind`.
      *
      * @param raw the request as received (stored verbatim minus the lease token, U+0000 as U+FFFD); defaults to `body`
-     * @throws {DomainError} `payload-too-large` (stored payload over 1 MB), `lease-lost`, `task-cancelled`, `already-submitted`, `not-found`, policy errors
+     * @throws {DomainError} `payload-too-large` (stored payload over 1 MB), `lease-lost`, `task-cancelled`, `already-submitted`, `wrong-task-kind`, `not-found`, policy errors
      */
     async submitAnalysis(
       actor: Actor,
       taskId: AnalysisTaskId,
       body: SubmitAnalysisBody,
       raw?: unknown,
-    ): Promise<SubmissionResult> {
+    ): Promise<AnalysisSubmissionResult> {
       // Stored as received minus the lease token; one limit for REST and MCP.
       const { leaseToken: _secret, ...verbatim } = (
         raw !== null && typeof raw === 'object' ? raw : body
@@ -551,6 +666,26 @@ export function analysisUseCases(deps: UseCaseDeps) {
         if (task.state === 'failed') {
           const superseded = await supersededFailure(tx, task);
           if (superseded) throw new DomainError('task-cancelled', superseded);
+        }
+        if (task.subjectKind === 'value_chain') {
+          return submitPlacementAnalysis({
+            tx,
+            actor,
+            project,
+            task,
+            body,
+            payload,
+            submissionId: newId('submission'),
+            procedure: deps.expectedPlacementProcedure(),
+            now: deps.clock.now(),
+          });
+        }
+        if ((body.placements?.length ?? 0) > 0 || (body.unsure?.length ?? 0) > 0) {
+          throw new DomainError(
+            'wrong-task-kind',
+            'this is a relations task: submit relations and noLinks, not placements or unsure',
+            { kind: 'relations' },
+          );
         }
 
         const procedure = deps.expectedProcedure();
@@ -894,18 +1029,13 @@ export function analysisUseCases(deps: UseCaseDeps) {
           );
         if (!holder || task.state !== 'claimed') throw leaseLost();
         await tx.tasks.release(project.id, task.id, body.reason);
+        const subject = taskSubject(task);
         await tx.events.append(project.id, {
           type: 'analysis.released',
           principalId: actor.principalId,
           clientId: actor.clientId,
-          subjectRef: task.modelKey,
-          payload: {
-            taskId: task.id,
-            kind: task.kind,
-            modelId: task.modelId,
-            modelKey: task.modelKey,
-            reason: body.reason,
-          },
+          subjectRef: subject.subjectRef,
+          payload: { ...subject.payload, reason: body.reason },
         });
         return { taskId: task.id, state: 'queued' };
       });
@@ -926,17 +1056,18 @@ export function analysisUseCases(deps: UseCaseDeps) {
       const projects = await deps.store.read((tx) => eligibleProjects(tx, actor, query.projectId));
       if (projects.length === 0) return { total: 0, items: [] };
       await failExpiredIn(actor, projects);
-      if (query.wait === 0) return claimable(projects);
+      const kinds = kindsOf(query.kinds);
+      if (query.wait === 0) return claimable(projects, kinds);
       // Subscribe before counting, so a task queued in between still wakes us.
       const subscription = await deps.notifier.subscribe(
         projects.map((p) => p.id),
         actor.principalId,
       );
       try {
-        const first = await claimable(projects);
+        const first = await claimable(projects, kinds);
         if (first.total > 0 || signal?.aborted) return first;
         await subscription.wait(query.wait * 1000, signal);
-        return await claimable(projects);
+        return await claimable(projects, kinds);
       } finally {
         subscription.close();
       }
@@ -952,7 +1083,7 @@ export function analysisUseCases(deps: UseCaseDeps) {
         const { project } = await policy.require(tx, actor, 'read', projectRef);
         const rows = await tx.tasks.list(
           project.id,
-          { state: query.state, modelKey: query.modelKey },
+          { state: query.state, kind: query.kind, modelKey: query.modelKey },
           { beforeSeq, limit: query.limit + 1 },
         );
         const page = toPage(rows, query.limit, (t) => [t.seq]);
@@ -965,7 +1096,10 @@ export function analysisUseCases(deps: UseCaseDeps) {
      * upgrade): a new queued task per live model without an open one, even
      * if its facts were analysed already. A task whose lease expired is not
      * open: at the last attempt it fails first, otherwise it is cancelled;
-     * either way a new task is queued.
+     * either way a new task is queued. With `valueChain: true` (M4b): the
+     * chain's placement task, queued only when an open process is due
+     * (judge each process once: a requeue never judges an unchanged input
+     * again; a procedure release changes every input hash).
      */
     async requeueAnalyses(
       actor: Actor,
@@ -977,6 +1111,18 @@ export function analysisUseCases(deps: UseCaseDeps) {
         const { project } = await policy.require(tx, actor, 'write', projectRef);
         await tx.projects.lockForWrite(project.id);
         await failExpiredTasks(tx, actor, [project.id], now);
+        if (body.valueChain) {
+          return {
+            items: [],
+            valueChain: await requeueChain(
+              tx,
+              actor,
+              project.id,
+              now,
+              deps.expectedPlacementProcedure(),
+            ),
+          };
+        }
         const keys =
           body.modelKeys ?? (await tx.models.list(project.id, { limit: ALL })).map((m) => m.key);
         const items: RequeueResult['items'] = [];
@@ -1039,6 +1185,42 @@ export function analysisUseCases(deps: UseCaseDeps) {
 }
 
 /**
+ * `requeue {valueChain: true}`: the chain's open placement task stays, unless
+ * its lease expired (then it is cancelled); a new one is queued when an open
+ * process is due.
+ */
+async function requeueChain(
+  tx: Tx,
+  actor: Actor,
+  projectId: ProjectId,
+  now: Date,
+  procedure: DeclaredProcedure,
+): Promise<NonNullable<RequeueResult['valueChain']>> {
+  const chain = await tx.valueChains.findByKey(projectId, VALUE_CHAIN_KEY);
+  if (!chain || chain.deletedSeq !== null || chain.headRevisionId === null) {
+    return { outcome: 'not-found', taskId: null };
+  }
+  const open = await tx.tasks.latestForChain(projectId, chain.id, ['queued', 'claimed']);
+  if (open) {
+    const lease = await tx.tasks.findInProject(projectId, open.id);
+    const expired = open.state === 'claimed' && lease?.leaseUntil != null && lease.leaseUntil < now;
+    if (!expired) return { outcome: 'open', taskId: open.id };
+    await cancelPlacementTask(tx, actor, chain, open, 'lease expired; requeued');
+  }
+  const inputs = await loadPipelineInputs(tx, await loadChainState(tx, chain), procedure);
+  if (inputs.due.length === 0) return { outcome: 'nothing-due', taskId: null };
+  const task = await insertPlacementTask(
+    tx,
+    actor,
+    chain,
+    inputs.state.head,
+    inputs.due,
+    'requeue',
+  );
+  return { outcome: 'queued', taskId: task.id };
+}
+
+/**
  * The follow-up of a task whose claim relied on a judgement that was
  * withdrawn meanwhile (`requeue_after`): a new queued task for the model's
  * head, whose claim judges the lost pairs.
@@ -1047,7 +1229,7 @@ async function queueFollowUp(
   tx: Tx,
   actor: Actor,
   projectId: ProjectId,
-  task: TaskDetail,
+  task: ModelTaskDetail,
 ): Promise<void> {
   const model = await tx.models.findInProject(projectId, task.modelId);
   if (!model?.headRevisionId) return;
@@ -1056,7 +1238,7 @@ async function queueFollowUp(
 }
 
 /** The model of a claimed task: its head, or (deleted meanwhile) the task's revision. */
-async function claimModel(tx: Tx, task: TaskDetail): Promise<ClaimModel> {
+async function claimModel(tx: Tx, task: ModelTaskDetail): Promise<ClaimModel> {
   const view = await tx.models.view(task.projectId, task.modelId);
   if (view) {
     return {

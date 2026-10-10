@@ -850,7 +850,7 @@ export const getPlacementAssertions = <ThrowOnError extends boolean = false>(
 /**
  * Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)
  *
- * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction: the current agent judgements on pairs touching the model (`judged`) and the pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates and the relations in neither list, accepted pairs, unchanged rejections and missing ends aside, are the task’s assignment, and the other `compatible` candidates the search space for missing partners. Empty when nothing is claimable.
+ * Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), of the kinds the caller handles (`kinds`, default `["relations"]`), with `FOR UPDATE SKIP LOCKED`. Each item carries its `kind`, a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction. A `relations` item: the current agent judgements on pairs touching the model (`judged`) and the pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates and the relations in neither list, accepted pairs, unchanged rejections and missing ends aside, are the task’s assignment, and the other `compatible` candidates the search space for missing partners. A `placement` item (`proa-claim-placement/1`): the chain’s steps, the open processes whose input changed since an agent last judged them (at most 50, `truncated` when more are due) with their proposals and the human decisions, and accepted placements as examples. Empty when nothing is claimable.
  */
 export const claimAnalyses = <ThrowOnError extends boolean = false>(
   options: Options<ClaimAnalysesData, ThrowOnError>,
@@ -884,7 +884,7 @@ export const getPendingAnalyses = <ThrowOnError extends boolean = false>(
 /**
  * Submit the result of a claimed task (idempotent by submissionId)
  *
- * Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per relation `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`, per no-link `stored`, `duplicate` or `invalid:<reason>`, and the assigned pairs left unjudged (`uncovered`). Earlier pipeline proposals and no-links on pairs touching the model that were judged on another version of the model or under another procedure are withdrawn; current judgements stay. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).
+ * A `relations` task: validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per relation `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`, per no-link `stored`, `duplicate` or `invalid:<reason>`, and the assigned pairs left unjudged (`uncovered`). Earlier pipeline proposals and no-links on pairs touching the model that were judged on another version of the model or under another procedure are withdrawn; current judgements stay. A `placement` task (`kind: "placement"` in the result): per placement and unsure item an outcome, the withdrawn stale or replaced pipeline proposals, the input processes left without a verdict (`skipped`) and whether a follow-up task was queued. 422 `wrong-task-kind` (items of the other kind); 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).
  */
 export const submitAnalysis = <ThrowOnError extends boolean = false>(
   options: Options<SubmitAnalysisData, ThrowOnError>,
@@ -928,7 +928,7 @@ export const listAnalyses = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Queue models again, e.g. after a procedure upgrade (proa:write)
+ * Queue models again, e.g. after a procedure upgrade, or the value chain placement task (proa:write)
  */
 export const requeueAnalyses = <ThrowOnError extends boolean = false>(
   options: Options<RequeueAnalysesData, ThrowOnError>,

@@ -62,6 +62,44 @@ export const STAGES: Record<ModelStage, Presentation> = {
   },
 };
 
+/**
+ * Stage of the value chain's placement pipeline (M4 §3.5, view
+ * `value_chain_pipeline`): the same stages as a model's, worded for the
+ * chain's agent and its placements.
+ */
+export const CHAIN_STAGES: Record<ModelStage, Presentation> = {
+  waiting_for_agent: {
+    label: 'Wartet auf den Agenten',
+    tone: 'info',
+    hint: 'Prozesse sind zu platzieren; noch hat kein Agent die Aufgabe übernommen.',
+  },
+  agent_working: {
+    label: 'Agent arbeitet',
+    tone: 'info',
+    hint: 'Ein Agent platziert gerade Prozesse auf der Kette.',
+  },
+  agent_failed: {
+    label: 'Agent fehlgeschlagen',
+    tone: 'danger',
+    hint: 'Die Platzierungsaufgabe ist dreimal nicht abgeschlossen worden.',
+  },
+  waiting_for_review: {
+    label: 'Wartet auf Prüfung',
+    tone: 'warning',
+    hint: 'Es gibt vorgeschlagene Platzierungen, die du prüfen solltest.',
+  },
+  waiting_for_clarification: {
+    label: 'Wartet auf Klärung',
+    tone: 'warning',
+    hint: 'Nur noch vorgemerkte Platzierungen sind offen.',
+  },
+  incorporated: {
+    label: 'Eingearbeitet',
+    tone: 'success',
+    hint: 'Nichts wartet auf den Agenten oder auf dich.',
+  },
+};
+
 export const STAGE_ORDER: readonly ModelStage[] = [
   'waiting_for_review',
   'waiting_for_clarification',

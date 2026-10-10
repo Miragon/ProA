@@ -6,6 +6,7 @@
  * before stranding placements unless `--yes`; `--dry-run` saves nothing; 412
  * and 422 come back as clear messages; agent tokens are refused before any
  * request. Pull writes the canonical bytes verbatim with any credential.
+ * Requeue asks for the chain's placement task and reports each outcome.
  */
 import { createHash } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
@@ -416,5 +417,41 @@ describe('proa value-chain pull', () => {
     const t = owner(api.fetch);
     expect(await runCli(['value-chain', 'pull', '-p', 'p'], t.io)).toBe(1);
     expect(t.err()).toContain('read the value chain of p failed (404');
+  });
+});
+
+describe('proa value-chain requeue', () => {
+  const REQUEUE = 'POST /api/v1/projects/p/analyses/requeue';
+  const answer = (valueChain: unknown) => () => json({ items: [], valueChain });
+
+  it('queues the placement task and says so, with the requeue body of the chain', async () => {
+    const api = fakeApi({ [REQUEUE]: answer({ outcome: 'queued', taskId: 'ana_1' }) });
+    const t = owner(api.fetch);
+    expect(await runCli(['value-chain', 'requeue', '-p', 'p'], t.io)).toBe(0);
+    expect(t.out()).toBe('queued placement task ana_1\n');
+    expect(await api.seen[0]?.body.json()).toEqual({ valueChain: true });
+    expect(api.seen[0]?.authorization).toBe(`Bearer ${OWNER_KEY}`);
+  });
+
+  it('reports an open task and nothing due, also as JSON', async () => {
+    const open = fakeApi({ [REQUEUE]: answer({ outcome: 'open', taskId: 'ana_2' }) });
+    const t = testIo({ PROA_TOKEN: AGENT_TOKEN }, open.fetch, { cwd: dir });
+    expect(await runCli(['value-chain', 'requeue', '-p', 'p'], t.io)).toBe(0);
+    expect(t.out()).toBe('a placement task is already queued or claimed: ana_2\n');
+    const none = fakeApi({ [REQUEUE]: answer({ outcome: 'nothing-due', taskId: null }) });
+    const j = owner(none.fetch);
+    expect(await runCli(['value-chain', 'requeue', '-p', 'p', '--json'], j.io)).toBe(0);
+    expect(JSON.parse(j.out())).toEqual({ outcome: 'nothing-due', taskId: null });
+  });
+
+  it('fails for a project without a chain and for a token without proa:write', async () => {
+    const missing = fakeApi({ [REQUEUE]: answer({ outcome: 'not-found', taskId: null }) });
+    const t = owner(missing.fetch);
+    expect(await runCli(['value-chain', 'requeue', '-p', 'p'], t.io)).toBe(1);
+    expect(t.err()).toContain('p has no value chain');
+    const refused = fakeApi({ [REQUEUE]: () => problem(403, 'forbidden', 'needs proa:write') });
+    const r = testIo({ PROA_TOKEN: AGENT_TOKEN }, refused.fetch, { cwd: dir });
+    expect(await runCli(['value-chain', 'requeue', '-p', 'p'], r.io)).toBe(1);
+    expect(r.err()).toContain('requeue the placement task of p failed (403');
   });
 });

@@ -744,3 +744,160 @@ describe('value chain and placements (migrations 0006, 0007)', () => {
     }
   });
 });
+
+describe('the placement pipeline (migration 0008)', () => {
+  let chainId = '';
+  let headId = '';
+  let ownerId = '';
+  let otherChainId = '';
+  let otherHeadId = '';
+
+  beforeAll(async () => {
+    // A chain in each project, created through the use cases (the first queues no task: no process
+    // of `db-other` and the domain write in the block above queued none either).
+    for (const key of ['db', 'db-other']) {
+      const res = await t.asOwner(`/api/v1/projects/${key}/value-chains`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: 'main', name: 'Kette 0008' }),
+      });
+      expect([201, 412, 409]).toContain(res.status);
+    }
+    const rows = (
+      await database.db.execute<{ project_id: string; id: string; head_revision_id: string }>(
+        sql.raw(
+          `SELECT project_id, id, head_revision_id FROM value_chain WHERE project_id IN ('${projectId}', '${otherProjectId}') AND deleted_seq IS NULL`,
+        ),
+      )
+    ).rows;
+    const own = rows.find((r) => r.project_id === projectId);
+    const other = rows.find((r) => r.project_id === otherProjectId);
+    chainId = own?.id ?? '';
+    headId = own?.head_revision_id ?? '';
+    otherChainId = other?.id ?? '';
+    otherHeadId = other?.head_revision_id ?? '';
+    ownerId = (await t.useCases.localOwnerActor('proa-web')).principalId;
+    expect(chainId && headId && otherChainId && otherHeadId).toBeTruthy();
+    // No open chain task left over from the use cases.
+    await database.db.execute(
+      sql.raw(
+        `UPDATE analysis_task SET state = 'cancelled' WHERE subject_kind = 'value_chain' AND state IN ('queued', 'claimed')`,
+      ),
+    );
+  });
+
+  const chainTask = (
+    id: string,
+    over: {
+      project?: string;
+      chain?: string;
+      revision?: string;
+      kind?: string;
+      state?: string;
+    } = {},
+    extra = '',
+  ) =>
+    sql.raw(
+      `INSERT INTO analysis_task (id, project_id, subject_kind, value_chain_id, value_chain_revision_id, kind, input_hash, state, seq${extra ? `, ${extra.split('=')[0]}` : ''})
+       VALUES ('${id}', '${over.project ?? projectId}', 'value_chain', '${over.chain ?? chainId}', '${over.revision ?? headId}', '${over.kind ?? 'placement'}', '${'a'.repeat(64)}', '${over.state ?? 'queued'}', 1${extra ? `, ${extra.split('=')[1]}` : ''})`,
+    );
+
+  it('allows one open placement task per chain (partial unique index)', async () => {
+    await database.db.execute(chainTask('ana_chain1'));
+    expect(await failure(chainTask('ana_chain2', { state: 'claimed' }))).toMatch(
+      /analysis_task_open_chain_unique/,
+    );
+    // Finished ones are free; the model index never sees chain tasks.
+    await database.db.execute(chainTask('ana_chain3', { state: 'done' }));
+    await database.db.execute(chainTask('ana_chain4', { state: 'cancelled' }));
+  });
+
+  it('checks the subject columns and that relations tasks analyse models', async () => {
+    expect(await failure(chainTask('ana_rel', { kind: 'relations', state: 'done' }))).toMatch(
+      /analysis_task_kind_subject_check/,
+    );
+    expect(
+      await failure(chainTask('ana_facts', { state: 'done' }, `facts_hash='${'b'.repeat(64)}'`)),
+    ).toMatch(/analysis_task_subject_check/);
+    expect(
+      await failure(
+        sql.raw(
+          `INSERT INTO analysis_task (id, project_id, subject_kind, model_id, revision_id, kind, state, seq)
+           SELECT 'ana_nofacts', project_id, 'model', model_id, revision_id, 'relations', 'done', seq
+           FROM analysis_task WHERE project_id = '${projectId}' AND subject_kind = 'model' LIMIT 1`,
+        ),
+      ),
+    ).toMatch(/analysis_task_subject_check/);
+    expect(
+      await failure(
+        sql.raw(
+          `INSERT INTO analysis_task (id, project_id, subject_kind, value_chain_id, value_chain_revision_id, kind, state, seq)
+           VALUES ('ana_noinput', '${projectId}', 'value_chain', '${chainId}', '${headId}', 'placement', 'done', 1)`,
+        ),
+      ),
+    ).toMatch(/analysis_task_subject_check/);
+  });
+
+  it('keeps a chain task in its project and its revision in its chain', async () => {
+    expect(
+      await failure(chainTask('ana_foreign', { project: otherProjectId, state: 'done' })),
+    ).toMatch(/analysis_task_value_chain_fk|analysis_task_value_chain_revision_fk/);
+    expect(
+      await failure(chainTask('ana_otherrev', { revision: otherHeadId, state: 'done' })),
+    ).toMatch(/analysis_task_value_chain_revision_fk/);
+  });
+
+  it('placement_input: one row per chain and process, a reason exactly for unsure, in its project', async () => {
+    const row = (
+      process: string,
+      outcome: string,
+      reason: string | null,
+      over: { project?: string; chain?: string; task?: string } = {},
+    ) =>
+      sql.raw(
+        `INSERT INTO placement_input (project_id, value_chain_id, process_ref, input_hash, task_id, principal_id, outcome, reason, seq)
+         VALUES ('${over.project ?? projectId}', '${over.chain ?? chainId}', '${process}', 'h', ${over.task ? `'${over.task}'` : 'NULL'}, '${ownerId}', '${outcome}', ${reason === null ? 'NULL' : `'${reason}'`}, 1)`,
+      );
+    await database.db.execute(row('a/caller#P_A', 'unsure', 'Unklar.', { task: 'ana_chain1' }));
+    expect(await failure(row('a/caller#P_A', 'proposed', null))).toMatch(
+      /placement_input_value_chain_id_process_ref_pk/,
+    );
+    expect(await failure(row('b/callee#P_B', 'unsure', null))).toMatch(
+      /placement_input_reason_check/,
+    );
+    expect(await failure(row('b/callee#P_B', 'skipped', 'x'))).toMatch(
+      /placement_input_reason_check/,
+    );
+    expect(await failure(row('b/callee#P_B', 'maybe', null))).toMatch(
+      /placement_input_outcome_check/,
+    );
+    expect(
+      await failure(row('b/callee#P_B', 'proposed', null, { project: otherProjectId })),
+    ).toMatch(/placement_input_chain_fk/);
+    expect(await failure(row('b/callee#P_B', 'proposed', null, { task: 'ana_missing' }))).toMatch(
+      /placement_input_task_fk/,
+    );
+    // Mutable memory: an update and a delete pass.
+    await database.db.execute(
+      sql.raw(
+        `UPDATE placement_input SET outcome = 'skipped', reason = NULL WHERE value_chain_id = '${chainId}'`,
+      ),
+    );
+    await database.db.execute(
+      sql.raw(`DELETE FROM placement_input WHERE value_chain_id = '${chainId}'`),
+    );
+  });
+
+  it('value_chain_pipeline: one row per live chain with its latest placement task', async () => {
+    const r = (
+      await database.db.execute<{ task_id: string; task_state: string; stage: string }>(
+        sql.raw(
+          `SELECT task_id, task_state, stage FROM value_chain_pipeline WHERE value_chain_id = '${chainId}'`,
+        ),
+      )
+    ).rows;
+    expect(r).toHaveLength(1);
+    // ana_chain4 (cancelled) is skipped; the latest by seq among the rest wins.
+    expect(r[0]?.task_state).not.toBe('cancelled');
+  });
+});

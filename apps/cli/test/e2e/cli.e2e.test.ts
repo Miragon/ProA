@@ -218,6 +218,14 @@ describe('proa seed --value-chains', () => {
     for (const p of page.items) {
       expect(p).toMatchObject({ status: 'proposed', source: 'rule', tier: 'key' });
     }
+    // Creating the chain queued its placement task: a requeue finds it open.
+    const requeued = await proa(['value-chain', 'requeue', '-p', 'vc-seed', '--json']);
+    expect(requeued.err).toBe('');
+    expect(requeued.code).toBe(0);
+    expect(JSON.parse(requeued.out)).toMatchObject({
+      outcome: 'open',
+      taskId: expect.stringMatching(/^ana_/) as unknown,
+    });
   });
 });
 

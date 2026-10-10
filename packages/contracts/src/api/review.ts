@@ -11,13 +11,10 @@ import {
 } from './analyses.ts';
 import { orNull, plainName, plainText } from '../zod-utils.ts';
 import { Relation } from './relations.ts';
+import { MAX_BULK_DECISIONS, MAX_LABEL_CHARS, MAX_NOTE_CHARS } from './shared.ts';
 
-/** Reasons and notes of decisions, and notes (answers), in characters. */
-export const MAX_NOTE_CHARS = 2000;
-/** Label of a hold, e.g. "mit Fachbereich Finanzen klären". */
-export const MAX_LABEL_CHARS = 100;
-/** Relations per bulk decision. */
-export const MAX_BULK_DECISIONS = 500;
+// Defined in the leaf module `shared.ts` (the value chain contracts use them too).
+export { MAX_BULK_DECISIONS, MAX_LABEL_CHARS, MAX_NOTE_CHARS };
 
 /**
  * Path of the review screen of a project, or of one relation in it, in the

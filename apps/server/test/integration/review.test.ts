@@ -9,7 +9,7 @@
  */
 import type {
   BulkDecisionResult,
-  ClaimedAnalysis,
+  ClaimedRelationsAnalysis,
   DecisionResult,
   FindingList,
   Landscape,
@@ -372,7 +372,7 @@ describe('the claim input shows decisions, questions and notes', () => {
   it('to the next agent run of a model', async () => {
     await post(owner, '/api/v1/projects/review/analyses/requeue', { modelKeys: [BILLING] });
     const items = await claim(agent, { modelKey: BILLING });
-    const input = (items[0] as ClaimedAnalysis).input;
+    const input = (items[0] as ClaimedRelationsAnalysis).input;
     const held = input.relations.find((r) => r.from === P('Event_Received'));
     expect(held).toMatchObject({
       status: 'held',

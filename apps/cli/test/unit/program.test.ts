@@ -28,7 +28,7 @@ describe('proa', () => {
     for (const cmd of ['create', 'list', 'revoke']) expect(token.out()).toContain(cmd);
     const chain = testIo();
     expect(await runCli(['value-chain', '--help'], chain.io)).toBe(0);
-    for (const cmd of ['push', 'pull']) expect(chain.out()).toContain(cmd);
+    for (const cmd of ['push', 'pull', 'requeue']) expect(chain.out()).toContain(cmd);
   });
 
   it('health prints the server health from PROA_URL', async () => {

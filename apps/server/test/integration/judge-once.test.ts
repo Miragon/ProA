@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import {
   SubmissionResult,
   type BulkDecisionResult,
-  type ClaimedAnalysis,
+  type ClaimedRelationsAnalysis,
   type ClaimInput,
   type DeclaredProcedure,
   type ModelPage,
@@ -145,7 +145,7 @@ const noLink = (p: { type: string; from: string; to: string }, reason = 'no-evid
 });
 
 function body(
-  c: Pick<ClaimedAnalysis, 'leaseToken'>,
+  c: Pick<ClaimedRelationsAnalysis, 'leaseToken'>,
   relations: ReturnType<typeof item>[],
   noLinks: ReturnType<typeof noLink>[] = [],
   procedure: DeclaredProcedure = RELATIONS_PROCEDURE,
@@ -524,7 +524,7 @@ describe('the assignment at the claim', () => {
     const y = await claimOf(b, 'upload-partner', RECEIVER);
     expect(y.input.skip).toBeUndefined();
     expect(candidatesOf(y.input)).toHaveLength(2);
-    const verdicts = (c: ClaimedAnalysis) =>
+    const verdicts = (c: ClaimedRelationsAnalysis) =>
       body(c, [item(MESSAGE.type, MESSAGE.from, MESSAGE.to)], [noLink(TRIGGER)]);
     await submit(a, x.taskId, verdicts(x));
     // The receiver's submission withdraws the sender's judgements on the old receiver.
@@ -686,7 +686,7 @@ describe('a new version of a model', () => {
     await seed('doc');
     const a = await agentOf('doc');
     const b = await agentOf('doc');
-    const verdicts = (c: ClaimedAnalysis) =>
+    const verdicts = (c: ClaimedRelationsAnalysis) =>
       body(
         c,
         [item(MESSAGE.type, MESSAGE.from, MESSAGE.to, { rationale: 'gleiche Nachricht' })],
@@ -732,7 +732,7 @@ describe('a new version of a model', () => {
     await seed('revert', [X, Y]);
     const a = await agentOf('revert');
     const b = await agentOf('revert');
-    const verdicts = (c: ClaimedAnalysis) =>
+    const verdicts = (c: ClaimedRelationsAnalysis) =>
       body(c, [item(msg.type, msg.from, msg.to)], [noLink(trg)]);
     const y = await claimOf(a, 'revert', Y);
     await submit(a, y.taskId, verdicts(y));
@@ -794,7 +794,7 @@ describe('a new version of a model', () => {
     await seed('release');
     const token = await t.createToken('release', ['proa:read', 'proa:propose']);
     const a = asAgent(t, token.secret);
-    const verdicts = (c: ClaimedAnalysis, procedure: DeclaredProcedure) =>
+    const verdicts = (c: ClaimedRelationsAnalysis, procedure: DeclaredProcedure) =>
       body(c, [item(MESSAGE.type, MESSAGE.from, MESSAGE.to)], [noLink(TRIGGER)], procedure);
     const x = await claimOf(a, 'release', SENDER);
     await submit(a, x.taskId, verdicts(x, RELATIONS_PROCEDURE));
@@ -815,7 +815,7 @@ describe('a new version of a model', () => {
     expect(x2?.procedure).toEqual(next);
     expect(x2?.input.judged).toBeUndefined();
     expect(candidatesOf(x2?.input as ClaimInput)).toHaveLength(2);
-    const r = await submit(a2, x2?.taskId ?? '', verdicts(x2 as ClaimedAnalysis, next));
+    const r = await submit(a2, x2?.taskId ?? '', verdicts(x2 as ClaimedRelationsAnalysis, next));
     expect(r.items.map((i) => i.result)).toEqual(['applied']);
     expect(r).toMatchObject({ withdrawn: 0, withdrawnNoLinks: 1 });
     const [y2] = await claim(a2, { projectId: 'release', modelKey: RECEIVER });
@@ -1105,7 +1105,7 @@ describe('submissions', () => {
   it('report uncovered pairs on a late submit after the task failed: the assignment stays', async () => {
     await seed('late-failed');
     const a = await agentOf('late-failed');
-    let x: ClaimedAnalysis | undefined;
+    let x: ClaimedRelationsAnalysis | undefined;
     for (let attempt = 1; attempt <= 3; attempt++) {
       x = await claimOf(a, 'late-failed', SENDER);
       expect(x.attempt).toBe(attempt);

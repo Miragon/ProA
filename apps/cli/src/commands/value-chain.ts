@@ -17,6 +17,11 @@
  *   given; `--dry-run` only prints the impact.
  * - **pull** writes the canonical bytes of the head (or `--rev`) verbatim, with
  *   any credential, and prints `r<rev> <content hash>` on stderr.
+ * - **requeue** queues the chain's placement task (M4 §3.2, `POST
+ *   …/analyses/requeue {valueChain: true}`) when an open process is due:
+ *   after a failed task, or for processes human decisions made due (they
+ *   never queue a task themselves). Judge each process once: nothing is
+ *   queued while every open process has a verdict on its current input.
  */
 import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
@@ -26,6 +31,7 @@ import {
   getValueChainContent,
   getValueChainRevisionContent,
   putValueChainContent,
+  requeueAnalyses,
   type SaveValueChainResult,
   type ValueChainImpact,
 } from '@proa/client';
@@ -35,7 +41,7 @@ import {
   type ValueChainViolation,
 } from '@proa/contracts';
 
-import { callWithResponse, createApi, type Api } from '../api.ts';
+import { call, callWithResponse, createApi, type Api } from '../api.ts';
 import {
   agentToken,
   anyCredential,
@@ -59,6 +65,12 @@ export interface PushOptions extends ValueChainOptions {
   force?: boolean;
   dryRun?: boolean;
   yes?: boolean;
+  json?: boolean;
+}
+
+export interface RequeueOptions extends CredentialOptions {
+  url: string;
+  project: string;
   json?: boolean;
 }
 
@@ -330,4 +342,42 @@ export async function valueChainPullCommand(io: CliIo, opts: PullOptions): Promi
   if (opts.output === undefined) io.stdout(text);
   else await writeFile(path.resolve(io.cwd, opts.output), text, 'utf8');
   io.stderr(`r${pulled ?? '?'} ${hash}\n`);
+}
+
+/**
+ * `proa value-chain requeue`: the value chain's placement task, queued when an
+ * open process is due (`queued`); `open` when one is queued or claimed,
+ * `nothing-due` when every open process has a verdict on its current input.
+ * Needs `write` (the owner key, or an agent token with `proa:write`).
+ *
+ * @throws {CliError} when the project has no value chain
+ */
+export async function valueChainRequeueCommand(io: CliIo, opts: RequeueOptions): Promise<void> {
+  const api = createApi(io, opts.url, await anyCredential(io, opts));
+  const result = await call(
+    api,
+    `requeue the placement task of ${opts.project}`,
+    requeueAnalyses({
+      client: api.client,
+      path: { project: opts.project },
+      body: { valueChain: true },
+    }),
+  );
+  const chain = result.valueChain;
+  if (!chain || chain.outcome === 'not-found') {
+    throw new CliError(
+      `${opts.project} has no value chain; create it first (proa value-chain push)`,
+    );
+  }
+  if (opts.json) {
+    io.stdout(`${JSON.stringify(chain, null, 2)}\n`);
+    return;
+  }
+  io.stdout(
+    chain.outcome === 'queued'
+      ? `queued placement task ${chain.taskId ?? ''}\n`
+      : chain.outcome === 'open'
+        ? `a placement task is already queued or claimed: ${chain.taskId ?? ''}\n`
+        : 'nothing due: every open process has a verdict on its current input\n',
+  );
 }

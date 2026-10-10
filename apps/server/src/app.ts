@@ -49,10 +49,15 @@ export interface AppDeps {
    */
   ownerKey?: string | null;
   /**
-   * The procedure claims name; defaults to {@link relationsProcedure}. Tests
-   * inject another version to play a procedure release.
+   * The procedure relations claims name; defaults to {@link relationsProcedure}.
+   * Tests inject another version to play a procedure release.
    */
   expectedProcedure?: () => DeclaredProcedure;
+  /**
+   * The procedure placement claims name (M4b); defaults to
+   * {@link placementsProcedure}. Tests inject another version to play a release.
+   */
+  expectedPlacementProcedure?: () => DeclaredProcedure;
 }
 
 export interface ProaApp {
@@ -80,6 +85,7 @@ export function createProaApp(deps: AppDeps): ProaApp {
     clock: deps.clock ?? { now: () => new Date() },
     notifier: deps.notifier ?? deps.database.notifier,
     expectedProcedure: deps.expectedProcedure ?? relationsProcedure,
+    expectedPlacementProcedure: deps.expectedPlacementProcedure ?? placementsProcedure,
   });
   const sessions = deps.sessions ?? createSessionCodec(deps.config.sessionSecret ?? undefined);
   const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
@@ -125,6 +131,13 @@ export function createProaApp(deps: AppDeps): ProaApp {
 export function relationsProcedure(): DeclaredProcedure {
   const p = getProcedure('proa-relations');
   if (!p) throw new Error('the proa-relations procedure is missing');
+  return { id: p.id, version: p.version };
+}
+
+/** The procedure a placement claim names: `proa-placements` at its current version (`@proa/procedures`). */
+export function placementsProcedure(): DeclaredProcedure {
+  const p = getProcedure('proa-placements');
+  if (!p) throw new Error('the proa-placements procedure is missing');
   return { id: p.id, version: p.version };
 }
 

@@ -4,13 +4,14 @@
  *   proa-agent-sim --token proa_at_… [--url http://127.0.0.1:7400]
  *   proa-agent-sim --stdio …            (through `proa mcp`, as Claude Desktop)
  *   proa-agent-sim --record eval/recordings --record-input summary --no-record-ids
+ *   proa-agent-sim --kinds placement …  (only the value chain's placement tasks)
  */
 import path from 'node:path';
 
-import { AGENT_TOKEN_PREFIX, OWNER_KEY_PREFIX } from '@proa/contracts';
+import { AGENT_TOKEN_PREFIX, OWNER_KEY_PREFIX, type AnalysisKind } from '@proa/contracts';
 import { Command, CommanderError, InvalidArgumentError, Option } from 'commander';
 
-import { AGENT_NAME, SimError, runAgent, type AgentReport } from './agent.ts';
+import { AGENT_NAME, ALL_KINDS, SimError, runAgent, type AgentReport } from './agent.ts';
 import { bridgeCommand, connect, type Connection } from './connect.ts';
 import { DEFAULT_POLICY, SIM_POLICY } from './policy.ts';
 import { createRecorder, type InputMode } from './recorder.ts';
@@ -48,6 +49,7 @@ export interface SimOptions {
   stdioCommand?: string;
   project?: string;
   model?: string;
+  kinds?: AnalysisKind[];
   maxTasks?: number;
   dryRun?: boolean;
   record?: string;
@@ -66,6 +68,19 @@ function score(value: string): number {
     throw new InvalidArgumentError('a score in [0, 1]');
   }
   return n;
+}
+
+/** `relations`, `placement` or both, comma-separated. */
+function kindList(value: string): AnalysisKind[] {
+  const kinds = value.split(',').map((k) => k.trim());
+  if (
+    kinds.length === 0 ||
+    kinds.some((k) => !(ALL_KINDS as readonly string[]).includes(k)) ||
+    new Set(kinds).size !== kinds.length
+  ) {
+    throw new InvalidArgumentError(`a comma-separated list of ${ALL_KINDS.join(', ')}`);
+  }
+  return kinds as AnalysisKind[];
 }
 
 function positiveInt(value: string): number {
@@ -91,7 +106,12 @@ export function buildProgram(io: SimIo, run: (opts: SimOptions) => Promise<void>
       'bridge command line instead (implies --stdio), e.g. "docker exec -i -e PROA_TOKEN proa2-proa-1 proa mcp"',
     )
     .option('-p, --project <project>', 'only this project (key or id)')
-    .option('-m, --model <modelKey>', 'only this model')
+    .option('-m, --model <modelKey>', 'only this model (relations tasks only)')
+    .option(
+      '-k, --kinds <kinds>',
+      `task kinds to claim, comma-separated (default: ${ALL_KINDS.join(',')})`,
+      kindList,
+    )
     .option('-n, --max-tasks <n>', 'stop after n tasks', positiveInt)
     .option(
       '--dry-run',
@@ -150,12 +170,25 @@ function tokenOf(opts: SimOptions, io: SimIo): string {
 
 function summaryText(report: AgentReport): string {
   const t = report.totals;
-  const o = t.outcomes;
+  const results = (o: AgentReport['totals']['outcomes'], withdrawn: number) =>
+    `results: applied ${o.applied}, duplicate ${o.duplicate}, suppressed ${o.suppressed}, reopened ${o.reopened}, invalid ${o.invalid}; withdrawn by supersession ${withdrawn}`;
   const lines = [
     `${AGENT_NAME}: ${t.tasks} tasks (${t.submitted} submitted, ${t.dryRun} dry run, ${t.failed} failed); stopped: ${report.stop}`,
-    `  ${t.proposed} proposals (${t.questions} with a question), ${t.noLinks} no-links`,
-    `  results: applied ${o.applied}, duplicate ${o.duplicate}, suppressed ${o.suppressed}, reopened ${o.reopened}, invalid ${o.invalid}; withdrawn by supersession ${t.withdrawn}`,
   ];
+  const r = report.byKind.relations;
+  if (report.kinds.includes('relations')) {
+    lines.push(
+      `  relations: ${r.tasks} tasks, ${r.proposed} proposals (${r.questions} with a question), ${r.noLinks} no-links`,
+      `    ${results(r.outcomes, r.withdrawn)}`,
+    );
+  }
+  const p = report.byKind.placement;
+  if (report.kinds.includes('placement')) {
+    lines.push(
+      `  placement: ${p.tasks} tasks, ${p.proposed} placements (${p.questions} with a question), ${p.unsure} unsure, ${p.skipped} skipped, ${p.followUps} follow-ups`,
+      `    ${results(p.outcomes, p.withdrawn)}`,
+    );
+  }
   for (const f of report.recordings) lines.push(`  recorded: ${f}`);
   return `${lines.join('\n')}\n`;
 }
@@ -178,6 +211,7 @@ export async function simulate(opts: SimOptions, io: SimIo): Promise<AgentReport
     return await runAgent(session, {
       ...(opts.project ? { projectId: opts.project } : {}),
       ...(opts.model ? { modelKey: opts.model } : {}),
+      ...(opts.kinds ? { kinds: opts.kinds } : {}),
       ...(opts.maxTasks ? { maxTasks: opts.maxTasks } : {}),
       dryRun: opts.dryRun === true,
       policy: { proposeAt: opts.proposeAt, askAt: opts.askAt },

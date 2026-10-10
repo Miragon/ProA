@@ -2,13 +2,17 @@
 // Deterministic: no timestamps, stable order.
 import type { ExpectedRelation } from './landscape.ts';
 import { MAX_RECALL_DROP, MIN_LIVE_RUNS, SIM_AGENT, baselineLabel, gateLabel, type LiveGate } from './live-gate.ts';
+import { renderPlacementReplaySections, type PlacementReplayReport } from './placements-replay-report.ts';
 import { formatRatio } from './score.ts';
 import { HIGH_CONFIDENCE, type Metrics, type PairClass, type ProposedPair, type ReplayScore } from './replay-score.ts';
 
 export interface ReplayReport {
+  /** The relations recordings. */
   recordings: ReplayScore[];
   /** The live gate of every procedure version, landscape and declared model with live runs (`liveGates`). */
   liveGate: LiveGate[];
+  /** The placement recordings (M4b); left out when there are none, so a relations-only report is unchanged. */
+  placements?: PlacementReplayReport;
 }
 
 /** One console line per scored recording (eval:replay, eval:live). */
@@ -200,9 +204,11 @@ export function renderReplayMarkdown(report: ReplayReport): string {
       'of more than one model, "uncovered" the assigned pairs the submissions left without a judgement (– for ' +
       'results before proa-relations@0.2.0, which do not report them).',
   );
+  // The placement sections come after the relations sections, which stay as they were.
+  const placements = report.placements?.recordings.length ? renderPlacementReplaySections(report.placements) : [];
   if (report.recordings.length === 0) {
     parts.push('_No recordings._');
-    return `${parts.join('\n\n')}\n`;
+    return `${[...parts, ...placements].join('\n\n')}\n`;
   }
   parts.push(
     table(
@@ -242,5 +248,6 @@ export function renderReplayMarkdown(report: ReplayReport): string {
   );
   parts.push(liveGateSection(report.liveGate));
   for (const s of report.recordings) parts.push(section(s));
+  parts.push(...placements);
   return `${parts.join('\n\n')}\n`;
 }

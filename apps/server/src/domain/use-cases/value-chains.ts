@@ -9,8 +9,7 @@
  */
 import { createEmptyDocument } from '@miragon/value-chain-schema-model';
 import {
-  UNPLACED_DOC_CHARS,
-  UNPLACED_EVENT_LABELS,
+  AnalysisTaskState,
   type CreateValueChainBody,
   type PageQuery,
   type PrincipalId,
@@ -27,18 +26,11 @@ import {
   type ValueChainStepDetail,
 } from '@proa/contracts';
 
-import type { Actor } from '../actor.ts';
+import { RULES_SUBJECT, type Actor } from '../actor.ts';
 import { decodeCursor, toPage } from '../cursor.ts';
 import { DomainError } from '../errors.ts';
 import { policy } from '../policy.ts';
-import type {
-  HeadFact,
-  PlacementAssertionRecord,
-  PlacementRecord,
-  RelationRecord,
-  Tx,
-  ValueChainRecord,
-} from '../ports.ts';
+import type { HeadFact, PlacementRecord, Tx, ValueChainRecord } from '../ports.ts';
 import {
   headRevision,
   liveChain,
@@ -51,6 +43,13 @@ import { processHomes, valueChainFindings } from '../value-chain/findings.ts';
 import { noImpact, revisionImpact } from '../value-chain/impact.ts';
 import { byPlacement, placementBasisOf } from '../value-chain/placement-state.ts';
 import {
+  cancelOpenPlacementTask,
+  chainDigestOf,
+  loadPipelineInputs,
+  queuePlacementTask,
+  type PipelineInputs,
+} from '../value-chain/queue.ts';
+import {
   MAIN_VALUE_CHAIN_KEY,
   createValueChain,
   deleteValueChain,
@@ -60,12 +59,8 @@ import {
 import { recomputeRulePlacements } from '../value-chain/rules.ts';
 import { OUTSIDE, liveGenerations, planStepGenerations } from '../value-chain/steps.ts';
 import { descendantsOf, rememberStructure } from '../value-chain/structure.ts';
-import {
-  acceptedNeighbours,
-  acceptedSteps,
-  lexicalMatcher,
-  processOfRefs,
-} from '../value-chain/tiers.ts';
+import { lexicalMatcher, processOfRefs } from '../value-chain/tiers.ts';
+import { unplacedProcess } from '../value-chain/unplaced.ts';
 import {
   placementViews,
   stepCounts,
@@ -79,6 +74,54 @@ import {
 } from '../value-chain/views.ts';
 import { requireChainReview, type ValueChainDeps } from './chain-access.ts';
 import { ALL } from './deps.ts';
+
+/**
+ * The stage of the chain's placement pipeline and the open processes the
+ * agent was unsure about (M4 §3.2, §3.5): the view `value_chain_pipeline`,
+ * the task's lease, the number of due processes, and the unsure verdicts of
+ * open processes (`current` while their input is unchanged).
+ */
+async function pipelineOf(
+  tx: Tx,
+  inputs: PipelineInputs,
+): Promise<Pick<ValueChainDetail, 'pipeline' | 'unsure'>> {
+  const { chain } = inputs.state;
+  const view = await tx.valueChains.pipeline(chain.projectId, chain.id);
+  const task = view?.taskId ? await tx.tasks.findInProject(chain.projectId, view.taskId) : null;
+  const names = processNamesOf(inputs.state.processFacts);
+  const unsure: ValueChainDetail['unsure'] = [];
+  for (const ref of inputs.open) {
+    const row = inputs.rows.get(ref);
+    if (row?.outcome !== 'unsure' || row.reason === null) continue;
+    unsure.push({
+      process: ref as Ref,
+      name: names.get(ref) ?? null,
+      reason: row.reason,
+      by: row.handle,
+      at: row.updatedAt.toISOString(),
+      current: row.inputHash === inputs.hashOf(ref),
+    });
+  }
+  return {
+    pipeline: {
+      stage: view?.stage ?? 'incorporated',
+      task: task
+        ? {
+            id: task.id,
+            state: task.state,
+            attempts: task.attempts,
+            leaseUntil: task.leaseUntil ? task.leaseUntil.toISOString() : null,
+            claimedBy: task.claimedByHandle,
+          }
+        : null,
+      reviewItems: view?.reviewItems ?? 0,
+      heldItems: view?.heldItems ?? 0,
+      due: inputs.due.length,
+      unsure: unsure.filter((u) => u.current).length,
+    },
+    unsure,
+  };
+}
 
 /**
  * The precondition of a content save (M4 §3.5): `If-Match: "r<rev>"` names
@@ -179,6 +222,44 @@ async function chainFindings(
   });
 }
 
+/**
+ * The chain's placement task an agent holds right now (claimed, lease not
+ * expired) and the processes its claim listed: `list_unplaced_processes`
+ * marks them `inTask`, so an agent working without a task leaves them to it.
+ */
+async function heldPlacementTask(
+  tx: Tx,
+  chain: ValueChainRecord,
+  now: Date,
+): Promise<{ inTask: NonNullable<UnplacedProcess['inTask']>; processes: Set<string> } | null> {
+  const open = await tx.tasks.latestForChain(chain.projectId, chain.id, ['claimed']);
+  if (!open) return null;
+  const task = await tx.tasks.findInProject(chain.projectId, open.id);
+  if (task?.subjectKind !== 'value_chain' || task.state !== 'claimed') return null;
+  if (!task.placementClaim || task.leaseUntil === null || task.leaseUntil <= now) return null;
+  return {
+    inTask: {
+      taskId: task.id,
+      claimedBy: task.claimedByHandle,
+      leaseUntil: task.leaseUntil.toISOString(),
+    },
+    processes: new Set(task.placementClaim.processes.map((p) => p.process)),
+  };
+}
+
+/** The rule tier's system principal as the actor of a server step (no caller). */
+function systemActor(principalId: PrincipalId): Actor {
+  return {
+    principalId,
+    kind: 'service',
+    handle: RULES_SUBJECT,
+    clientId: null,
+    interactive: false,
+    scopes: [],
+    binding: null,
+  };
+}
+
 export function valueChainUseCases(deps: ValueChainDeps) {
   /** The save result's revision view (with the saver's handle). */
   async function revisionView(tx: Tx, chain: ValueChainRecord, rev: number) {
@@ -223,6 +304,14 @@ export function valueChainUseCases(deps: ValueChainDeps) {
     const written = await createValueChain(tx, actor, projectId, { key }, prepared, {
       beforeRefresh: ruleProposals(tx, actor, rulesPrincipalId),
     });
+    // A new or revived chain: its processes are due (new step generations).
+    await queuePlacementTask(
+      tx,
+      actor,
+      written.chain,
+      'value chain saved',
+      deps.expectedPlacementProcedure(),
+    );
     return {
       dryRun: false,
       outcome: written.outcome,
@@ -233,6 +322,48 @@ export function valueChainUseCases(deps: ValueChainDeps) {
   }
 
   return {
+    /**
+     * Server start (`main.ts`; no caller, so no policy check): queues the
+     * first placement task of every live chain that never had one, as the
+     * chains created before the placement pipeline (migration 0008) are,
+     * when an open process is due. The rule tier's system principal records
+     * the events (reason `server start`). A chain with any placement task is
+     * left alone, so a restart never queues what human decisions made due
+     * (they wait for the next trigger or a requeue).
+     *
+     * @returns the number of tasks queued
+     */
+    async queueFirstPlacementTasks(): Promise<number> {
+      const chains = await deps.store.read((tx) => tx.valueChains.listWithoutPlacementTask());
+      if (chains.length === 0) return 0;
+      const actor = systemActor(await deps.rulesPrincipal());
+      let queued = 0;
+      for (const found of chains) {
+        const outcome = await deps.store.write(async (tx) => {
+          await tx.projects.lockForWrite(found.projectId);
+          const chain = await tx.valueChains.findInProject(found.projectId, found.id);
+          if (!chain || chain.headRevisionId === null) return 'gone';
+          const earlier = await tx.tasks.latestForChain(
+            chain.projectId,
+            chain.id,
+            AnalysisTaskState.options,
+          );
+          if (earlier) return 'had-a-task';
+          return (
+            await queuePlacementTask(
+              tx,
+              actor,
+              chain,
+              'server start',
+              deps.expectedPlacementProcedure(),
+            )
+          ).outcome;
+        });
+        if (outcome === 'queued') queued++;
+      }
+      return queued;
+    },
+
     /** The live value chains of a project (M4: at most `main`). */
     async listValueChains(actor: Actor, projectRef: string): Promise<ValueChainList> {
       return deps.store.read(async (tx) => {
@@ -251,10 +382,9 @@ export function valueChainUseCases(deps: ValueChainDeps) {
       return deps.store.read(async (tx) => {
         const { project } = await policy.require(tx, actor, 'read', projectRef);
         const state = await loadChainState(tx, await liveChain(tx, project.id, key));
-        const placements = liveRecords(await tx.placements.forChain(project.id, state.chain.id));
-        const histories = byPlacement<PlacementAssertionRecord>(
-          await tx.placementAssertions.listForChain(project.id, state.chain.id),
-        );
+        const inputs = await loadPipelineInputs(tx, state, deps.expectedPlacementProcedure());
+        const placements = liveRecords(inputs.placements);
+        const histories = inputs.histories;
         const stepCtx: StepViewContext = {
           structure: state.structure,
           live: state.live,
@@ -273,6 +403,7 @@ export function valueChainUseCases(deps: ValueChainDeps) {
             ),
           ),
           findings: await chainFindings(tx, state, placements),
+          ...(await pipelineOf(tx, inputs)),
         };
       });
     },
@@ -422,8 +553,9 @@ export function valueChainUseCases(deps: ValueChainDeps) {
         }
         if (pre.rev !== head.rev) throw revisionConflict(head.rev);
         const steps = await tx.valueChainSteps.list(project.id, chain.id);
+        const headStructure = await revisionStructure(tx, head);
         const impact = revisionImpact(
-          await revisionStructure(tx, head),
+          headStructure,
           structure,
           planStepGenerations(steps, structure.stepFingerprints.keys(), 'revise'),
           liveGenerations(steps),
@@ -435,6 +567,26 @@ export function valueChainUseCases(deps: ValueChainDeps) {
           baseRevisionId: head.id,
           beforeRefresh: ruleProposals(tx, actor, rulesPrincipalId),
         });
+        // Only what a placement claim shows of the chain moves an input hash: a save that keeps
+        // the steps as the claim lists them (layout, org units, colours that keep the kind)
+        // queues nothing, and a claimed task gets no follow-up for it.
+        if (saved.outcome === 'revised') {
+          const after = await loadChainState(tx, saved.chain);
+          const before = chainDigestOf({
+            structure: headStructure,
+            live: liveGenerations(steps),
+            processFacts: after.processFacts,
+          });
+          if (chainDigestOf(after) !== before) {
+            await queuePlacementTask(
+              tx,
+              actor,
+              saved.chain,
+              'value chain saved',
+              deps.expectedPlacementProcedure(),
+            );
+          }
+        }
         return {
           dryRun: false,
           outcome: saved.outcome,
@@ -452,6 +604,7 @@ export function valueChainUseCases(deps: ValueChainDeps) {
         await tx.projects.lockForWrite(project.id);
         const chain = await liveChain(tx, project.id, key);
         await deleteValueChain(tx, actor, project.id, chain.id);
+        await cancelOpenPlacementTask(tx, actor, chain, 'value chain deleted');
       });
     },
 
@@ -588,7 +741,10 @@ export function valueChainUseCases(deps: ValueChainDeps) {
      * Processes without a home step (M4 §3.1): no accepted or held placement
      * and none waiting for review (`proposed`) on a live step generation. An
      * accepted placement on a removed step and a rejected one count as
-     * unplaced. Ordered by ref.
+     * unplaced. Ordered by ref. Judge each process once: `judged` marks a
+     * process an agent judged on its current input, `inTask` one in the input
+     * of the chain's placement task an agent holds right now (claimed, lease
+     * not expired); an agent working without a task skips both.
      */
     async listUnplacedProcesses(
       actor: Actor,
@@ -600,7 +756,8 @@ export function valueChainUseCases(deps: ValueChainDeps) {
       return deps.store.read(async (tx) => {
         const { project } = await policy.require(tx, actor, 'read', projectRef);
         const state = await loadChainState(tx, await liveChain(tx, project.id, key));
-        const placements = await tx.placements.forChain(project.id, state.chain.id);
+        const inputs = await loadPipelineInputs(tx, state, deps.expectedPlacementProcedure());
+        const placements = inputs.placements;
         // Accepted, held or waiting for review on a live step: a rejected placement homes nothing,
         // although the agent's proposal on it is still that agent's current stance.
         const homes = processHomes(placements, state.live);
@@ -612,12 +769,12 @@ export function valueChainUseCases(deps: ValueChainDeps) {
         const page = toPage(open.slice(0, query.limit + 1), query.limit, (f) => [f.ref]);
         if (page.items.length === 0) return { items: [], nextCursor: page.nextCursor };
 
-        const facts = await tx.facts.head(project.id);
+        const facts = inputs.facts;
         const processOf = processOfRefs(facts);
-        const relations = (await tx.relations.list(project.id, {}, { limit: ALL })).filter(
-          (r) => r.status !== 'rejected',
+        const relations = inputs.relations.filter(
+          (r) => r.status !== 'rejected' && r.status !== 'obsolete',
         );
-        const known = acceptedSteps(placements, state.live);
+        const known = inputs.hashContext.acceptedSteps;
         const matcher = lexicalMatcher({
           structure: state.structure,
           processes: new Map(
@@ -626,98 +783,41 @@ export function valueChainUseCases(deps: ValueChainDeps) {
               { name: f.label === '' ? null : f.label, modelKey: f.modelKey },
             ]),
           ),
-          neighbours: acceptedNeighbours(relations, processOf),
+          neighbours: inputs.hashContext.neighbours,
           known,
         });
+        const ctx = {
+          facts,
+          byProcess: inputs.byProcess,
+          processOf,
+          relations,
+          known,
+          matcher,
+          structure: state.structure,
+        };
+        const held = await heldPlacementTask(tx, state.chain, deps.clock.now());
         return {
-          items: page.items.map((f) =>
-            unplacedProcess(f, { facts, processOf, relations, known, matcher, state }),
-          ),
+          items: page.items.map((f) => {
+            const row = inputs.rows.get(f.ref);
+            // Judged on its current input (judge each process once): agents skip it.
+            const judged =
+              row && row.inputHash === inputs.hashOf(f.ref)
+                ? {
+                    outcome: row.outcome,
+                    ...(row.reason === null ? {} : { reason: row.reason }),
+                    by: row.handle,
+                    at: row.updatedAt.toISOString(),
+                  }
+                : undefined;
+            return {
+              ...unplacedProcess(f, ctx),
+              ...(judged ? { judged } : {}),
+              ...(held?.processes.has(f.ref) ? { inTask: held.inTask } : {}),
+            };
+          }),
           nextCursor: page.nextCursor,
         };
       });
     },
-  };
-}
-
-/** One unplaced process with what an agent needs to place it. */
-function unplacedProcess(
-  process: HeadFact,
-  ctx: {
-    facts: readonly HeadFact[];
-    processOf: ReadonlyMap<string, string>;
-    relations: readonly RelationRecord[];
-    known: ReadonlyMap<string, readonly string[]>;
-    matcher: ReturnType<typeof lexicalMatcher>;
-    state: ChainState;
-  },
-): UnplacedProcess {
-  const ref = process.ref;
-  const own = ctx.facts.filter(
-    (f) => f.modelKey === process.modelKey && f.processId === process.elementId,
-  );
-  const labels = (elementType: string) => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const f of own) {
-      if (f.scope !== 'process' || f.attrs.elementType !== elementType) continue;
-      if (seen.has(f.elementId) || f.label.trim() === '') continue;
-      seen.add(f.elementId);
-      out.push(f.label);
-    }
-    return out.slice(0, UNPLACED_EVENT_LABELS);
-  };
-  const lanes = [
-    ...new Set(own.filter((f) => f.kind === 'lane' && f.label.trim() !== '').map((f) => f.label)),
-  ];
-  const neighbours = new Map<
-    string,
-    { relationId: RelationId; type: RelationRecord['type']; direction: 'out' | 'in' }[]
-  >();
-  const out: UnplacedProcess['calls']['out'] = [];
-  const into: UnplacedProcess['calls']['in'] = [];
-  for (const r of ctx.relations) {
-    const from = ctx.processOf.get(r.fromRef);
-    const to = ctx.processOf.get(r.toRef);
-    if (from === undefined || to === undefined || from === to) continue;
-    if (from === ref) {
-      neighbours.set(to, [
-        ...(neighbours.get(to) ?? []),
-        { relationId: r.id, type: r.type, direction: 'out' },
-      ]);
-      if (r.type === 'call') out.push({ process: to as Ref, relationId: r.id, status: r.status });
-    } else if (to === ref) {
-      neighbours.set(from, [
-        ...(neighbours.get(from) ?? []),
-        { relationId: r.id, type: r.type, direction: 'in' },
-      ]);
-      if (r.type === 'call')
-        into.push({ process: from as Ref, relationId: r.id, status: r.status });
-    }
-  }
-  const doc = process.attrs.documentation?.slice(0, UNPLACED_DOC_CHARS);
-  const byRelation = <T extends { relationId: string }>(a: T, b: T) =>
-    byCodePoint(a.relationId, b.relationId);
-  return {
-    process: ref,
-    name: process.label === '' ? null : process.label,
-    modelKey: process.modelKey,
-    lanes,
-    starts: labels('bpmn:StartEvent'),
-    ends: labels('bpmn:EndEvent'),
-    ...(doc ? { doc } : {}),
-    neighbours: [...neighbours]
-      .sort(([a], [b]) => byCodePoint(a, b))
-      .map(([q, via]) => ({
-        process: q as Ref,
-        via: via.sort(byRelation),
-        steps: [...(ctx.known.get(q) ?? [])],
-      })),
-    calls: { out: out.sort(byRelation), in: into.sort(byRelation) },
-    hints: ctx.matcher.hints(ref).map((h) => ({
-      step: h.stepId,
-      name: ctx.state.structure.byId.get(h.stepId)?.name ?? '',
-      score: h.score,
-    })),
   };
 }

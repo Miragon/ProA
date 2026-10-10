@@ -27,6 +27,7 @@ export function createUseCases(deps: UseCaseDeps) {
     analysis: deps.analysis,
     rulesPrincipal: identity.rulesPrincipal,
     expectedProcedure: deps.expectedProcedure,
+    expectedPlacementProcedure: deps.expectedPlacementProcedure,
   };
   const chainDeps = { ...deps, rulesPrincipal: identity.rulesPrincipal };
   return {

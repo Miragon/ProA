@@ -6,6 +6,7 @@ Spec: [CONCEPT.md](CONCEPT.md) §7 · Setups: [examples/agents](../../examples/a
 Reference: [DEVELOPMENT.md](DEVELOPMENT.md)
 
 The owner's guide to the live runs of the relations procedure `proa-relations@0.2.0`
+(and, since M4 S5, of the placements procedure `proa-placements@0.1.0`: [step 6a](#6a-placements-m4b-proa-placements010))
 ([`packages/procedures/relations.md`](../../packages/procedures/relations.md)): an LLM agent
 (Claude Code or Claude Desktop on your Claude subscription) works a fresh project seeded from the
 eval corpus, `pnpm eval:live` records what it submitted and scores it, and the live gate decides
@@ -484,6 +485,61 @@ Holdout rules:
 - `eval:live` and the `eval:replay` console print aggregate numbers only. `eval/reports/replay.md`
   lists pairs per recording, the holdout's included: leave its `stadtwerke-auental` sections out
   of procedure work.
+
+## 6a. Placements (M4b): `proa-placements@0.1.0`
+
+The value chain's placement pipeline (M4 S5, [M4-VALUE-CHAIN.md](M4-VALUE-CHAIN.md) §3.2) has
+its own procedure, skill and live gate; a placement run is a run of its own, in its own fresh
+project, under its own token. The stack must run an image with S5 (rebuild as in
+[step 1](#1-rebuild-the-stack)); `get_procedure({id: "proa-placements"})` then answers.
+
+```sh
+LANDSCAPE=nordwind-handel RUN_PROJECT=nordwind-handel-cc-p1 RUN_AGENT=claude-code-p1
+docker compose -p proa2 -f docker/compose.yaml exec proa proa seed "$LANDSCAPE" \
+  --project "$RUN_PROJECT" --value-chains --issue-tokens --token-name "$RUN_AGENT"
+# prints "value chain: created r1" and the token (once)
+export PROA_TOKEN=proa_at_…
+examples/agents/claude-code/run-headless.sh --skill placements "$RUN_PROJECT" claude-opus-5-5 1 5
+# or Claude Desktop with examples/agents/claude-desktop/start-prompt-placements.de.md,
+# or any client with the MCP prompt work_pipeline and kind "placement"
+PROA_TOKEN=proa_at_… pnpm eval:live --project "$RUN_PROJECT" --landscape "$LANDSCAPE"
+pnpm eval:replay                        # commit the recording with the reports
+```
+
+- `--value-chains` creates the landscape's golden chain without placements (the rule tier's key
+  proposals appear, as after any save) and queues the chain's placement task. One task covers up
+  to 50 processes, so a run is usually a single task (the dev chain has 32, the holdout 27);
+  `/proa:placements <project> 1` is enough. Should a claim be truncated (more than 50 due
+  processes or the 96,000-byte budget), its submission queues the follow-up at once, so the
+  pending count stays at 1: `run-headless.sh --skill placements` counts a batch as progress when
+  the chain's latest placement task changed or its due count fell (it prints `due: a -> b`), and
+  stops only when nothing moved.
+- A placement task that failed (three expired leases) shows „Agent fehlgeschlagen“ on the chain
+  page with „Erneut einplanen“; `proa value-chain requeue -p "$RUN_PROJECT"` does the same in the
+  container. A stack upgraded from M4a queues the first placement task of its existing chains at
+  start (`queued the first placement task of n value chain(s)` in the log).
+- Work only the placement task in this project (`--skill placements`, `kinds: ["placement"]`):
+  the relations tasks the import queued stay queued, and relation proposals of a relations run
+  would change the placement claim input (neighbours). The live gate compares the run with
+  `baseline-prefix/1` as a fresh project's hints show it.
+- **Never edit the chain** of a run project: a placement recording counts only on the golden
+  chain, and `eval:live` refuses a run whose task saw another chain content ("not comparable
+  (edited chain)"). Reviewing placements is fine afterwards; it does not change the recording.
+- The recording lands at
+  `eval/recordings/proa-placements@0.1.0/<agent>/<llmModel>/<landscape>.jsonl`; `eval:live`
+  prints the placement score line (precision, recall, recall@1 next to `baseline-prefix/1`,
+  traps at ≥ 0.8, unsure, skipped) and the **placement live gate**: per procedure, landscape and
+  model, **fail** if a run places a process on a must_not step at confidence ≥ 0.8 or the mean
+  recall@1 of the runs is below the better `baseline-prefix/1` recall@1 plus 20 points (dev:
+  66.9 %), **incomplete** below 3 runs, else **pass**. Three runs per landscape and model, dev
+  first, then the holdout, with the holdout rules above.
+- **Rating a drafted chain** (no run, no recording): in a project without a chain (for example a
+  fresh `proa seed nordwind-handel --project nordwind-handel-draft` without `--value-chains`), let
+  Claude Desktop draft one with
+  [`start-prompt-draft.de.md`](../../examples/agents/claude-desktop/start-prompt-draft.de.md) (or
+  the MCP prompt `draft_value_chain`), save the JSON block as `entwurf.vc.json`, open the project's
+  value chain page, choose „Importieren“, check, edit and save it. Rate it against the golden chain
+  by eye (steps, kinds, sub-steps); never draft on the holdout in a chat used for procedure work.
 
 ## 7. Review the proposals (optional)
 

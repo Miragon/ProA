@@ -11,8 +11,8 @@ import type {
 /**
  * The chain chunk's own logic with a stand-in renderer (the real one needs a
  * browser, e2e/value-chain*.spec.ts): which change events reach the page,
- * the pending change the page can take at once, and which viewbox a new
- * instance starts with.
+ * the pending change the page can take at once, which viewbox a new
+ * instance starts with, and the re-layout of an imported file (M4 §3.3).
  */
 
 interface Box {
@@ -28,6 +28,8 @@ const fake = vi.hoisted(() => ({
     box: Box;
     destroyed: boolean;
     imported: boolean;
+    /** What happened, in order: `import`, `layout:<id>`, `clear`. */
+    log: string[];
     fire: (event: string, payload: unknown) => void;
   }[],
 }));
@@ -46,13 +48,18 @@ vi.mock('@miragon/value-chain-schema-model', () => ({
 }));
 vi.mock('@miragon/value-chain-renderer', () => {
   type Listener = (payload: unknown) => void;
-  const shapes = [{ id: 's1', vcType: 'step', x: 100, y: 100, width: 100, height: 60 }];
+  const shapes = [
+    { id: 's1', vcType: 'step', x: 100, y: 100, width: 100, height: 60 },
+    { id: 'c1', vcType: 'sequence', waypoints: [] },
+    { id: 'c2', vcType: 'hierarchy', waypoints: [] },
+  ];
   class FakeDiagram {
     listeners = new Map<string, Listener[]>();
     viewboxCalls: Box[] = [];
     box: Box = { x: 0, y: 0, width: 800, height: 600 };
     destroyed = false;
     imported = false;
+    log: string[] = [];
     doc: unknown = null;
     constructor() {
       fake.instances.push(this);
@@ -66,6 +73,7 @@ vi.mock('@miragon/value-chain-renderer', () => {
     importDocument(doc: unknown) {
       this.doc = doc;
       this.imported = true;
+      this.log.push('import');
       // like the renderer: the import ends with commandStack.clear()
       this.fire('commandStack.changed', { trigger: 'clear' });
       return [];
@@ -96,6 +104,21 @@ vi.mock('@miragon/value-chain-renderer', () => {
           return { get: () => [], select: () => undefined };
         case 'overlays':
           return { add: () => 'overlay', remove: () => undefined };
+        case 'modeling':
+          return {
+            // like diagram-js: every layout is a command
+            layoutConnection: (c: { id: string }) => {
+              this.log.push(`layout:${c.id}`);
+              this.fire('commandStack.changed', { trigger: 'execute' });
+            },
+          };
+        case 'commandStack':
+          return {
+            clear: () => {
+              this.log.push('clear');
+              this.fire('commandStack.changed', { trigger: 'clear' });
+            },
+          };
         default:
           throw new Error(`no service ${name}`);
       }
@@ -109,6 +132,8 @@ vi.mock('@miragon/value-chain-renderer', () => {
     NavigatedViewer: FakeDiagram,
     VcDiagramElementFactory: class {},
     isStep: (e: { vcType?: string }) => e.vcType === 'step',
+    isVcConnection: (e: { vcType?: string }) =>
+      e.vcType === 'sequence' || e.vcType === 'hierarchy' || e.vcType === 'assignment',
     isVcShape: (e: { vcType?: string }) => e.vcType === 'step' || e.vcType === 'orgUnit',
   };
 });
@@ -196,5 +221,33 @@ describe('chain canvas', () => {
     expect(ref.current?.emptyText('Neu')).toBe(
       '{"schemaVersion":1,"meta":{"name":"Neu"},"elements":[],"connections":[]}\n',
     );
+  });
+
+  it('re-lays every connection of an imported file, then clears the stack: no change reported', async () => {
+    const p = props({
+      document: { key: 'edit:2', text: '{"elements":[]}', emptyName: 'K', relayout: true },
+    });
+    render(<ChainCanvas {...p} />);
+    await imported();
+    const [instance] = live();
+    expect(instance!.log).toEqual(['import', 'layout:c1', 'layout:c2', 'clear']);
+    expect(p.onImported).toHaveBeenCalledWith({ key: 'edit:2', warnings: 0 });
+    await sleep(350);
+    expect(p.onChange).not.toHaveBeenCalled();
+  });
+
+  it('never re-lays a document without `relayout`, nor in view mode', async () => {
+    const edit = props({ document: { key: 'edit:1', text: '{}', emptyName: 'K' } });
+    const { unmount } = render(<ChainCanvas {...edit} />);
+    await imported();
+    expect(live()[0]!.log).toEqual(['import']);
+    unmount();
+    const view = props({
+      mode: 'view',
+      document: { key: 'view:r1', text: '{}', emptyName: 'K', relayout: true },
+    });
+    render(<ChainCanvas {...view} />);
+    await imported();
+    expect(live()[0]!.log).toEqual(['import']);
   });
 });

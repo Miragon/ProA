@@ -13,7 +13,11 @@ import {
   tokenListCommand,
   tokenRevokeCommand,
 } from './commands/token.ts';
-import { valueChainPullCommand, valueChainPushCommand } from './commands/value-chain.ts';
+import {
+  valueChainPullCommand,
+  valueChainPushCommand,
+  valueChainRequeueCommand,
+} from './commands/value-chain.ts';
 import type { CredentialOptions } from './credentials.ts';
 import { CliError } from './errors.ts';
 import { processIo, type CliIo } from './io.ts';
@@ -128,7 +132,9 @@ export function buildProgram(io: CliIo = processIo): Command {
 
   const valueChain = program
     .command('value-chain')
-    .description('push and pull the value chain document (.vc.json) of a project');
+    .description(
+      'push and pull the value chain document (.vc.json) of a project, requeue its placement task',
+    );
   valueChain
     .command('push')
     .description(
@@ -170,6 +176,16 @@ export function buildProgram(io: CliIo = processIo): Command {
     .option('-o, --output <file>', 'write to this file (default: stdout)')
     .action((opts: { project: string; key: string; rev?: string; output?: string }) =>
       valueChainPullCommand(io, { ...globals(), ...opts }),
+    );
+  valueChain
+    .command('requeue')
+    .description(
+      "queue the value chain's placement task when a process is due: after a failed task, or for what reviewers' decisions made due (owner key or a token with proa:write)",
+    )
+    .requiredOption('-p, --project <project>', 'project key or id')
+    .option('--json', 'print JSON')
+    .action((opts: { project: string; json?: boolean }) =>
+      valueChainRequeueCommand(io, { ...globals(), ...opts }),
     );
 
   program

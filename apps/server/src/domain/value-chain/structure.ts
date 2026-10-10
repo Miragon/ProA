@@ -65,6 +65,8 @@ export interface ChainStructure {
   steps: ChainStep[];
   byId: ReadonlyMap<string, ChainStep>;
   orgUnits: ChainOrgUnit[];
+  /** The `sequence` connections between two steps as `[source, target]`, sorted. */
+  sequences: [string, string][];
   structureHash: string;
   /** The fingerprint of every step, by element id. */
   stepFingerprints: ReadonlyMap<string, string>;
@@ -291,6 +293,12 @@ export function deriveStructure(document: ValueChainDocument, contentHash: strin
     ...steps.map((s) => [s.elementId, 'step', s.nameNorm, s.link, s.kind] as const),
     ...orgElements.map((o) => [o.id, 'orgUnit', normalizeKey(o.name), null, null] as const),
   ].sort((a, b) => byCodePoint(a[0], b[0]));
+  const sequences = document.connections
+    .filter(
+      (c) => c.connectionType === 'sequence' && stepIds.has(c.source) && stepIds.has(c.target),
+    )
+    .map((c): [string, string] => [c.source, c.target])
+    .sort((a, b) => byCodePoint(a[0], b[0]) || byCodePoint(a[1], b[1]));
   const connections = document.connections
     .map((c) => [c.connectionType, c.source, c.target] as const)
     .sort((a, b) => byCodePoint(a[0], b[0]) || byCodePoint(a[1], b[1]) || byCodePoint(a[2], b[2]));
@@ -309,6 +317,7 @@ export function deriveStructure(document: ValueChainDocument, contentHash: strin
       name: o.name,
       stepIds: ownedSteps.get(o.id) ?? [],
     })),
+    sequences,
     structureHash,
     stepFingerprints: new Map(steps.map((s) => [s.elementId, s.fingerprint])),
   };

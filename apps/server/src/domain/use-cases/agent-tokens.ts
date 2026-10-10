@@ -19,6 +19,7 @@ import type { AgentTokenRecord, AssertionRecord, ProjectRecord, Tx } from '../po
 import { withdrawStance, type ProposalContext } from '../proposals.ts';
 import { byRelation, naturalKey } from '../relation-state.ts';
 import { currentStances } from '../status.ts';
+import { queuePlacementTasks } from '../value-chain/queue.ts';
 import { withdrawPlacementProposalsOf } from '../value-chain/revocation.ts';
 import { toAgentToken } from '../views.ts';
 import { ALL, type UseCaseDeps } from './deps.ts';
@@ -33,11 +34,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * stay. Both endpoint models of every withdrawn pipeline judgement judge
  * their pairs again (`requeueAfterLoss`): partner analyses may have skipped
  * the pairs because of them (judge each pair once). Its live placement
- * proposals on the value chain are withdrawn the same way (M4), with nothing
- * queued.
+ * proposals on the value chain are withdrawn the same way (M4); its
+ * verdicts on processes are forgotten (the processes of its withdrawn
+ * pipeline proposals and every `placement_input` row it wrote), its claimed
+ * placement task is queued again, and the placement task is queued when a
+ * process is due (M4b).
  *
  * @param seq the `agent_token.revoked` event (stamps the no-link withdrawals)
- * @param procedure the procedure claims name now
+ * @param procedure the procedure relations claims name now
+ * @param placementProcedure the procedure placement claims name now
  */
 async function retractToken(
   tx: Tx,
@@ -46,6 +51,7 @@ async function retractToken(
   token: AgentTokenRecord,
   seq: number,
   procedure: DeclaredProcedure,
+  placementProcedure: DeclaredProcedure,
 ): Promise<{
   withdrawn: number;
   withdrawnNoLinks: number;
@@ -104,8 +110,13 @@ async function retractToken(
   for (const n of noLinks) lost.add(n.fromModel).add(n.toModel);
 
   let released = 0;
-  const claimed = await tx.tasks.list(project.id, { state: 'claimed' }, { limit: ALL });
-  for (const task of claimed.filter((t) => t.claimedBy === token.principalId)) {
+  const claimed = await tx.tasks.list(
+    project.id,
+    { state: 'claimed', kind: 'relations' },
+    { limit: ALL },
+  );
+  for (const task of claimed) {
+    if (task.subjectKind !== 'model' || task.claimedBy !== token.principalId) continue;
     await tx.tasks.release(project.id, task.id, reason);
     await tx.events.append(project.id, {
       type: 'analysis.released',
@@ -123,14 +134,52 @@ async function retractToken(
     released++;
   }
   await requeueAfterLoss(tx, actor, project.id, lost);
-  const withdrawnPlacements = await withdrawPlacementProposalsOf(
+  const placements = await withdrawPlacementProposalsOf(
     tx,
     actor,
     project.id,
     token.principalId,
     reason,
   );
-  return { withdrawn, withdrawnNoLinks: noLinks.length, withdrawnPlacements, released };
+  // M4b: forget the verdicts the lost judgements stood for, hand back its placement task,
+  // and queue the processes that are due again.
+  let forgotten = 0;
+  for (const [valueChainId, processes] of placements.pipelineLost) {
+    forgotten += await tx.placementInputs.deleteProcesses(project.id, valueChainId, [...processes]);
+  }
+  forgotten += (await tx.placementInputs.deleteByPrincipal(project.id, token.principalId)).length;
+  const chainTasks = await tx.tasks.list(
+    project.id,
+    { state: 'claimed', kind: 'placement' },
+    { limit: ALL },
+  );
+  for (const task of chainTasks) {
+    if (task.subjectKind !== 'value_chain' || task.claimedBy !== token.principalId) continue;
+    await tx.tasks.release(project.id, task.id, reason);
+    await tx.events.append(project.id, {
+      type: 'analysis.released',
+      principalId: actor.principalId,
+      clientId: actor.clientId,
+      subjectRef: task.valueChainId,
+      payload: {
+        taskId: task.id,
+        kind: task.kind,
+        valueChainId: task.valueChainId,
+        key: task.valueChainKey,
+        reason,
+      },
+    });
+    released++;
+  }
+  if (forgotten > 0 || placements.pipelineLost.size > 0) {
+    await queuePlacementTasks(tx, actor, project.id, 'judgement withdrawn', placementProcedure);
+  }
+  return {
+    withdrawn,
+    withdrawnNoLinks: noLinks.length,
+    withdrawnPlacements: placements.withdrawn,
+    released,
+  };
 }
 
 /**
@@ -222,7 +271,15 @@ export function agentTokenUseCases(deps: UseCaseDeps) {
           subjectRef: tokenId,
           payload: { tokenId, name: token.name, prefix: token.prefix },
         });
-        await retractToken(tx, actor, project, token, seq, deps.expectedProcedure());
+        await retractToken(
+          tx,
+          actor,
+          project,
+          token,
+          seq,
+          deps.expectedProcedure(),
+          deps.expectedPlacementProcedure(),
+        );
       });
     },
   };

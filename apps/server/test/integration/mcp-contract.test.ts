@@ -15,7 +15,12 @@
  */
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { MAX_SUBMISSION_BYTES, type Project } from '@proa/contracts';
-import { getProcedure, renderPipelineWrapper } from '@proa/procedures';
+import {
+  getProcedure,
+  renderAdHocWrapper,
+  renderDraftValueChainPrompt,
+  renderPipelineWrapper,
+} from '@proa/procedures';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -210,7 +215,11 @@ describe('tools/list', () => {
   it('lists the work_pipeline prompt (snapshot)', async () => {
     const client = await connect(secrets.read);
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(['work_pipeline']);
+    expect(prompts.map((p) => p.name)).toEqual([
+      'work_pipeline',
+      'place_processes',
+      'draft_value_chain',
+    ]);
     await expect(`${JSON.stringify(prompts, null, 2)}\n`).toMatchFileSnapshot(
       '__snapshots__/mcp-prompts.json',
     );
@@ -237,6 +246,70 @@ describe('tools/list', () => {
     expect(text).toMatch(/exact model id as llmModel/);
     expect(text).toMatch(/get_procedure\(\{id: "proa-relations"\}\) again/);
     expect(text).not.toMatch(/at most \d+ task/);
+  });
+
+  it('work_pipeline with kind placement: the placements procedure, claims of that kind', async () => {
+    const client = await connect(secrets.read);
+    const text = promptText(
+      await client.getPrompt({
+        name: 'work_pipeline',
+        arguments: { projectId: 'contract', kind: 'placement', maxTasks: '2' },
+      }),
+    );
+    const procedure = getProcedure('proa-placements');
+    expect(procedure).not.toBeNull();
+    if (procedure) {
+      expect(text).toBe(
+        renderPipelineWrapper(procedure, { kind: 'fixed', projectId: 'contract', maxTasks: 2 }),
+      );
+      expect(text.endsWith(procedure.text)).toBe(true);
+    }
+    expect(text).toContain('claim_analysis({projectId: "contract", kinds: ["placement"], max: 1})');
+    expect(text).toMatch(/get_procedure\(\{id: "proa-placements"\}\) again/);
+    // The default kind keeps the released relations text.
+    const relations = getProcedure('proa-relations');
+    if (relations) {
+      expect(
+        promptText(
+          await client.getPrompt({
+            name: 'work_pipeline',
+            arguments: { projectId: 'contract', kind: 'relations' },
+          }),
+        ),
+      ).toBe(renderPipelineWrapper(relations, { kind: 'fixed', projectId: 'contract' }));
+    }
+    await expect(
+      client.getPrompt({ name: 'work_pipeline', arguments: { kind: 'describe' } }),
+    ).rejects.toThrow();
+  });
+
+  it('place_processes and draft_value_chain name the project and the tools they use', async () => {
+    const client = await connect(secrets.read);
+    const place = promptText(
+      await client.getPrompt({ name: 'place_processes', arguments: { projectId: 'contract' } }),
+    );
+    // The ad-hoc wrapper around the placements procedure, with the procedure verbatim.
+    const procedure = getProcedure('proa-placements');
+    expect(procedure).not.toBeNull();
+    if (procedure) {
+      expect(place).toBe(renderAdHocWrapper(procedure, { projectId: 'contract' }));
+      expect(place.endsWith(procedure.text)).toBe(true);
+    }
+    expect(place).toMatch(/^Place the processes of ProA project contract on its value chain/);
+    expect(place).toContain('get_procedure({id: "proa-placements"}) again');
+    expect(place).toContain('list_unplaced_processes({projectId, cursor})');
+    expect(place).toContain('propose_placement({projectId, procedure, llmModel, placements})');
+    expect(place).toMatch(/Skip every process marked `judged`/);
+    expect(place).not.toContain('{{');
+    const draft = promptText(
+      await client.getPrompt({ name: 'draft_value_chain', arguments: { projectId: 'contract' } }),
+    );
+    expect(draft).toContain('get_landscape({projectId: "contract"})');
+    expect(draft).toContain('"schemaVersion": 1');
+    expect(draft).toContain('Bearbeiten → Importieren');
+    expect(draft).toBe(renderDraftValueChainPrompt({ projectId: 'contract' }));
+    expect(draft).not.toContain('{{');
+    await expect(client.getPrompt({ name: 'place_processes', arguments: {} })).rejects.toThrow();
   });
 
   it('work_pipeline: maxTasks limits the loop (1–100), without a project too', async () => {

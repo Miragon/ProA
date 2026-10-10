@@ -185,3 +185,114 @@ Only expected entries carry tags, so precision within a tag counts must_not_link
 - `message` abrechnung/rechnungsausgabe-digital#Event_InvoicePublished → kundenservice/kundeninformation#Start_RechnungBereitgestellt (de-en, collaboration)
 - `message` kundenservice/kundenportal#Event_InstalmentChangeRequested → abrechnung/abschlagsanpassung#Start_AbschlagsaenderungGewuenscht (de-en)
 - `message` kundenservice/kundenportal#Event_TariffChangeRequested → vertrieb/tarifwechsel#Start_TarifwechselBeantragt (de-en)
+
+## Placements
+
+Recorded submissions of `placement` tasks (M4-VALUE-CHAIN.md §6), scored with the eval:placements scorer against each landscape's `expected-placements.yaml`. A recording counts only on the golden chain: every line's chain content hash must be the golden file's (else eval:replay exits 1). The run's placements are the union of its valid items (applied, duplicate, suppressed, reopened; `@outside` included), one per (process, step) with its highest confidence, ranked per process by confidence (ties by step id). Precision = hit / (hit + trap + wrong) (may and coarse are neutral); recall over every (process, must) pair; recall@1 over each process's most confident step; area recall@1 by top-level area; traps ≥ 0.8 are what the live gate allows none of. Holdout recordings show aggregate numbers only, per-tag numbers only for tags with at least 5 processes.
+
+| Recording | split | tasks | placements | precision | recall | recall@1 | recall@3 | area recall@1 | F1 | trap rate | traps ≥ 0.8 | unsure | skipped | invalid |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| proa-placements@0.1.0 / agent-sim / sim-policy-1 / nordwind-handel | dev | 1 | 29 | 57.7 % | 46.9 % | 46.9 % | 46.9 % | 56.3 % | 51.7 % | 29.2 % | 6 | 3 | 0 | 0 |
+| proa-placements@0.1.0 / agent-sim / sim-policy-1 / stadtwerke-auental | holdout | 1 | 25 | 69.6 % | 59.3 % | 59.3 % | 59.3 % | 85.2 % | 64.0 % | 0.0 % | 0 | 2 | 0 | 0 |
+
+### Baselines
+
+baseline-prefix/1 on the golden chain (eval:placements): top-1 and top-3 hints, with votes (the must_link neighbours known on their golden musts) and without (a fresh project's hints).
+
+| Landscape | split | processes | row | placements | precision | recall | recall@1 | recall@3 | area recall@1 | F1 | trap rate | traps ≥ 0.8 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| nordwind-handel | dev | 32 | with votes | 89 | 32.3 % | 65.6 % | 43.8 % | 65.6 % | 59.4 % | 43.3 % | 41.7 % | 0 |
+| nordwind-handel | dev | 32 | without votes | 62 | 37.0 % | 62.5 % | 46.9 % | 62.5 % | 56.3 % | 46.5 % | 41.7 % | 0 |
+| stadtwerke-auental | holdout | 27 | with votes | 81 | 30.6 % | 70.4 % | 44.4 % | 70.4 % | 92.6 % | 42.7 % | 17.4 % | 0 |
+| stadtwerke-auental | holdout | 27 | without votes | 73 | 32.8 % | 77.8 % | 55.6 % | 77.8 % | 85.2 % | 46.2 % | 13.0 % | 0 |
+
+## Placement live gate
+
+Per procedure version, landscape and declared llmModel, over the live runs (every agent but `agent-sim`, one recording per run): **fail** if a run places a process on a must_not step with confidence ≥ 0.8, or the mean recall@1 is below the higher recall@1 of the two baseline-prefix/1 rows (with and without votes) plus 20 points; else **incomplete** with fewer than 3 runs; else **pass**.
+
+_No live runs yet._
+
+## proa-placements@0.1.0 / agent-sim / sim-policy-1 / nordwind-handel
+
+`proa-placements@0.1.0/agent-sim/sim-policy-1/nordwind-handel.jsonl` · dev · 1 placement task (1 submitted, 0 dry run, 0 failed, 0 queued a follow-up) on chain r1 (the golden chain) · 29 placement items (outcomes: applied 29) · 10 with a question, 0 on `@outside` · 3 unsure, 0 skipped, 32 processes.
+
+|  | placements | precision | recall | recall@1 | recall@3 | area recall@1 | F1 | trap rate | traps ≥ 0.8 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| this run (ranked by confidence) | 29 | 57.7 % | 46.9 % | 46.9 % | 46.9 % | 56.3 % | 51.7 % | 29.2 % | 6 |
+| baseline-prefix/1 with votes | 89 | 32.3 % | 65.6 % | 43.8 % | 65.6 % | 59.4 % | 43.3 % | 41.7 % | 0 |
+| baseline-prefix/1 without votes | 62 | 37.0 % | 62.5 % | 46.9 % | 62.5 % | 56.3 % | 46.5 % | 41.7 % | 0 |
+
+### By tag
+
+| Tag | processes | recall | recall@1 | precision | trap processes |
+|---|--:|--:|--:|--:|--:|
+| ambiguous | 22 | 36.4 % | 36.4 % | 50.0 % | 5/15 |
+| cross-domain | 6 | 16.7 % | 16.7 % | 20.0 % | 3/5 |
+| domain-prefix | 12 | 33.3 % | 33.3 % | 44.4 % | 4/8 |
+| english-label | 6 | 66.7 % | 66.7 % | 66.7 % | 1/6 |
+| integration | 2 | 0.0 % | 0.0 % | 0.0 % | 0/1 |
+| management-process | 2 | 0.0 % | 0.0 % | 0.0 % | 0/1 |
+| name-match | 18 | 66.7 % | 66.7 % | 70.6 % | 4/15 |
+| outdated-copy | 1 | 0.0 % | 0.0 % | n/a | 0/1 |
+| semantic | 13 | 23.1 % | 23.1 % | 33.3 % | 3/8 |
+| shared-word | 12 | 50.0 % | 50.0 % | 50.0 % | 5/12 |
+| support-process | 4 | 25.0 % | 25.0 % | 25.0 % | 3/3 |
+
+### Traps
+
+- finanzen/briefversand#Process_Briefversand → `step-paketversand` (trap, confidence 0.90; support-process, domain-prefix, cross-domain, ambiguous, shared-word, name-match)
+- finanzen/e-rechnung-versand#Process_ERechnungVersand → `step-paketversand` (trap, confidence 0.90; name-match, domain-prefix, ambiguous, shared-word)
+- finanzen/kreditpruefung#Process_Kreditpruefung → `step-kreditorenbuchhaltung` (trap, confidence 0.80; domain-prefix, cross-domain, ambiguous, shared-word, semantic)
+- finanzen/lieferantenrechnung#Process_Lieferantenrechnung → `step-lieferantenmanagement` (trap, confidence 0.80; support-process, ambiguous, shared-word, semantic)
+- finanzen/zahlungslauf#Process_Zahlungslauf → `step-zahlungseingang` (trap, confidence 0.90; support-process, name-match, shared-word)
+- logistik/speditionsversand#Process_Speditionsversand → `step-paketversand` (trap, confidence 0.90; name-match)
+- partner/customer-account-lock#Process_CustomerAccountLock → `step-partnermanagement` (trap, confidence 0.50; domain-prefix, english-label, cross-domain, ambiguous, semantic)
+
+### Wrong top-1
+
+- finanzen/kreditpruefung#Process_AuskunfteiAdapter → `step-kreditorenbuchhaltung` (wrong, confidence 0.80; integration, domain-prefix, ambiguous, semantic)
+- qualitaet/produktrueckruf#Process_Produktrueckruf → `step-qualitaetspruefung` (wrong, confidence 0.50; management-process, name-match)
+- service/ersatzlieferung#Process_Ersatzlieferung → `step-it-services` (wrong, confidence 0.50; semantic, cross-domain, ambiguous)
+- vertrieb/marketplace-order-import#Process_MarketplaceOrderImport → `step-auftragsabwicklung` (wrong, confidence 0.50; english-label, integration, ambiguous, semantic, shared-word)
+
+### Musts missed (the top-ranked step, `unsure` or `none`)
+
+- controlling/management-reporting#Process_ManagementReporting: unsure
+- einkauf/archiv/bestellfreigabe-2019#Process_Bestellfreigabe: `step-bestellwesen` (may)
+- finanzen/briefversand#Process_Briefversand: `step-paketversand` (trap)
+- finanzen/e-rechnung-versand#Process_ERechnungVersand: `step-paketversand` (trap)
+- finanzen/forderungsmanagement#Process_Forderungsmanagement: unsure
+- finanzen/gutschrift#Process_Gutschrift: unsure
+- finanzen/kreditpruefung#Process_AuskunfteiAdapter: `step-kreditorenbuchhaltung` (wrong)
+- finanzen/kreditpruefung#Process_Kreditpruefung: `step-kreditorenbuchhaltung` (trap)
+- finanzen/lieferantenrechnung#Process_Lieferantenrechnung: `step-lieferantenmanagement` (trap)
+- finanzen/zahlungslauf#Process_Zahlungslauf: `step-zahlungseingang` (trap)
+- lager/bestandsueberwachung#Process_Bestandsueberwachung: `step-bestandsfuehrung` (may)
+- logistik/speditionsversand#Process_Speditionsversand: `step-paketversand` (trap)
+- partner/customer-account-lock#Process_CustomerAccountLock: `step-partnermanagement` (trap)
+- qualitaet/produktrueckruf#Process_Produktrueckruf: `step-qualitaetspruefung` (wrong)
+- qualitaet/wareneingangspruefung#Process_Wareneingangspruefung: `step-wareneingang` (may)
+- service/ersatzlieferung#Process_Ersatzlieferung: `step-it-services` (wrong)
+- vertrieb/marketplace-order-import#Process_MarketplaceOrderImport: `step-auftragsabwicklung` (wrong)
+
+## proa-placements@0.1.0 / agent-sim / sim-policy-1 / stadtwerke-auental
+
+`proa-placements@0.1.0/agent-sim/sim-policy-1/stadtwerke-auental.jsonl` · holdout · 1 placement task (1 submitted, 0 dry run, 0 failed, 0 queued a follow-up) on chain r1 (the golden chain) · 25 placement items (outcomes: applied 25) · 11 with a question, 0 on `@outside` · 2 unsure, 0 skipped, 27 processes.
+
+|  | placements | precision | recall | recall@1 | recall@3 | area recall@1 | F1 | trap rate | traps ≥ 0.8 |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| this run (ranked by confidence) | 25 | 69.6 % | 59.3 % | 59.3 % | 59.3 % | 85.2 % | 64.0 % | 0.0 % | 0 |
+| baseline-prefix/1 with votes | 81 | 30.6 % | 70.4 % | 44.4 % | 70.4 % | 92.6 % | 42.7 % | 17.4 % | 0 |
+| baseline-prefix/1 without votes | 73 | 32.8 % | 77.8 % | 55.6 % | 77.8 % | 85.2 % | 46.2 % | 13.0 % | 0 |
+
+### By tag
+
+| Tag | processes | recall | recall@1 | precision | trap processes |
+|---|--:|--:|--:|--:|--:|
+| ambiguous | 14 | 57.1 % | 57.1 % | 72.7 % | 0/10 |
+| cross-domain | 8 | 50.0 % | 50.0 % | 57.1 % | 0/6 |
+| name-match | 19 | 68.4 % | 68.4 % | 76.5 % | 0/15 |
+| semantic | 7 | 42.9 % | 42.9 % | 50.0 % | 0/7 |
+| shared-word | 8 | 50.0 % | 50.0 % | 66.7 % | 0/8 |
+
+_holdout: aggregate numbers only, no per-item lists, per-tag numbers only for tags with at least 5 processes (eval/README.md, holdout hygiene)._

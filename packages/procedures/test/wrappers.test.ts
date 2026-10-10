@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_PIPELINE_TASKS,
   ProcedureFormatError,
+  claimKinds,
+  getProcedure,
   parseProcedure,
+  renderAdHocWrapper,
   renderPipelineWrapper,
   renderSkill,
   skillPath,
@@ -69,6 +72,66 @@ describe('renderPipelineWrapper', () => {
       common.some((line) => line.startsWith('- The procedure below is proa-sample@1.2.3.')),
     ).toBe(true);
     expect(text.endsWith(common.join('\n'))).toBe(true);
+  });
+});
+
+describe('the task kind in the claims', () => {
+  const placement = { ...procedure, kind: 'placement' };
+
+  it('names kinds only for a procedure with a kind', () => {
+    expect(claimKinds(procedure)).toBeUndefined();
+    expect(claimKinds(placement)).toEqual(['placement']);
+    expect(renderPipelineWrapper(placement, { kind: 'fixed', projectId: 'x' })).toContain(
+      'claim_analysis({projectId: "x", kinds: ["placement"], max: 1})',
+    );
+    expect(renderPipelineWrapper(placement, { kind: 'fixed' })).toContain(
+      'claim_analysis({kinds: ["placement"], max: 1}). Stop when',
+    );
+    const args = renderPipelineWrapper(placement, { kind: 'arguments' });
+    expect(args).toContain(
+      'claim_analysis({projectId: "<project>", kinds: ["placement"], max: 1})',
+    );
+    expect(args).toContain('claim_analysis({kinds: ["placement"], max: 1})');
+    expect(renderSkill(placement)).toContain('kinds: ["placement"]');
+  });
+
+  it('keeps the text of a procedure without a kind as it was', () => {
+    // Only the claim calls differ.
+    const plain = renderPipelineWrapper(procedure, { kind: 'arguments' });
+    expect(plain).not.toContain('kinds');
+    expect(
+      renderPipelineWrapper(placement, { kind: 'arguments' }).replaceAll(
+        'kinds: ["placement"], ',
+        '',
+      ),
+    ).toBe(plain);
+  });
+
+  it('claims placement tasks in the placements skill and relations tasks in the relations skill', () => {
+    const placements = getProcedure('proa-placements');
+    const relations = getProcedure('proa-relations');
+    if (!placements || !relations) throw new Error('missing');
+    expect(renderSkill(placements)).toContain(
+      'claim_analysis({projectId: "<project>", kinds: ["placement"], max: 1})',
+    );
+    expect(renderSkill(relations)).toContain('claim_analysis({projectId: "<project>", max: 1})');
+    expect(renderSkill(relations)).not.toContain('kinds:');
+  });
+});
+
+describe('renderAdHocWrapper', () => {
+  it('scopes ad-hoc work to one project, declares procedure and model, then embeds the procedure', () => {
+    const text = renderAdHocWrapper(procedure, { projectId: 'demo' });
+    expect(text).toMatch(/^Place the processes of ProA project demo on its value chain/);
+    expect(text).toContain('Use projectId "demo" in every tool call.');
+    expect(text).toContain(
+      'Declare procedure {id: "proa-sample", version: "1.2.3"} and your exact model id as llmModel in every propose_placement call',
+    );
+    expect(text).toContain('never decide a placement and never edit or save the value chain');
+    expect(text).toContain('call get_procedure({id: "proa-sample"}) again');
+    expect(text).not.toContain('claim_analysis');
+    expect(text).toContain('Procedure proa-sample@1.2.3:\n\n# Sample');
+    expect(text.endsWith(`\n${procedure.text}`)).toBe(true);
   });
 });
 

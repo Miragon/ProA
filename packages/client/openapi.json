@@ -696,6 +696,7 @@
           "lease-lost",
           "task-cancelled",
           "already-submitted",
+          "wrong-task-kind",
           "payload-too-large",
           "unsupported-media-type",
           "internal",
@@ -2651,6 +2652,15 @@
             "items": {
               "$ref": "#/components/schemas/ValueChainFinding"
             }
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/ValueChainPipeline"
+          },
+          "unsure": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChainUnsure"
+            }
           }
         },
         "required": [
@@ -2658,7 +2668,9 @@
           "steps",
           "orgUnits",
           "placements",
-          "findings"
+          "findings",
+          "pipeline",
+          "unsure"
         ],
         "description": "A value chain with steps, placements and findings."
       },
@@ -2994,6 +3006,136 @@
           "held"
         ],
         "description": "Review state of a process without a home step."
+      },
+      "ValueChainPipeline": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "$ref": "#/components/schemas/ModelStage"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/components/schemas/AnalysisTaskId"
+                  },
+                  "state": {
+                    "$ref": "#/components/schemas/AnalysisTaskState"
+                  },
+                  "attempts": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "leaseUntil": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/Timestamp"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "claimedBy": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "state",
+                  "attempts",
+                  "leaseUntil",
+                  "claimedBy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "heldItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "due": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unsure": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "stage",
+          "task",
+          "reviewItems",
+          "heldItems",
+          "due",
+          "unsure"
+        ],
+        "description": "Stage of the chain's placement pipeline."
+      },
+      "AnalysisTaskId": {
+        "type": "string",
+        "pattern": "^ana_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "Analysis task id (`ana_` + ULID).",
+        "example": "ana_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+      },
+      "AnalysisTaskState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "claimed",
+          "done",
+          "failed",
+          "cancelled"
+        ],
+        "description": "State of an analysis task."
+      },
+      "ValueChainUnsure": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "process",
+          "name",
+          "reason",
+          "by",
+          "at",
+          "current"
+        ],
+        "description": "A process the agent was unsure about."
       },
       "ValueChainRevisionPage": {
         "type": "object",
@@ -3556,6 +3698,50 @@
               ]
             },
             "maxItems": 3
+          },
+          "judged": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "$ref": "#/components/schemas/PlacementInputOutcome"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/components/schemas/Timestamp"
+              }
+            },
+            "required": [
+              "outcome",
+              "by",
+              "at"
+            ]
+          },
+          "inTask": {
+            "type": "object",
+            "properties": {
+              "taskId": {
+                "$ref": "#/components/schemas/AnalysisTaskId"
+              },
+              "claimedBy": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "leaseUntil": {
+                "$ref": "#/components/schemas/Timestamp"
+              }
+            },
+            "required": [
+              "taskId",
+              "claimedBy",
+              "leaseUntil"
+            ]
           }
         },
         "required": [
@@ -3570,6 +3756,15 @@
           "hints"
         ],
         "description": "A process without a home step on the chain."
+      },
+      "PlacementInputOutcome": {
+        "type": "string",
+        "enum": [
+          "proposed",
+          "unsure",
+          "skipped"
+        ],
+        "description": "The agent's last verdict on a process."
       },
       "PlacementPage": {
         "type": "object",
@@ -4309,8 +4504,32 @@
         "description": "Claimed tasks; empty when nothing is queued."
       },
       "ClaimedAnalysis": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ClaimedRelationsAnalysis"
+          },
+          {
+            "$ref": "#/components/schemas/ClaimedPlacementAnalysis"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "relations": "#/components/schemas/ClaimedRelationsAnalysis",
+            "placement": "#/components/schemas/ClaimedPlacementAnalysis"
+          }
+        },
+        "description": "A claimed analysis task with its lease and input, by kind."
+      },
+      "ClaimedRelationsAnalysis": {
         "type": "object",
         "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "relations"
+            ]
+          },
           "taskId": {
             "$ref": "#/components/schemas/AnalysisTaskId"
           },
@@ -4348,6 +4567,7 @@
           }
         },
         "required": [
+          "kind",
           "taskId",
           "projectId",
           "projectKey",
@@ -4360,13 +4580,7 @@
           "procedure",
           "input"
         ],
-        "description": "A claimed analysis task with its lease and input."
-      },
-      "AnalysisTaskId": {
-        "type": "string",
-        "pattern": "^ana_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
-        "description": "Analysis task id (`ana_` + ULID).",
-        "example": "ana_01J9Z3N4X5Q6R7S8T9V0W1X2Y3"
+        "description": "A claimed relations task with its lease and input."
       },
       "ClaimInput": {
         "type": "object",
@@ -4844,6 +5058,557 @@
         ],
         "description": "A candidate pair a partner analysis judges."
       },
+      "ClaimedPlacementAnalysis": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "placement"
+            ]
+          },
+          "taskId": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "projectId": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "projectKey": {
+            "$ref": "#/components/schemas/ProjectKey"
+          },
+          "valueChainId": {
+            "$ref": "#/components/schemas/ValueChainId"
+          },
+          "valueChainKey": {
+            "$ref": "#/components/schemas/ValueChainKey"
+          },
+          "revisionId": {
+            "$ref": "#/components/schemas/ValueChainRevisionId"
+          },
+          "rev": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "leaseToken": {
+            "type": "string",
+            "pattern": "^proa_lt_[A-Za-z0-9_-]{43}$"
+          },
+          "leaseUntil": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "procedure": {
+            "$ref": "#/components/schemas/DeclaredProcedure"
+          },
+          "input": {
+            "$ref": "#/components/schemas/PlacementClaimInput"
+          }
+        },
+        "required": [
+          "kind",
+          "taskId",
+          "projectId",
+          "projectKey",
+          "valueChainId",
+          "valueChainKey",
+          "revisionId",
+          "rev",
+          "attempt",
+          "leaseToken",
+          "leaseUntil",
+          "procedure",
+          "input"
+        ],
+        "description": "A claimed placement task with its lease and input."
+      },
+      "PlacementClaimInput": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "proa-claim-placement/1"
+            ]
+          },
+          "valueChain": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/ValueChainId"
+              },
+              "key": {
+                "$ref": "#/components/schemas/ValueChainKey"
+              },
+              "name": {
+                "type": "string"
+              },
+              "revisionId": {
+                "$ref": "#/components/schemas/ValueChainRevisionId"
+              },
+              "rev": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "contentHash": {
+                "$ref": "#/components/schemas/Sha256Hex"
+              },
+              "structureHash": {
+                "$ref": "#/components/schemas/Sha256Hex"
+              }
+            },
+            "required": [
+              "id",
+              "key",
+              "name",
+              "revisionId",
+              "rev",
+              "contentHash",
+              "structureHash"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimPlacementStep"
+            }
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimPlacementProcess"
+            },
+            "maxItems": 50
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "process": {
+                  "$ref": "#/components/schemas/Ref"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "step",
+                "process",
+                "name"
+              ]
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "remaining": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "format",
+          "valueChain",
+          "steps",
+          "processes",
+          "examples",
+          "truncated",
+          "remaining"
+        ],
+        "description": "Input of a claimed placement task (compact)."
+      },
+      "ClaimPlacementStep": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kind": {
+            "$ref": "#/components/schemas/StepKind"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "link": {
+            "$ref": "#/components/schemas/Ref"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "path",
+          "kind",
+          "rank",
+          "depth",
+          "parentId",
+          "children"
+        ],
+        "description": "A value chain step in a placement claim."
+      },
+      "ClaimPlacementProcess": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "$ref": "#/components/schemas/Ref"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modelKey": {
+            "$ref": "#/components/schemas/ModelKey"
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "starts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5
+          },
+          "ends": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5
+          },
+          "doc": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "neighbours": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "process": {
+                  "$ref": "#/components/schemas/Ref"
+                },
+                "via": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "relationId": {
+                        "$ref": "#/components/schemas/RelationId"
+                      },
+                      "type": {
+                        "$ref": "#/components/schemas/RelationType"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "out",
+                          "in"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "relationId",
+                      "type",
+                      "direction"
+                    ]
+                  }
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "process",
+                "via",
+                "steps"
+              ]
+            }
+          },
+          "calls": {
+            "type": "object",
+            "properties": {
+              "out": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "process": {
+                      "$ref": "#/components/schemas/Ref"
+                    },
+                    "relationId": {
+                      "$ref": "#/components/schemas/RelationId"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/RelationStatus"
+                    }
+                  },
+                  "required": [
+                    "process",
+                    "relationId",
+                    "status"
+                  ]
+                }
+              },
+              "in": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "process": {
+                      "$ref": "#/components/schemas/Ref"
+                    },
+                    "relationId": {
+                      "$ref": "#/components/schemas/RelationId"
+                    },
+                    "status": {
+                      "$ref": "#/components/schemas/RelationStatus"
+                    }
+                  },
+                  "required": [
+                    "process",
+                    "relationId",
+                    "status"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "out",
+              "in"
+            ]
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "step",
+                "name",
+                "score"
+              ]
+            },
+            "maxItems": 3
+          },
+          "proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimPlacementProposal"
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimPlacementDecision"
+            }
+          },
+          "unsure": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "by": {
+                "type": "string"
+              },
+              "at": {
+                "$ref": "#/components/schemas/Timestamp"
+              }
+            },
+            "required": [
+              "reason",
+              "by",
+              "at"
+            ]
+          }
+        },
+        "required": [
+          "process",
+          "name",
+          "modelKey",
+          "lanes",
+          "starts",
+          "ends",
+          "neighbours",
+          "calls",
+          "hints",
+          "proposals",
+          "decisions"
+        ],
+        "description": "A process to place (compact)."
+      },
+      "ClaimPlacementProposal": {
+        "type": "object",
+        "properties": {
+          "placementId": {
+            "$ref": "#/components/schemas/PlacementId"
+          },
+          "step": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RelationStatus"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/PlacementTier"
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "by": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "mine": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "question": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimPlacementNote"
+            }
+          }
+        },
+        "required": [
+          "placementId",
+          "step",
+          "status",
+          "tier",
+          "confidence",
+          "by",
+          "source"
+        ],
+        "description": "A live placement proposal (compact)."
+      },
+      "ClaimPlacementNote": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "required": [
+          "text",
+          "at"
+        ],
+        "description": "A human note on a placement (compact)."
+      },
+      "ClaimPlacementDecision": {
+        "type": "object",
+        "properties": {
+          "placementId": {
+            "$ref": "#/components/schemas/PlacementId"
+          },
+          "step": {
+            "type": "string"
+          },
+          "stepLive": {
+            "type": "boolean"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "note": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "at": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimPlacementNote"
+            }
+          }
+        },
+        "required": [
+          "placementId",
+          "step",
+          "stepLive",
+          "verdict",
+          "at"
+        ],
+        "description": "A human placement decision (compact)."
+      },
       "ClaimAnalysisBody": {
         "type": "object",
         "properties": {
@@ -4863,9 +5628,28 @@
             "minimum": 1,
             "maximum": 5,
             "default": 1
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisKind"
+            },
+            "minItems": 1,
+            "maxItems": 2,
+            "default": [
+              "relations"
+            ]
           }
         },
         "description": "Request body to claim analysis tasks."
+      },
+      "AnalysisKind": {
+        "type": "string",
+        "enum": [
+          "relations",
+          "placement"
+        ],
+        "description": "Kind of an analysis task."
       },
       "PendingAnalyses": {
         "type": "object",
@@ -4903,6 +5687,246 @@
           "items"
         ],
         "description": "Claimable tasks per project."
+      },
+      "AnalysisSubmissionResult": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PlacementSubmissionResult"
+          },
+          {
+            "$ref": "#/components/schemas/SubmissionResult"
+          }
+        ],
+        "description": "Outcome of a submission, by kind."
+      },
+      "PlacementSubmissionResult": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "placement"
+            ]
+          },
+          "taskId": {
+            "$ref": "#/components/schemas/AnalysisTaskId"
+          },
+          "submissionId": {
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "placements": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/PipelinePlacementOutcome"
+                    },
+                    "placementId": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/PlacementId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/RelationStatus"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "result",
+                    "placementId",
+                    "status"
+                  ]
+                }
+              },
+              "counts": {
+                "type": "object",
+                "properties": {
+                  "applied": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "duplicate": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "suppressed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "reopened": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "invalid": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "applied",
+                  "duplicate",
+                  "suppressed",
+                  "reopened",
+                  "invalid"
+                ]
+              }
+            },
+            "required": [
+              "items",
+              "counts"
+            ]
+          },
+          "unsure": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/UnsureOutcome"
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "result"
+                  ]
+                }
+              },
+              "counts": {
+                "type": "object",
+                "properties": {
+                  "stored": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "duplicate": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "invalid": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "stored",
+                  "duplicate",
+                  "invalid"
+                ]
+              }
+            },
+            "required": [
+              "items",
+              "counts"
+            ]
+          },
+          "withdrawn": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "processes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Ref"
+                },
+                "maxItems": 50
+              }
+            },
+            "required": [
+              "count",
+              "processes"
+            ]
+          },
+          "followUp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "taskId",
+          "submissionId",
+          "replayed",
+          "placements",
+          "unsure",
+          "withdrawn",
+          "skipped",
+          "followUp"
+        ],
+        "description": "Outcome of a placement task submission, per item."
+      },
+      "PipelinePlacementOutcome": {
+        "type": "string",
+        "enum": [
+          "applied",
+          "duplicate",
+          "suppressed",
+          "reopened",
+          "invalid:malformed-step",
+          "invalid:malformed-ref",
+          "invalid:outside-task-input",
+          "invalid:confidence-out-of-range",
+          "invalid:rationale-too-long",
+          "invalid:question-too-long",
+          "invalid:too-much-evidence",
+          "invalid:control-characters",
+          "invalid:rationale-required",
+          "invalid:unknown-step",
+          "invalid:unknown-process",
+          "invalid:unknown-evidence",
+          "invalid:too-many-steps"
+        ],
+        "description": "Outcome of one placement item of a submission."
+      },
+      "UnsureOutcome": {
+        "type": "string",
+        "enum": [
+          "stored",
+          "duplicate",
+          "invalid:malformed-ref",
+          "invalid:outside-task-input",
+          "invalid:unknown-process",
+          "invalid:reason-required",
+          "invalid:reason-too-long",
+          "invalid:control-characters",
+          "invalid:also-placed"
+        ],
+        "description": "Outcome of one unsure item."
       },
       "SubmissionResult": {
         "type": "object",
@@ -5163,7 +6187,8 @@
             "items": {
               "$ref": "#/components/schemas/ProposalItem"
             },
-            "maxItems": 200
+            "maxItems": 200,
+            "default": []
           },
           "noLinks": {
             "type": "array",
@@ -5172,6 +6197,20 @@
             },
             "maxItems": 500,
             "default": []
+          },
+          "placements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlacementItem"
+            },
+            "maxItems": 200
+          },
+          "unsure": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnsureItem"
+            },
+            "maxItems": 200
           },
           "summary": {
             "type": [
@@ -5194,8 +6233,7 @@
         "required": [
           "leaseToken",
           "submissionId",
-          "procedure",
-          "relations"
+          "procedure"
         ],
         "description": "The result of an analysis task."
       },
@@ -5275,6 +6313,24 @@
         ],
         "description": "A pair judged unrelated."
       },
+      "UnsureItem": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 20000,
+            "default": ""
+          }
+        },
+        "required": [
+          "process"
+        ],
+        "description": "A process the agent could not place with confidence."
+      },
       "ReleaseResult": {
         "type": "object",
         "properties": {
@@ -5351,19 +6407,70 @@
           "projectId": {
             "$ref": "#/components/schemas/ProjectId"
           },
+          "kind": {
+            "$ref": "#/components/schemas/AnalysisKind"
+          },
+          "subjectKind": {
+            "$ref": "#/components/schemas/AnalysisSubjectKind"
+          },
           "modelId": {
-            "$ref": "#/components/schemas/ModelId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "modelKey": {
-            "$ref": "#/components/schemas/ModelKey"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "revisionId": {
-            "$ref": "#/components/schemas/RevisionId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RevisionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "relations"
+          "valueChainId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueChainId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueChainKey": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueChainKey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valueChainRevisionId": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValueChainRevisionId"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "state": {
@@ -5374,7 +6481,24 @@
             "minimum": 0
           },
           "factsHash": {
-            "$ref": "#/components/schemas/Sha256Hex"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Hex"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputHash": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sha256Hex"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "leaseUntil": {
             "anyOf": [
@@ -5414,13 +6538,18 @@
         "required": [
           "id",
           "projectId",
+          "kind",
+          "subjectKind",
           "modelId",
           "modelKey",
           "revisionId",
-          "kind",
+          "valueChainId",
+          "valueChainKey",
+          "valueChainRevisionId",
           "state",
           "attempts",
           "factsHash",
+          "inputHash",
           "leaseUntil",
           "claimedBy",
           "lastError",
@@ -5428,18 +6557,15 @@
           "createdAt",
           "updatedAt"
         ],
-        "description": "An analysis task of one model revision."
+        "description": "An analysis task of a model revision or of the value chain."
       },
-      "AnalysisTaskState": {
+      "AnalysisSubjectKind": {
         "type": "string",
         "enum": [
-          "queued",
-          "claimed",
-          "done",
-          "failed",
-          "cancelled"
+          "model",
+          "value_chain"
         ],
-        "description": "State of an analysis task."
+        "description": "What an analysis task analyses."
       },
       "RequeueResult": {
         "type": "object",
@@ -5477,6 +6603,34 @@
                 "taskId"
               ]
             }
+          },
+          "valueChain": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "open",
+                  "nothing-due",
+                  "not-found"
+                ]
+              },
+              "taskId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AnalysisTaskId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "outcome",
+              "taskId"
+            ]
           }
         },
         "required": [
@@ -5500,9 +6654,15 @@
             "enum": [
               true
             ]
+          },
+          "valueChain": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
           }
         },
-        "description": "Models to analyse again (e.g. after a procedure upgrade)."
+        "description": "Models to analyse again (e.g. after a procedure upgrade), or the value chain placement task."
       },
       "AnalysisSubmission": {
         "type": "object",
@@ -5542,7 +6702,7 @@
             "additionalProperties": {}
           },
           "result": {
-            "$ref": "#/components/schemas/SubmissionResult"
+            "$ref": "#/components/schemas/AnalysisSubmissionResult"
           },
           "createdAt": {
             "$ref": "#/components/schemas/Timestamp"
@@ -10004,7 +11164,7 @@
           "analyses"
         ],
         "summary": "Claim up to 5 queued analysis tasks (15-minute lease, proa:propose)",
-        "description": "Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), with `FOR UPDATE SKIP LOCKED`. Each item carries a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction: the current agent judgements on pairs touching the model (`judged`) and the pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates and the relations in neither list, accepted pairs, unchanged rejections and missing ends aside, are the task’s assignment, and the other `compatible` candidates the search space for missing partners. Empty when nothing is claimable.",
+        "description": "Claims queued tasks (and tasks whose lease expired with attempts left), oldest first, in the projects where the caller may propose (`projectId` narrows it), of the kinds the caller handles (`kinds`, default `[\"relations\"]`), with `FOR UPDATE SKIP LOCKED`. Each item carries its `kind`, a lease token (shown once, bound to the task and the caller) and the compact claim input, rendered in the claim transaction. A `relations` item: the current agent judgements on pairs touching the model (`judged`) and the pairs a partner analysis judges (`skip`), both left out of `candidates`; the remaining `rule`, `key` and `lexical` candidates and the relations in neither list, accepted pairs, unchanged rejections and missing ends aside, are the task’s assignment, and the other `compatible` candidates the search space for missing partners. A `placement` item (`proa-claim-placement/1`): the chain’s steps, the open processes whose input changed since an agent last judged them (at most 50, `truncated` when more are due) with their proposals and the human decisions, and accepted placements as examples. Empty when nothing is claimable.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10093,6 +11253,27 @@
           },
           {
             "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AnalysisKind"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnalysisKind"
+                  },
+                  "minItems": 1,
+                  "maxItems": 2
+                }
+              ],
+              "default": "relations"
+            },
+            "required": false,
+            "name": "kinds",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": [
                 "integer",
                 "null"
@@ -10167,7 +11348,7 @@
           "analyses"
         ],
         "summary": "Submit the result of a claimed task (idempotent by submissionId)",
-        "description": "Validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per relation `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`, per no-link `stored`, `duplicate` or `invalid:<reason>`, and the assigned pairs left unjudged (`uncovered`). Earlier pipeline proposals and no-links on pairs touching the model that were judged on another version of the model or under another procedure are withdrawn; current judgements stay. 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).",
+        "description": "A `relations` task: validates every item (refs in the head facts, one endpoint in the task model, endpoint kinds, limits) and answers per relation `applied`, `duplicate`, `suppressed`, `reopened` or `invalid:<reason>`, per no-link `stored`, `duplicate` or `invalid:<reason>`, and the assigned pairs left unjudged (`uncovered`). Earlier pipeline proposals and no-links on pairs touching the model that were judged on another version of the model or under another procedure are withdrawn; current judgements stay. A `placement` task (`kind: \"placement\"` in the result): per placement and unsure item an outcome, the withdrawn stale or replaced pipeline proposals, the input processes left without a verdict (`skipped`) and whether a follow-up task was queued. 422 `wrong-task-kind` (items of the other kind); 409 `lease-lost` (another holder, a release, a wrong token), `task-cancelled` (new revision), `already-submitted` (another submissionId).",
         "parameters": [
           {
             "schema": {
@@ -10195,7 +11376,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SubmissionResult"
+                  "$ref": "#/components/schemas/AnalysisSubmissionResult"
                 }
               }
             }
@@ -10251,7 +11432,7 @@
             }
           },
           "422": {
-            "description": "Problem: `validation-failed`",
+            "description": "Problem: `validation-failed`, `wrong-task-kind`",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10388,6 +11569,15 @@
           },
           {
             "schema": {
+              "$ref": "#/components/schemas/AnalysisKind"
+            },
+            "required": false,
+            "description": "Kind of an analysis task.",
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
               "$ref": "#/components/schemas/ModelKey"
             },
             "required": false,
@@ -10476,7 +11666,7 @@
         "tags": [
           "analyses"
         ],
-        "summary": "Queue models again, e.g. after a procedure upgrade (proa:write)",
+        "summary": "Queue models again, e.g. after a procedure upgrade, or the value chain placement task (proa:write)",
         "parameters": [
           {
             "schema": {

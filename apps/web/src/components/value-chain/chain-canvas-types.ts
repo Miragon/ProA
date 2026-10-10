@@ -17,7 +17,27 @@ export interface ChainCanvasDocument {
   /** Canonical text; `null` creates an empty document named `emptyName`. */
   text: string | null;
   emptyName: string;
+  /**
+   * An imported file (M4 §3.3 "Import", edit mode): after the import, every
+   * connection is laid out again by the renderer's layouter
+   * (`modeling.layoutConnection`), so rough waypoints of a drafted file get
+   * the routes the modeler draws; then the command stack is cleared, so the
+   * re-layout is no undoable edit and reports no change.
+   */
+  relayout?: boolean;
 }
+
+/**
+ * What `canvas/check-document.ts` says about a file before it is imported:
+ * a valid document of a supported version, a newer format version, or a
+ * schema violation (`path` of the first zod issue, or `null` with the
+ * package's message for a cross-field rule such as a duplicate id). The page
+ * turns it into German text (`importErrorText`).
+ */
+export type DocumentCheck =
+  | { ok: true; elements: number; connections: number }
+  | { ok: false; kind: 'version'; version: number; supported: number }
+  | { ok: false; kind: 'schema'; path: string | null; detail: string };
 
 /** Badges, finding labels and markers per element (M4 §4 "Overlays"). */
 export interface CanvasOverlay {

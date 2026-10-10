@@ -12,11 +12,17 @@ export {
   agentOf,
   buildRecordings,
   fetchStoredAnalyses,
+  isStoredPlacement,
+  lineOf,
+  placementLineOf,
   recordingLineOf,
   type BuiltRecording,
+  type LineOf,
   type LineOptions,
   type LiveSource,
   type StoredAnalysis,
+  type StoredPlacementAnalysis,
+  type StoredTask,
 } from './live-recordings.ts';
 export {
   MAX_RECALL_DROP,

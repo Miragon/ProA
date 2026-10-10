@@ -4,17 +4,23 @@
 //   pnpm eval:replay            (from the repository root)
 //   node src/replay.ts [--recordings <dir>] [--corpus <dir>] [--out <dir>] [--no-write]
 //
-// Reads eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl,
-// scores each file against eval/corpus/<landscape>/expected.yaml (precision,
-// recall and F1 overall, per relation type and tag; must_not_link hits;
-// questions; no-links), evaluates the live gate (live-gate.ts; one gate per
-// procedure version, landscape and declared llmModel) and writes
-// eval/reports/replay.{md,json}. Relative paths resolve against INIT_CWD,
-// the repository root for `pnpm eval:replay`, as eval:live's do. It only
-// reports (eval:live enforces the live gate): exit 1 only if a recording
-// cannot be read or names a landscape the corpus does not have; 2 on a usage
-// error (an unknown option, a named --recordings directory that does not
-// exist: only the default may be absent).
+// Reads eval/recordings/<procedure>@<version>/<agent>/<llmModel>/<landscape>.jsonl
+// and splits the files by task kind. Relations recordings: scores each file
+// against eval/corpus/<landscape>/expected.yaml (precision, recall and F1
+// overall, per relation type and tag; must_not_link hits; questions;
+// no-links) and evaluates the live gate (live-gate.ts; one gate per procedure
+// version, landscape and declared llmModel). Placement recordings (M4b):
+// scores each file against eval/value-chains/<landscape>/expected-placements.yaml
+// (placements-replay.ts, next to baseline-prefix/1) and evaluates the
+// placement live gate (placement-live-gate.ts). Writes
+// eval/reports/replay.{md,json}, the placement sections after the relations
+// sections. Relative paths resolve against INIT_CWD, the repository root for
+// `pnpm eval:replay`, as eval:live's do. It only reports (eval:live enforces
+// the live gates): exit 1 only if a recording cannot be read, names a
+// landscape the corpus (or eval/value-chains) does not have, mixes task kinds
+// or worked on an edited chain ("not comparable"); 2 on a usage error (an
+// unknown option, a named --recordings directory that does not exist: only
+// the default may be absent).
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,19 +30,24 @@ import { REPORTS_DIR } from './candidates.ts';
 import { CORPUS_DIR } from './corpus.ts';
 import { runLandscape, type LandscapeRun } from './landscape.ts';
 import { formatLiveGate, liveGates } from './live-gate.ts';
-import { RECORDINGS_DIR, landscapeDir, loadRecordings } from './recordings.ts';
+import { formatPlacementLiveGate, placementLiveGates } from './placement-live-gate.ts';
+import { VALUE_CHAINS_DIR } from './placements-load.ts';
+import { placementScoreLine } from './placements-replay-report.ts';
+import { replayPlacements } from './placements-replay.ts';
+import { RECORDINGS_DIR, landscapeDir, loadRecordings, recordingKind } from './recordings.ts';
 import { renderReplayMarkdown, scoreLine, type ReplayReport } from './replay-report.ts';
 import { scoreRecording } from './replay-score.ts';
 
-/** Scores every recording below `recordingsDir`, sorted by path. */
+/** Scores every recording below `recordingsDir`, sorted by path, relations and placement files apart. */
 export async function replay(
   recordingsDir: string = RECORDINGS_DIR,
   corpusDir: string = CORPUS_DIR,
+  valueChainsDir: string = VALUE_CHAINS_DIR,
 ): Promise<ReplayReport> {
   const files = await loadRecordings(recordingsDir);
   const runs = new Map<string, LandscapeRun>();
   const recordings = [];
-  for (const f of files) {
+  for (const f of files.filter((x) => recordingKind(x) === 'relations')) {
     let run = runs.get(f.landscape);
     if (!run) {
       run = await runLandscape(await landscapeDir(corpusDir, f.landscape));
@@ -44,7 +55,13 @@ export async function replay(
     }
     recordings.push(scoreRecording(f, run));
   }
-  return { recordings, liveGate: liveGates(recordings) };
+  const report: ReplayReport = { recordings, liveGate: liveGates(recordings) };
+  const placementFiles = files.filter((x) => recordingKind(x) === 'placement');
+  if (placementFiles.length > 0) {
+    const placements = await replayPlacements(placementFiles, { corpusDir, valueChainsDir });
+    report.placements = { ...placements, liveGate: placementLiveGates(placements.recordings, placements.baselines) };
+  }
+  return report;
 }
 
 export const USAGE = 'usage: pnpm eval:replay [--recordings <dir>] [--corpus <dir>] [--out <dir>] [--no-write]\n';
@@ -122,9 +139,17 @@ async function replayCommand(argv: readonly string[], io: ReplayIo): Promise<num
   }
   const report = await replay(recordingsDir, corpusDir);
   for (const s of report.recordings) io.stdout(`${scoreLine(s)}\n`);
-  if (report.recordings.length === 0) io.stdout('no recordings\n');
+  if (report.recordings.length === 0 && !report.placements) io.stdout('no recordings\n');
   for (const g of report.liveGate) io.stdout(`${formatLiveGate(g)}\n`);
   if (report.liveGate.length === 0) io.stdout('live gate: no live runs yet\n');
+  if (report.placements) {
+    const { recordings, baselines, liveGate } = report.placements;
+    for (const s of recordings) {
+      io.stdout(`${placementScoreLine(s, baselines.find((b) => b.landscape === s.landscape))}\n`);
+    }
+    for (const g of liveGate) io.stdout(`${formatPlacementLiveGate(g)}\n`);
+    if (liveGate.length === 0) io.stdout('placement live gate: no live runs yet\n');
+  }
   if (!values['no-write']) {
     await mkdir(out, { recursive: true });
     await writeFile(path.join(out, 'replay.md'), renderReplayMarkdown(report));

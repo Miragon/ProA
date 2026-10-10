@@ -1,13 +1,16 @@
 import type { Placement, UnplacedProcess, ValueChainDetail, ValueChainStep } from '@proa/client';
-import { CheckCheckIcon, TriangleAlertIcon } from 'lucide-react';
+import { CheckCheckIcon, RotateCcwIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
-import { ToneBadge } from '@/components/badges';
+import { STAGE_ICONS, ToneBadge } from '@/components/badges';
 import { PlainText } from '@/components/review/plain-text';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { STEP_KINDS, VALUE_CHAIN_FINDING_KINDS } from '@/lib/labels';
+import { errorMessage } from '@/lib/api';
+import { CHAIN_STAGES, STEP_KINDS, VALUE_CHAIN_FINDING_KINDS } from '@/lib/labels';
 import { MAX_VALUE_CHAIN_NAME_CHARS, OUTSIDE_STEP } from '@/lib/limits';
+import { useRequeueChain } from '@/lib/review-actions';
+import { toast } from '@/lib/toast';
 import {
   isOpenPlacement,
   openCountsByStep,
@@ -25,6 +28,7 @@ import { CommitField } from './commit-field';
 import { PlacementCard } from './placement-card';
 import type { PlacementOutcome } from './placement-decision-panel';
 import { UnplacedList } from './unplaced-list';
+import { UnsureList } from './unsure-list';
 
 function Section({
   title,
@@ -251,12 +255,110 @@ export interface ChainOverviewProps {
 }
 
 /**
- * The side panel without a selection (M4 §4): the chain in brief, the step
- * tree (one tab stop; arrows, Home/End, Enter), the open reviews with the bulk
- * re-confirm, findings, processes without a step, placements outside the
- * chain and on removed steps (that section first while it holds the active
- * card); in edit mode also the chain's name and what the unsaved drawing
- * removes.
+ * The stage of the chain's placement pipeline (M4 §3.5): where the agent
+ * stands, and how many processes the next placement task judges (`due`).
+ * When the task failed, or processes are due without a queued or claimed
+ * task (reviewers' decisions and notes make processes due but queue
+ * nothing; chains from before the pipeline), reviewers can queue it here.
+ */
+function PipelineStage({
+  project,
+  pipeline,
+  canReview,
+}: {
+  project: string;
+  pipeline: ValueChainDetail['pipeline'];
+  canReview: boolean;
+}) {
+  const stage = CHAIN_STAGES[pipeline.stage];
+  const requeue = useRequeueChain(project);
+  const failed = pipeline.stage === 'agent_failed';
+  const open = pipeline.task?.state === 'queued' || pipeline.task?.state === 'claimed';
+  const idle = !failed && !open && pipeline.due > 0;
+
+  function queue() {
+    requeue.mutate(undefined, {
+      onSuccess: (result) => {
+        const outcome = result.valueChain?.outcome;
+        if (outcome === 'queued' || outcome === 'open') {
+          toast({
+            tone: 'success',
+            title: outcome === 'queued' ? 'Eingeplant' : 'Schon eingeplant',
+            description: 'Die Platzierungsaufgabe wartet auf einen Agenten.',
+          });
+        } else if (outcome === 'nothing-due') {
+          toast({
+            tone: 'info',
+            title: 'Nichts fällig',
+            description:
+              'Jeder offene Prozess hat ein Urteil des Agenten auf seinem jetzigen Stand.',
+          });
+        } else {
+          toast({
+            tone: 'danger',
+            title: 'Nicht eingeplant',
+            description: 'Das Projekt hat keine Wertschöpfungskette.',
+          });
+        }
+      },
+      onError: (error) =>
+        toast({ tone: 'danger', title: 'Nicht eingeplant', description: errorMessage(error) }),
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p
+        className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
+        data-testid="chain-stage"
+        data-stage={pipeline.stage}
+      >
+        <span>Platzierungen durch den Agenten:</span>
+        <ToneBadge tone={stage.tone} icon={STAGE_ICONS[pipeline.stage]} title={stage.hint}>
+          {stage.label}
+        </ToneBadge>
+        {pipeline.due > 0 ? (
+          <span className="tabular-nums" data-testid="chain-due">
+            {pipeline.due === 1 ? '1 Prozess fällig' : `${pipeline.due} Prozesse fällig`}
+          </span>
+        ) : null}
+      </p>
+      {failed || idle ? (
+        <div
+          className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+          data-testid="chain-requeue"
+        >
+          <span>
+            {failed
+              ? 'Plane die Aufgabe erneut ein, damit ein Agent sie übernimmt.'
+              : 'Für diese Prozesse ist keine Aufgabe eingeplant (Entscheidungen und Notizen planen keine ein).'}
+          </span>
+          {canReview ? (
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={requeue.isPending}
+              onClick={queue}
+              data-testid="requeue-chain"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              {failed ? 'Erneut einplanen' : 'Aufgabe einplanen'}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The side panel without a selection (M4 §4): the chain in brief with the
+ * stage of its placement pipeline, the step tree (one tab stop; arrows,
+ * Home/End, Enter), the open reviews with the bulk re-confirm, findings,
+ * processes the agent was unsure about, processes without a step, placements
+ * outside the chain and on removed steps (that section first while it holds
+ * the active card); in edit mode also the chain's name and what the unsaved
+ * drawing removes.
  */
 export function ChainOverview(props: ChainOverviewProps) {
   const {
@@ -376,11 +478,15 @@ export function ChainOverview(props: ChainOverviewProps) {
         </p>
       ) : mode === 'edit' ? (
         <p className="text-sm text-muted-foreground">
-          Neue Kette: Ziehe Schritte aus der Palette links. Gespeichert wird erst mit „Speichern“.
+          Neue Kette: Ziehe Schritte aus der Palette links oder importiere eine .vc.json.
+          Gespeichert wird erst mit „Speichern“.
         </p>
       ) : (
         <Skeleton className="h-5 w-full" />
       )}
+      {detail ? (
+        <PipelineStage project={project} pipeline={detail.pipeline} canReview={canReview} />
+      ) : null}
 
       {steps.length > 0 ? (
         <Section title="Schritte" count={steps.length}>
@@ -497,6 +603,17 @@ export function ChainOverview(props: ChainOverviewProps) {
               ))}
             </ul>
           )}
+        </Section>
+      ) : null}
+
+      {detail && detail.unsure.length > 0 ? (
+        <Section title="Agent unsicher" count={detail.unsure.length}>
+          <UnsureList
+            project={project}
+            items={detail.unsure}
+            steps={stepOptions}
+            canReview={canReview}
+          />
         </Section>
       ) : null}
 

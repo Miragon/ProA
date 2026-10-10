@@ -5,7 +5,13 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { RecordingLine, recordingPath } from '@proa/contracts';
+import {
+  PlacementRecordingLine,
+  RelationRecordingLine,
+  isPlacementLine,
+  recordingPath,
+  type RecordingLine,
+} from '@proa/contracts';
 
 /** `eval/recordings`. */
 export const RECORDINGS_DIR = fileURLToPath(new URL('../../recordings', import.meta.url));
@@ -44,7 +50,9 @@ export function parseRecording(file: string, text: string): RecordingFile {
     } catch (err) {
       throw new RecordingError(`${file}:${i + 1}: not JSON (${err instanceof Error ? err.message : String(err)})`);
     }
-    const parsed = RecordingLine.safeParse(json);
+    // By kind, so a failure names the field (the union would report only "invalid input").
+    const isPlacement = typeof json === 'object' && json !== null && (json as { kind?: unknown }).kind === 'placement';
+    const parsed = isPlacement ? PlacementRecordingLine.safeParse(json) : RelationRecordingLine.safeParse(json);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       throw new RecordingError(`${file}:${i + 1}: not a proa-recording/1 line (${issue?.path.join('.') ?? ''}: ${issue?.message ?? ''})`);
@@ -73,6 +81,20 @@ export async function loadRecordings(dir: string = RECORDINGS_DIR): Promise<Reco
   const out: RecordingFile[] = [];
   for (const f of files) out.push(parseRecording(f, await readFile(path.join(dir, f), 'utf8')));
   return out;
+}
+
+/**
+ * The task kind of a recording file: `placement` when its lines are
+ * placement lines, `relations` when they are relations lines. A file holds
+ * one procedure, so one kind.
+ *
+ * @throws {RecordingError} if a file mixes both kinds
+ */
+export function recordingKind(file: RecordingFile): 'relations' | 'placement' {
+  const placement = file.lines.filter(isPlacementLine).length;
+  if (placement === 0) return 'relations';
+  if (placement === file.lines.length) return 'placement';
+  throw new RecordingError(`${file.path}: mixes placement and relations lines`);
 }
 
 /**

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { formatDateTime } from '@/lib/labels';
 import { impactSummary, violationLine, type ImpactSummary } from '@/lib/value-chain';
+import { importConfirmText, importReplacesDraftText } from '@/lib/value-chain-import';
 
 function counts(parts: [number, string, string][]): string {
   return parts
@@ -33,10 +34,21 @@ function counts(parts: [number, string, string][]): string {
     .join(', ');
 }
 
-/** The steps a save removes or changes, with what happens to their placements. */
+/**
+ * The steps a save removes or changes, with what happens to their placements.
+ * The lists scroll within the dialog (an import that replaces a whole chain
+ * removes every step), so the dialog's buttons stay in view.
+ */
 export function ImpactLists({ summary }: { summary: ImpactSummary }) {
   return (
-    <div className="flex flex-col gap-3 text-sm" data-testid="impact-lists">
+    <div
+      className="-mx-1 flex max-h-[min(50vh,28rem)] flex-col gap-3 overflow-y-auto px-1 text-sm"
+      data-testid="impact-lists"
+      role="region"
+      aria-label="Betroffene Schritte"
+      // A scrolling region is reachable by keyboard.
+      tabIndex={0}
+    >
       {summary.removed.length > 0 ? (
         <section className="flex flex-col gap-1" aria-label="Entfernte Schritte">
           <h3 className="font-medium">Entfernte Schritte</h3>
@@ -442,6 +454,54 @@ export function DiscardDialog({
           <AlertDialogCancel onClick={onStay}>Weiter bearbeiten</AlertDialogCancel>
           <AlertDialogAction variant="destructive" onClick={onDiscard}>
             Verwerfen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/**
+ * Before an import replaces a drawing with content or unsaved edits (M4
+ * §3.3): „Die aktuelle Zeichnung wird durch „<Datei>“ ersetzt.“ Nothing is
+ * saved either way; the replaced drawing's draft follows the imported one.
+ */
+export function ImportConfirmDialog({
+  fileName,
+  draftSavedAt,
+  onReplace,
+  onCancel,
+}: {
+  fileName: string | null;
+  /** The import starts a new chain over a stored draft of one, saved then. */
+  draftSavedAt?: string | null;
+  onReplace: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <AlertDialog open={fileName !== null}>
+      <AlertDialogContent
+        className="sm:max-w-md"
+        data-testid="import-confirm"
+        onEscapeKeyDown={() => onCancel()}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {draftSavedAt ? 'Entwurf ersetzen?' : 'Zeichnung ersetzen?'}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {fileName === null
+              ? null
+              : draftSavedAt
+                ? `${importReplacesDraftText(fileName, draftSavedAt)} Der Import wird dein neuer Entwurf.`
+                : `${importConfirmText(fileName)} Was du seit dem letzten Speichern gezeichnet hast, geht dabei verloren.`}{' '}
+            Gespeichert wird erst mit „Speichern“.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={onReplace} data-testid="import-replace">
+            Ersetzen
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -56,6 +56,10 @@ describe('MCP /mcp authentication', () => {
       /No tool accepts or rejects a relation or placement, or saves the value chain/,
     );
     expect(MCP_INSTRUCTIONS).toMatch(/get_procedure/);
+    // M4b: the claim names the procedure, one per task kind.
+    expect(MCP_INSTRUCTIONS).toMatch(
+      /load the procedure the claim names with get_procedure \(proa-relations for relations tasks, proa-placements for placement tasks\)/,
+    );
     // Which tools need projectId matches the tool schemas (checked against them over MCP).
     expect(MCP_INSTRUCTIONS).toMatch(/list_projects and get_procedure take no projectId/);
     expect(MCP_INSTRUCTIONS).toMatch(/claim_analysis takes an optional one/);

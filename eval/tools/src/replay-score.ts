@@ -14,7 +14,7 @@
 // `invalid:<reason>` (results since proa-relations@0.2.0 carry the no-link
 // outcomes) is no judgement; older results have none, so all their no-links
 // count.
-import type { DerivedRelation } from '@proa/contracts';
+import { isPlacementLine, type DerivedRelation, type RelationRecordingLine } from '@proa/contracts';
 
 import type { Expect, ExpectedRelation, LandscapeRun } from './landscape.ts';
 import type { RecordingFile } from './recordings.ts';
@@ -144,6 +144,8 @@ function metrics(c: Omit<Metrics, 'precision' | 'recall' | 'f1'>, closedWorld: b
 
 /** Scores one recording file against the landscape's ground truth. */
 export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplayScore {
+  // Relations lines only: placement lines (M4b) are scored by the placement scorer.
+  const lines = rec.lines.filter((l): l is RelationRecordingLine => !isPlacementLine(l));
   const { expected, facts, meta } = run;
   const closedWorld = meta.closed_world;
 
@@ -181,7 +183,7 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
   const outcomes: Record<string, number> = {};
   const proposed = new Map<string, ProposedPair>();
   let total = 0;
-  for (const line of rec.lines) {
+  for (const line of lines) {
     for (const [i, item] of line.submission.relations.entries()) {
       total++;
       const answered = line.result?.items.find((x) => x.index === i)?.result;
@@ -286,7 +288,7 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
   // server answered invalid is none (results without no-link outcomes: every no-link counts).
   const noLinkPairs = new Map<string, { from: string; to: string }>();
   let uncovered: number | null = null;
-  for (const line of rec.lines) {
+  for (const line of lines) {
     const answers = line.result?.noLinks?.items;
     for (const [i, n] of line.submission.noLinks.entries()) {
       if (answers?.find((x) => x.index === i)?.result.startsWith('invalid:')) continue;
@@ -304,7 +306,7 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
     if (c.class === 'must_link' && c.entry) noLinkOnMustLink.push(c.entry);
   }
 
-  const models = new Set(rec.lines.map((l) => l.modelKey));
+  const models = new Set(lines.map((l) => l.modelKey));
   return {
     file: rec.path,
     procedure: rec.procedure,
@@ -314,12 +316,12 @@ export function scoreRecording(rec: RecordingFile, run: LandscapeRun): ReplaySco
     split: meta.split,
     closedWorld,
     tasks: {
-      lines: rec.lines.length,
+      lines: lines.length,
       models: models.size,
       landscapeModels: facts.models.length,
-      submitted: rec.lines.filter((l) => l.outcome === 'submitted').length,
-      dryRun: rec.lines.filter((l) => l.outcome === 'dry-run').length,
-      failed: rec.lines.filter((l) => l.outcome === 'failed').length,
+      submitted: lines.filter((l) => l.outcome === 'submitted').length,
+      dryRun: lines.filter((l) => l.outcome === 'dry-run').length,
+      failed: lines.filter((l) => l.outcome === 'failed').length,
     },
     items: { total, invalid: sortRecord(invalid), outcomes: sortRecord(outcomes) },
     pairs: pairs.length,

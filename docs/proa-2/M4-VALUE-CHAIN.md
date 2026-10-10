@@ -1,6 +1,6 @@
 # ProA 2.0 – Milestone M4 "Value chain"
 
-Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3 done (2026-10-09, the chain page in the web UI), S4 done (2026-10-09, `eval:placements`, `proa seed --value-chains`, German rule-tier texts; with it **M4a is done**, "`eval:placements` green in CI" pending the next push), S5–S6 open · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
+Status: proposed (2026-10-08, revised after review); the owner accepted the defaults of §11 (2026-10-09); S0 done (2026-10-08, `@miragon/value-chain-*` 0.3.0), S1 done (2026-10-09, storage and placement lifecycle), S2 done (2026-10-09, REST, MCP, CLI, rule proposals, findings, `baseline-prefix/1`), S3 done (2026-10-09, the chain page in the web UI), S4 done (2026-10-09, `eval:placements`, `proa seed --value-chains`, German rule-tier texts; with it **M4a is done**; `eval:placements` green in CI since the push of S4), S5 done (2026-10-09, the `placement` pipeline kind with judge each process once, `proa-placements@0.1.0`, the prompts `place_processes` and `draft_value_chain`, Import on the chain page, the simulation agent's placement policy, recordings scored by `eval:replay`, the placement live gate; M4b's code is done, its owner actions are open: §9 "M4b done criteria status"), S6 open (blocked on the R1 OKF export) · Branch: `claude/proa-2` · Spec: [CONCEPT.md](CONCEPT.md) §2, §3, §5–§7 · Previous: [M2-PIPELINE-REVIEW.md](M2-PIPELINE-REVIEW.md) · Golden data: [eval/value-chains](../../eval/value-chains/README.md) · Modeler: `Miragon/value-chain-modeler` (MIT)
 
 M4 puts the classic process landscape map ("Prozesslandkarte") on top of the processes: one
 value chain per project (Wertschöpfungskette, ARIS value-added chain diagram), edited in the
@@ -193,9 +193,9 @@ placement and also pins its chain and project; `@outside`'s step fingerprint is 
 revision belong to the same chain, `created_rev`/`deleted_rev` name real revisions,
 `linked_placement_id` names a placement. Placement status reuses the relation status values; the
 `rule` tier is excluded, and the rule tier never decides (nothing is auto-accepted). The basis
-columns for M4b are there already: `step_hash` (the chain's `structure_hash`) and `process_hash`
-(the `facts_hash` of the process's model) as the agent saw them, both or neither and only on
-proposals, plus `submission_id` with a foreign key that is checked at commit (as 0003 did for
+columns for M4b are there already: `step_hash` and `process_hash`, as S5 delivered them the
+digests of the chain's steps and of the process as the agent's claim showed them
+(`chainInputDigest`, `processInputDigest`, §3.2), both or neither and only on proposals, plus `submission_id` with a foreign key that is checked at commit (as 0003 did for
 relation assertions), so S5 needs no change to an append-only table. `content` holds the
 canonical bytes; the 1 MB limit is a ProA rule (S2), not a DB check. `key` has no DB check: the
 domain allows only `main`.
@@ -261,11 +261,97 @@ never turns agent runs into 409 `task-cancelled`. Items are validated against th
 submit time (`invalid:unknown-step` for a step deleted meanwhile); processes whose items were
 invalid get no `placement_input` row and are offered again.
 
+**As delivered in S5** (judge each process once, the owner's requirement of 2026-10-08 applied to
+placements; §9 "S5 as delivered" lists the decisions):
+- **Input hash** (`proa-placement-input/1`, `value-chain/pipeline.ts`): what a claim shows of the
+  process and nothing it does not show (review fix, 2026-10-10): sha256 of the expected
+  procedure, the process ref, the `processInputDigest` of the process's own fields (name, lanes,
+  start and end labels, documentation as cut; not the model-wide `facts_hash`, so a change to a
+  sibling process re-offers nothing), the chain's `chainInputDigest` (every step as the claim lists
+  it with names and path normalized, kinds, parents, children and resolved links, the `sequence`
+  connections between steps and the live step generations, so a revived chain or a re-added id
+  offers its processes again; not the `structure_hash`, which counts org units and their
+  `assignment` connections the claim never shows, and not the positional `rank`), the neighbours
+  through **accepted** relations with the steps they are accepted on, and the last seq of the
+  process's non-agent placement assertions the claim shows (human decisions and notes, also on
+  an open proposal, which the claim lists on that proposal; rule-tier proposals and withdrawals;
+  not notes on obsolete placements). The two digests are the `step_hash` and `process_hash`
+  basis of a pipeline proposal. Agent proposals and withdrawals and relation proposals are left
+  out, so neither pipeline re-triggers itself or the other.
+- **Open** processes have no accepted or held placement on a live step generation (an accepted
+  placement on a removed step counts as open, as for the findings); a process with only proposals
+  is open. **Due** = open and its input hash differs from its `placement_input` row (or it has
+  none). The row (`value_chain_id, process_ref` → `input_hash`, `task_id`, `principal_id`,
+  `outcome` `proposed` | `unsure` | `skipped`, `reason` for `unsure`) is the verdict memory.
+- **Queued** (`value-chain/queue.ts`) when no placement task of the chain is open and some
+  process is due: creating or reviving the chain, a save whose `chainInputDigest` differs from
+  the head's (saves that keep the claim's steps, such as layout or org units, `unchanged` saves
+  and dry runs do not), an upload with new or changed processes (after the relation tasks, so
+  their events keep their order), `POST …/analyses/requeue {valueChain: true}` (also from the
+  chain page and `proa value-chain requeue`), a lost judgement (a revoked token, a withdrawn
+  pipeline proposal, an agent withdrawing its own ad-hoc proposal), and the server start for a
+  live chain that never had a placement task (the chains of M4a that migration 0008 finds;
+  reason `server start`, recorded under `proa-rules`). A trigger while the task is claimed sets
+  `requeue_after`; the submission then queues the follow-up. Deleting a model, a human decision
+  or a note never queues: the next task picks them up, and a reviewer can queue one at once.
+  Deleting the chain cancels its task.
+- **One open placement task per chain** (partial unique index `analysis_task_open_chain_unique`
+  on `(value_chain_id, kind)`): two placement claims never coexist, so no process is judged twice
+  concurrently; the cost is no parallel placement agents per project. A claim whose due set is
+  empty (decided meanwhile) cancels the task ("nothing left to judge") and claims again for the
+  free slot, so a `max: 1` caller does not stop early.
+- **Claim** (`use-cases/placement-tasks.ts`), rendered in the claim transaction under the
+  project lock: the due processes in ref order, at most 50, added while the input stays within
+  96,000 bytes (the first always fits), `truncated` and `remaining` when more are due; each
+  process as in §3.1 (neighbours cut to 20 with at most 3 relations each) plus its live proposals
+  on live steps (`mine` for the claimant's; also those on rejected placements; on an undecided
+  placement with its human `notes`), the human rejections on any step and holds and acceptances
+  on removed steps with notes (cut to 300 characters; a hold or acceptance on a live step homes
+  the process, which is then in no claim) and an earlier unsure verdict; the steps (no geometry); up to 5 accepted placements
+  per step as `examples`. The claim stores what it showed (`placement_claim`: the processes with
+  their input hashes and basis, the structure hash), and the task's revision becomes the head it
+  showed. Claim sizes: dev 32 processes, 34 steps, 40.9 KB (57.0 KB after LLM-sized proposals);
+  holdout (counts only) 27 processes, 38 steps, 38.6 KB (52.2 KB).
+- **Submission:** `placements` and `unsure` as above; a pipeline item for a process outside the
+  claim's input is `invalid:outside-task-input` (`too-many-steps` counts the submission's steps
+  for the process plus the caller's live ad-hoc proposals of it); an unsure item is `stored`,
+  `duplicate` or `invalid:<reason>` (`also-placed` when the submission also places the process).
+  **Supersession:** for the input's processes, every live pipeline proposal of any principal
+  made on another basis (structure hash, process hash, procedure) is withdrawn (`Veraltet:
+  ersetzt durch Einreichung …`), and the caller's own pipeline proposals on processes it gave a
+  verdict that the submission does not repeat (`Ersetzt durch Einreichung …`); other agents'
+  current proposals stay, so disagreements reach the reviewer; ad-hoc and rule proposals are
+  never superseded. Every input process gets its verdict row (`proposed`, `unsure` with the
+  reason, `skipped`); a process with only invalid items gets none. **Follow-up** at submit when
+  the claim was truncated and the submission wrote a verdict row (the progress guard: an agent
+  that sends only invalid items cannot loop), or `requeue_after` is set, and only if something is
+  still due. The result: per item and counts, `withdrawn`, `skipped` (count and up to 50 refs),
+  `followUp`.
+- **Ad hoc counts as a verdict:** a valid agent item of `propose_placement` writes or refreshes the
+  process's `placement_input` row (`proposed`, no task, the current hash), and
+  `list_unplaced_processes` marks processes with a current row as `judged` (outcome, reason, by,
+  at), so `place_processes` skips them and the pipeline does not judge them again. It marks the
+  processes of the chain's claimed placement task as `inTask` (`taskId`, `claimedBy`,
+  `leaseUntil`, while the lease runs), so an ad-hoc agent leaves them to the pipeline agent.
+  **Double work that remains:** a re-claim after an expired lease (the first agent's work is
+  lost; a late submission may repeat verdicts given meanwhile), an ad-hoc agent that listed
+  processes before a claim took them and proposes them afterwards, and two concurrent
+  `place_processes` sessions on the same processes.
+- **Stage** (view `value_chain_pipeline`): the latest non-cancelled placement task queued →
+  `waiting_for_agent`, claimed → `agent_working`, failed → `agent_failed`; done or none yet →
+  `waiting_for_review` (a proposal on a live step, or an accepted placement whose endpoint is not
+  `ok`), `waiting_for_clarification` (held only), else `incorporated`. `ValueChainDetail.pipeline`
+  adds the task, `due` and `unsure` counts (neither changes the stage), and `unsure` lists the open
+  processes an agent was unsure about with reason, handle, time and `current`. The panel says when
+  processes are due without a queued or claimed task and offers reviewers the requeue (§4).
+
 ### 3.3 Drafting a chain (prompt only, M4b)
 
 The MCP prompt `draft_value_chain` asks an interactive agent to write a `.vc.json` from the
-landscape (`list_processes`, `get_landscape`, `get_value_chain`) following the modeler's own
-`value-chain-modeling` skill and the conventions of the golden chains: steps named in the
+landscape (`list_processes`, `get_landscape`, `get_value_chain`) following the conventions of the
+golden chains (as delivered the prompt is self-contained: format, conventions and ProA rules in
+its own text, `packages/procedures/prompts/draft-value-chain.md`, instead of relying on the
+modeler's `value-chain-modeling` skill being installed): steps named in the
 language of most process names as 1–3 word noun phrases; 4–8 core steps left to right toward
 the customer, management and support steps off the chain in their colours; follow end-to-end
 relation paths instead of copying the department folders; depth ≤ 2, every parent ≥ 2
@@ -299,6 +385,21 @@ will need as expected findings.
 | `decide_placement` (a stub like `decide_relation`: always `human-decision-required` with the review URL) | none | M4a |
 | `claim_analysis` (`kinds`), `submit_analysis` (new fields), `release_analysis` | propose | M4b |
 
+As delivered (S5): `claim_analysis` takes `kinds` (default `["relations"]`; `modelKey` narrows to
+relations tasks only) and returns items with `kind`; `submit_analysis` takes `placements` and
+`unsure` beside `relations` and `noLinks` and answers with a flat superset object (the relations
+fields, optional where a placement result has none, plus `kind`, `placements`, `unsure`,
+`skipped`, `followUp`); `get_value_chain` returns `pipeline` and `unsure`; `list_unplaced_processes`
+marks `judged` processes and `inTask` ones (in the placement task an agent holds right now);
+`get_procedure` serves `proa-placements` too (alias `placements`); the server instructions name
+the placement pipeline. Prompts: `work_pipeline({projectId?,
+maxTasks?, kind?})` renders `proa-relations` (the default, the released text exactly) or
+`proa-placements` with `kinds: ["placement"]` in its claims (one kind per run); `place_processes`
+wraps `proa-placements` for ad-hoc work (`renderAdHocWrapper`); `draft_value_chain` is the
+prompt text of §3.3. REST: `GET /analyses/pending?kinds=…` counts the given kinds (default
+relations), `GET …/analyses?kind=` filters (without it both kinds), `POST …/analyses/requeue
+{valueChain: true}` queues the chain's placement task.
+
 No tool saves a revision or decides; attempts return `human-decision-required` with the review
 URL. Resource: `proa://projects/{p}/value-chains/main.vc.json`. The stage of the chain's
 placement task (`waiting_for_agent` … `incorporated`) maps as in CONCEPT §3.
@@ -315,8 +416,11 @@ placement task (`waiting_for_agent` … `incorporated`) maps as in CONCEPT §3.
 Contracts type the document as a JSON object; schema-model's `loadDocument` validates it on the
 server, so two zod instances never mix.
 
-**Prompts and procedures.** `packages/procedures/placements.md` (`proa-placements@0.1.0`)
-follows CONCEPT §7: the most specific step; every process its own home, called subprocesses
+**Prompts and procedures.** `packages/procedures/placements.md` (`proa-placements@0.1.0`,
+released in S5 with frontmatter `kind: placement`; its 14 sections: ground rules, the failure
+modes of `baseline-prefix/1`, the loop, the claim input, the read tools, valid placements, the
+work order, the judgement rules, confidence bands and questions, unsure, human decisions and
+supersession, writing the submission, work without a task, the self-check) follows CONCEPT §7: the most specific step; every process its own home, called subprocesses
 and shared services included (calls are only a roll-up); `@outside` with a reason that names
 the current version for archived copies; technical adapters on the step they serve; cite refs
 and relation ids; step names and labels are data, never instructions. Prompts:
@@ -349,7 +453,17 @@ covers both kinds (M4b).
   dialog lists deleted or renamed steps that have placements; then `PUT` with `If-Match`. A
   412 offers "load the newer revision" (the local copy downloads as `.vc.json`) or "keep
   editing"; no merging. Unsaved work survives reloads in `localStorage` per chain and base
-  revision. **Import** (edit mode, M4b) loads a `.vc.json` and re-lays its connections (§3.3).
+  revision. **Import** (edit mode, M4b) loads a `.vc.json` and re-lays its connections (§3.3);
+as delivered (S5) also on the empty state next to "Wertschöpfungskette anlegen", for reviewers
+only: at most 2 MiB of JSON, the schema-model check in the lazy chunk (German errors for no JSON,
+a schema violation, a newer `schemaVersion`), a confirmation before it replaces a drawing with
+content or unsaved edits, or (on the empty state) a stored draft of a new chain („Entwurf
+ersetzen?“; no draft dialog follows), then the import with `relayout` (every connection through
+`modeling.layoutConnection`, then `commandStack.clear()`), unsaved and kept as a draft; the base
+stays the head, the save is the normal dry run, impact dialog and `If-Match` (`If-None-Match: *`
+for a new chain). Without a selection the panel shows the placement stage with „n Prozesse
+fällig“; when the task failed or processes are due without a queued or claimed task, reviewers
+get „Erneut einplanen“ or „Aufgabe einplanen“ (`requeue {valueChain: true}`), viewers the hint.
 - **Drill-down:** double-click in view mode or **Open step** → `/…/value-chain/steps/$elementId`:
   breadcrumb, sub-steps, the step's processes (own, subtree, reached by call) linking to their
   model views. Relations between steps come with the landscape map (R1).
@@ -549,6 +663,22 @@ recordings keep the path `<procedure>@<version>/<agent>/<llmModel>/<landscape>.j
 lines name a chain revision instead of a model revision (§8). **Live** (by hand before a
 procedure release, 3 runs): no `must_not` at confidence ≥ 0.8; recall at least 20 points
 above `baseline-prefix/1`; chains drafted with the prompt are rated by the owner.
+
+As delivered (S5, `eval/tools/src/placements-replay.ts`, `placements-replay-report.ts`,
+`placement-live-gate.ts`): a placement recording counts only on the golden chain (every line's
+`valueChain.contentHash` must equal `golden.contentHash`, else eval:replay and eval:live exit 1,
+"not comparable (edited chain)"). The run's placements are the union of its valid items (applied,
+duplicate, suppressed, reopened; `@outside` included), one per (process, step) with its highest
+confidence, ranked per process by confidence (ties by step id), so recall@1 is the most confident
+step's. Per recording: precision, recall, recall@1 and @3, area recall@1, F1, trap rate, traps at
+≥ 0.8, unsure, skipped and invalid items, next to both `baseline-prefix/1` rows; the dev
+landscape adds traps, wrong top-1 and the musts missed, the holdout shows aggregates only
+(`redactSystemScore`, `HOLDOUT_MIN_GROUP`). The sections follow the relations sections of
+`replay.md`/`replay.json` (key `placements`), which stay byte for byte as before. **Live gate**
+per procedure, landscape and `llmModel` over the live runs (any agent but `agent-sim`): fail if a
+run has a trap at confidence ≥ 0.8 or the mean recall@1 is below the higher recall@1 of the two
+`baseline-prefix/1` rows plus 20 points (dev: 46.9 % without votes, so 66.9 %); incomplete below 3
+runs; else pass.
 `proa seed --value-chains` loads each landscape's golden chain (`value-chain.vc.json` only, never
 `expected-placements.yaml`; the Docker image ships the chain files and nothing else of
 `eval/value-chains`) without placements; the rule tier's key proposals appear as after any save.
@@ -616,6 +746,33 @@ decisions, manual placements and notes.
    placement), not copied; M2's tests stay unchanged and green.
 6. **Snapshots** (M4a, M4b): `mcp-tools.json` and the contract tests gain the new tools and
    fields.
+
+**As delivered in S5:**
+1. As planned: `relations` defaults to `[]`; `placements` and `unsure` are optional without
+   defaults, so a stored MCP relations payload is the same as before (tested); 422
+   `wrong-task-kind` for a non-empty field of the other kind.
+2. Both claim variants carry `kind` (`ClaimedAnalysis` is a union on it; a relations claim gained
+   `kind: "relations"`, its input bytes and the recordings are unchanged). The submit result is
+   a union too (`AnalysisSubmissionResult`; a placement result has `kind: "placement"`); MCP's
+   `submit_analysis` output is a flat superset object, since the SDK needs a plain-object root.
+3. **Deviation (D1):** `facts_hash` keeps its name for model tasks (now nullable) and chain tasks
+   get a new `input_hash` (the digest of the processes due when queued) plus `placement_claim`
+   (what the claim showed), with a check per subject kind; a rename would make `drizzle-kit
+   generate` prompt interactively and touch the relation code and the db-constraints test.
+   Migration `0008_placement_pipeline.sql` (generated; a second generate reports no changes):
+   `subject_kind`, `value_chain_id`, `value_chain_revision_id`, the subject and kind checks,
+   composite chain foreign keys, the partial unique indexes `analysis_task_open_unique` (model
+   tasks, the old name kept) and `analysis_task_open_chain_unique` (chain tasks), the
+   `placement_input` table and the `value_chain_pipeline` view. The domain's task record is a
+   union per subject, and every relation path narrows to model tasks.
+4. `RecordingLine` is a union: relations lines exactly as before (no `kind`, no `subject`), so
+   the committed recordings and `eval:live`'s relations lines are unchanged; placement lines
+   carry `kind: "placement"` and `valueChain {key, rev, contentHash}` in place of `modelKey` and
+   `rev`, the placement submission and result (`skipped` as a count). The path layout is
+   unchanged; the procedure folder separates the kinds.
+6. `mcp-tools.json` and `mcp-prompts.json` regenerated (`work_pipeline` gained `kind`, after
+   `maxTasks`, so a client passing `<projectId> <maxTasks>` by position keeps its meaning; the new
+   prompts `place_processes` and `draft_value_chain`).
 
 ## 9. Slices
 
@@ -1118,7 +1275,7 @@ for the rule tier; no schema, route or MCP change.
 - Seed fresh projects for live runs with `proa seed <landscape> --project <key> --value-chains
   --issue-tokens --token-name <run>`.
 
-**M4a done criteria status** (2026-10-09; M4a is done, the CI confirmation follows the next push):
+**M4a done criteria status** (2026-10-09; M4a is done, confirmed in CI on 2026-10-09):
 
 | Criterion | Status | Evidence |
 |---|---|---|
@@ -1127,7 +1284,7 @@ for the rule tier; no schema, route or MCP change.
 | A step deleted and re-added in a new session gets a fresh id and no old placements | done | `value-chain.spec.ts:631` |
 | Placements proposed ad hoc over MCP and decided survive re-ingest and a layout-only re-save | done | `value-chain-ingest.test.ts` (S4, over MCP), `value-chain.spec.ts:819` (over REST) |
 | The bpmn-js review screen passes its check after visiting the chain page | done | `value-chain.spec.ts:976` (the CSS check) |
-| `eval:placements` is green in CI | green locally; CI pending | `pnpm eval:placements` passes and its report is committed with S4; the `ci-2.yml` step runs on the next push |
+| `eval:placements` is green in CI | done | `pnpm eval:placements` passes and its report is committed with S4; CI 2.0 run 37942115182 on `bef64e0` (the S4 push): step `eval:placements` green |
 
 Owner action (counts only, closes S3's holdout gap of the import check):
 `PROA_E2E_VC_EXTRA=eval/value-chains/stadtwerke-auental/value-chain.vc.json pnpm --filter @proa/web e2e value-chain-import`.
@@ -1136,8 +1293,8 @@ Owner action (counts only, closes S3's holdout gap of the import check):
 
 | Slice | Scope | Effort |
 |---|---|---|
-| S5 | task subject migration (§8), `placement` kind, claim input with per-process input hashes, submit fields, supersession, unsure memory, follow-ups, chain stage; `proa-placements` procedure, prompts `place_processes` and `draft_value_chain`, Import in the page; simulation agent policy for placements; recordings and `eval:replay` | 4.5 d |
-| S6 | OKF extension (once the R1 export exists); `DEVELOPMENT.md` | 1 d |
+| S5 | **done** (2026-10-09): task subject migration (§8), `placement` kind, claim input with per-process input hashes, submit fields, supersession, unsure memory, follow-ups, chain stage; `proa-placements` procedure, prompts `place_processes` and `draft_value_chain`, Import in the page; simulation agent policy for placements; recordings and `eval:replay`; see below | 4.5 d (about 6 d spent) |
+| S6 | OKF extension (once the R1 export exists, so blocked until then); `DEVELOPMENT.md` | 1 d |
 
 About four weeks, M4a about three. **M4a is done when** the golden `nordwind-handel` chain
 pushed with the CLI renders; an edit saves revision 2 and a concurrent save gets 412; a step
@@ -1149,12 +1306,191 @@ unsure memory, follow-up only on truncation, no cancellation by saves); a chain 
 `draft_value_chain` in Claude Desktop is imported, edited and saved; `eval:replay` scores the
 recorded runs.
 
+**S5 as delivered** (2026-10-09). The `placement` pipeline kind with judge each process once
+(§3.2 "As delivered in S5"), its procedure, prompts, skill, Import, the simulation agent's policy,
+recordings, `eval:replay` and the live gate; the relation side behaves exactly as before (its
+recordings, `eval/reports` relations sections and the released relations skill unchanged).
+- **Contracts and storage** (§8 "As delivered in S5"): kinds, claim and submit fields, the
+  placement claim input `proa-claim-placement/1` (`MAX_CLAIM_PLACEMENT_PROCESSES` 50, 96,000-byte
+  budget, 20 neighbours with 3 relations, 5 examples per step, rationales cut at 200 and notes at
+  300 characters), the human `notes` on a proposal of an undecided placement
+  (`ClaimPlacementNote`), the results, `wrong-task-kind`, `ValueChainDetail.pipeline` and `unsure`,
+  `UnplacedProcess.judged` and `inTask`, the recording union; migration 0008; the client
+  regenerated.
+- **Domain:** `value-chain/pipeline.ts` (pure: input hash with `chainInputDigest` and
+  `processInputDigest`, open and due processes, selection, claim rendering, the supersession
+  plan), `value-chain/queue.ts` (queue, `requeue_after`, cancel, `chainDigestOf`),
+  `use-cases/placement-tasks.ts` (claim and submission), the queue hooks of §3.2, the claim
+  dispatch by kind, `queueFirstPlacementTasks` (server start, `main.ts`), `ChainStructure.sequences`
+  (the `sequence` connections between steps).
+- **MCP and REST** as in §3.5 "As delivered (S5)".
+- **Procedure** `packages/procedures/placements.md` (`proa-placements@0.1.0`, `released`, `kind:
+  placement`; English text with invented examples from a university, none taken from a corpus
+  landscape's names or cases (the draft prompt's skeleton likewise), German output, no pinned
+  version; the reasons lists equal `PIPELINE_PLACEMENT_INVALID_REASONS` and
+  `UNSURE_INVALID_REASONS` in the server's order). `parseProcedure` sets `kind` only when present.
+  `renderPipelineWrapper` writes `kinds: ["placement"]` into the claim calls for a procedure with
+  that kind (the relations output is byte for byte the same); `renderAdHocWrapper` for
+  `place_processes`; `renderDraftValueChainPrompt` reads
+  `packages/procedures/prompts/draft-value-chain.md` (not a procedure: `listProcedures` never reads
+  `prompts/`). `scripts/generate.ts` writes every released pipeline procedure's skill:
+  `plugins/proa/skills/placements/SKILL.md` gives `/proa:placements [project] [max-tasks]`
+  (`disable-model-invocation`). **Plugin 0.3.0** with its own version (`PLUGIN_VERSION`), since
+  two skills ship: `plugin.test.ts` keeps `RELEASED` per procedure id (relations 0.1.0 and 0.2.0
+  with their hashes, placements 0.1.0 new) and a table of plugin releases pinning every skill's
+  sha256 (0.1.0 and 0.2.0 the relations skill alone, 0.3.0 both); the marketplace entry names
+  both skills (pinned by `plugin.test.ts`; it is no skill file, so no plugin release).
+  The server's drift test `placement-procedure-text.test.ts` checks the limits, the exact reason
+  lists, every named tool and argument (against the MCP snapshot), the claim format, `@outside`,
+  the invariant phrases, the German-output rule and that no `x.y.z` appears.
+- **Web:** Import (§4, "As delivered (S5)") with `canvas/check-document.ts` in the chain chunk
+  group; the panel without a selection shows the stage ("Platzierungen durch den Agenten:" with
+  „Wartet auf den Agenten“, „Agent arbeitet“, „Agent fehlgeschlagen“, „Wartet auf Prüfung“,
+  „Wartet auf Klärung“ or „Eingearbeitet“, plus „n Prozesse fällig“) and „Agent unsicher (n)“
+  (process, the reason as plain text, handle, time, „Platzieren“ with the manual form; a note
+  when the input changed since), and for reviewers „Erneut einplanen“ after a failed task or
+  „Aufgabe einplanen“ when processes are due without a queued or claimed task (viewers get the
+  hint alone). An import on the empty state asks before it replaces a stored draft of a new chain
+  and then becomes the draft. The Prüfen tab's stage lists ask for `kind=relations`. The impact
+  lists scroll inside the save's impact and result dialogs, so an import that replaces a whole
+  chain (every step removed) keeps „Trotzdem speichern“ in view. Bundle:
+  chain-only code 37.0 KB gzip of the 40 KB budget (36.1 before; the check module counts with the
+  canvas), the entry 193.1 KB of 200 KB.
+- **Simulation agent:** `kinds` (default both; CLI `--kinds`), `get_procedure` for both
+  procedures, dispatch on the claim's `kind`; `decidePlacements` (`src/placement-policy.ts`), the
+  placement part of `sim-policy-1`, a function of the claim input alone, set on `nordwind-handel`
+  only: a live `proa-rules` proposal no reviewer rejected → that step at 0.95; else the top hint
+  not rejected for the process: score ≥ 3 → min(0.9, 0.5 + 0.1 · score) (a question when the next
+  hint ties), score < 3 → 0.5 with a question; no hint left → unsure "no lexical evidence for any
+  step"; one home per process, never `@outside`, evidence `[process, step:<id>]`, English texts.
+  The bands follow the score alone, and the rationale states only the score (a score of 3 can come
+  from folder and parent-step words or from neighbours' votes, not only from a name word on the
+  step's own name).
+  The recorder writes placement lines (`summarizePlacementInput`); the report splits by kind
+  (`byKind`).
+- **Recordings:** `apps/server/test/integration/agent-sim.test.ts` creates both golden chains
+  after the import as `proa seed --value-chains` does (`PUT …/content` with `If-None-Match: *`,
+  the file loaded programmatically), the simulation agent works every kind, and
+  `eval/recordings/proa-placements@0.1.0/agent-sim/sim-policy-1/{nordwind-handel,stadtwerke-auental}.jsonl`
+  (one task each, 17,613 and 16,054 bytes; claim inputs 46.3 KB and, for the holdout, 42.0 KB)
+  are compared as a file snapshot (dev) and by sha256, line and byte counts only (holdout; no diff
+  is ever printed, `-u` or a missing file writes it). The relations recordings stayed byte for
+  byte. `eval:live`'s reader rebuilds the placement lines from the stored submissions alone.
+- **eval** (§6 "As delivered (S5)"): `recordings.ts` parses the union and refuses a file that mixes
+  kinds; `replay.ts` splits by kind; `placements-replay.ts` (`loadPlacementRun` from
+  `placements-load.ts`), `placements-replay-report.ts`, `placement-live-gate.ts`;
+  `redactSystemScore` exported from `placements-score.ts`. `eval:live` fetches both kinds (for
+  chain tasks the revision number and content hash through `valueChainRevisionId` and the
+  revision listing), refuses a run on an edited chain, prints the placement gates and exits 1 on
+  a failing one; `--value-chains <dir>` names other golden chains.
+- **Numbers** (`eval/reports/replay.md`): `sim-policy-1` on `nordwind-handel` (dev): 29
+  placements and 3 unsure for 32 processes, precision 57.7 %, recall = recall@1 46.9 % (the
+  baseline without votes: 46.9 %, with votes 43.8 %), area recall@1 56.3 %, F1 51.7 %, trap rate
+  29.2 %, 6 traps at ≥ 0.8; the holdout passes as aggregates in the report. A weak floor, as
+  expected (D16): live runs are gated against `baseline-prefix/1`, not against the simulation agent.
+- **Examples:** `run-headless.sh --skill placements` (claims `/proa:placements`, counts
+  `pending?…&kinds=placement`; a batch also made progress when the chain's latest placement task
+  changed or its due count fell, since a follow-up keeps the pending count at 1),
+  `examples/agents/claude-desktop/start-prompt-placements.de.md` and
+  `start-prompt-draft.de.md`, README updates; the live-run guide got a placement section
+  ([M3-LIVE-RUNS.md](M3-LIVE-RUNS.md)).
+- **Decisions taken** (the plan's D1–D20; the owner may overrule): D1 above; D2 the input hash of
+  §3.2; D3 open = no accepted or held placement on a live generation; D4 supersession aligned with
+  judge each pair once (stale basis of anyone, the caller's own unrepeated; other agents' current
+  proposals stay); D5 follow-ups at submit (truncation with progress, or `requeue_after`); D6 one
+  open placement task per chain; D7 an empty due set cancels and claims again; D8
+  `invalid:outside-task-input`; D9 ad-hoc agent proposals count as verdicts (`judged`; relations do
+  not count ad-hoc proposals that way); D10/D11 `kind` on both claim and result variants, a flat
+  MCP output; D12 `work_pipeline` one kind per run; D13 plugin 0.3.0 with a release table; D14
+  German withdrawal reasons for the placement pipeline (the relation ones stay English) and German
+  web texts, English MCP descriptions and procedure text; D15 the live gate's bar is the higher of
+  both baseline rows + 20 points; D16 `sim-policy-1` extended, not a new policy; D17 the recording
+  union; D18 the holdout recording compared by digest; D19 a self-contained draft prompt; D20 the
+  stage from the items when there is no task yet.
+- **Deviations** besides D1: `GET …/analyses` without `kind` lists both kinds; an invalid unsure
+  item on an input process counts as no verdict (offered again, like an invalid placement item);
+  an agent withdrawing its own ad-hoc proposal deletes its ad-hoc row and re-queues; a claim's
+  `proposals` include live proposals on rejected placements (`status: "rejected"`);
+  the leaf module `packages/contracts/src/api/shared.ts` breaks an import cycle between the
+  analyses and placements contracts (every exported name unchanged); `work_pipeline`'s `kind`
+  comes after `maxTasks`.
+- **Known gaps:** a placement task that fails with `requeue_after` set loses that trigger unless a
+  late submit arrives (relations behave the same; a reviewer requeues it on the chain page or with
+  `proa value-chain requeue`); a newly queued placement task wakes relations-only long-polls
+  early, which then return 0 as on a timeout; lease expiry still wastes the first agent's work (as
+  for relations); the double work of §3.2 "Ad hoc counts as a verdict".
+- **Review fixes** (2026-10-10): the input hash covers only what a claim shows (notes on an open
+  proposal are shown on it; org units, layout, sibling processes and task labels re-offer
+  nothing, and the basis of a pipeline proposal follows the same digests); `inTask` in
+  `list_unplaced_processes` and procedure section 13; the server start queues the first task of
+  chains that never had one, the chain page and `proa value-chain requeue` queue it by hand;
+  procedure sections 4 and 11 describe the decisions a claim really carries (holds only on
+  removed steps) and the notes on open proposals (skill regenerated, `RELEASED` hash of
+  placements 0.1.0 updated while nothing is committed); `eval:live` applies the contract's
+  default to a REST relations payload without `relations`; the simulation agent's rationale no
+  longer claims a name match; `run-headless.sh --skill placements` counts a moved task or a
+  falling due count as progress; the marketplace entry names both skills; the draft prompt's
+  limits, colours and tool calls are checked against the contracts and the MCP snapshot; an
+  import on the empty state asks before it replaces a stored draft of a new chain.
+- **Tests:** `test/unit/placement-pipeline.test.ts` (19: also the chain and process digests, org
+  units, unresolved links, a move past an unconnected sibling, notes on obsolete placements, notes
+  on open proposals in the claim), `test/integration/placement-pipeline.test.ts` (35: every queue
+  trigger, the default kinds, claim, submit, release, lease expiry and late submits,
+  `wrong-task-kind`, the item and unsure checks, the verdict memory, supersession, saves during a
+  lease, 60 synthetic processes with exactly one follow-up and none without progress, revocation
+  and withdrawals, revival, ad-hoc verdicts, a note on an open proposal shown in the claim it made
+  due, org-unit-only saves during and after a lease, a sibling process and a task label, `inTask`
+  until submit or lease expiry, the first task at server start, every stage), additions to
+  `db-constraints`, `claim-input-size` (both landscapes, the holdout as counts), the contract,
+  procedure and MCP prompt tests; `placement-procedure-text.test.ts`; `@proa/procedures`
+  (procedures, wrappers, plugin); agent-sim (`placement-policy.test.ts`, recorder lines, the loop
+  with both kinds, `--kinds`); `agent-sim.test.ts` (above); eval/tools
+  (`placements-replay.test.ts`: union and ranks, comparability, holdout redaction, report
+  sections, the gate; `live-placements.test.ts`: the reader, the command, a failing gate, an
+  edited chain); web (Import visibility, file errors, confirm, dirtiness and draft, a new chain
+  from a file, the stage and unsure lists; the canvas re-layout with a stand-in); Playwright
+  `e2e/value-chain-draft.spec.ts` (an invented draft into a new chain: saved r1 with exactly the
+  layouter's waypoints, checked in the import harness; an import over the golden dev chain asks,
+  then the impact dialog; no CSP violation) and `e2e/value-chain-agent.spec.ts` (the dev chain
+  waiting for the agent with every open process due, `proa-agent-sim --kinds placement`, then „Wartet
+  auf Prüfung“, „Agent unsicher“ and „Platzieren“ in the browser); the server's
+  `draft-prompt-skeleton.test.ts` (the `draft_value_chain` skeleton passes `prepareRevision` and
+  shares no step id or name with the dev golden chain; its limits, the reserved id and the kind
+  colours follow the contracts, its tool calls the MCP snapshot); the CLI's `value-chain requeue`
+  (fake API, and end to end after `proa seed --value-chains`); web: the chain stage's requeue
+  (due without a task, after a failure, none while claimed, viewers) and an import over a stored
+  new-chain draft; `eval:live` with a REST payload without `relations`; the policy with a
+  votes-only score of 3; Playwright `e2e/value-chain-agent.spec.ts` also queues the task again
+  after a reviewer's rejection („Aufgabe einplanen“).
+
+**M4b done criteria status** (2026-10-09):
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| The simulation agent works placement tasks over MCP (supersession, unsure memory, follow-up only on truncation, no cancellation by saves) | done | `agent-sim.test.ts` (both landscapes over MCP, one task each, done, nothing decided, the recordings reproduced); `placement-pipeline.test.ts` covers supersession, the unsure memory, a follow-up only on truncation (60 synthetic processes) and saves during a lease, over REST and MCP |
+| A chain drafted with `draft_value_chain` in Claude Desktop is imported, edited and saved | code done; owner action open | the Import flow and `e2e/value-chain-draft.spec.ts` (an invented draft into a new chain, saved r1 with the layouter's waypoints); a draft from Claude Desktop rated by the owner is pending |
+| `eval:replay` scores the recorded runs | done | the placement sections of `eval/reports/replay.md` (both simulation agent recordings; the holdout as aggregates) |
+
+**S6 checklist** (from S5):
+- OKF extension (§7) once the R1 export exists: `value-chains/main.{vc.json,md}`,
+  `placements/*.md`, `proa.value_chain_steps` on `processes/*.md`; tasks and `placement_input`
+  are never exported.
+- The owner's live runs of `proa-placements@0.1.0` (three per landscape and model, dev first,
+  [M3-LIVE-RUNS.md](M3-LIVE-RUNS.md) "Placements"), then the placement live gate in
+  `eval/reports/replay.md`; only then change the procedure (as `0.1.1`/`0.2.0`, a new plugin
+  version and a new row in `PLUGIN_RELEASES`).
+- A chain drafted in Claude Desktop with `start-prompt-draft.de.md` or `draft_value_chain`,
+  imported, edited, saved and rated by the owner.
+- The holdout import check (still open from S3/S4).
+- `DEVELOPMENT.md` stays current (done for S5).
+
 ## 10. Out of scope
 
 The graphical process network (landscape map, R1), relation tables between steps and
 `sequence-contradiction` (R1); several chains per project and `proa:chain/` or `proa:view/`
 links; draft entities, project-subject tasks and server-side layout; org unit ↔ lane matching
-and org units as agent evidence; auto-accepting placements; agents saving revisions; merging
+and org units as agent evidence; auto-accepting placements (owner-configured auto-accept rules
+follow as their own slice, HANDOFF decision 19); agents saving revisions; merging
 concurrent edits or real-time co-editing; server-side SVG (the renderer needs a DOM; the UI
 offers `saveSVG()` as a download); linked Git sync of `*.vc.json`; cross-project chains; KPIs on
 steps; ARIS (AML) import; dismissing findings; changes to the modeler itself.

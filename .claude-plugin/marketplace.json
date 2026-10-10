@@ -10,7 +10,7 @@
     {
       "name": "proa",
       "source": "./plugins/proa",
-      "description": "The ProA relations procedure as a skill (/proa:relations). Connect the proa MCP server separately."
+      "description": "The ProA pipeline procedures as skills: /proa:relations judges candidate relations between BPMN processes, /proa:placements places processes on the value chain. Connect the proa MCP server separately."
     }
   ]
 }

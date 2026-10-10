@@ -6,7 +6,7 @@ import {
   newId,
   type ClaimCandidate,
   type ClaimRelation,
-  type ClaimedAnalysis,
+  type ClaimedRelationsAnalysis,
 } from '@proa/contracts';
 
 export const MODEL = 'vertrieb/orders';
@@ -222,8 +222,12 @@ export function claimInput(overrides: Partial<ClaimInput> = {}): ClaimInput {
 }
 
 /** A claimed task around {@link claimInput}. */
-export function claimed(projectKey = 'demo', input: ClaimInput = claimInput()): ClaimedAnalysis {
+export function claimed(
+  projectKey = 'demo',
+  input: ClaimInput = claimInput(),
+): ClaimedRelationsAnalysis {
   return {
+    kind: 'relations',
     taskId: newId('analysisTask'),
     projectId: newId('project'),
     projectKey,

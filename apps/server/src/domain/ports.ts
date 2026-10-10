@@ -40,8 +40,9 @@ import type {
   RevisionSource,
   Role,
   SourceKind,
+  AnalysisSubmissionResult,
+  PlacementInputOutcome,
   SubmissionId,
-  SubmissionResult,
   Tier,
   TypedPair,
   ValueChainId,
@@ -200,22 +201,57 @@ export interface StoredAssertion extends AssertionRecord {
 }
 
 export type TaskState = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
+export type TaskKind = 'relations' | 'placement';
 
-export interface TaskRecord {
+interface TaskBase {
   id: AnalysisTaskId;
   projectId: ProjectId;
-  modelId: ModelId;
-  revisionId: RevisionId;
-  kind: 'relations';
-  factsHash: string;
   state: TaskState;
-  /** Seq of the `analysis.queued` event; orders a model's tasks. */
+  /** Seq of the `analysis.queued` event; orders a subject's tasks. */
   seq: number;
 }
 
-/** A task with its lease (CONCEPT §3 "Claim and lease"). */
-export interface TaskDetail extends TaskRecord {
-  modelKey: string;
+/** A `relations` task: its subject is one model revision (CONCEPT §3). */
+export interface ModelTaskRecord extends TaskBase {
+  subjectKind: 'model';
+  kind: 'relations';
+  modelId: ModelId;
+  revisionId: RevisionId;
+  factsHash: string;
+}
+
+/** A `placement` task: its subject is the value chain (M4 §3.2). */
+export interface ChainTaskRecord extends TaskBase {
+  subjectKind: 'value_chain';
+  kind: 'placement';
+  valueChainId: ValueChainId;
+  /** The head when queued, then the head the latest claim showed. */
+  valueChainRevisionId: ValueChainRevisionId;
+  /** Digest of the processes that were due when the task was queued. */
+  inputHash: string;
+}
+
+export type TaskRecord = ModelTaskRecord | ChainTaskRecord;
+
+/**
+ * What a placement claim showed (M4 §3.2): the head's structure hash and the
+ * digest of its steps as the claim listed them, whether more processes were
+ * due, and per claimed process its input hash and the digest of its own
+ * fields (the two digests are the basis of the submission's proposals).
+ */
+export interface PlacementClaim {
+  /** `structure_hash` of the head the claim showed. */
+  structureHash: string;
+  /** `chainInputDigest` of that head: the `step_hash` basis of the submission's proposals. */
+  chainDigest: string;
+  truncated: boolean;
+  remaining: number;
+  /** Each process with its input hash and `processInputDigest` (the `process_hash` basis). */
+  processes: { process: string; inputHash: string; processDigest: string }[];
+}
+
+/** The lease of a task (CONCEPT §3 "Claim and lease"). */
+interface TaskLease {
   attempts: number;
   /** sha256 of `taskId|principalId|token`; null while queued. */
   leaseTokenHash: string | null;
@@ -228,24 +264,48 @@ export interface TaskDetail extends TaskRecord {
   /** Seq of the latest `analysis.claimed` event: the state the claim input shows. */
   claimedSeq: number | null;
   /**
-   * The typed pairs the latest claim must judge; `null` before the first
-   * claim and after a release or cancel; kept when the task fails, so a late
-   * submit reports `uncovered`.
+   * A judgement the claim relied on was withdrawn (relations), or the chain
+   * or the models changed during the lease (placement): the submit queues a
+   * follow-up.
    */
-  assignment: TypedPair[] | null;
-  /** A judgement the claim relied on was withdrawn: the submit queues a follow-up. */
   requeueAfter: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
+/** A `relations` task with its lease. */
+export interface ModelTaskDetail extends ModelTaskRecord, TaskLease {
+  modelKey: string;
+  /**
+   * The typed pairs the latest claim must judge; `null` before the first
+   * claim and after a release or cancel; kept when the task fails, so a late
+   * submit reports `uncovered`.
+   */
+  assignment: TypedPair[] | null;
+}
+
+/** A `placement` task with its lease. */
+export interface ChainTaskDetail extends ChainTaskRecord, TaskLease {
+  valueChainKey: string;
+  /** What the latest claim showed; `null` before the first claim and after a release or cancel. */
+  placementClaim: PlacementClaim | null;
+}
+
+/** A task with its lease (CONCEPT §3 "Claim and lease"), by subject. */
+export type TaskDetail = ModelTaskDetail | ChainTaskDetail;
+
 export interface TaskFilter {
   state?: TaskState | undefined;
+  kind?: TaskKind | undefined;
+  /** Only tasks of this model (relations tasks). */
   modelKey?: string | undefined;
 }
 
 export interface ClaimQuery {
   projectIds: readonly ProjectId[];
+  /** The kinds to claim. */
+  kinds: readonly TaskKind[];
+  /** Only tasks of this model (relations tasks; a placement task never matches). */
   modelKey?: string | undefined;
   principalId: PrincipalId;
   now: Date;
@@ -264,7 +324,7 @@ export interface SubmissionRecord {
   declared: { procedure: DeclaredProcedure; llmModel: string | null };
   /** The request body as received, minus the lease token. */
   payload: Record<string, unknown>;
-  result: SubmissionResult;
+  result: AnalysisSubmissionResult;
   seq: number;
 }
 
@@ -464,8 +524,9 @@ export interface PlacementAssertionRecord {
   stepFp: string | null;
   processFp: string | null;
   /**
-   * Basis of a pipeline proposal (M4b): the chain's `structure_hash` and the
-   * `facts_hash` of the process's model as the agent saw them; `null` otherwise.
+   * Basis of a pipeline proposal (M4b): digests of what the claim showed of
+   * the chain's steps and of the process (`chainInputDigest`,
+   * `processInputDigest`); `null` otherwise.
    */
   stepHash: string | null;
   processHash: string | null;
@@ -632,14 +693,20 @@ export interface AssertionRepo {
 }
 
 export interface TaskRepo {
-  /** The model's latest task (by seq) among `states`. */
+  /** The model's latest `relations` task (by seq) among `states`. */
   latest(
     projectId: ProjectId,
     modelId: ModelId,
     states: readonly TaskState[],
-  ): Promise<TaskRecord | null>;
+  ): Promise<ModelTaskRecord | null>;
+  /** The chain's latest `placement` task (by seq) among `states`. */
+  latestForChain(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    states: readonly TaskState[],
+  ): Promise<ChainTaskRecord | null>;
   insert(t: TaskRecord): Promise<void>;
-  /** `cancelled` also clears the assignment. */
+  /** `cancelled` also clears the assignment and the placement claim. */
   setState(
     projectId: ProjectId,
     id: AnalysisTaskId,
@@ -660,7 +727,7 @@ export interface TaskRepo {
     filter: TaskFilter,
     page: { beforeSeq?: number | undefined; limit: number },
   ): Promise<TaskDetail[]>;
-  /** Whether a claimed task's lease expired at the last attempt (see {@link failExpired}). */
+  /** Whether a claimed task of any kind has a lease that expired at the last attempt (see {@link failExpired}). */
   hasExpired(projectIds: readonly ProjectId[], now: Date, maxAttempts: number): Promise<boolean>;
   /**
    * Claimed tasks whose lease expired at the last attempt become `failed`.
@@ -689,22 +756,90 @@ export interface TaskRepo {
     id: AnalysisTaskId,
     pairs: readonly TypedPair[],
   ): Promise<void>;
+  /** Stores what a placement claim showed and the head revision it rendered. */
+  setPlacementClaim(
+    projectId: ProjectId,
+    id: AnalysisTaskId,
+    claim: PlacementClaim,
+    valueChainRevisionId: ValueChainRevisionId,
+  ): Promise<void>;
   setRequeueAfter(projectId: ProjectId, id: AnalysisTaskId): Promise<void>;
-  /** Back to `queued`; the attempt is given back, assignment and `requeueAfter` are cleared. */
+  /**
+   * Back to `queued`; the attempt is given back, assignment, placement claim
+   * and `requeueAfter` are cleared.
+   */
   release(projectId: ProjectId, id: AnalysisTaskId, reason: string | null): Promise<void>;
-  /** Claimable tasks per project: queued, or claimed with an expired lease and attempts left. */
+  /**
+   * Claimable tasks of `kinds` per project: queued, or claimed with an
+   * expired lease and attempts left.
+   */
   countClaimable(
     projectIds: readonly ProjectId[],
     now: Date,
     maxAttempts: number,
+    kinds: readonly TaskKind[],
   ): Promise<Map<ProjectId, number>>;
 }
 
 export interface SubmissionRepo {
   insert(s: SubmissionRecord): Promise<void>;
   findByTask(projectId: ProjectId, taskId: AnalysisTaskId): Promise<StoredSubmission | null>;
-  /** The analysed model (key) of every stored submission: the origin of its proposals. */
+  /**
+   * The analysed model (key) of every stored submission of a `relations`
+   * task: the origin of its proposals.
+   */
   originModels(projectId: ProjectId): Promise<Map<SubmissionId, string>>;
+}
+
+/** The agent's last verdict on a process of a chain (`placement_input`, M4 §3.2). */
+export interface PlacementInputRecord {
+  projectId: ProjectId;
+  valueChainId: ValueChainId;
+  processRef: string;
+  inputHash: string;
+  /** The placement task whose submission wrote it; `null` for an ad-hoc proposal. */
+  taskId: AnalysisTaskId | null;
+  principalId: PrincipalId;
+  outcome: PlacementInputOutcome;
+  /** `unsure` only. */
+  reason: string | null;
+  seq: number;
+}
+
+/** A `placement_input` row as read back, with the agent's handle. */
+export interface StoredPlacementInput extends PlacementInputRecord {
+  handle: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PlacementInputRepo {
+  /** Every row of the chain, by process ref. */
+  forChain(projectId: ProjectId, valueChainId: ValueChainId): Promise<StoredPlacementInput[]>;
+  /** Inserts or replaces the rows (one per chain and process). */
+  upsertMany(rows: readonly PlacementInputRecord[]): Promise<void>;
+  /** @returns the number of rows deleted */
+  deleteProcesses(
+    projectId: ProjectId,
+    valueChainId: ValueChainId,
+    processRefs: readonly string[],
+  ): Promise<number>;
+  /** Deletes the principal's rows on every chain of the project; returns them as they were. */
+  deleteByPrincipal(
+    projectId: ProjectId,
+    principalId: PrincipalId,
+  ): Promise<PlacementInputRecord[]>;
+  /** The chain's `unsure` rows, by process ref. */
+  unsure(projectId: ProjectId, valueChainId: ValueChainId): Promise<StoredPlacementInput[]>;
+}
+
+/** A row of the view `value_chain_pipeline` (M4 §3.5). */
+export interface ValueChainPipelineRecord {
+  taskId: AnalysisTaskId | null;
+  taskState: TaskState | null;
+  reviewItems: number;
+  heldItems: number;
+  stage: ModelStage;
 }
 
 export interface NoLinkRepo {
@@ -749,6 +884,13 @@ export interface ValueChainRepo {
       deletedSeq?: number | null;
     },
   ): Promise<ValueChainRecord>;
+  /** The stage of a live chain's placement pipeline (view `value_chain_pipeline`). */
+  pipeline(projectId: ProjectId, id: ValueChainId): Promise<ValueChainPipelineRecord | null>;
+  /**
+   * Live chains with a head of every project that never had a placement task
+   * (the server start queues their first one). Not scoped: a system step.
+   */
+  listWithoutPlacementTask(): Promise<ValueChainRecord[]>;
 }
 
 export interface ValueChainRevisionRepo {
@@ -874,6 +1016,7 @@ export interface Tx {
   valueChainSteps: ValueChainStepRepo;
   placements: PlacementRepo;
   placementAssertions: PlacementAssertionRepo;
+  placementInputs: PlacementInputRepo;
   findings: FindingRepo;
   events: EventRepo;
 }

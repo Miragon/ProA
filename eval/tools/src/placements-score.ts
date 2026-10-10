@@ -551,7 +551,12 @@ export const HOLDOUT_NOTE =
   'holdout: no per-item lists, the rule tier as its gate and count only, per-tag numbers only for tags with at ' +
   `least ${HOLDOUT_MIN_GROUP} processes (eval/README.md, holdout hygiene)`;
 
-function redactSystem(s: SystemScore): SystemScore {
+/**
+ * A system score as a holdout report shows it: no `items`, `byTag` only for
+ * tags with at least {@link HOLDOUT_MIN_GROUP} processes (also used by
+ * eval:replay for recorded placement runs).
+ */
+export function redactSystemScore(s: SystemScore): SystemScore {
   const { items: _items, ...rest } = s;
   const byTag = Object.fromEntries(Object.entries(s.byTag).filter(([, m]) => m.processes >= HOLDOUT_MIN_GROUP));
   return { ...rest, byTag };
@@ -571,8 +576,8 @@ export function redactHoldout(score: PlacementScore): PlacementScore {
   return {
     ...score,
     systems: {
-      baseline: redactSystem(score.systems.baseline),
-      baselineNoVotes: redactSystem(score.systems.baselineNoVotes),
+      baseline: redactSystemScore(score.systems.baseline),
+      baselineNoVotes: redactSystemScore(score.systems.baselineNoVotes),
     },
     note: HOLDOUT_NOTE,
   };

@@ -196,13 +196,19 @@ describe('on create', () => {
     ]);
 
     const written = await events(seq);
+    // M4b: the new chain's processes are due for the placement pipeline.
     expect(written.map((e) => e.type)).toEqual([
       'value_chain.created',
       'placement.proposed',
       'placement.proposed',
       'placement.proposed',
+      'analysis.queued',
     ]);
-    for (const e of written.slice(1)) {
+    expect(written.at(-1)?.payload).toMatchObject({
+      kind: 'placement',
+      reason: 'value chain saved',
+    });
+    for (const e of written.slice(1, -1)) {
       expect(e).toMatchObject({ principalId: rules, clientId: null });
       expect(e.payload).toMatchObject({ sourceKind: 'rule', tier: 'key', confidence: 1 });
     }

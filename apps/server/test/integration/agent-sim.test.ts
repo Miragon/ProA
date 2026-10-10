@@ -1,10 +1,13 @@
 /**
- * The simulation agent end to end (M2 item 8): both scored landscapes of
- * `eval/corpus` imported with the real libraries, an agent token each, and
- * `@proa/agent-sim` working the pipeline over MCP like any external client —
- * `nordwind-handel` over Streamable HTTP (the programmatic API),
- * `stadtwerke-auental` through the `proa mcp` stdio bridge (the
- * `proa-agent-sim` command line, which spawns the bridge as a child process).
+ * The simulation agent end to end (M2 item 8, M4b): both scored landscapes of
+ * `eval/corpus` imported with the real libraries, then each landscape's golden
+ * value chain created as `proa seed --value-chains` does (`PUT …/content` with
+ * `If-None-Match: *`, the file loaded programmatically), an agent token each,
+ * and `@proa/agent-sim` working the pipeline over MCP like any external
+ * client, every task kind — `nordwind-handel` over Streamable HTTP (the
+ * programmatic API), `stadtwerke-auental` through the `proa mcp` stdio bridge
+ * (the `proa-agent-sim` command line, which spawns the bridge as a child
+ * process).
  *
  * Requires: every task ends `done` with its stored submission; every agent
  * proposal carries the provenance of the token (principal, client) and the
@@ -12,14 +15,19 @@
  * acceptances exist). The runs record in `--record-input summary
  * --no-record-ids` mode, and the files must equal the committed recordings
  * in `eval/recordings` (regenerate after an intended change with
- * `pnpm --filter @proa/server exec vitest run test/integration/agent-sim.test.ts -u`).
- * `eval:live`'s reader, run against the same server afterwards, must build
- * the recorder's lines from the stored submissions alone (all but the claim
+ * `pnpm --filter @proa/server exec vitest run test/integration/agent-sim.test.ts -u`):
+ * the relations recordings and the dev placement recording as file
+ * snapshots; the holdout placement recording by sha256, line and byte counts
+ * only, so no diff of it is ever printed (`-u` writes it). `eval:live`'s
+ * reader, run against the same server afterwards, must build the recorder's
+ * lines of both kinds from the stored submissions alone (all but the claim
  * input, which the server does not keep).
  */
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   SIM_POLICY,
@@ -30,16 +38,20 @@ import {
   type AgentReport,
 } from '@proa/agent-sim';
 import {
-  RecordingLine,
+  PlacementRecordingLine,
+  RelationRecordingLine,
   recordingPath,
   type AnalysisSubmission,
   type AnalysisTaskPage,
   type CreatedAgentToken,
+  type PlacementPage,
   type Relation,
   type RelationAssertionList,
   type RelationPage,
+  type SaveValueChainResult,
+  type ValueChainDetail,
 } from '@proa/contracts';
-import { buildRecordings, fetchStoredAnalyses } from '@proa/eval-tools';
+import { buildRecordings, fetchStoredAnalyses, isStoredPlacement } from '@proa/eval-tools';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { libraryAnalysis } from '../../src/analysis.ts';
@@ -52,15 +64,20 @@ import {
 } from '../support/corpus.ts';
 import { createTestDatabase, type TestDatabase } from '../support/db.ts';
 import { listen } from '../support/http.ts';
-import { RELATIONS_PROCEDURE } from '../support/pipeline.ts';
+import { PLACEMENTS_PROCEDURE, RELATIONS_PROCEDURE } from '../support/pipeline.ts';
+import { chainPath } from '../support/value-chain.ts';
 
 const HTTP = 'nordwind-handel';
 const STDIO = 'stadtwerke-auental';
 const DRY = 'sample';
+/** The holdout: its placement recording is compared by digest only. */
+const HOLDOUT = STDIO;
 /** The procedure the claims name, so the recordings move with every procedure release. */
 const PROCEDURE = RELATIONS_PROCEDURE;
 /** Relative to this file: `eval/recordings` (toMatchFileSnapshot resolves against the test file). */
 const RECORDINGS = '../../../../eval/recordings';
+/** `eval/value-chains`: each landscape's golden chain is read programmatically, never shown. */
+const VALUE_CHAINS = new URL('../../../../eval/value-chains/', import.meta.url);
 
 let database: TestDatabase;
 let t: TestApp;
@@ -70,6 +87,17 @@ let report: CandidatesReport;
 const tokens: Record<string, CreatedAgentToken> = {};
 const models: Record<string, number> = {};
 const runs: Record<string, AgentReport> = {};
+/** The golden chain's content hash per landscape (the server's `content_hash` of r1). */
+const chains: Record<string, string> = {};
+
+/** sha256, line and byte counts of a recording: all a test may print of the holdout's. */
+function digest(text: string): { sha256: string; lines: number; bytes: number } {
+  return {
+    sha256: createHash('sha256').update(text).digest('hex'),
+    lines: text.split('\n').filter((l) => l !== '').length,
+    bytes: Buffer.byteLength(text, 'utf8'),
+  };
+}
 
 async function owner<T>(urlPath: string): Promise<T> {
   const res = await t.asOwner(urlPath);
@@ -115,6 +143,19 @@ beforeAll(async () => {
     const outcomes = await importAll((p, init) => t.asOwner(p, init), project, files);
     expect(outcomes.every((o) => o.outcome === 'created')).toBe(true);
     models[project] = files.length;
+    if (project !== DRY) {
+      // As `proa seed --value-chains`: the golden chain after the import, without placements.
+      const bytes = await readFile(new URL(`${project}/value-chain.vc.json`, VALUE_CHAINS));
+      const saved = await t.asOwner(chainPath(project, '/content'), {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'if-none-match': '*' },
+        body: bytes,
+      });
+      expect(saved.status).toBe(201);
+      const result = (await saved.json()) as SaveValueChainResult;
+      expect(result.outcome).toBe('created');
+      chains[project] = createHash('sha256').update(bytes).digest('hex');
+    }
     const res = await t.asOwner(`/api/v1/projects/${project}/agent-tokens`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -148,12 +189,30 @@ describe('the simulation agent over MCP', () => {
     }
     const run = runs[HTTP];
     expect(run.procedure).toEqual(PROCEDURE);
+    expect(run.procedures).toEqual({ relations: PROCEDURE, placement: PLACEMENTS_PROCEDURE });
     expect(run.prompt).toBe(true);
     expect(run.stop).toBe('no-work');
-    expect(run.totals).toMatchObject({ tasks: models[HTTP], submitted: models[HTTP], failed: 0 });
-    expect(run.totals.outcomes.invalid).toBe(0);
-    expect(run.totals.proposed).toBeGreaterThan(0);
-    expect(run.totals.questions).toBeGreaterThan(0);
+    const relations = run.byKind.relations;
+    expect(relations).toMatchObject({ tasks: models[HTTP], submitted: models[HTTP], failed: 0 });
+    expect(relations.outcomes.invalid).toBe(0);
+    expect(relations.proposed).toBeGreaterThan(0);
+    expect(relations.questions).toBeGreaterThan(0);
+    // One placement task: the chain's processes fit one claim; judged once, nothing left.
+    const placement = run.byKind.placement;
+    expect(placement).toMatchObject({
+      tasks: 1,
+      submitted: 1,
+      failed: 0,
+      skipped: 0,
+      followUps: 0,
+    });
+    expect(placement.outcomes.invalid).toBe(0);
+    expect(placement.proposed).toBeGreaterThan(0);
+    // The relations tasks come first (queued at the import, before the chain).
+    expect(run.tasks.map((x) => x.kind)).toEqual([
+      ...Array<string>(models[HTTP] ?? 0).fill('relations'),
+      'placement',
+    ]);
   }, 120_000);
 
   it(`works ${STDIO} through the proa mcp stdio bridge (proa-agent-sim --stdio)`, async () => {
@@ -185,8 +244,15 @@ describe('the simulation agent over MCP', () => {
     const run = runs[STDIO];
     expect(run.procedure).toEqual(PROCEDURE);
     expect(run.stop).toBe('no-work');
-    expect(run.totals).toMatchObject({ tasks: models[STDIO], submitted: models[STDIO], failed: 0 });
-    expect(run.totals.outcomes.invalid).toBe(0);
+    expect(run.byKind.relations).toMatchObject({
+      tasks: models[STDIO],
+      submitted: models[STDIO],
+      failed: 0,
+    });
+    expect(run.byKind.relations.outcomes.invalid).toBe(0);
+    // Counts only: the holdout.
+    expect(run.byKind.placement).toMatchObject({ tasks: 1, submitted: 1, failed: 0, followUps: 0 });
+    expect(run.byKind.placement.outcomes.invalid).toBe(0);
     // The per-task log came through stderr; the bridge announced itself there too.
     expect(err.join('')).toMatch(
       /bridge: proa mcp: bridging stdio to http:\/\/127\.0\.0\.1:\d+\/mcp/,
@@ -196,7 +262,9 @@ describe('the simulation agent over MCP', () => {
 
   for (const project of [HTTP, STDIO]) {
     it(`${project}: every task ends done with its stored submission`, async () => {
-      const page = await owner<AnalysisTaskPage>(`/api/v1/projects/${project}/analyses?limit=200`);
+      const page = await owner<AnalysisTaskPage>(
+        `/api/v1/projects/${project}/analyses?kind=relations&limit=200`,
+      );
       expect(page.items).toHaveLength(models[project] ?? -1);
       expect(page.items.filter((x) => x.state !== 'done')).toEqual([]);
       const token = tokens[project];
@@ -214,7 +282,7 @@ describe('the simulation agent over MCP', () => {
           llmModel: SIM_POLICY,
         });
         expect(sub.payload).not.toHaveProperty('leaseToken');
-        expect(sub.result.counts.invalid).toBe(0);
+        expect('counts' in sub.result && sub.result.counts.invalid).toBe(0);
       }
       // Every model is out of the agent's stages.
       const stages = await owner<{ items: { stage: string }[] }>(
@@ -222,6 +290,52 @@ describe('the simulation agent over MCP', () => {
       );
       expect(stages.items.filter((m) => m.stage.startsWith('waiting_for_agent'))).toEqual([]);
       expect(stages.items.filter((m) => m.stage === 'agent_working')).toEqual([]);
+    });
+
+    it(`${project}: the placement task ends done; the agent proposed, nothing was decided`, async () => {
+      const page = await owner<AnalysisTaskPage>(
+        `/api/v1/projects/${project}/analyses?kind=placement&limit=200`,
+      );
+      expect(page.items.map((x) => [x.state, x.attempts, x.claimedBy])).toEqual([
+        ['done', 1, 'agent:agent-sim'],
+      ]);
+      const [task] = page.items;
+      const sub = await owner<AnalysisSubmission>(
+        `/api/v1/projects/${project}/analyses/${task?.id}/submission`,
+      );
+      expect(sub).toMatchObject({
+        handle: 'agent:agent-sim',
+        clientId: tokens[project]?.id,
+        procedure: PLACEMENTS_PROCEDURE,
+        llmModel: SIM_POLICY,
+        result: { kind: 'placement', followUp: false, skipped: { count: 0 } },
+      });
+      expect(sub.payload).not.toHaveProperty('leaseToken');
+      // The stage: waiting for review, nothing due (judge each process once).
+      const detail = await owner<ValueChainDetail>(chainPath(project));
+      expect(detail.pipeline).toMatchObject({ stage: 'waiting_for_review', due: 0 });
+      expect(detail.pipeline.task?.state).toBe('done');
+      expect(detail.valueChain.contentHash).toBe(chains[project]);
+      // Agent proposals with the token's provenance; decisions only by nobody but the rule tier's proposals.
+      const placements = await owner<PlacementPage>(chainPath(project, '/placements?limit=200'));
+      const byAgent = placements.items.filter((p) => p.provenance?.sourceKind === 'agent');
+      expect(byAgent.length).toBeGreaterThan(0);
+      expect(byAgent.every((p) => p.status === 'proposed')).toBe(true);
+      expect(
+        byAgent.every(
+          (p) =>
+            p.provenance?.handle === 'agent:agent-sim' &&
+            p.provenance.clientId === tokens[project]?.id &&
+            p.provenance.llmModel === SIM_POLICY,
+        ),
+      ).toBe(true);
+      expect(placements.items.filter((p) => p.status !== 'proposed').length).toBe(0);
+      const { rows } = await database.pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM placement_assertion a JOIN project p ON p.id = a.project_id
+          WHERE p.key = $1 AND a.kind <> 'proposal'`,
+        [project],
+      );
+      expect(rows[0]?.n).toBe('0');
     });
 
     it(`${project}: agent proposals carry provenance: principal, client, declared procedure and model`, async () => {
@@ -311,7 +425,7 @@ describe('the simulation agent over MCP', () => {
       const lines = text
         .trimEnd()
         .split('\n')
-        .map((l) => RecordingLine.parse(JSON.parse(l)));
+        .map((l) => RelationRecordingLine.parse(JSON.parse(l)));
       expect(lines).toHaveLength(models[project] ?? -1);
       expect(new Set(lines.map((l) => l.modelKey)).size).toBe(models[project]);
       expect(lines.every((l) => l.outcome === 'submitted' && l.task === undefined)).toBe(true);
@@ -324,6 +438,48 @@ describe('the simulation agent over MCP', () => {
       await expect(text).toMatchFileSnapshot(`${RECORDINGS}/${rel}`);
     });
 
+    it(`${project}: the placement recording equals eval/recordings (reproducible)`, async () => {
+      const rel = recordingPath({
+        procedure: PLACEMENTS_PROCEDURE,
+        agent: 'agent-sim',
+        llmModel: SIM_POLICY,
+        landscape: project,
+      });
+      const text = await readFile(path.join(recordDir, rel), 'utf8');
+      const lines = text
+        .trimEnd()
+        .split('\n')
+        .map((l) => PlacementRecordingLine.parse(JSON.parse(l)));
+      expect(lines).toHaveLength(1);
+      for (const l of lines) {
+        expect(l).toMatchObject({ kind: 'placement', outcome: 'submitted', landscape: project });
+        expect(l.task).toBeUndefined();
+        // Worked on the golden chain, so eval:replay can score it.
+        expect(l.valueChain).toEqual({ key: 'main', rev: 1, contentHash: chains[project] });
+        // Every recorded placement claim input stays below 100 KB.
+        expect(l.input && 'bytes' in l.input ? l.input.bytes : null).toBeLessThan(100 * 1024);
+        expect(l.input).toMatchObject({ summary: true, truncated: false });
+      }
+      const committed = fileURLToPath(new URL(`${RECORDINGS}/${rel}`, import.meta.url));
+      if (project !== HOLDOUT) {
+        await expect(text).toMatchFileSnapshot(`${RECORDINGS}/${rel}`);
+        return;
+      }
+      // The holdout: digests only, never a diff; `-u` (or a missing file locally) writes it.
+      const before = await readFile(committed, 'utf8').catch(() => null);
+      if (before === text) return;
+      const mode = expect.getState().snapshotState.snapshotUpdateState;
+      if (mode === 'all' || (before === null && mode === 'new')) {
+        await mkdir(path.dirname(committed), { recursive: true });
+        await writeFile(committed, text);
+        return;
+      }
+      expect(
+        digest(text),
+        `the holdout placement recording ${rel} differs (no diff shown); regenerate with -u`,
+      ).toEqual(before === null ? null : digest(before));
+    });
+
     it(`${project}: eval:live builds the recorder's lines from the stored submissions (input aside)`, async () => {
       // As eval:live reads a live run: over REST with the run's agent token.
       const stored = await fetchStoredAnalyses({
@@ -331,16 +487,44 @@ describe('the simulation agent over MCP', () => {
         token: tokens[project]?.secret ?? '',
         project,
       });
-      expect(stored).toHaveLength(models[project] ?? -1);
+      expect(stored.filter((x) => !isStoredPlacement(x))).toHaveLength(models[project] ?? -1);
+      expect(stored.filter(isStoredPlacement)).toHaveLength(1);
       const built = buildRecordings(stored, { landscape: project });
-      // One file, at the recorder's path (agent from the token name, declared procedure and model).
-      expect(built).toHaveLength(1);
-      const [live] = built;
+      // One file per kind, at the recorder's paths (agent from the token name, declared procedure and model).
+      expect(built.map((b) => b.path)).toEqual([
+        recordingPath({
+          procedure: PLACEMENTS_PROCEDURE,
+          agent: 'agent-sim',
+          llmModel: SIM_POLICY,
+          landscape: project,
+        }),
+        recordingPath({
+          procedure: PROCEDURE,
+          agent: 'agent-sim',
+          llmModel: SIM_POLICY,
+          landscape: project,
+        }),
+      ]);
+      const [placements, live] = built;
+      // The placement lines, byte for byte without the input (compared without printing the holdout's).
+      const recordedPlacements = (
+        await readFile(path.join(recordDir, placements?.path ?? ''), 'utf8')
+      )
+        .trimEnd()
+        .split('\n')
+        .map((l) => {
+          const { input, ...line } = JSON.parse(l) as PlacementRecordingLine;
+          expect(input).toBeDefined();
+          return `${JSON.stringify(line)}\n`;
+        })
+        .join('');
+      for (const line of placements?.lines ?? []) PlacementRecordingLine.parse(line);
+      expect(digest(placements?.text ?? '')).toEqual(digest(recordedPlacements));
       const recorded = (await readFile(path.join(recordDir, live?.path ?? ''), 'utf8'))
         .trimEnd()
         .split('\n')
         .map((l) => {
-          const { input, ...line } = JSON.parse(l) as RecordingLine;
+          const { input, ...line } = JSON.parse(l) as RelationRecordingLine;
           expect(input).toBeDefined();
           return line;
         })
@@ -348,7 +532,7 @@ describe('the simulation agent over MCP', () => {
       expect(live?.lines).toEqual(recorded);
       // Byte for byte, in the recorder's key order.
       expect(live?.text).toBe(recorded.map((l) => `${JSON.stringify(l)}\n`).join(''));
-      for (const line of live?.lines ?? []) RecordingLine.parse(line);
+      for (const line of live?.lines ?? []) RelationRecordingLine.parse(line);
     });
   }
 

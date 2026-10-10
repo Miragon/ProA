@@ -72,3 +72,13 @@ export interface VcModelingService {
   updateLabel(element: VcElement, label: string): void;
   setColor(element: VcElement, color: string | undefined): void;
 }
+
+/** diagram-js `modeling` (Modeler only): `layoutConnection` without hints asks the layouter. */
+export interface ModelingService {
+  layoutConnection(connection: VcElement, hints?: Record<string, unknown>): void;
+}
+
+/** diagram-js `commandStack` (Modeler only). */
+export interface CommandStackService {
+  clear(): void;
+}

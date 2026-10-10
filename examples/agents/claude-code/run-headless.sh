@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Works the ProA analysis pipeline with Claude Code in headless mode: one fresh
-# `claude -p "/proa:relations <project> <batch-size>"` per batch, so every
+# `claude -p "/proa:<skill> <project> <batch-size>"` per batch (skill
+# `relations`, the default, or `placements` with --skill placements), so every
 # batch starts with a clean context, until GET /api/v1/analyses/pending reports
-# no claimable task, a batch fails or makes no progress, or max-batches is reached.
+# no claimable task of that kind, a batch fails or makes no progress, or
+# max-batches is reached. Progress: the pending count fell; for placements also
+# the chain's latest placement task changed or its due count fell (a chain has
+# one open placement task, and the follow-up of a truncated claim is queued at
+# submit, so the pending count can stay at 1 after a batch that worked a task).
 # Every batch runs in an empty temporary directory outside the checkout, with
 # ProA's MCP server as its only tools and the plugin from this checkout, and
 # writes its JSON result to the log directory. See README.md next to this file.
@@ -10,8 +15,10 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: run-headless.sh [--allow-api-billing] <project> <model> [batch-size] [max-batches]
+Usage: run-headless.sh [--allow-api-billing] [--skill relations|placements] <project> <model> [batch-size] [max-batches]
 
+  --skill      the plugin skill to run: relations (default; analysis tasks of models)
+               or placements (the value chain's placement tasks, kind placement)
   project      project key or prj_ id (the project of the agent token)
   model        exact model id, e.g. claude-opus-5-5 (the agent declares it as llmModel)
   batch-size   tasks per claude -p run, 1-100 (default 5)
@@ -36,15 +43,30 @@ die() {
 }
 
 allow_api_billing=false
-case "${1:-}" in
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  --allow-api-billing)
-    allow_api_billing=true
-    shift
-    ;;
+skill=relations
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --allow-api-billing)
+      allow_api_billing=true
+      shift
+      ;;
+    --skill)
+      [[ $# -ge 2 ]] || die "--skill needs relations or placements"
+      skill=$2
+      shift 2
+      ;;
+    *) break ;;
+  esac
+done
+case "$skill" in
+  relations) kinds_query='' ;;
+  # Placement tasks only: the pending count of the default kind would never reach 0 for them.
+  placements) kinds_query='&kinds=placement' ;;
+  *) die "--skill must be relations or placements: $skill" ;;
 esac
 if [[ $# -lt 2 || $# -gt 4 ]]; then
   usage >&2
@@ -111,12 +133,12 @@ case "$workdir/" in
   "$checkout"/*) die "the temporary directory $workdir is inside the checkout; point TMPDIR elsewhere" ;;
 esac
 
-# Claimable tasks of the project: queued, or claimed with an expired lease
-# (tasks under a live lease do not count). The token goes to curl on stdin,
-# not on its command line.
+# Claimable tasks of the project and the skill's kind: queued, or claimed with an
+# expired lease (tasks under a live lease do not count). The token goes to curl
+# on stdin, not on its command line.
 pending() {
   printf 'Authorization: Bearer %s\n' "$PROA_TOKEN" |
-    curl -fsS --max-time 30 -H @- "$url/api/v1/analyses/pending?projectId=$project" |
+    curl -fsS --max-time 30 -H @- "$url/api/v1/analyses/pending?projectId=$project$kinds_query" |
     node -e '
       let s = "";
       process.stdin.on("data", (d) => (s += d)).on("end", () => {
@@ -124,6 +146,21 @@ pending() {
         try { total = JSON.parse(s).total; } catch {}
         if (!Number.isInteger(total)) process.exit(1);
         console.log(total);
+      });'
+}
+
+# Placements: "<latest placement task id or -> <due processes>" of the project's
+# value chain (GET …/value-chains/main, field pipeline), for the progress check.
+chain_state() {
+  printf 'Authorization: Bearer %s\n' "$PROA_TOKEN" |
+    curl -fsS --max-time 30 -H @- "$url/api/v1/projects/$project/value-chains/main" |
+    node -e '
+      let s = "";
+      process.stdin.on("data", (d) => (s += d)).on("end", () => {
+        let p;
+        try { p = JSON.parse(s).pipeline; } catch {}
+        if (!p || !Number.isInteger(p.due)) process.exit(1);
+        console.log(`${p.task ? p.task.id : "-"} ${p.due}`);
       });'
 }
 
@@ -140,7 +177,11 @@ summarize() {
 
 unreachable="cannot read the pending tasks from $url (is ProA running, is PROA_TOKEN valid for $project?)"
 before=$(pending) || die "$unreachable"
-echo "project $project: $before pending; batches of $batch_size with $model; logs in $log_dir"
+chain_before=
+if [[ $skill == placements ]] && ((before > 0)); then
+  chain_before=$(chain_state) || die "cannot read the value chain of $project from $url"
+fi
+echo "project $project: $before pending ($skill); batches of $batch_size with $model; logs in $log_dir"
 batch=0
 while ((before > 0)); do
   if ((batch >= max_batches)); then
@@ -149,7 +190,7 @@ while ((before > 0)); do
   fi
   batch=$((batch + 1))
   log=$log_dir/batch-$(printf '%03d' "$batch").json
-  echo "batch $batch: /proa:relations $project $batch_size"
+  echo "batch $batch: /proa:$skill $project $batch_size"
   [[ -d $workdir ]] || die "the temporary directory $workdir disappeared; not starting batch $batch elsewhere"
   status=0
   (
@@ -158,7 +199,7 @@ while ((before > 0)); do
     # ProA's tools declare anthropic/maxResultSizeChars, so claim inputs (up to about 80 KB)
     # reach the model inline; the token limit is raised as well for builds that predate it.
     export MAX_MCP_OUTPUT_TOKENS=${MAX_MCP_OUTPUT_TOKENS:-100000}
-    claude -p "/proa:relations $project $batch_size" \
+    claude -p "/proa:$skill $project $batch_size" \
       --output-format json \
       --model "$model" \
       --strict-mcp-config --mcp-config "$mcp_config" \
@@ -178,6 +219,18 @@ while ((before > 0)); do
   fi
   after=$(pending) || die "$unreachable"
   echo "  pending: $before -> $after"
+  progress=false
+  if ((after < before)); then progress=true; fi
+  moved=
+  if [[ $skill == placements ]]; then
+    chain_after=$(chain_state) || die "cannot read the value chain of $project from $url"
+    read -r task_before due_before <<<"$chain_before"
+    read -r task_after due_after <<<"$chain_after"
+    echo "  due: $due_before -> $due_after (placement task ${task_before} -> ${task_after})"
+    if [[ $task_after != "$task_before" ]] || ((due_after < due_before)); then progress=true; fi
+    moved=", due $due_before -> $due_after, the same placement task"
+    chain_before=$chain_after
+  fi
   # A batch that died after claiming leaves its task leased, which also lowers the
   # pending count: only a successful batch counts as progress.
   if [[ $ok != true ]]; then
@@ -185,8 +238,8 @@ while ((before > 0)); do
     echo "  a task it claimed stays leased for up to 15 minutes, and that attempt counts (3 expired leases fail a task); check the run before you start the script again" >&2
     exit 1
   fi
-  if ((after >= before)); then
-    echo "stopped: batch $batch made no progress (pending $before -> $after); see $log" >&2
+  if [[ $progress != true ]]; then
+    echo "stopped: batch $batch made no progress (pending $before -> $after$moved); see $log" >&2
     echo "  did the proa MCP server connect (PROA_URL, PROA_TOKEN)?" >&2
     exit 1
   fi

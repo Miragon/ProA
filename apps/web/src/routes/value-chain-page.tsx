@@ -5,6 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   DownloadIcon,
+  FileUpIcon,
   ImageDownIcon,
   MaximizeIcon,
   PencilIcon,
@@ -38,6 +39,7 @@ import {
   DiscardDialog,
   DraftDialog,
   ImpactDialog,
+  ImportConfirmDialog,
   MessageDialog,
   ResultDialog,
   ViolationsPanel,
@@ -72,6 +74,7 @@ import {
   stepsMissingFromCanvas,
   type DrillDownTarget,
 } from '@/lib/value-chain';
+import { IMPORT_ACCEPT, importErrorText, readImportFile } from '@/lib/value-chain-import';
 import { impactDialogOf, useChainSave } from '@/lib/value-chain-save';
 
 import { valueChainRoute } from './value-chain';
@@ -127,7 +130,24 @@ export function ValueChainPage() {
     baseRef.current = next;
     setBase(next);
   };
-  const [editDoc, setEditDoc] = useState<{ n: number; text: string | null }>({ n: 0, text: null });
+  const [editDoc, setEditDoc] = useState<{ n: number; text: string | null; relayout?: boolean }>({
+    n: 0,
+    text: null,
+  });
+  /** The number of the last edit document (its key is `edit:<n>`). */
+  const docSeq = useRef(0);
+  /** An imported file whose document the canvas has not reported imported yet. */
+  const importing = useRef<{ key: string; name: string } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  /**
+   * A checked file waiting for the user to confirm that it replaces the
+   * drawing, or (`draftSavedAt`) the stored draft of a new chain.
+   */
+  const [pendingImport, setPendingImport] = useState<{
+    name: string;
+    text: string;
+    draftSavedAt?: string;
+  } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [canvasInfo, setCanvasInfo] = useState<CanvasElementInfo | null>(null);
   const [canvasIds, setCanvasIds] = useState<ReadonlySet<string> | null>(null);
@@ -152,9 +172,24 @@ export function ValueChainPage() {
     ? `${info.data.name} – Wertschöpfungskette`
     : 'Wertschöpfungskette';
 
+  /**
+   * Shows `text` as the next edit document; an imported file (`imported`: its
+   * name) is re-laid out by the canvas and reported when it is on the canvas.
+   */
+  function loadDoc(text: string | null, imported?: string) {
+    const n = ++docSeq.current;
+    setEditDoc(imported === undefined ? { n, text } : { n, text, relayout: true });
+    importing.current = imported === undefined ? null : { key: `edit:${n}`, name: imported };
+  }
+
   const canvasDoc: ChainCanvasDocument | null =
     mode === 'edit' && base
-      ? { key: `edit:${editDoc.n}`, text: editDoc.text, emptyName }
+      ? {
+          key: `edit:${editDoc.n}`,
+          text: editDoc.text,
+          emptyName,
+          ...(editDoc.relayout ? { relayout: true } : {}),
+        }
       : contentQ.data
         ? { key: `view:r${contentQ.data.rev}`, text: contentQ.data.text, emptyName }
         : null;
@@ -251,7 +286,7 @@ export function ValueChainPage() {
           const untouched = exportOrNull() === text;
           updateBase({ ...now, text: stored.text });
           // Never replace an edit made since the save.
-          if (untouched) setEditDoc((d) => ({ n: d.n + 1, text: stored.text }));
+          if (untouched) loadDoc(stored.text);
           else recomputeDirty();
         })
         .catch(() => undefined);
@@ -346,12 +381,19 @@ export function ValueChainPage() {
   }
 
   // ------------------------------------------------------------ edit flow
-  function startEdit(next: EditBase) {
+  /**
+   * Edits `next`; with `imported`, the drawing starts as that file (a new
+   * chain from a draft) and becomes the draft once it is on the canvas: the
+   * import asked before it replaced a stored draft, so none is offered here.
+   */
+  function startEdit(next: EditBase, imported?: { name: string; text: string }) {
     updateBase(next);
-    setEditDoc((d) => ({ n: d.n + 1, text: next.text }));
+    if (imported) loadDoc(imported.text, imported.name);
+    else loadDoc(next.text);
     setDirty(false);
     save.reset();
     setMode('edit');
+    if (imported) return;
     const offer = draftOffer(listDrafts(project, next.chainId), next.rev);
     if (offer.kind !== 'none') {
       setDraftPrompt({
@@ -400,7 +442,7 @@ export function ValueChainPage() {
         queryClient.fetchQuery({ ...valueChainQuery(project), staleTime: 0 }),
       ]);
       updateBase({ rev: fresh.rev, text: fresh.text, chainId: chain.valueChain.id });
-      setEditDoc((d) => ({ n: d.n + 1, text: fresh.text }));
+      loadDoc(fresh.text);
       setDirty(false);
       toast({
         tone: 'info',
@@ -415,6 +457,62 @@ export function ValueChainPage() {
       });
     }
     reload();
+  }
+
+  // ------------------------------------------------------------ import
+  function importFailed(description: string) {
+    toast({ tone: 'danger', title: 'Import nicht möglich', description });
+  }
+
+  /** Whether the drawing has elements (the canvas is being replaced: none). */
+  function hasContent(): boolean {
+    try {
+      return (canvas.current?.elementIds().length ?? 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Replaces the drawing with a checked file (edit mode), or starts a new chain from it. */
+  function applyImport(name: string, text: string) {
+    setPendingImport(null);
+    if (mode === 'edit' && baseRef.current) loadDoc(text, name);
+    else startEdit({ rev: 0, text: null, chainId: 'new' }, { name, text });
+  }
+
+  /**
+   * A file chosen for the import (M4 §3.3): at most 2 MB of JSON, then the
+   * schema check of the canvas chunk; errors in German. A drawing with
+   * content or unsaved edits is replaced only after the user confirms.
+   */
+  async function onImportFile(file: File) {
+    const read = await readImportFile(file);
+    if (!read.ok) {
+      importFailed(read.message);
+      return;
+    }
+    let problem: string | null;
+    try {
+      const { checkDocument } = await import('@/components/value-chain/canvas/check-document');
+      problem = importErrorText(file.name, checkDocument(read.json));
+    } catch (error) {
+      problem = errorMessage(error);
+    }
+    if (problem !== null) {
+      importFailed(problem);
+      return;
+    }
+    if (mode === 'edit' && (dirtyNow() || hasContent())) {
+      setPendingImport({ name: file.name, text: read.text });
+      return;
+    }
+    // A new chain from the file over a stored draft of a new chain: ask, as for any drawing.
+    const stored = mode === 'edit' ? null : draftOffer(listDrafts(project, 'new'), 0);
+    if (stored && stored.kind !== 'none') {
+      setPendingImport({ name: file.name, text: read.text, draftSavedAt: stored.draft.savedAt });
+      return;
+    }
+    applyImport(file.name, read.text);
   }
 
   function downloadDocument() {
@@ -525,10 +623,22 @@ export function ValueChainPage() {
                 openTarget(step ? drillDownTarget(step) : { kind: 'step', elementId: id });
               }}
               onChange={onCanvasChange}
-              onImported={({ warnings: count }) => {
+              onImported={({ key, warnings: count }) => {
                 setWarnings(count);
                 setCanvasError(null);
                 readCanvas(selectedId);
+                const imported = importing.current;
+                if (imported?.key === key) {
+                  importing.current = null;
+                  // The imported drawing differs from the base: unsaved, kept as a draft.
+                  recomputeDirty();
+                  toast({
+                    tone: 'info',
+                    title: `„${imported.name}“ importiert`,
+                    description:
+                      'Prüfe die Zeichnung und speichere sie; gespeichert wird erst mit „Speichern“.',
+                  });
+                }
               }}
               onError={(message) => {
                 setCanvasError(message);
@@ -607,6 +717,7 @@ export function ValueChainPage() {
               project={project}
               canReview={canReview}
               onCreate={() => startEdit({ rev: 0, text: null, chainId: 'new' })}
+              onImport={() => fileInput.current?.click()}
             />
           </div>
         </div>
@@ -754,6 +865,17 @@ export function ValueChainPage() {
                 <DownloadIcon data-icon="inline-start" />
                 .vc.json
               </Button>
+              {canReview ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInput.current?.click()}
+                  data-testid="import-chain"
+                >
+                  <FileUpIcon data-icon="inline-start" />
+                  Importieren
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"
@@ -928,6 +1050,28 @@ export function ValueChainPage() {
         </aside>
       )}
 
+      {canReview ? (
+        <input
+          ref={fileInput}
+          type="file"
+          accept={IMPORT_ACCEPT}
+          className="hidden"
+          data-testid="import-file"
+          aria-label="Wertschöpfungskette importieren (.vc.json)"
+          onChange={(e) => {
+            const file = e.currentTarget.files?.[0];
+            // The same file can be chosen again after a refusal.
+            e.currentTarget.value = '';
+            if (file) void onImportFile(file);
+          }}
+        />
+      ) : null}
+      <ImportConfirmDialog
+        fileName={pendingImport?.name ?? null}
+        draftSavedAt={pendingImport?.draftSavedAt ?? null}
+        onReplace={() => pendingImport && applyImport(pendingImport.name, pendingImport.text)}
+        onCancel={() => setPendingImport(null)}
+      />
       <ImpactDialog
         dry={impactDialogOf(saveState)}
         pending={saveState.phase === 'saving'}
@@ -962,7 +1106,7 @@ export function ValueChainPage() {
         onRestore={() => {
           if (!draftPrompt) return;
           // The draft stays stored until it is saved or discarded; the import never touches it.
-          setEditDoc((d) => ({ n: d.n + 1, text: draftPrompt.text }));
+          loadDoc(draftPrompt.text);
           setDirty(true);
         }}
         onDownload={() => {

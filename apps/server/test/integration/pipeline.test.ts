@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import type {
   AnalysisSubmission,
   AnalysisTaskPage,
-  ClaimedAnalysis,
+  ClaimedRelationsAnalysis,
   ModelPage,
   PendingAnalyses,
   Relation,
@@ -166,7 +166,7 @@ afterAll(async () => {
 });
 
 describe('claim', () => {
-  let claimed: ClaimedAnalysis;
+  let claimed: ClaimedRelationsAnalysis;
 
   it('lists the queued tasks and counts them as pending', async () => {
     const res = await t.asOwner('/api/v1/projects/pipe/analyses');
@@ -183,7 +183,7 @@ describe('claim', () => {
   it('claims the oldest task with a lease token bound to the task and the caller', async () => {
     const items = await claim(agentA);
     expect(items).toHaveLength(1);
-    claimed = items[0] as ClaimedAnalysis;
+    claimed = items[0] as ClaimedRelationsAnalysis;
     expect(claimed).toMatchObject({
       projectKey: 'pipe',
       modelKey: ORDER,
@@ -462,7 +462,7 @@ describe('claim', () => {
       const res = await submitRaw(
         agentA,
         next?.taskId ?? '',
-        submission(next as ClaimedAnalysis, many),
+        submission(next as ClaimedRelationsAnalysis, many),
       );
       expect(res.status).toBe(422);
       expect((await release(agentA, next?.taskId ?? '', next?.leaseToken ?? '')).status).toBe(200);
@@ -499,7 +499,11 @@ describe('release', () => {
     const again = await release(agentB, c?.taskId ?? '', c?.leaseToken ?? '');
     expect(again.status).toBe(409);
     expect(await problemOf(again)).toMatchObject({ code: 'lease-lost' });
-    const late = await submitRaw(agentB, c?.taskId ?? '', submission(c as ClaimedAnalysis, []));
+    const late = await submitRaw(
+      agentB,
+      c?.taskId ?? '',
+      submission(c as ClaimedRelationsAnalysis, []),
+    );
     expect(await problemOf(late)).toMatchObject({ code: 'lease-lost' });
     expect(await events('pipe', 'analysis.released')).not.toHaveLength(0);
   });
@@ -540,7 +544,11 @@ describe('lease expiry', () => {
     const agent = asAgent(t, (await t.createToken('late', ['proa:propose'])).secret);
     const [c] = await claim(agent);
     clock.advance(20 * MINUTE);
-    const result = await submit(agent, c?.taskId ?? '', submission(c as ClaimedAnalysis, []));
+    const result = await submit(
+      agent,
+      c?.taskId ?? '',
+      submission(c as ClaimedRelationsAnalysis, []),
+    );
     expect(result.items).toEqual([]);
     const [e] = await rows<{ payload: { late: boolean } }>(
       `SELECT e.payload FROM event e JOIN project p ON p.id = e.project_id WHERE p.key = 'late' AND e.type = 'analysis.done'`,
@@ -556,7 +564,11 @@ describe('lease expiry', () => {
     clock.advance(16 * MINUTE);
     const [second] = await claim(b);
     expect(second).toMatchObject({ taskId: first?.taskId, attempt: 2 });
-    const res = await submitRaw(a, first?.taskId ?? '', submission(first as ClaimedAnalysis, []));
+    const res = await submitRaw(
+      a,
+      first?.taskId ?? '',
+      submission(first as ClaimedRelationsAnalysis, []),
+    );
     expect(res.status).toBe(409);
     expect(await problemOf(res)).toMatchObject({ code: 'lease-lost' });
   });
@@ -586,7 +598,9 @@ describe('lease expiry', () => {
     const result = await submit(
       a,
       third?.taskId ?? '',
-      submission(third as ClaimedAnalysis, [item('trigger', O('End_Done'), O('Task_Pack'))]),
+      submission(third as ClaimedRelationsAnalysis, [
+        item('trigger', O('End_Done'), O('Task_Pack')),
+      ]),
     );
     expect(result.items[0]?.result).toBe('invalid:type-mismatch');
     expect(await stageOf('lease', ORDER)).toBe('incorporated');
@@ -635,7 +649,7 @@ describe('a new revision', () => {
     };
     expect((await t.putModel('rev', ORDER, fakeBpmn(changed))).status).toBe(200);
     for (const res of [
-      await submitRaw(agent, c?.taskId ?? '', submission(c as ClaimedAnalysis, [])),
+      await submitRaw(agent, c?.taskId ?? '', submission(c as ClaimedRelationsAnalysis, [])),
       await release(agent, c?.taskId ?? '', c?.leaseToken ?? ''),
     ]) {
       expect(res.status).toBe(409);
@@ -670,7 +684,7 @@ describe('supersession', () => {
     await submit(
       agent,
       c1?.taskId ?? '',
-      submission(c1 as ClaimedAnalysis, [
+      submission(c1 as ClaimedRelationsAnalysis, [
         item('trigger', O('End_Done'), B('Start_Manual')),
         item('message', O('Event_Shipped'), B('Event_Paid'), { confidence: 0.4 }),
       ]),
@@ -689,7 +703,11 @@ describe('supersession', () => {
     await post(owner, '/api/v1/projects/super/analyses/requeue', { modelKeys: [ORDER] });
     const [again] = await claim(other, { modelKey: ORDER });
     expect(again?.input.judged).toHaveLength(2);
-    const kept = await submit(other, again?.taskId ?? '', submission(again as ClaimedAnalysis, []));
+    const kept = await submit(
+      other,
+      again?.taskId ?? '',
+      submission(again as ClaimedRelationsAnalysis, []),
+    );
     expect(kept.withdrawn).toBe(0);
     // A new version of the model: its analysis withdraws what rests on the old one.
     const changed: FakeModelSpec = {
@@ -710,7 +728,9 @@ describe('supersession', () => {
     const result = await submit(
       other,
       c2?.taskId ?? '',
-      submission(c2 as ClaimedAnalysis, [item('trigger', O('End_Done'), B('Start_Manual'))]),
+      submission(c2 as ClaimedRelationsAnalysis, [
+        item('trigger', O('End_Done'), B('Start_Manual')),
+      ]),
     );
     expect(result.items.map((i) => i.result)).toEqual(['applied']);
     // The agent's two proposals on the old order model.
@@ -808,13 +828,13 @@ describe('a claim whose input cannot be built', () => {
 
 /** Claims `modelKey` three times, letting each lease expire: the task is due to fail. */
 async function loseThreeLeases(agent: Caller, project: string, modelKey: string) {
-  let last: ClaimedAnalysis | undefined;
+  let last: ClaimedRelationsAnalysis | undefined;
   for (let attempt = 1; attempt <= 3; attempt++) {
     [last] = await claim(agent, { projectId: project, modelKey });
     expect(last?.attempt).toBe(attempt);
     clock.advance(16 * MINUTE);
   }
-  return last as ClaimedAnalysis;
+  return last as ClaimedRelationsAnalysis;
 }
 
 describe('a task whose last lease expired', () => {
@@ -858,7 +878,11 @@ describe('a task whose last lease expired', () => {
       modelKeys: [ORDER],
     });
     expect(((await res.json()) as RequeueResult).items[0]?.outcome).toBe('queued');
-    const late = await submitRaw(agent, c?.taskId ?? '', submission(c as ClaimedAnalysis, []));
+    const late = await submitRaw(
+      agent,
+      c?.taskId ?? '',
+      submission(c as ClaimedRelationsAnalysis, []),
+    );
     expect(late.status).toBe(409);
     expect(await problemOf(late)).toMatchObject({ code: 'task-cancelled' });
     // An active lease stays open.
@@ -887,7 +911,9 @@ describe('a late submit after the task failed', () => {
     await submit(
       b,
       fresh?.taskId ?? '',
-      submission(fresh as ClaimedAnalysis, [item('trigger', O('End_Done'), B('Start_Manual'))]),
+      submission(fresh as ClaimedRelationsAnalysis, [
+        item('trigger', O('End_Done'), B('Start_Manual')),
+      ]),
     );
     const res = await submitRaw(a, stale.taskId, submission(stale, []));
     expect(res.status).toBe(409);
@@ -907,7 +933,7 @@ describe('a late submit after the task failed', () => {
     await t.putModel('stale2', ORDER, fakeBpmn(order));
     const a = asAgent(t, (await t.createToken('stale2', ['proa:propose'])).secret);
     const [first] = await claim(a);
-    await submit(a, first?.taskId ?? '', submission(first as ClaimedAnalysis, []));
+    await submit(a, first?.taskId ?? '', submission(first as ClaimedRelationsAnalysis, []));
     // New facts: a new task, which fails.
     const changed: FakeModelSpec = {
       ...order,
@@ -953,7 +979,7 @@ describe('limits and control characters in submissions', () => {
       to: `${ORDER}#x${i}`,
       reason: 'x'.repeat(2000),
     }));
-    const big = submission(c as ClaimedAnalysis, [], { noLinks, summary: 'gross' });
+    const big = submission(c as ClaimedRelationsAnalysis, [], { noLinks, summary: 'gross' });
     const huge = {
       ...big,
       relations: [1, 2, 3].map(() =>
@@ -972,7 +998,7 @@ describe('limits and control characters in submissions', () => {
       agent,
       c?.taskId ?? '',
       submission(
-        c as ClaimedAnalysis,
+        c as ClaimedRelationsAnalysis,
         [
           item('message', O('Event_Shipped'), B('Event_Paid'), { rationale: 'a\u0000b' }),
           item('trigger', O('End_Done'), B('Start_Manual'), { question: 'warum\u0007?' }),
@@ -1006,7 +1032,7 @@ describe('limits and control characters in submissions', () => {
     const bad = await submitRaw(
       agent,
       c?.taskId ?? '',
-      submission(c as ClaimedAnalysis, [], { llmModel: 'model\u0000' }),
+      submission(c as ClaimedRelationsAnalysis, [], { llmModel: 'model\u0000' }),
     );
     expect(bad.status).toBe(422);
     const reason = await release(agent, c?.taskId ?? '', c?.leaseToken ?? '', 'weil\u0000');
@@ -1027,7 +1053,7 @@ describe('revoking an agent token', () => {
     await submit(
       bot,
       c?.taskId ?? '',
-      submission(c as ClaimedAnalysis, [
+      submission(c as ClaimedRelationsAnalysis, [
         item('trigger', O('End_Done'), B('Start_Manual')),
         item('message', O('Event_Shipped'), B('Event_Paid'), { confidence: 0.4 }),
       ]),

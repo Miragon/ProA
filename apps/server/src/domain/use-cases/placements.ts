@@ -4,7 +4,10 @@
  * decide them (accept, reject, hold, correct; also in bulk), add manual
  * placements and notes (`review`: a human on an interactive client; agents
  * get `human-decision-required` with the value chain `reviewUrl`). Every
- * write runs under the project lock on S1's placement lifecycle.
+ * write runs under the project lock on S1's placement lifecycle. An agent's
+ * ad-hoc proposals count as its verdict on the process (M4b, judge each
+ * process once: `placement_input`), so a placement task does not judge the
+ * same input again; withdrawing a pipeline proposal forgets its verdict.
  */
 import type {
   BulkPlacementDecisionBody,
@@ -32,7 +35,13 @@ import { sourceKindOf, type Actor } from '../actor.ts';
 import { decodeCursor, toPage } from '../cursor.ts';
 import { DomainError } from '../errors.ts';
 import { policy } from '../policy.ts';
-import type { PlacementAssertionRecord, PlacementRecord, Tx, ValueChainRecord } from '../ports.ts';
+import type {
+  PlacementAssertionRecord,
+  PlacementInputRecord,
+  PlacementRecord,
+  Tx,
+  ValueChainRecord,
+} from '../ports.ts';
 import { currentStances } from '../status.ts';
 import { liveChain, loadChainState, type ChainState } from '../value-chain/chain-state.ts';
 import { stepGenerationKey, validatePlacementItem } from '../value-chain/items.ts';
@@ -47,13 +56,9 @@ import {
   type PlacementContext,
   type PlacementDecision,
 } from '../value-chain/placements.ts';
+import { loadPipelineInputs, queuePlacementTask } from '../value-chain/queue.ts';
 import { OUTSIDE } from '../value-chain/steps.ts';
-import {
-  acceptedNeighbours,
-  acceptedSteps,
-  lexicalMatcher,
-  processOfRefs,
-} from '../value-chain/tiers.ts';
+import { lexicalMatcher } from '../value-chain/tiers.ts';
 import { placementViews, toPlacementAssertion } from '../value-chain/views.ts';
 import { requireChainReview, type ValueChainDeps } from './chain-access.ts';
 import { placementViewContext } from './value-chains.ts';
@@ -165,12 +170,9 @@ export function placementUseCases(deps: ValueChainDeps) {
       const { project } = await policy.require(tx, actor, 'propose', projectRef);
       await tx.projects.lockForWrite(project.id);
       const state = await loadChainState(tx, await liveChain(tx, project.id, key));
-      const placements = await tx.placements.forChain(project.id, state.chain.id);
-      const histories = byPlacement<PlacementAssertionRecord>(
-        await tx.placementAssertions.listForChain(project.id, state.chain.id),
-      );
-      const facts = await tx.facts.head(project.id);
-      const relations = await tx.relations.all(project.id);
+      const inputs = await loadPipelineInputs(tx, state, deps.expectedPlacementProcedure());
+      const { placements, facts, relations } = inputs;
+      const histories = new Map<PlacementId, PlacementAssertionRecord[]>(inputs.histories);
       const matcher = lexicalMatcher({
         structure: state.structure,
         processes: new Map(
@@ -179,8 +181,8 @@ export function placementUseCases(deps: ValueChainDeps) {
             { name: f.label === '' ? null : f.label, modelKey: f.modelKey },
           ]),
         ),
-        neighbours: acceptedNeighbours(relations, processOfRefs(facts)),
-        known: acceptedSteps(placements, state.live),
+        neighbours: inputs.hashContext.neighbours,
+        known: inputs.hashContext.acceptedSteps,
       });
       const ctx = contextFor(tx, actor, state, placements, histories);
       ctx.declared =
@@ -265,6 +267,32 @@ export function placementUseCases(deps: ValueChainDeps) {
         if (item.placementId === null) continue;
         const current = [...ctx.placements.values()].find((p) => p.id === item.placementId);
         if (current) item.status = current.status;
+      }
+      // An agent's valid proposal is its verdict on the process's current input (agent
+      // assertions never change an input hash): a placement task does not judge it again.
+      if (sourceKind === 'agent') {
+        const judged = new Set<string>();
+        for (const [index, item] of items.entries()) {
+          if (item.placementId === null) continue;
+          const process = body.placements[index]?.process;
+          if (process !== undefined) judged.add(process);
+        }
+        if (judged.size > 0) {
+          const { lastSeq } = await tx.projects.lockForWrite(project.id);
+          await tx.placementInputs.upsertMany(
+            [...judged].sort().map((processRef): PlacementInputRecord => ({
+              projectId: project.id,
+              valueChainId: state.chain.id,
+              processRef,
+              inputHash: inputs.hashOf(processRef),
+              taskId: null,
+              principalId: actor.principalId,
+              outcome: 'proposed',
+              reason: null,
+              seq: lastSeq,
+            })),
+          );
+        }
       }
       return { kind: 'propose', items, counts };
     });
@@ -407,7 +435,27 @@ export function placementUseCases(deps: ValueChainDeps) {
         );
         if (!own) throw new DomainError('conflict', 'you have no live proposal on this placement');
         const ctx = contextFor(tx, actor, state, [placement], new Map([[placement.id, history]]));
-        return view(tx, state, await withdrawPlacementStance(ctx, placement, own, null));
+        const withdrawn = await withdrawPlacementStance(ctx, placement, own, null);
+        // A pipeline proposal was the verdict of a placement task, an agent's ad-hoc proposal its
+        // own verdict (an ad-hoc row of the same principal): forget it, so the process is judged
+        // again (M4b).
+        const row = (await tx.placementInputs.forChain(project.id, state.chain.id)).find(
+          (r) => r.processRef === placement.processRef,
+        );
+        const adHocVerdict = row?.taskId === null && row.principalId === actor.principalId;
+        if (own.submissionId !== null || adHocVerdict) {
+          await tx.placementInputs.deleteProcesses(project.id, state.chain.id, [
+            placement.processRef,
+          ]);
+          await queuePlacementTask(
+            tx,
+            actor,
+            state.chain,
+            'judgement withdrawn',
+            deps.expectedPlacementProcedure(),
+          );
+        }
+        return view(tx, state, withdrawn);
       });
     },
 

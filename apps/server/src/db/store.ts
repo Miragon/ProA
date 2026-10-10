@@ -36,9 +36,11 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   max,
+  notExists,
   or,
   sql,
   type SQL,
@@ -47,11 +49,14 @@ import { alias } from 'drizzle-orm/pg-core';
 
 import type {
   AgentTokenRecord,
+  ChainTaskRecord,
   EventRecord,
   HeadFact,
   HeadFactFilter,
   ModelRecord,
+  ModelTaskRecord,
   ModelView,
+  PlacementInputRecord,
   PlacementRecord,
   PrincipalRecord,
   ProjectRecord,
@@ -60,11 +65,13 @@ import type {
   StoredAssertion,
   StoredNoLink,
   StoredPlacementAssertion,
+  StoredPlacementInput,
   StoredSubmission,
   Store,
   TaskDetail,
   TaskRecord,
   Tx,
+  ValueChainPipelineRecord,
   ValueChainRecord,
   ValueChainRevisionRecord,
   ValueChainStepRecord,
@@ -173,16 +180,87 @@ const toAssertion = (r: AssertionRow, handle: string): StoredAssertion => ({
   createdAt: r.createdAt,
 });
 
-const toTaskRecord = (r: TaskRow): TaskRecord => ({
-  id: r.id as AnalysisTaskId,
+/** A `relations` task row (the subject check guarantees its model columns). */
+function toModelTaskRecord(r: TaskRow): ModelTaskRecord {
+  if (
+    r.subjectKind !== 'model' ||
+    r.modelId === null ||
+    r.revisionId === null ||
+    r.factsHash === null
+  ) {
+    throw new Error(`analysis task ${r.id} is not a model task`);
+  }
+  return {
+    id: r.id as AnalysisTaskId,
+    projectId: r.projectId as ProjectId,
+    subjectKind: 'model',
+    kind: 'relations',
+    modelId: r.modelId as ModelId,
+    revisionId: r.revisionId as RevisionId,
+    factsHash: r.factsHash,
+    state: r.state,
+    seq: r.seq,
+  };
+}
+
+/** A `placement` task row (the subject check guarantees its chain columns). */
+function toChainTaskRecord(r: TaskRow): ChainTaskRecord {
+  if (
+    r.subjectKind !== 'value_chain' ||
+    r.valueChainId === null ||
+    r.valueChainRevisionId === null ||
+    r.inputHash === null
+  ) {
+    throw new Error(`analysis task ${r.id} is not a value chain task`);
+  }
+  return {
+    id: r.id as AnalysisTaskId,
+    projectId: r.projectId as ProjectId,
+    subjectKind: 'value_chain',
+    kind: 'placement',
+    valueChainId: r.valueChainId as ValueChainId,
+    valueChainRevisionId: r.valueChainRevisionId as ValueChainRevisionId,
+    inputHash: r.inputHash,
+    state: r.state,
+    seq: r.seq,
+  };
+}
+
+type PlacementInputRow = typeof s.placementInput.$inferSelect;
+
+const toPlacementInput = (r: PlacementInputRow): PlacementInputRecord => ({
   projectId: r.projectId as ProjectId,
-  modelId: r.modelId as ModelId,
-  revisionId: r.revisionId as RevisionId,
-  kind: r.kind,
-  factsHash: r.factsHash,
-  state: r.state,
+  valueChainId: r.valueChainId as ValueChainId,
+  processRef: r.processRef,
+  inputHash: r.inputHash,
+  taskId: r.taskId as AnalysisTaskId | null,
+  principalId: r.principalId as PrincipalId,
+  outcome: r.outcome,
+  reason: r.reason,
   seq: r.seq,
 });
+
+/** The columns a task row is inserted with, from either subject. */
+function taskRow(t: TaskRecord): typeof s.analysisTask.$inferInsert {
+  const base = { id: t.id, projectId: t.projectId, state: t.state, seq: t.seq };
+  return t.subjectKind === 'model'
+    ? {
+        ...base,
+        subjectKind: 'model',
+        kind: 'relations',
+        modelId: t.modelId,
+        revisionId: t.revisionId,
+        factsHash: t.factsHash,
+      }
+    : {
+        ...base,
+        subjectKind: 'value_chain',
+        kind: 'placement',
+        valueChainId: t.valueChainId,
+        valueChainRevisionId: t.valueChainRevisionId,
+        inputHash: t.inputHash,
+      };
+}
 
 const toFact = (r: FactRow, modelKey: string): Fact => ({
   modelKey,
@@ -417,7 +495,7 @@ function repos(db: Conn): Tx {
 
   const claimer = alias(s.principal, 'claimer');
 
-  /** Tasks with model key, lease holder handle and client submission id. */
+  /** Tasks with model or chain key, lease holder handle and client submission id. */
   async function taskDetails(
     where: SQL | undefined,
     options: { order?: 'seq-desc' | 'created'; limit?: number } = {},
@@ -427,11 +505,16 @@ function repos(db: Conn): Tx {
       .select({
         task: t,
         modelKey: s.model.key,
+        valueChainKey: s.valueChain.key,
         handle: claimer.handle,
         submissionId: s.analysisSubmission.clientSubmissionId,
       })
       .from(t)
-      .innerJoin(s.model, and(eq(s.model.projectId, t.projectId), eq(s.model.id, t.modelId)))
+      .leftJoin(s.model, and(eq(s.model.projectId, t.projectId), eq(s.model.id, t.modelId)))
+      .leftJoin(
+        s.valueChain,
+        and(eq(s.valueChain.projectId, t.projectId), eq(s.valueChain.id, t.valueChainId)),
+      )
       .leftJoin(claimer, eq(claimer.id, t.claimedBy))
       .leftJoin(
         s.analysisSubmission,
@@ -442,22 +525,54 @@ function repos(db: Conn): Tx {
       .$dynamic();
     if (options.limit !== undefined) query = query.limit(options.limit);
     const rows = await query;
-    return rows.map((r) => ({
-      ...toTaskRecord(r.task),
-      modelKey: r.modelKey,
-      attempts: r.task.attempts,
-      leaseTokenHash: r.task.leaseTokenHash,
-      claimedBy: r.task.claimedBy as PrincipalId | null,
-      claimedByHandle: r.handle,
-      leaseUntil: r.task.leaseUntil,
-      lastError: r.task.lastError,
-      submissionId: r.submissionId,
-      claimedSeq: r.task.claimedSeq,
-      assignment: r.task.assignment,
-      requeueAfter: r.task.requeueAfter,
-      createdAt: r.task.createdAt,
-      updatedAt: r.task.updatedAt,
-    }));
+    return rows.map((r): TaskDetail => {
+      const lease = {
+        attempts: r.task.attempts,
+        leaseTokenHash: r.task.leaseTokenHash,
+        claimedBy: r.task.claimedBy as PrincipalId | null,
+        claimedByHandle: r.handle,
+        leaseUntil: r.task.leaseUntil,
+        lastError: r.task.lastError,
+        submissionId: r.submissionId,
+        claimedSeq: r.task.claimedSeq,
+        requeueAfter: r.task.requeueAfter,
+        createdAt: r.task.createdAt,
+        updatedAt: r.task.updatedAt,
+      };
+      if (r.task.subjectKind === 'model') {
+        if (r.modelKey === null) throw new Error(`model of task ${r.task.id} not found`);
+        return {
+          ...toModelTaskRecord(r.task),
+          ...lease,
+          modelKey: r.modelKey,
+          assignment: r.task.assignment,
+        };
+      }
+      if (r.valueChainKey === null) throw new Error(`value chain of task ${r.task.id} not found`);
+      return {
+        ...toChainTaskRecord(r.task),
+        ...lease,
+        valueChainKey: r.valueChainKey,
+        placementClaim: r.task.placementClaim,
+      };
+    });
+  }
+
+  /** `placement_input` rows with the agent's handle, by process ref (code points). */
+  async function placementInputRows(where: SQL | undefined): Promise<StoredPlacementInput[]> {
+    const rows = await db
+      .select({ row: s.placementInput, handle: s.principal.handle })
+      .from(s.placementInput)
+      .innerJoin(s.principal, eq(s.principal.id, s.placementInput.principalId))
+      .where(where);
+    return rows
+      .map((r) => ({
+        ...toPlacementInput(r.row),
+        handle: r.handle,
+        createdAt: r.row.createdAt,
+        updatedAt: r.row.updatedAt,
+      }))
+      .sort((a, b) => byCodePoint(a.processRef, b.processRef));
   }
 
   const noLinkFrom = alias(s.model, 'no_link_from_model');
@@ -930,10 +1045,26 @@ function repos(db: Conn): Tx {
           )
           .orderBy(desc(s.analysisTask.seq))
           .limit(1);
-        return rows[0] ? toTaskRecord(rows[0]) : null;
+        return rows[0] ? toModelTaskRecord(rows[0]) : null;
+      },
+      async latestForChain(projectId, valueChainId, states) {
+        const rows = await db
+          .select()
+          .from(s.analysisTask)
+          .where(
+            and(
+              eq(s.analysisTask.projectId, projectId),
+              eq(s.analysisTask.valueChainId, valueChainId),
+              eq(s.analysisTask.kind, 'placement'),
+              inArray(s.analysisTask.state, [...states]),
+            ),
+          )
+          .orderBy(desc(s.analysisTask.seq))
+          .limit(1);
+        return rows[0] ? toChainTaskRecord(rows[0]) : null;
       },
       async insert(t) {
-        await db.insert(s.analysisTask).values(t);
+        await db.insert(s.analysisTask).values(taskRow(t));
       },
       async setState(projectId, id, state, lastError) {
         await db
@@ -943,7 +1074,7 @@ function repos(db: Conn): Tx {
             updatedAt: sql`now()`,
             ...(lastError === undefined ? {} : { lastError }),
             // A cancelled claim judges nothing any more.
-            ...(state === 'cancelled' ? { assignment: null } : {}),
+            ...(state === 'cancelled' ? { assignment: null, placementClaim: null } : {}),
           })
           .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
       },
@@ -972,6 +1103,7 @@ function repos(db: Conn): Tx {
           and(
             eq(s.analysisTask.projectId, projectId),
             filter.state === undefined ? undefined : eq(s.analysisTask.state, filter.state),
+            filter.kind === undefined ? undefined : eq(s.analysisTask.kind, filter.kind),
             filter.modelKey === undefined ? undefined : eq(s.model.key, filter.modelKey),
             page.beforeSeq === undefined ? undefined : lt(s.analysisTask.seq, page.beforeSeq),
           ),
@@ -1028,11 +1160,12 @@ function repos(db: Conn): Tx {
           .where(
             and(
               inArray(t.projectId, projectIds),
-              eq(t.kind, 'relations'),
+              inArray(t.kind, [...q.kinds]),
               or(
                 eq(t.state, 'queued'),
                 and(eq(t.state, 'claimed'), lt(t.leaseUntil, q.now), lt(t.attempts, q.maxAttempts)),
               ),
+              // A model narrows to that model's tasks; a chain task has no model.
               q.modelKey === undefined
                 ? undefined
                 : inArray(
@@ -1063,6 +1196,7 @@ function repos(db: Conn): Tx {
             attempts: sql`${t.attempts} + 1`,
             // The claim renders its input and assignment next; it sees every loss so far.
             assignment: null,
+            placementClaim: null,
             requeueAfter: false,
             updatedAt: sql`now()`,
           })
@@ -1095,6 +1229,12 @@ function repos(db: Conn): Tx {
           .set({ assignment: [...pairs] })
           .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
       },
+      async setPlacementClaim(projectId, id, claim, valueChainRevisionId) {
+        await db
+          .update(s.analysisTask)
+          .set({ placementClaim: claim, valueChainRevisionId })
+          .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
+      },
       async setRequeueAfter(projectId, id) {
         await db
           .update(s.analysisTask)
@@ -1111,14 +1251,15 @@ function repos(db: Conn): Tx {
             attempts: sql`greatest(${s.analysisTask.attempts} - 1, 0)`,
             lastError: reason,
             assignment: null,
+            placementClaim: null,
             requeueAfter: false,
             updatedAt: sql`now()`,
           })
           .where(and(eq(s.analysisTask.projectId, projectId), eq(s.analysisTask.id, id)));
       },
-      async countClaimable(projectIds, now, maxAttempts) {
+      async countClaimable(projectIds, now, maxAttempts, kinds) {
         const out = new Map<ProjectId, number>();
-        if (projectIds.length === 0) return out;
+        if (projectIds.length === 0 || kinds.length === 0) return out;
         const t = s.analysisTask;
         const rows = await db
           .select({ projectId: t.projectId, n: count() })
@@ -1126,7 +1267,7 @@ function repos(db: Conn): Tx {
           .where(
             and(
               inArray(t.projectId, [...projectIds]),
-              eq(t.kind, 'relations'),
+              inArray(t.kind, [...kinds]),
               or(
                 eq(t.state, 'queued'),
                 and(eq(t.state, 'claimed'), lt(t.leaseUntil, now), lt(t.attempts, maxAttempts)),
@@ -1189,7 +1330,12 @@ function repos(db: Conn): Tx {
               eq(s.model.id, s.analysisTask.modelId),
             ),
           )
-          .where(eq(s.analysisSubmission.projectId, projectId));
+          .where(
+            and(
+              eq(s.analysisSubmission.projectId, projectId),
+              eq(s.analysisTask.subjectKind, 'model'),
+            ),
+          );
         return new Map(rows.map((r) => [r.id as SubmissionId, r.key]));
       },
     },
@@ -1353,6 +1499,49 @@ function repos(db: Conn): Tx {
           .returning();
         if (!rows[0]) throw new Error(`value chain ${id} not found`);
         return toValueChain(rows[0]);
+      },
+      async pipeline(projectId, id) {
+        const v = s.valueChainPipeline;
+        const rows = await db
+          .select()
+          .from(v)
+          .where(and(eq(v.projectId, projectId), eq(v.valueChainId, id)));
+        const r = rows[0];
+        if (!r) return null;
+        return {
+          taskId: r.taskId as AnalysisTaskId | null,
+          taskState: r.taskState,
+          reviewItems: r.reviewItems,
+          heldItems: r.heldItems,
+          stage: r.stage as ModelStage,
+        } satisfies ValueChainPipelineRecord;
+      },
+      async listWithoutPlacementTask() {
+        const t = s.analysisTask;
+        const rows = await db
+          .select()
+          .from(s.valueChain)
+          .where(
+            and(
+              isNull(s.valueChain.deletedSeq),
+              isNotNull(s.valueChain.headRevisionId),
+              notExists(
+                db
+                  .select({ id: t.id })
+                  .from(t)
+                  .where(
+                    and(
+                      eq(t.projectId, s.valueChain.projectId),
+                      eq(t.valueChainId, s.valueChain.id),
+                      eq(t.kind, 'placement'),
+                    ),
+                  ),
+              ),
+            ),
+          );
+        return rows
+          .map(toValueChain)
+          .sort((a, b) => byCodePoint(a.projectId, b.projectId) || byCodePoint(a.key, b.key));
       },
     },
 
@@ -1605,6 +1794,77 @@ function repos(db: Conn): Tx {
           )
           .orderBy(asc(s.placementAssertion.seq));
         return rows.map((r) => toPlacementAssertion(r.a, r.handle));
+      },
+    },
+
+    placementInputs: {
+      async forChain(projectId, valueChainId) {
+        return placementInputRows(
+          and(
+            eq(s.placementInput.projectId, projectId),
+            eq(s.placementInput.valueChainId, valueChainId),
+          ),
+        );
+      },
+      async upsertMany(rows) {
+        for (const chunk of chunks(rows, INSERT_CHUNK)) {
+          await db
+            .insert(s.placementInput)
+            .values(chunk.map((r) => ({ ...r })))
+            .onConflictDoUpdate({
+              target: [s.placementInput.valueChainId, s.placementInput.processRef],
+              set: {
+                inputHash: sql`excluded.input_hash`,
+                taskId: sql`excluded.task_id`,
+                principalId: sql`excluded.principal_id`,
+                outcome: sql`excluded.outcome`,
+                reason: sql`excluded.reason`,
+                seq: sql`excluded.seq`,
+                updatedAt: sql`now()`,
+              },
+            });
+        }
+      },
+      async deleteProcesses(projectId, valueChainId, processRefs) {
+        if (processRefs.length === 0) return 0;
+        const rows = await db
+          .delete(s.placementInput)
+          .where(
+            and(
+              eq(s.placementInput.projectId, projectId),
+              eq(s.placementInput.valueChainId, valueChainId),
+              inArray(s.placementInput.processRef, [...processRefs]),
+            ),
+          )
+          .returning({ processRef: s.placementInput.processRef });
+        return rows.length;
+      },
+      async deleteByPrincipal(projectId, principalId) {
+        const rows = await db
+          .delete(s.placementInput)
+          .where(
+            and(
+              eq(s.placementInput.projectId, projectId),
+              eq(s.placementInput.principalId, principalId),
+            ),
+          )
+          .returning();
+        return rows
+          .map(toPlacementInput)
+          .sort(
+            (a, b) =>
+              byCodePoint(a.valueChainId, b.valueChainId) ||
+              byCodePoint(a.processRef, b.processRef),
+          );
+      },
+      async unsure(projectId, valueChainId) {
+        return placementInputRows(
+          and(
+            eq(s.placementInput.projectId, projectId),
+            eq(s.placementInput.valueChainId, valueChainId),
+            eq(s.placementInput.outcome, 'unsure'),
+          ),
+        );
       },
     },
 

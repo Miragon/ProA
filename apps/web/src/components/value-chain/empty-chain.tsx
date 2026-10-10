@@ -1,4 +1,4 @@
-import { PlusIcon } from 'lucide-react';
+import { FileUpIcon, PlusIcon } from 'lucide-react';
 
 import { CodeBlock } from '@/components/copy-button';
 import { MiragonMark } from '@/components/page-shell';
@@ -15,17 +15,21 @@ import { pushCommand } from '@/lib/value-chain';
 
 /**
  * The value chain page of a project without a chain (M4 §4): editors draw one
- * here (nothing is stored before the first save) or push a `.vc.json` with
- * the CLI; viewers only read that there is none yet.
+ * here (nothing is stored before the first save), import a `.vc.json` (for
+ * example one an agent drafted with `draft_value_chain`, M4 §3.3) into the
+ * editor, or push one with the CLI; viewers only read that there is none yet.
  */
 export function EmptyChain({
   project,
   canReview,
   onCreate,
+  onImport,
 }: {
   project: string;
   canReview: boolean;
   onCreate: () => void;
+  /** Opens the file picker of the import. */
+  onImport: () => void;
 }) {
   return (
     <Empty className="border bg-card" data-testid="empty-chain">
@@ -36,7 +40,7 @@ export function EmptyChain({
         <EmptyTitle>Noch keine Wertschöpfungskette</EmptyTitle>
         <EmptyDescription>
           {canReview
-            ? 'Zeichne die Wertschöpfungskette deines Projekts hier im Editor, oder lade eine .vc.json mit der CLI hoch:'
+            ? 'Zeichne die Wertschöpfungskette deines Projekts hier im Editor, importiere eine .vc.json (etwa einen Entwurf deines Agenten) oder lade sie mit der CLI hoch:'
             : 'Für dieses Projekt hat noch niemand eine Wertschöpfungskette angelegt.'}
         </EmptyDescription>
       </EmptyHeader>
@@ -49,10 +53,16 @@ export function EmptyChain({
               copyLabel="Befehl kopieren"
             />
           </div>
-          <Button onClick={onCreate} data-testid="create-chain">
-            <PlusIcon data-icon="inline-start" />
-            Wertschöpfungskette anlegen
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={onCreate} data-testid="create-chain">
+              <PlusIcon data-icon="inline-start" />
+              Wertschöpfungskette anlegen
+            </Button>
+            <Button variant="outline" onClick={onImport} data-testid="import-chain">
+              <FileUpIcon data-icon="inline-start" />
+              Importieren
+            </Button>
+          </div>
         </EmptyContent>
       ) : null}
     </Empty>

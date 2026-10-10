@@ -74,9 +74,9 @@ export function recomputePlacementStatus(
 }
 
 /**
- * The basis of a pipeline placement proposal (M4b): the chain's
- * `structure_hash` and the `facts_hash` of the process's model as the agent
- * saw them, and the declared procedure.
+ * The basis of a pipeline placement proposal (M4b): digests of what the
+ * claim showed of the chain's steps and of the process (`chainInputDigest`,
+ * `processInputDigest`), and the declared procedure.
  */
 export interface PlacementBasis {
   stepHash: string;

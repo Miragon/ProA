@@ -243,6 +243,10 @@ describe('save dialogs', () => {
     expect(within(dialog).getByTestId('impact-changed').textContent).toBe(
       'Vertrieb → Verkauf – 2 angenommene Platzierungen musst du erneut bestätigen',
     );
+    // The lists scroll within the dialog (a whole chain replaced by an import), focusable by keyboard.
+    const lists = within(dialog).getByRole('region', { name: 'Betroffene Schritte' });
+    expect(lists.className).toContain('overflow-y-auto');
+    expect(lists.tabIndex).toBe(0);
     await userEvent
       .setup()
       .click(within(dialog).getByRole('button', { name: 'Trotzdem speichern' }));
